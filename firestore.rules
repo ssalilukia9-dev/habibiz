@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ---------------------------------------------------------
+    // Phase 3: Primitives & Global Helpers
+    // ---------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // User Profiles
+    // ---------------------------------------------------------
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'photoURL', 'lastSeen']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.photoURL is string && data.photoURL.size() <= 1000 &&
+             data.lastSeen == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn(); 
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastSeen']) &&
+        incoming().lastSeen == request.time
+      );
+    }
+
+    // ---------------------------------------------------------
+    // Chat Rooms
+    // ---------------------------------------------------------
+    
+    function isValidRoom(data) {
+      return data.keys().hasAll(['name', 'type', 'updatedAt', 'participants']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.type in ['group', 'private'] &&
+             data.updatedAt == request.time &&
+             data.participants is list && data.participants.size() <= 1000;
+    }
+
+    function isParticipant(roomId) {
+      return isSignedIn() && (
+        resource.data.type == 'group' || 
+        (request.auth.uid in resource.data.participants)
+      );
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isParticipant(roomId) && isValidId(roomId);
+      allow list: if isSignedIn() && (
+        resource.data.type == 'group' || 
+        (request.auth.uid in resource.data.participants)
+      );
+
+      allow create: if isSignedIn() && isValidRoom(incoming());
+      
+      allow update: if isSignedIn() && (
+        isValidId(roomId) && (
+          // Action: Post Message (Update room metadata)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt']) && 
+           incoming().updatedAt == request.time &&
+           (existing().type == 'group' || (request.auth.uid in existing().participants)))
+        )
+      );
+
+      // ---------------------------------------------------------
+      // Messages
+      // ---------------------------------------------------------
+      
+      function isValidMessage(data) {
+        return data.keys().hasAll(['senderId', 'senderName', 'senderPhoto', 'text', 'timestamp']) &&
+               data.senderId == request.auth.uid &&
+               data.text is string && data.text.size() <= 2000 &&
+               data.timestamp == request.time;
+      }
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
+          (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+        );
+        
+        allow create: if isSignedIn() && 
+                      isValidMessage(incoming()) && (
+                        get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
+                        (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+                      );
+      }
+    }
+  }
+}

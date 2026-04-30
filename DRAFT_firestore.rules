@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ---------------------------------------------------------
+    // Phase 3: Primitives & Global Helpers
+    // ---------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      // In this app, we'll relax this for now if the provider doesn't always verify, 
+      // but guidelines suggest mandatory verification. 
+      // Let's use it to be safe, but allow for simple auth if needed.
+      return isSignedIn() && (request.auth.token.email_verified == true);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // User Profiles
+    // ---------------------------------------------------------
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 100;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // Allow listing users for chat selection
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().uid == existing().uid;
+    }
+
+    // ---------------------------------------------------------
+    // Chat Rooms
+    // ---------------------------------------------------------
+    
+    function isValidRoom(data) {
+      return data.keys().hasAll(['name', 'type', 'updatedAt']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.type in ['group', 'private'] &&
+             data.updatedAt == request.time;
+    }
+
+    function isParticipant(roomId) {
+      // For private rooms, check participants array. For groups, anyone signed in can read.
+      return isSignedIn() && (
+        resource.data.type == 'group' || 
+        (request.auth.uid in resource.data.participants)
+      );
+    }
+
+    match /rooms/{roomId} {
+      // Use get and list separately to handle queries
+      allow get: if isParticipant(roomId);
+      allow list: if isSignedIn() && (
+        resource.data.type == 'group' || 
+        (request.auth.uid in resource.data.participants)
+      );
+
+      allow create: if isSignedIn() && isValidRoom(incoming());
+      
+      allow update: if isSignedIn() && (
+        // For groups, anyone can update metadata like lastMessage or updatedAt
+        (existing().type == 'group' && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt'])) ||
+        // For private rooms, only participants
+        (existing().type == 'private' && (request.auth.uid in existing().participants) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt']))
+      );
+
+      // ---------------------------------------------------------
+      // Messages
+      // ---------------------------------------------------------
+      
+      function isValidMessage(data) {
+        return data.keys().hasAll(['senderId', 'senderName', 'text', 'timestamp']) &&
+               data.senderId == request.auth.uid &&
+               data.text is string && data.text.size() <= 2000 &&
+               data.timestamp == request.time;
+      }
+
+      match /messages/{messageId} {
+        // Relational check: get the room to verify access
+        // Note: Using get() is safer here than relying on resource because it's a subcollection
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
+          (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+        );
+        
+        allow create: if isSignedIn() && 
+                      isValidMessage(incoming()) && (
+                        get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
+                        (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+                      );
+      }
+    }
+  }
+}
