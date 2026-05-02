@@ -39,6 +39,61 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["participants", "type", "updatedAt"]
+    },
+    "AIConversation": {
+      "title": "AIConversation",
+      "description": "A conversation with the Islamic Companion",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "updatedAt", "createdAt"]
+    },
+    "AIMessage": {
+      "title": "AIMessage",
+      "description": "A message in an AI conversation",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["role", "content", "timestamp"]
+    },
+    "Listing": {
+      "title": "Listing",
+      "description": "A marketplace listing",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "sellerPhoto": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "sold", "deleted"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "sellerId", "status", "createdAt"]
+    },
+    "ChatRequest": {
+      "title": "ChatRequest",
+      "description": "A request to start a private chat",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "fromPhoto": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -53,6 +108,22 @@
     "/rooms/{roomId}/messages/{messageId}": {
       "schema": "Message",
       "description": "Messages within a room"
+    },
+    "/ai_conversations/{convId}": {
+      "schema": "AIConversation",
+      "description": "Historical AI chats"
+    },
+    "/ai_conversations/{convId}/messages/{msgId}": {
+      "schema": "AIMessage",
+      "description": "Messages in an AI chat"
+    },
+    "/listings/{listingId}": {
+      "schema": "Listing",
+      "description": "Marketplace listings"
+    },
+    "/chat_requests/{requestId}": {
+      "schema": "ChatRequest",
+      "description": "Pending chat requests"
     }
   }
 }

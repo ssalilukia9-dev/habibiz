@@ -9,43 +9,133 @@ import {
   Sparkles, 
   MessageSquare,
   User,
-  Bot
+  Bot,
+  Plus,
+  History,
+  Menu,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronRight,
+  MoreVertical
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp, 
+  doc, 
+  updateDoc, 
+  deleteDoc,
+  getDocs
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase.ts';
+import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 
 const SYSTEM_INSTRUCTION = `You are "Habibi AI", a warm, respectful, and wise Islamic companion. 
 Your goal is to provide guidance, answer questions about Islam, and engage in friendly conversation based on the Quran and Sunnah.
 Always maintain a helpful and compassionate tone. 
-If someone asks about non-Islamic topics, try to bring the wisdom back to Islamic values or politely refocus if it's too far off.
+Keep your responses concise but insightful.
 Reference Quranic verses and Hadith where appropriate. 
+Format your responses using Markdown for readability. Use bolding for emphasis and lists for points.
+If someone asks about non-Islamic topics, try to bring the wisdom back to Islamic values or politely refocus if it's too far off.
 If you don't know an answer for certain, suggest consulting a local scholar (Imam).
 Begin your first response with an appropriate Islamic greeting if the user hasn't already.`;
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let genAI: GoogleGenAI | null = null;
+
+function getGenAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set in environment variables");
+    }
+    genAI = new GoogleGenAI({ apiKey });
+  }
+  return genAI;
+}
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'model';
   content: string;
-  timestamp: Date;
+  timestamp: any;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  updatedAt: any;
+  createdAt: any;
 }
 
 export default function CompanionView() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Assalamu Alaikum! I am Habibi, your Islamic companion. How can I assist you on your spiritual journey today?',
-      timestamp: new Date()
-    }
-  ]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Initialize sidebar based on screen size
+  useEffect(() => {
+    if (window.innerWidth >= 1024) {
+      setShowSidebar(true);
+    }
+  }, []);
+
+  // Fetch Conversation History
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const q = query(
+      collection(db, 'ai_conversations'),
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('updatedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Conversation));
+      setConversations(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'ai_conversations');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Messages for active conversation
+  useEffect(() => {
+    if (!activeConvId) {
+      setMessages([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, `ai_conversations/${activeConvId}/messages`),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      setMessages(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `ai_conversations/${activeConvId}/messages`);
+    });
+
+    return () => unsubscribe();
+  }, [activeConvId]);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -79,54 +169,100 @@ export default function CompanionView() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
+
+  const startNewChat = async () => {
+    setActiveConvId(null);
+    setMessages([]);
+    setInput('');
+  };
+
+  const deleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this conversation?")) return;
+    
+    try {
+      if (activeConvId === id) setActiveConvId(null);
+      
+      // Delete messages subcollection first (though firestore rules might prevent batch delete easily, 
+      // in production we'd do a recursive delete or function)
+      const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
+      for (const m of msgs.docs) {
+        await deleteDoc(m.ref);
+      }
+      await deleteDoc(doc(db, 'ai_conversations', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `ai_conversations/${id}`);
+    }
+  };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !auth.currentUser) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    const userText = input.trim();
     setInput('');
     setIsLoading(true);
 
     try {
+      let currentConvId = activeConvId;
+
+      // 1. Create conversation if it doesn't exist
+      if (!currentConvId) {
+        const convRef = await addDoc(collection(db, 'ai_conversations'), {
+          userId: auth.currentUser.uid,
+          title: userText.slice(0, 40) + (userText.length > 40 ? '...' : ''),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        currentConvId = convRef.id;
+        setActiveConvId(currentConvId);
+      } else {
+        // Update updatedAt
+        await updateDoc(doc(db, 'ai_conversations', currentConvId), {
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // 2. Add user message to Firestore
+      const msgRef = collection(db, `ai_conversations/${currentConvId}/messages`);
+      await addDoc(msgRef, {
+        role: 'user',
+        content: userText,
+        timestamp: serverTimestamp()
+      });
+
+      // 3. Call AI
+      const ai = getGenAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: messages.concat(userMessage).map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
+        contents: messages.map(m => ({
+          role: m.role,
           parts: [{ text: m.content }]
-        })),
+        })).concat({
+          role: 'user',
+          parts: [{ text: userText }]
+        }),
         config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
+          systemInstruction: SYSTEM_INSTRUCTION
         }
       });
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.text || "I apologize, I couldn't process that. Please try again.",
-        timestamp: new Date()
-      };
+      const assistantText = response.text || "I apologize, I couldn't process that. Please try again.";
 
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      if (voiceEnabled && response.text) {
-        speak(response.text);
+      // 4. Add assistant message to Firestore
+      await addDoc(msgRef, {
+        role: 'model',
+        content: assistantText,
+        timestamp: serverTimestamp()
+      });
+
+      if (voiceEnabled) {
+        speak(assistantText);
       }
+
     } catch (error) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: "I encountered an error. Please ensure your connection is stable.",
-        timestamp: new Date()
-      }]);
+      // We don't necessarily want to halt on AI error, but maybe show an error toast
     } finally {
       setIsLoading(false);
     }
@@ -134,23 +270,22 @@ export default function CompanionView() {
 
   const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
-    
-    // Stop any existing speech
     window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.pitch = 1;
     
-    // Try to find a warm voice
+    // Clean text for speech
+    const cleanText = text.replace(/[*_#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
+    
+    const utterance = new window.SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
     const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices[0];
-    if (preferredVoice) utterance.voice = preferredVoice;
-
+    const voice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices[0];
+    if (voice) utterance.voice = voice;
+    
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
+    
     window.speechSynthesis.speak(utterance);
   };
 
@@ -160,128 +295,271 @@ export default function CompanionView() {
   };
 
   return (
-    <div className="flex flex-col h-[75vh] md:h-[80vh] max-w-4xl mx-auto glass-panel rounded-[2.5rem] overflow-hidden border-brand-primary/20 shadow-2xl relative">
-      {/* Header */}
-      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-brand-primary/20 rounded-2xl flex items-center justify-center border border-brand-primary/30">
-            <Bot size={24} className="text-brand-primary" />
+    <div className="flex h-[80vh] max-w-6xl mx-auto glass-panel rounded-[2.5rem] overflow-hidden border-white/10 shadow-2xl relative">
+      {/* Sidebar - Mobile Drawer / Desktop Static */}
+      <AnimatePresence mode="wait">
+        {showSidebar && (
+          <>
+            {/* Backdrop for mobile */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSidebar(false)}
+              className="fixed inset-0 bg-brand-depth/80 backdrop-blur-sm z-40 lg:hidden"
+            />
+            
+            <motion.aside 
+              initial={{ x: -280, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -280, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed lg:relative inset-y-0 left-0 w-[280px] lg:w-[280px] bg-brand-sidebar/95 lg:bg-brand-sidebar/50 border-r border-white/5 flex flex-col z-50 lg:z-auto overflow-hidden whitespace-nowrap"
+            >
+              <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <History size={14} className="text-brand-primary" /> Past Chats
+                </h3>
+                <button 
+                  onClick={() => setShowSidebar(false)}
+                  className="p-1.5 text-slate-500 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
+                {conversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    onClick={() => {
+                      setActiveConvId(conv.id);
+                      if (window.innerWidth < 1024) setShowSidebar(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setActiveConvId(conv.id);
+                        if (window.innerWidth < 1024) setShowSidebar(false);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className={`w-full group text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
+                      activeConvId === conv.id 
+                        ? 'bg-brand-primary/10 border border-brand-primary/20 text-brand-primary' 
+                        : 'hover:bg-white/5 text-slate-400'
+                    }`}
+                  >
+                    <MessageSquare size={16} className={`${activeConvId === conv.id ? 'text-brand-primary' : 'text-slate-500'}`} />
+                    <span className="flex-1 text-xs font-medium truncate">{conv.title}</span>
+                    <button 
+                      onClick={(e) => deleteConversation(conv.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all focus:opacity-100 outline-none"
+                      aria-label="Delete conversation"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+                
+                {conversations.length === 0 && (
+                  <div className="text-center py-10 opacity-30">
+                    <Sparkles size={32} className="mx-auto mb-4" />
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">No history yet</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-white/5">
+                 <button 
+                   onClick={() => {
+                     startNewChat();
+                     if (window.innerWidth < 1024) setShowSidebar(false);
+                   }}
+                   className="w-full flex items-center justify-center gap-2 py-3 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-xl font-bold text-xs hover:bg-brand-primary/20 transition-all"
+                 >
+                   <Plus size={16} /> NEW CONSULTATION
+                 </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col relative islamic-pattern">
+        {/* Header */}
+        <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-brand-sidebar/40 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowSidebar(prev => !prev)} 
+              className="p-2 text-slate-400 hover:text-brand-primary transition-colors"
+            >
+              {showSidebar ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+            </button>
+            <div className="w-10 h-10 bg-brand-primary/20 rounded-xl flex items-center justify-center border border-brand-primary/30 group">
+              <Bot size={20} className="text-brand-primary group-hover:scale-110 transition-transform" />
+            </div>
+            <div>
+              <h2 className="text-sm md:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                Habibi AI
+                <span className="hidden xs:inline text-[8px] bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded-full border border-purple-500/20 uppercase">Online</span>
+              </h2>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Islamic Companion</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Habibi AI</h2>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Islamic Companion</span>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={`p-2.5 rounded-xl transition-all ${voiceEnabled ? 'text-brand-primary bg-brand-primary/10' : 'text-slate-500 hover:bg-white/5'}`}
+            >
+              {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            <button className="p-2.5 text-slate-500 hover:text-white rounded-xl transition-all">
+              <MoreVertical size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide"
+        >
+          {activeConvId === null && messages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-6">
+              <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shadow-2xl relative">
+                <Bot size={40} className="text-brand-primary" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center">
+                  <Sparkles size={12} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2">Welcome, Brother/Sister</h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                  "Invite to the way of your Lord with wisdom and good instruction." (16:125)
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 w-full">
+                {["Prophet's character", "Importance of patience", "How to pray better"].map((query) => (
+                  <button 
+                    key={query}
+                    onClick={() => { setInput(query); }}
+                    className="p-4 glass-panel border-white/5 text-xs text-slate-300 hover:border-brand-primary/30 hover:text-brand-primary transition-all text-left flex items-center justify-between"
+                  >
+                    {query}
+                    <ChevronRight size={14} className="opacity-30" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence initial={false}>
+            {messages.map((m, idx) => (
+              <motion.div
+                key={m.id || idx}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex gap-4 max-w-[90%] md:max-w-[75%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg ${
+                    m.role === 'user' ? 'bg-slate-700 text-slate-300' : 'bg-brand-primary text-brand-depth'
+                  }`}>
+                    {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                  </div>
+                  <div className={`relative group ${m.role === 'user' ? 'order-1' : ''}`}>
+                    <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl ${
+                      m.role === 'user' 
+                        ? 'bg-brand-primary text-brand-depth font-semibold' 
+                        : 'glass-panel text-slate-200 border-white/10'
+                    }`}>
+                      <div className="markdown-body prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-brand-primary">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          
+          {isLoading && (
+            <div className="flex justify-start">
+               <div className="bg-white/5 border border-white/10 p-5 rounded-2xl rounded-tl-none flex gap-2 shadow-inner">
+                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" />
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 md:p-8 bg-gradient-to-t from-brand-sidebar/80 to-transparent">
+          <div className="max-w-3xl mx-auto relative group">
+            <div className="absolute inset-0 bg-brand-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+            <div className="relative glass-panel p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-2xl">
+              <button 
+                onClick={toggleListening}
+                className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse ring-1 ring-red-500/50' : 'text-slate-500 hover:bg-white/5 hover:text-brand-primary'}`}
+              >
+                <Mic size={20} />
+              </button>
+              <input 
+                type="text" 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Ask Habibi AI for wisdom..." 
+                className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-100 placeholder:text-slate-600 text-sm md:text-base selection:bg-brand-primary/30"
+              />
+              <button 
+                onClick={handleSend}
+                disabled={isLoading || !input.trim()}
+                className="bg-brand-primary text-brand-depth w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 disabled:shadow-none font-bold"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+            <div className="flex justify-between items-center px-4 mt-3">
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                <Sparkles size={10} className="text-brand-primary" /> 
+                Habibi AI • {activeConvId ? 'History Enabled' : 'New Chat'}
+              </p>
+              <button 
+                onClick={() => setVoiceEnabled(!voiceEnabled)}
+                className="text-[9px] font-bold text-slate-600 hover:text-brand-primary transition-colors flex items-center gap-1.5 uppercase tracking-widest"
+              >
+                <Volume2 size={10} /> {voiceEnabled ? 'Audio On' : 'Audio Off'}
+              </button>
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setVoiceEnabled(!voiceEnabled)}
-            className={`p-3 rounded-xl transition-all ${voiceEnabled ? 'text-brand-primary bg-brand-primary/10' : 'text-slate-500 hover:bg-white/5'}`}
-            title={voiceEnabled ? "Voice Enabled" : "Voice Disabled"}
-          >
-            {voiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          </button>
-          <button 
-            onClick={() => setMessages([messages[0]])}
-            className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
-            title="Clear Chat"
-          >
-            <Trash2 size={20} />
-          </button>
-        </div>
-      </div>
 
-      {/* Messages */}
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide"
-      >
-        <AnimatePresence initial={false}>
-          {messages.map((m) => (
-            <motion.div
-              key={m.id}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[85%] flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-1 ${
-                  m.role === 'user' ? 'bg-slate-700 text-slate-300' : 'bg-brand-primary/20 text-brand-primary'
-                }`}>
-                  {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
-                </div>
-                <div className={`p-4 rounded-2xl text-sm leading-relaxed ${
-                  m.role === 'user' 
-                    ? 'bg-brand-primary text-brand-depth font-medium rounded-tr-none' 
-                    : 'glass-panel text-slate-200 rounded-tl-none border-white/10 shadow-lg'
-                }`}>
-                  {m.content}
-                  <div className={`text-[9px] mt-2 opacity-50 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        
-        {isLoading && (
-          <div className="flex justify-start">
-             <div className="bg-white/5 border border-white/10 p-4 rounded-2xl rounded-tl-none flex gap-2">
-                <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" />
-             </div>
-          </div>
+        {isSpeaking && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-32 left-1/2 -translate-x-1/2 px-6 py-3 bg-brand-primary text-brand-depth rounded-full shadow-2xl flex items-center gap-3 font-bold text-xs ring-4 ring-brand-primary/20 z-30"
+          >
+            <div className="flex gap-1">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-1 h-3 bg-brand-depth/40 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.1}s` }} />
+              ))}
+            </div>
+            Habibi is speaking...
+            <button onClick={stopSpeech} className="p-1 px-2 border border-brand-depth/20 hover:bg-brand-depth/10 rounded-lg transition-colors ml-2 uppercase text-[8px] font-black">
+              Stop
+            </button>
+          </motion.div>
         )}
       </div>
-
-      {/* Input */}
-      <div className="p-6 bg-white/5 border-t border-white/5">
-        <div className="glass-panel p-2 rounded-2xl flex items-center gap-2 border-brand-primary/20 focus-within:border-brand-primary/50 transition-all shadow-inner">
-          <button 
-            onClick={toggleListening}
-            className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-500 hover:bg-white/5'}`}
-          >
-            <Mic size={20} />
-          </button>
-          <input 
-            type="text" 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask anything about Deen..." 
-            className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-200 placeholder:text-slate-500"
-          />
-          <button 
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="bg-brand-primary text-brand-depth w-12 h-12 rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 shadow-lg shadow-brand-primary/20"
-          >
-            <Send size={20} />
-          </button>
-        </div>
-        <p className="text-[10px] text-center text-slate-500 mt-4 uppercase tracking-[0.2em] font-bold">
-          <Sparkles size={10} className="inline mr-1 mb-0.5" /> AI Guidance based on Quran and Sunnah
-        </p>
-      </div>
-
-      {isSpeaking && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          className="absolute bottom-28 left-1/2 -translate-x-1/2 px-6 py-3 bg-brand-primary text-brand-depth rounded-full shadow-2xl flex items-center gap-3 font-bold text-xs"
-        >
-          <Volume2 size={16} className="animate-pulse" />
-          Habibi is speaking...
-          <button onClick={stopSpeech} className="p-1 hover:bg-brand-depth/10 rounded-full transition-colors leading-none ml-2">
-            <Trash2 size={14} />
-          </button>
-        </motion.div>
-      )}
     </div>
   );
 }

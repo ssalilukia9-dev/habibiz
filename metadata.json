@@ -1,6 +1,6 @@
 {
   "name": "An-Nur Quran Hub",
   "description": "A comprehensive, self-contained Quran and Hadith sanctuary with multi-language translations, Tafsir, and Juz-based navigation.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": []
 }

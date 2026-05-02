@@ -1,12 +1,13 @@
-import { Moon, Sun, Globe, Bell, Shield, Info, Database } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 
 interface SettingsViewProps {
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
+  onLogout: () => void;
 }
 
-export default function SettingsView({ darkMode, setDarkMode }: SettingsViewProps) {
+export default function SettingsView({ darkMode, setDarkMode, onLogout }: SettingsViewProps) {
   return (
     <div className="max-w-2xl mx-auto space-y-12 pb-20">
       <header>
@@ -66,7 +67,7 @@ export default function SettingsView({ darkMode, setDarkMode }: SettingsViewProp
            {[
              { icon: Bell, label: 'Prayer Notifications', desc: 'Sync with local prayer times' },
              { icon: Database, label: 'Offline Sanctuary', desc: 'Manage downloaded revelations' },
-             { icon: Info, label: 'An-Nur Version', desc: 'v1.0.0-gold • Sanctuary Release' }
+             { icon: Info, label: 'An-Nur Version', desc: 'v1.3.0-purple • Sanctuary Release' }
            ].map((item, i) => (
              <button 
                key={i}
@@ -84,6 +85,32 @@ export default function SettingsView({ darkMode, setDarkMode }: SettingsViewProp
                <ChevronRight size={20} className="text-slate-700 group-hover:text-brand-primary transition-colors" />
              </button>
            ))}
+        </div>
+      </section>
+
+      {/* Logout Section */}
+      <section className="space-y-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500/60 flex items-center gap-3">
+          <LogOut size={14} /> Critical Actions
+        </h3>
+        <div className="bg-red-500/5 rounded-[2rem] border border-red-500/10 overflow-hidden shadow-2xl">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center justify-between p-8 hover:bg-red-500/10 transition-all group"
+          >
+            <div className="flex items-center gap-5 text-left">
+              <div className="p-4 bg-red-500/10 rounded-2xl text-red-500 border border-red-500/20 group-hover:scale-110 transition-transform">
+                <LogOut size={24} />
+              </div>
+              <div>
+                <p className="font-black text-slate-200">Sign Out of Sanctuary</p>
+                <p className="text-xs text-red-500/60 font-medium">Safe departure from your digital session</p>
+              </div>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+              <ArrowRight size={20} />
+            </div>
+          </button>
         </div>
       </section>
 

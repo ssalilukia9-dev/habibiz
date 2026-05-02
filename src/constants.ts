@@ -128,6 +128,7 @@ export const JUZ_LIST: Juz[] = Array.from({ length: 30 }, (_, i) => ({
 export const NAVIGATION_TABS = [
   { id: 'home', label: 'Home', icon: 'Home' },
   { id: 'resources', label: 'Resources', icon: 'BookOpen' },
+  { id: 'chat', label: 'Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
   { id: 'bookmarks', label: 'Bookmarks', icon: 'Bookmark' },
   { id: 'settings', label: 'Settings', icon: 'Settings' }
@@ -139,4 +140,15 @@ export const LANGUAGES = [
   { code: 'id', name: 'Indonesian' },
   { code: 'tr', name: 'Turkish' },
   { code: 'ur', name: 'Urdu' }
+];
+
+export const RECITERS = [
+  { id: 7, name: 'Mishary Rashid Alafasy', slug: 'ar.alafasy', sub: 'Soulful melody' },
+  { id: 3, name: 'Abdur-Rahman as-Sudais', slug: 'ar.abdurrahmaansudais', sub: 'Imam of Grand Mosque' },
+  { id: 6, name: 'Maher Al-Muaiqly', slug: 'ar.mahermuaiqly', sub: 'Distinctive clear tone' },
+  { id: 8, name: 'Saud Al-Shuraim', slug: 'ar.saoodshuraym', sub: 'Deep resonate voice' },
+  { id: 1, name: 'AbdulBaset AbdulSamad', slug: 'ar.abdulsamad', sub: 'Legendary resonance' },
+  { id: 5, name: 'Saad Al-Ghamidi', slug: 'ar.saadalgahmadi', sub: 'Smooth and rhythmic' },
+  { id: 12, name: 'Hani ar-Rifai', slug: 'ar.hanirifai', sub: 'Emotional delivery' },
+  { id: 11, name: 'Abdul Bari Ath-Thubaity', slug: 'ar.thubaity', sub: 'Steady and powerful' }
 ];

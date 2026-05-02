@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   BookOpen, 
   Users, 
@@ -15,16 +16,18 @@ import {
   List,
   Home,
   MessageSquare,
+  MessageCircle,
   Compass,
   ShoppingBag,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  Sparkles
 } from 'lucide-react';
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
 import { Surah, Ayah } from './types.ts';
 import { auth, signInWithGoogle, db } from './lib/firebase.ts';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/utils.ts';
 
 // Components
@@ -36,9 +39,15 @@ import SettingsView from './components/SettingsView.tsx';
 import CompanionView from './components/CompanionView.tsx';
 import MarketView from './components/MarketView.tsx';
 import ResourcesView from './components/ResourcesView.tsx';
+import ChatView from './components/ChatView.tsx';
+import AuthView from './components/AuthView.tsx';
+import PremiumGateway from './components/PremiumGateway.tsx';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = location.pathname.substring(1) || 'home';
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -48,6 +57,52 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [initialResId, setInitialResId] = useState<any>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [userJoinedAt, setUserJoinedAt] = useState<Date | null>(null);
+
+  // Trial Logic: 3 days (72 hours)
+  const isTrialActive = userJoinedAt ? (Date.now() - userJoinedAt.getTime() < 3 * 24 * 60 * 60 * 1000) : true;
+  const trialExpired = !isTrialActive;
+
+  // Gamification State
+  const [hasanat, setHasanat] = useState(1250);
+  const [rank, setRank] = useState('Seeker');
+  const [pointPopups, setPointPopups] = useState<{id: number, amount: number}[]>([]);
+  const [versesRead, setVersesRead] = useState(142);
+  const [duaCount, setDuaCount] = useState(84);
+  const [streak, setStreak] = useState(12);
+  const popupId = useRef(0);
+
+  const addHasanat = (amount: number) => {
+    setHasanat(prev => prev + amount);
+    const id = popupId.current++;
+    setPointPopups(prev => [...prev, { id, amount }]);
+    setTimeout(() => {
+      setPointPopups(prev => prev.filter(p => p.id !== id));
+    }, 2000);
+  };
+
+  const incrementDua = () => {
+    setDuaCount(prev => prev + 1);
+    addHasanat(15);
+  };
+
+  const incrementVerse = () => {
+    setVersesRead(prev => prev + 1);
+    addHasanat(10);
+  };
+
+  const level = Math.floor(hasanat / 500) + 1;
+  const levelProgress = ((hasanat % 500) / 500) * 100;
+
+  useEffect(() => {
+    // Update rank based on level
+    if (level > 20) setRank('Legacy of Light');
+    else if (level > 15) setRank('Gnostic');
+    else if (level > 10) setRank('Devotee');
+    else if (level > 5) setRank('Vanguard');
+    else setRank('Seeker');
+  }, [level]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -58,13 +113,35 @@ export default function App() {
         // Sync user to firestore
         const userRef = doc(db, 'users', user.uid);
         try {
-          await setDoc(userRef, {
-            uid: user.uid,
-            displayName: user.displayName,
-            email: user.email,
-            photoURL: user.photoURL,
-            lastSeen: serverTimestamp()
-          }, { merge: true });
+          const docSnap = await getDoc(userRef);
+          let joinedDate = new Date();
+          
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setIsPremium(data.isPremium || false);
+            if (data.createdAt) {
+               joinedDate = data.createdAt.toDate();
+            }
+            setUserJoinedAt(joinedDate);
+          } else {
+            // New user, starting trial now
+            setUserJoinedAt(joinedDate);
+            await setDoc(userRef, {
+              uid: user.uid,
+              displayName: user.displayName,
+              email: user.email,
+              photoURL: user.photoURL,
+              createdAt: serverTimestamp(),
+              isPremium: false,
+              lastSeen: serverTimestamp()
+            });
+          }
+
+          if (docSnap.exists()) {
+             await updateDoc(userRef, {
+               lastSeen: serverTimestamp()
+             });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
         }
@@ -106,8 +183,7 @@ export default function App() {
   const [selectedReciter, setSelectedReciter] = useState(7); // Default: Alafasy
 
   const handleNavigate = (tab: string, extra?: any) => {
-    setActiveTab(tab);
-    if (extra?.resId) {
+    if (tab === 'resources' && extra?.resId) {
       setInitialResId(extra.resId);
     } else {
       setInitialResId(null);
@@ -116,8 +192,10 @@ export default function App() {
     if (tab === 'quran' && extra?.surahNumber) {
       const surah = SURAH_LIST.find(s => s.number === extra.surahNumber);
       if (surah) setSelectedSurah(surah);
-    } else if (tab === 'quran') {
-      setSelectedSurah(null);
+      navigate('/resources');
+    } else {
+      navigate(`/${tab}`);
+      if (tab !== 'resources') setSelectedSurah(null);
     }
   };
 
@@ -131,50 +209,42 @@ export default function App() {
     });
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return <HomeView onNavigate={handleNavigate} />;
-      case 'resources':
-        return (
-          <ResourcesView 
-            selectedSurah={selectedSurah}
-            onSelectSurah={setSelectedSurah}
-            searchQuery={searchQuery}
-            bookmarks={bookmarks}
-            onToggleBookmark={toggleBookmark}
-            selectedReciter={selectedReciter}
-            onReciterChange={setSelectedReciter}
-            selectedHadithCollection={selectedHadithCollection}
-            onHadithCollectionChange={setSelectedHadithCollection}
-            initialResId={initialResId}
-          />
-        );
-      case 'market':
-        return <MarketView />;
-      case 'bookmarks':
-        return <BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />;
-      case 'settings':
-        return <SettingsView darkMode={true} setDarkMode={() => {}} />;
-      case 'companion':
-        return <CompanionView />;
-      default:
-        return <HomeView onNavigate={handleNavigate} />;
-    }
-  };
-
   const tabsWithCompanion = [
     ...NAVIGATION_TABS,
-    { id: 'companion', label: 'Companion', icon: 'MessageSquare' }
+    { id: 'companion', label: 'Companion', icon: 'Sparkles' }
   ];
 
   return (
-    <div className="h-screen flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
+    <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
       {/* Background Glow */}
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-primary/5 blur-[150px] rounded-full pointer-events-none z-0"></div>
+<div id="trial-info" className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+{currentUser && !isPremium && !trialExpired && (
+  <div className="bg-amber-500/20 backdrop-blur-md border border-amber-500/30 px-6 py-2 rounded-full overflow-hidden">
+     <div className="flex items-center gap-3">
+        <Sparkles size={14} className="text-amber-400 animate-pulse" />
+        <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">3-Day Trial Active</p>
+        <div className="w-[1px] h-3 bg-amber-500/30" />
+        <p className="text-[9px] font-bold text-white/70">
+           {Math.ceil((3 * 24 * 60 * 60 * 1000 - (Date.now() - (userJoinedAt?.getTime() || 0))) / (1000 * 60 * 60))} Hours Left
+        </p>
+     </div>
+  </div>
+)}
+</div>
+
+      {currentUser && !isPremium && trialExpired && (
+        <PremiumGateway onActivate={async () => {
+          if (currentUser) {
+             const userRef = doc(db, 'users', currentUser.uid);
+             await updateDoc(userRef, { isPremium: true });
+             setIsPremium(true);
+          }
+        }} />
+      )}
 
       {/* WHATSAPP STYLE SIDEBAR: Narrow Primary Rail */}
-      <aside className="hidden lg:flex w-16 bg-brand-sidebar border-r border-brand-border flex-col items-center py-8 gap-6 z-40">
+      <aside className="hidden lg:flex w-16 h-full bg-brand-sidebar border-r border-brand-border flex-col items-center py-8 gap-6 z-40 flex-shrink-0">
         <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 mb-6 group cursor-pointer">
           <BookOpen size={20} className="text-brand-depth group-hover:scale-110 transition-transform" />
         </div>
@@ -188,8 +258,10 @@ export default function App() {
               Bookmark, 
               Settings: SettingsIcon,
               MessageSquare,
+              MessageCircle,
               Compass,
-              ShoppingBag
+              ShoppingBag,
+              Sparkles
             }[tab.icon as keyof typeof Icon] || BookOpen;
             
             const isActive = activeTab === tab.id;
@@ -197,7 +269,7 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => {
-                  setActiveTab(tab.id);
+                  navigate(`/${tab.id}`);
                   if (tab.id !== 'resources') setSelectedSurah(null);
                 }}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative group ${
@@ -249,8 +321,8 @@ export default function App() {
       </aside>
 
       {/* SECONDARY SIDEBAR: List Area */}
-      <aside className={`hidden md:flex flex-col bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 ${activeTab === 'home' || activeTab === 'settings' || activeTab === 'companion' ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
-        <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-10">
+      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${activeTab === 'home' || activeTab === 'settings' || activeTab === 'companion' ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
+        <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-20">
            <h2 className="text-xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
            <div className="flex gap-2">
               <button className="p-2 text-slate-500 hover:text-brand-primary transition-colors"><Search size={18} /></button>
@@ -299,6 +371,24 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 relative flex flex-col z-10 min-w-0">
+        {/* Floating Point Popups */}
+        <div className="fixed top-24 right-8 z-[100] flex flex-col gap-2 pointer-events-none">
+          <AnimatePresence>
+            {pointPopups.map(p => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, x: 20, scale: 0.5 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -40, scale: 1.2 }}
+                className="bg-brand-primary text-brand-depth px-4 py-2 rounded-full font-black text-xs shadow-xl shadow-brand-primary/20 flex items-center gap-2"
+              >
+                <Sparkles size={14} />
+                +{p.amount} HASANAT
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
         {/* Header */}
         <header className="h-20 flex items-center justify-between px-6 md:px-10 border-b border-brand-border bg-brand-depth/80 backdrop-blur-md">
           <div className="flex items-center gap-6 flex-1">
@@ -328,19 +418,60 @@ export default function App() {
         </header>
 
       {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide pb-24 md:pb-0">
+        <div className="flex-1 overflow-y-auto scrollbar-hide pb-32 md:pb-12">
           <div className="max-w-5xl mx-auto p-4 md:p-12">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab + (selectedSurah?.number || '')}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
+            {!currentUser ? (
+              <AuthView onSuccess={() => {}} />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                >
+                  <Routes location={location}>
+                    <Route path="/" element={<Navigate to="/home" replace />} />
+                    <Route path="/home" element={
+                      <HomeView 
+                        onNavigate={handleNavigate} 
+                        hasanat={hasanat} 
+                        level={level} 
+                        rank={rank} 
+                        levelProgress={levelProgress}
+                        versesRead={versesRead}
+                        duaCount={duaCount}
+                        streak={streak}
+                      />
+                    } />
+                    <Route path="/resources" element={
+                      <ResourcesView 
+                        selectedSurah={selectedSurah}
+                        onSelectSurah={setSelectedSurah}
+                        searchQuery={searchQuery}
+                        bookmarks={bookmarks}
+                        onToggleBookmark={toggleBookmark}
+                        selectedReciter={selectedReciter}
+                        onReciterChange={setSelectedReciter}
+                        selectedHadithCollection={selectedHadithCollection}
+                        onHadithCollectionChange={setSelectedHadithCollection}
+                        initialResId={initialResId}
+                        addHasanat={addHasanat}
+                        incrementDua={incrementDua}
+                        incrementVerse={incrementVerse}
+                      />
+                    } />
+                    <Route path="/market" element={<MarketView />} />
+                    <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
+                    <Route path="/settings" element={<SettingsView darkMode={true} setDarkMode={() => {}} onLogout={handleLogout} />} />
+                    <Route path="/companion" element={<CompanionView />} />
+                    <Route path="/chat" element={<ChatView isPremium={isPremium} />} />
+                    <Route path="*" element={<Navigate to="/home" replace />} />
+                  </Routes>
+                </motion.div>
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </main>
@@ -353,15 +484,17 @@ export default function App() {
             BookOpen, 
             Users, 
             MessageSquare,
+            MessageCircle,
             Compass,
-            ShoppingBag
+            ShoppingBag,
+            Sparkles
           }[tab.icon as keyof typeof Icon] || BookOpen;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => {
-                setActiveTab(tab.id);
+                navigate(`/${tab.id}`);
                 if (tab.id !== 'resources') setSelectedSurah(null);
               }}
               className={`flex flex-col items-center gap-1 transition-all duration-300 ${isActive ? 'text-brand-primary' : 'text-slate-500'}`}
@@ -412,7 +545,7 @@ export default function App() {
                  {NAVIGATION_TABS.map((tab) => (
                    <button
                      key={tab.id}
-                     onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); if (tab.id !== 'resources') setSelectedSurah(null); }}
+                     onClick={() => { navigate(`/${tab.id}`); setIsSidebarOpen(false); if (tab.id !== 'resources') setSelectedSurah(null); }}
                      className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-all ${activeTab === tab.id ? 'bg-brand-primary/20 text-brand-primary border border-brand-primary/30' : 'text-slate-500'}`}
                    >
                      <span>{tab.label}</span>

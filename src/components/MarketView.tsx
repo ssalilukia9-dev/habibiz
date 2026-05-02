@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingBag, 
@@ -9,198 +9,460 @@ import {
   Filter,
   ShoppingCart,
   Heart,
-  X
+  X,
+  Plus,
+  MessageCircle,
+  Package,
+  Image as ImageIcon,
+  DollarSign,
+  User as UserIcon,
+  Trash2
 } from 'lucide-react';
+import { db, auth } from '../lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp,
+  where,
+  deleteDoc,
+  doc,
+  getDocs,
+  Timestamp
+} from 'firebase/firestore';
 
-interface Product {
-  id: number;
-  name: string;
+import { handleFirestoreError, OperationType } from '../lib/utils';
+
+interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
   category: string;
-  price: string;
-  rating: number;
-  image: string;
-  desc: string;
-  isNew?: boolean;
+  imageUrl: string;
+  sellerId: string;
+  sellerName: string;
+  sellerPhoto?: string;
+  status: 'active' | 'sold' | 'deleted';
+  createdAt: Timestamp;
+  rating?: number;
+  condition?: 'New' | 'Like New' | 'Good' | 'Fair';
 }
 
-const PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Luxury Velvet Prayer Mat",
-    category: "Worship",
-    price: "$45.00",
-    rating: 4.9,
-    image: "https://images.unsplash.com/photo-1590073242678-70ee3fc28e8e?auto=format&fit=crop&q=80&w=400",
-    desc: "Plush, double-layered velvet for maximum comfort during long prayers. Features intricate floral borders.",
-    isNew: true
-  },
-  {
-    id: 2,
-    name: "The Sealed Nectar (Biography)",
-    category: "Books",
-    price: "$28.00",
-    rating: 5.0,
-    image: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400",
-    desc: "A comprehensive biography of the Prophet Muhammad (PBUH), award-winning and meticulously researched."
-  },
-  {
-    id: 3,
-    name: "Aoud Royal Perfume Oil",
-    category: "Fragrance",
-    price: "$75.00",
-    rating: 4.8,
-    image: "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&q=80&w=400",
-    desc: "Authentic Cambodian Oudh blend with notes of saffron and sandalwood. Long-lasting oil-based fragrance."
-  },
-  {
-    id: 4,
-    name: "Engraved Bamboo Tasbih",
-    category: "Worship",
-    price: "$15.00",
-    rating: 4.7,
-    image: "https://images.unsplash.com/photo-1609599006353-e629339e0da9?auto=format&fit=crop&q=80&w=400",
-    desc: "Handcrafted 33-bead tasbih with sustainable bamboo. Lightweight and smooth for dhikr."
-  },
-  {
-    id: 5,
-    name: "Modern Arabic Calligraphy Art",
-    category: "Decor",
-    price: "$120.00",
-    rating: 4.9,
-    image: "https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?auto=format&fit=crop&q=80&w=400",
-    desc: "Canvas print featuring a minimalist interpretation of Surah Al-Fatiha in gold silk thread."
-  },
-  {
-    id: 6,
-    name: "Hajj & Umrah Essentials Kit",
-    category: "Travel",
-    price: "$35.00",
-    rating: 4.6,
-    image: "https://images.unsplash.com/photo-1564765793442-9907c6f0590c?auto=format&fit=crop&q=80&w=400",
-    desc: "Unscented soaps, Ihram belt, and a travel prayer mat in a compact waterproof bag."
-  }
-];
+const StarRating = ({ rating }: { rating: number }) => {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star
+          key={s}
+          size={12}
+          className={`${
+            s <= Math.floor(rating)
+              ? 'text-brand-primary fill-brand-primary'
+              : 'text-slate-700'
+          }`}
+        />
+      ))}
+      <span className="text-[10px] font-black text-slate-500 ml-1.5">{rating.toFixed(1)}</span>
+    </div>
+  );
+};
 
 export default function MarketView() {
+  const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [cartCount, setCartCount] = useState(0);
-  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [activeProduct, setActiveProduct] = useState<Listing | null>(null);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const categories = ['All', 'Worship', 'Books', 'Fragrance', 'Decor', 'Travel'];
+  // Form State
+  const [newListing, setNewListing] = useState({
+    title: '',
+    description: '',
+    price: '',
+    category: 'Worship',
+    imageUrl: '',
+    condition: 'New' as Listing['condition']
+  });
 
-  const filteredProducts = selectedCategory === 'All' 
-    ? PRODUCTS 
-    : PRODUCTS.filter(p => p.category === selectedCategory);
+  const categories = ['All', 'Worship', 'Books', 'Fragrance', 'Decor', 'Clothing', 'Other'];
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'listings'),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Listing[];
+      setListings(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'listings');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleCreateListing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'listings'), {
+        ...newListing,
+        price: parseFloat(newListing.price),
+        sellerId: auth.currentUser.uid,
+        sellerName: auth.currentUser.displayName || 'Anonymous',
+        sellerPhoto: auth.currentUser.photoURL,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        rating: 5.0, // Default for new items
+      });
+      setShowCreateModal(false);
+      setNewListing({ title: '', description: '', price: '', category: 'Worship', imageUrl: '', condition: 'New' });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'listings');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMessageSeller = async (listing: Listing) => {
+    if (!auth.currentUser || auth.currentUser.uid === listing.sellerId) return;
+
+    // Logic to find or create a private chat room
+    try {
+      const roomsRef = collection(db, 'rooms');
+      const q = query(
+        roomsRef, 
+        where('type', '==', 'private'),
+        where('participants', 'array-contains', auth.currentUser.uid)
+      );
+      
+      const snapshot = await getDocs(q);
+      let existingRoom = snapshot.docs.find(doc => {
+        const data = doc.data();
+        return data.participants.includes(listing.sellerId);
+      });
+
+      if (!existingRoom) {
+        // Create new private room
+        const roomData = {
+          name: `${auth.currentUser.displayName} & ${listing.sellerName}`,
+          type: 'private',
+          participants: [auth.currentUser.uid, listing.sellerId],
+          lastMessage: `Inquiry about: ${listing.title}`,
+          updatedAt: serverTimestamp()
+        };
+        const newRoom = await addDoc(roomsRef, roomData);
+        // Maybe redirect to community view with this room selected?
+        // For now just alert or show a success toast
+        alert(`Started conversation with ${listing.sellerName}. Head over to Community to chat!`);
+      } else {
+        alert(`Conversation already exists with ${listing.sellerName}. Head over to Community to chat!`);
+      }
+    } catch (error) {
+      console.error("Error starting chat:", error);
+    }
+  };
+
+  const handleDeleteListing = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this listing?')) return;
+    try {
+      await deleteDoc(doc(db, 'listings', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `listings/${id}`);
+    }
+  };
+
+  const filteredProducts = listings.filter(p => {
+    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTab = activeTab === 'all' || p.sellerId === auth.currentUser?.uid;
+    return matchesCategory && matchesSearch && matchesTab;
+  });
 
   return (
     <div className="space-y-10 pb-20">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 md:px-0">
         <div>
-          <h2 className="text-3xl font-black text-white tracking-tight mb-2">Suq Al-Mubaraki</h2>
-          <p className="text-slate-500 font-medium">Curated Islamic lifestyle and spiritual essentials.</p>
+          <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight mb-2">Suq Al-Mubaraki</h2>
+          <p className="text-slate-500 font-medium text-sm md:text-base">The community marketplace for spiritual essentials.</p>
         </div>
-        <div className="flex items-center gap-4">
-           <div className="relative">
+        
+        <div className="flex items-center gap-3">
+           <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Suq..."
-                className="bg-brand-sidebar/50 border border-white/5 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:border-brand-primary/40 outline-none w-64 backdrop-blur-md transition-all"
+                className="w-full md:w-64 bg-brand-sidebar/50 border border-white/5 rounded-2xl py-3 pl-11 pr-4 md:pl-12 md:pr-6 text-sm text-white focus:border-brand-primary/40 outline-none backdrop-blur-md transition-all"
               />
            </div>
-           <button className="relative w-12 h-12 glass-panel rounded-2xl flex items-center justify-center text-brand-primary hover:bg-brand-primary/10 transition-all">
-              <ShoppingCart size={20} />
-              {cartCount > 0 && (
-                <span className="absolute -top-2 -right-2 w-5 h-5 bg-brand-primary text-brand-depth text-[10px] font-black rounded-full flex items-center justify-center shadow-lg animate-bounce">
-                  {cartCount}
-                </span>
-              )}
+           <button 
+             onClick={() => setShowCreateModal(true)}
+             className="bg-brand-primary text-brand-depth h-12 px-6 rounded-2xl flex items-center gap-2 font-black text-xs hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20"
+           >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Create Listing</span>
            </button>
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-6 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border ${
-              selectedCategory === cat 
-              ? 'bg-brand-primary text-brand-depth border-brand-primary shadow-xl shadow-brand-primary/20 scale-105' 
-              : 'bg-white/5 text-slate-500 border-white/5 hover:border-white/10'
-            }`}
+      {/* Tabs & Categories */}
+      <div className="space-y-6">
+        <div className="flex gap-4 p-1 bg-white/5 rounded-2xl w-fit">
+          <button 
+            onClick={() => setActiveTab('all')}
+            className={`px-8 py-3 rounded-xl text-xs font-bold transition-all ${activeTab === 'all' ? 'bg-brand-primary text-brand-depth shadow-xl' : 'text-slate-500'}`}
           >
-            {cat}
+            All Items
           </button>
-        ))}
-      </div>
+          <button 
+            onClick={() => setActiveTab('my')}
+            className={`px-8 py-3 rounded-xl text-xs font-bold transition-all ${activeTab === 'my' ? 'bg-brand-primary text-brand-depth shadow-xl' : 'text-slate-500'}`}
+          >
+            My Listings
+          </button>
+        </div>
 
-      {/* Featured Banner */}
-      <div className="relative h-64 rounded-[3rem] overflow-hidden group">
-         <img 
-           src="https://images.unsplash.com/photo-1512418490979-92798ccc1340?auto=format&fit=crop&q=80&w=1200" 
-           alt="Banner" 
-           className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000"
-         />
-         <div className="absolute inset-0 bg-gradient-to-t from-brand-depth via-brand-depth/40 to-transparent" />
-         <div className="absolute inset-y-0 left-12 flex flex-col justify-center">
-            <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] mb-4">Ramadan Essentials</span>
-            <h3 className="text-4xl font-black text-white mb-6 leading-tight">Prepare Your Heart <br/> & Home</h3>
-            <button className="bg-brand-primary text-brand-depth w-fit px-8 py-3 rounded-2xl font-bold flex items-center gap-3 hover:bg-brand-secondary transition-all shadow-xl shadow-brand-primary/20">
-               Browse Collection <ArrowRight size={18} />
+        <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-6 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border ${
+                selectedCategory === cat 
+                ? 'bg-brand-primary text-brand-depth border-brand-primary shadow-xl shadow-brand-primary/20 scale-105' 
+                : 'bg-white/5 text-slate-500 border-white/5 hover:border-white/10'
+              }`}
+            >
+              {cat}
             </button>
-         </div>
+          ))}
+        </div>
       </div>
 
       {/* Product Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredProducts.map((product, idx) => (
-          <motion.div
-            key={product.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="group glass-panel rounded-[2.5rem] border-white/5 overflow-hidden hover:border-brand-primary/20 transition-all shadow-2xl"
-          >
-            <div className="relative h-72 overflow-hidden">
-               <img 
-                 src={product.image} 
-                 alt={product.name}
-                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-               />
-               <button className="absolute top-6 right-6 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:text-red-400 transition-colors">
-                  <Heart size={18} />
-               </button>
-               {product.isNew && (
-                 <div className="absolute top-6 left-6 bg-brand-primary text-brand-depth text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                   New Arrival
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4 md:px-0">
+        <AnimatePresence mode='popLayout'>
+          {filteredProducts.map((product, idx) => (
+            <motion.div
+              key={product.id}
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ delay: idx * 0.05 }}
+              className="group glass-panel rounded-[2.5rem] border-white/5 overflow-hidden hover:border-brand-primary/20 transition-all shadow-2xl flex flex-col h-full bg-brand-sidebar/30 hover:translate-y-[-4px]"
+            >
+              <div className="relative h-72 overflow-hidden bg-brand-depth/40">
+                 {product.imageUrl ? (
+                   <img 
+                    src={product.imageUrl} 
+                    alt={product.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                   />
+                 ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-700">
+                      <Package size={48} className="mb-4 opacity-20" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">No Image Provided</span>
+                   </div>
+                 )}
+                 <div className="absolute top-6 left-6 flex flex-col gap-2">
+                    {product.sellerId === auth.currentUser?.uid && (
+                      <button 
+                        onClick={(e) => handleDeleteListing(product.id, e)}
+                        className="p-3 bg-red-500/20 text-red-400 backdrop-blur-md rounded-2xl hover:bg-red-500 hover:text-white transition-all border border-red-500/30 shadow-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                    <div className="bg-brand-depth/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 w-fit">
+                       <span className="text-[10px] font-black text-white uppercase tracking-tighter">{product.condition || 'New'}</span>
+                    </div>
                  </div>
-               )}
-            </div>
-            <div className="p-8">
-               <div className="flex items-center gap-2 mb-3">
-                  <Star className="text-brand-primary fill-brand-primary" size={14} />
-                  <span className="text-xs font-bold text-slate-300">{product.rating} Rating</span>
-               </div>
-               <h4 className="text-xl font-bold text-white mb-2 group-hover:text-brand-primary transition-colors cursor-pointer" onClick={() => setActiveProduct(product)}>{product.name}</h4>
-               <p className="text-sm text-slate-500 line-clamp-2 mb-6 font-medium leading-relaxed">
-                  {product.desc}
-               </p>
-               <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-white">{product.price}</span>
-                  <button 
-                    onClick={() => setCartCount(c => c + 1)}
-                    className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-brand-primary hover:bg-brand-primary hover:text-brand-depth transition-all border border-brand-primary/20"
-                  >
-                    <ShoppingBag size={20} />
-                  </button>
-               </div>
-            </div>
-          </motion.div>
-        ))}
+                 <div className="absolute bottom-6 right-6 bg-brand-depth px-4 py-2 rounded-2xl border border-brand-primary/30 shadow-2xl">
+                    <span className="text-xl font-black text-brand-primary">${product.price}</span>
+                 </div>
+              </div>
+              <div className="p-8 flex-1 flex flex-col">
+                 <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">{product.category}</span>
+                      <StarRating rating={product.rating || 5.0} />
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5">
+                       <UserIcon size={12} className="text-slate-500" />
+                       <span className="text-[10px] font-bold text-slate-400">{product.sellerName}</span>
+                    </div>
+                 </div>
+                 <h4 className="text-xl font-bold text-white mb-3 group-hover:text-brand-primary transition-colors cursor-pointer line-clamp-1" onClick={() => setActiveProduct(product)}>
+                   {product.title}
+                 </h4>
+                 <p className="text-sm text-slate-500 line-clamp-2 mb-8 font-medium leading-relaxed flex-1">
+                    {product.description}
+                 </p>
+                 <div className="flex gap-3">
+                    <button 
+                      onClick={() => setActiveProduct(product)}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl text-xs transition-all border border-white/5"
+                    >
+                      View Details
+                    </button>
+                    {product.sellerId !== auth.currentUser?.uid && (
+                      <button 
+                        onClick={() => handleMessageSeller(product)}
+                        className="w-14 h-14 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-2xl flex items-center justify-center hover:bg-brand-primary hover:text-brand-depth transition-all"
+                      >
+                        <MessageCircle size={20} />
+                      </button>
+                    )}
+                 </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
+
+      {/* Empty State */}
+      {filteredProducts.length === 0 && (
+        <div className="text-center py-20 px-6">
+           <Package size={64} className="mx-auto text-slate-800 mb-6" />
+           <h3 className="text-xl font-bold text-slate-400 mb-2">No listings found</h3>
+           <p className="text-slate-600 max-w-xs mx-auto">Try a different category or search term, or be the first to create one!</p>
+        </div>
+      )}
+
+      {/* Create Listing Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+             <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowCreateModal(false)}
+               className="absolute inset-0 bg-brand-depth/80 backdrop-blur-xl"
+             />
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.9, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+               className="relative w-full max-w-lg bg-brand-sidebar border border-white/5 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+             >
+                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/5 shrink-0">
+                   <h3 className="text-xl font-black text-white">Create New Listing</h3>
+                   <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-white"><X size={24}/></button>
+                </div>
+                
+                <div className="overflow-y-auto p-8 no-scrollbar">
+                  <form onSubmit={handleCreateListing} className="space-y-6">
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Product Title</label>
+                        <input 
+                          required
+                          type="text" 
+                          value={newListing.title}
+                          onChange={(e) => setNewListing({...newListing, title: e.target.value})}
+                          placeholder="e.g., Luxury Musalla"
+                          className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all"
+                        />
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Price (USD)</label>
+                          <div className="relative">
+                             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                             <input 
+                               required
+                               type="number" 
+                               step="0.01"
+                               value={newListing.price}
+                               onChange={(e) => setNewListing({...newListing, price: e.target.value})}
+                               placeholder="29.99"
+                               className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all"
+                             />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Category</label>
+                          <select 
+                            value={newListing.category}
+                            onChange={(e) => setNewListing({...newListing, category: e.target.value})}
+                            className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all appearance-none"
+                          >
+                             {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-2 col-span-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Condition</label>
+                           <select 
+                             value={newListing.condition}
+                             onChange={(e) => setNewListing({...newListing, condition: e.target.value as any})}
+                             className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all appearance-none"
+                           >
+                              {['New', 'Like New', 'Good', 'Fair'].map(c => <option key={c} value={c}>{c}</option>)}
+                           </select>
+                        </div>
+                     </div>
+
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Description</label>
+                        <textarea 
+                          required
+                          rows={3}
+                          value={newListing.description}
+                          onChange={(e) => setNewListing({...newListing, description: e.target.value})}
+                          placeholder="Detail your item's condition and features..."
+                          className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all resize-none"
+                        />
+                     </div>
+
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Image URL</label>
+                        <div className="relative">
+                           <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                           <input 
+                             type="url" 
+                             value={newListing.imageUrl}
+                             onChange={(e) => setNewListing({...newListing, imageUrl: e.target.value})}
+                             placeholder="https://images.unsplash.com/..."
+                             className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all"
+                           />
+                        </div>
+                     </div>
+
+                     <button 
+                       disabled={isSubmitting}
+                       type="submit"
+                       className="w-full bg-brand-primary text-brand-depth font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-brand-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                     >
+                        {isSubmitting ? 'Posting...' : 'Create Listing'}
+                        <ArrowRight size={20} />
+                     </button>
+                  </form>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Product Detail Modal */}
       <AnimatePresence>
@@ -213,55 +475,105 @@ export default function MarketView() {
               onClick={() => setActiveProduct(null)}
               className="absolute inset-0 bg-brand-depth/80 backdrop-blur-xl"
             />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-brand-sidebar border border-brand-primary/20 rounded-[3rem] overflow-hidden shadow-2xl flex flex-col md:flex-row"
-            >
-               <div className="w-full md:w-1/2 h-80 md:h-auto overflow-hidden">
-                  <img src={activeProduct.image} alt="" className="w-full h-full object-cover" />
-               </div>
-               <div className="p-10 flex-1 relative">
-                  <button 
-                    onClick={() => setActiveProduct(null)}
-                    className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
-                  >
-                    <X size={24} />
-                  </button>
-                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] mb-4">{activeProduct.category}</p>
-                  <h3 className="text-4xl font-black text-white mb-6 leading-tight">{activeProduct.name}</h3>
-                  <div className="flex items-center gap-4 mb-8">
-                     <div className="flex items-center gap-1">
-                        {[1,2,3,4,5].map(i => (
-                          <Star key={i} size={16} className={`${i <= activeProduct.rating ? 'text-brand-primary fill-brand-primary' : 'text-slate-700'}`} />
-                        ))}
-                     </div>
-                     <span className="text-slate-500 text-sm font-bold">128 Reviews</span>
-                  </div>
-                  <p className="text-slate-400 text-lg leading-relaxed mb-10 font-medium">
-                     {activeProduct.desc}
-                  </p>
-                  <div className="flex items-center justify-between mt-auto">
-                     <div>
-                        <p className="text-[10px] text-slate-500 uppercase font-black mb-1">Price</p>
-                        <span className="text-4xl font-black text-white">{activeProduct.price}</span>
-                     </div>
-                     <button 
-                       onClick={() => {
-                         setCartCount(c => c + 1);
-                         setActiveProduct(null);
-                       }}
-                       className="bg-brand-primary text-brand-depth px-10 py-5 rounded-3xl font-black text-lg shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all"
-                     >
-                       Add to Cart
-                     </button>
-                  </div>
-               </div>
-            </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-5xl bg-brand-sidebar border border-brand-primary/20 rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[90vh]"
+              >
+                 <div className="w-full md:w-1/2 h-80 md:h-auto overflow-hidden bg-brand-depth/40 relative">
+                    {activeProduct.imageUrl ? (
+                      <img src={activeProduct.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-700">
+                         <Package size={64} className="mb-4 opacity-20" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-8 right-8 bg-brand-depth/90 backdrop-blur-xl px-6 py-4 rounded-3xl border border-brand-primary/30 shadow-2xl">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Asking Price</p>
+                       <span className="text-3xl font-black text-brand-primary">${activeProduct.price}</span>
+                    </div>
+                 </div>
+                 <div className="p-8 sm:p-12 flex-1 relative flex flex-col overflow-y-auto no-scrollbar">
+                    <button 
+                      onClick={() => setActiveProduct(null)}
+                      className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-xl"
+                    >
+                      <X size={24} />
+                    </button>
+                    
+                    <div className="space-y-8">
+                      <div>
+                        <div className="flex items-center gap-3 mb-6">
+                          <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em]">{activeProduct.category}</span>
+                          <span className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-[8px] font-black uppercase tracking-widest">Active Listing</span>
+                          <span className="px-3 py-1 rounded-full bg-white/5 text-slate-400 text-[8px] font-black uppercase tracking-widest border border-white/5">{activeProduct.condition || 'New'}</span>
+                        </div>
+                        <h3 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight tracking-tight">{activeProduct.title}</h3>
+                        <StarRating rating={activeProduct.rating || 5.0} />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="p-6 bg-white/5 rounded-3xl border border-white/5 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
+                               <UserIcon className="text-brand-primary" size={24} />
+                            </div>
+                            <div>
+                               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Listed by</p>
+                               <p className="text-sm font-black text-white">{activeProduct.sellerName}</p>
+                            </div>
+                         </div>
+                         <div className="p-6 bg-white/5 rounded-3xl border border-white/5 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
+                               <ImageIcon className="text-brand-primary" size={24} />
+                            </div>
+                            <div>
+                               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Condition</p>
+                               <p className="text-sm font-black text-white">{activeProduct.condition || 'New'}</p>
+                            </div>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <h5 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Item Description</h5>
+                         <p className="text-slate-400 text-base md:text-lg leading-relaxed font-medium">
+                            {activeProduct.description}
+                         </p>
+                      </div>
+
+                      <div className="pt-8 border-t border-white/5 flex gap-4">
+                         {activeProduct.sellerId !== auth.currentUser?.uid ? (
+                            <>
+                              <button 
+                                onClick={() => handleMessageSeller(activeProduct!)}
+                                className="flex-1 bg-brand-primary text-brand-depth h-16 rounded-[1.5rem] font-black text-lg shadow-xl shadow-brand-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                              >
+                                <MessageCircle size={24} />
+                                Message Seller
+                              </button>
+                              <button 
+                                onClick={() => alert("Interest noted! The seller will be notified.")}
+                                className="w-16 h-16 bg-white/5 text-white border border-white/10 rounded-[1.5rem] flex items-center justify-center hover:bg-white/10 transition-all"
+                              >
+                                <Heart size={24} />
+                              </button>
+                            </>
+                         ) : (
+                            <button 
+                              disabled
+                              className="w-full bg-white/5 text-slate-500 h-16 rounded-[1.5rem] font-black text-lg border border-white/5"
+                            >
+                              This is your listing
+                            </button>
+                         )}
+                      </div>
+                    </div>
+                 </div>
+              </motion.div>
           </div>
         )}
       </AnimatePresence>
     </div>
   );
 }
+

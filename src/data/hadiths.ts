@@ -183,6 +183,118 @@ export const HADITH_DATABASE: HadithEntry[] = [
     english: "Look at those who are beneath you and do not look at those who are above you, for it is more suitable that you should not underestimate the blessings of Allah.",
     collection: "Sahih Bukhari",
     topic: "Gratitude"
+  },
+  {
+    id: 25,
+    narrator: "Abu Hurairah",
+    arabic: "أَكْمَلُ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا",
+    english: "The most complete of believers in faith are those with the best character.",
+    collection: "Tirmidhi",
+    topic: "Character"
+  },
+  {
+    id: 26,
+    narrator: "Ibn Umar",
+    arabic: "كُنْ فِي الدُّنْيَا كَأَنَّكَ غَرِيبٌ أَوْ عَابِرُ سَبِيلٍ",
+    english: "Be in this world as if you were a stranger or a traveler.",
+    collection: "Sahih Bukhari",
+    topic: "Moderation"
+  },
+  {
+    id: 27,
+    narrator: "Abu Hurairah",
+    arabic: "مَنْ نَفَّسَ عَنْ مُؤْمِنٍ كُرْبَةً مِنْ كُرَبِ الدُّنْيَا نَفَّسَ اللَّهُ عَنْهُ كُرْبَةً مِنْ كُرَبِ يَوْمِ الْقِيَامَةِ",
+    english: "Whoever relieves a believer of some world distress, Allah will relieve him of some of the distress of the Day of Resurrection.",
+    collection: "Sahih Muslim",
+    topic: "Compassion"
+  },
+  {
+    id: 28,
+    narrator: "Sahl bin Sa'd",
+    arabic: "أَنَا وَكَافِلُ الْيَتِيمِ فِي الْجَنَّةِ هَكَذَا",
+    english: "The one who takes care of an orphan and I will be in Paradise like this (holding two fingers together).",
+    collection: "Sahih Bukhari",
+    topic: "Charity"
+  },
+  {
+    id: 29,
+    narrator: "Abu Hurairah",
+    arabic: "لَيْسَ الشَّدِيدُ بِالصُّرَعَةِ، إِنَّمَا الشَّدِيدُ الَّذِي يَمْلِكُ نَفْسَهُ عِنْدَ الْغَضَبِ",
+    english: "The strong is not the one who overcomes the people by his strength, but the strong is the one who controls himself while in anger.",
+    collection: "Sahih Bukhari",
+    topic: "Character"
+  },
+  {
+    id: 31,
+    narrator: "Abu Hurairah",
+    arabic: "الدُّنْيَا سِجْنُ الْمُؤْمِنِ وَجَنَّةُ الْكَافِرِ",
+    english: "The world is a prison for the believer and a paradise for the disbeliever.",
+    collection: "Sahih Muslim",
+    topic: "Moderation"
+  },
+  {
+    id: 32,
+    narrator: "Ibn Mas'ud",
+    arabic: "عَلَيْكُمْ بِالصِّدْقِ فَإِنَّ الصِّدْقَ يَهْدِي إِلَى الْبِرِّ",
+    english: "Keep to truthfulness, for truthfulness leads to righteousness.",
+    collection: "Sahih Bukhari",
+    topic: "Character"
+  },
+  {
+    id: 33,
+    narrator: "Anas bin Malik",
+    arabic: "يَسِّرُوا وَلاَ تُعَسِّرُوا، وَبَشِّرُوا وَلاَ تُنَفِّرُوا",
+    english: "Make things easy and do not make them difficult, and give good tidings and do not make people turn away.",
+    collection: "Sahih Bukhari",
+    topic: "Knowledge"
+  },
+  {
+    id: 34,
+    narrator: "Abu Hurairah",
+    arabic: "الْكَلِمَةُ الطَّيِّبَةُ صَدَقَةٌ",
+    english: "A good word is charity.",
+    collection: "Sahih Bukhari",
+    topic: "Charity"
+  },
+  {
+    id: 35,
+    narrator: "Jabir bin Abdullah",
+    arabic: "كُلُّ مَعْرُوفٍ صَدَقَةٌ",
+    english: "Every act of goodness is charity.",
+    collection: "Sahih Bukhari",
+    topic: "Charity"
+  },
+  {
+    id: 36,
+    narrator: "Abu Shurayh",
+    arabic: "مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيُكْرِمْ جَارَهُ",
+    english: "Whoever believes in Allah and the Last Day, let him be generous to his neighbor.",
+    collection: "Sahih Bukhari",
+    topic: "Character"
+  },
+  {
+    id: 37,
+    narrator: "Abu Hurairah",
+    arabic: "مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ",
+    english: "Charity does not decrease wealth.",
+    collection: "Sahih Muslim",
+    topic: "Charity"
+  },
+  {
+    id: 38,
+    narrator: "Abu Hurairah",
+    arabic: "الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ",
+    english: "A Muslim is one from whose tongue and hand the Muslims are safe.",
+    collection: "Sahih Bukhari",
+    topic: "Character"
+  },
+  {
+    id: 39,
+    narrator: "Mu'adh bin Jabal",
+    arabic: "اتَّقِ اللَّهَ حَيْثُمَا كُنْتَ",
+    english: "Fear Allah wherever you are.",
+    collection: "Tirmidhi",
+    topic: "Fear of Allah"
   }
 ];
 

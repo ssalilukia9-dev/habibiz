@@ -72,6 +72,7 @@ service cloud.firestore {
 
     function isParticipant(roomId) {
       return isSignedIn() && (
+        resource == null || 
         resource.data.type == 'group' || 
         (request.auth.uid in resource.data.participants)
       );
@@ -108,16 +109,95 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read: if isSignedIn() && (
-          get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
-          (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.get('type', 'private') == 'group' ||
+          (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.get('participants', []))
         );
         
         allow create: if isSignedIn() && 
                       isValidMessage(incoming()) && (
-                        get(/databases/$(database)/documents/rooms/$(roomId)).data.type == 'group' ||
-                        (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants)
+                        get(/databases/$(database)/documents/rooms/$(roomId)).data.get('type', 'private') == 'group' ||
+                        (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.get('participants', []))
                       );
       }
+    }
+
+    // ---------------------------------------------------------
+    // AI Conversations
+    // ---------------------------------------------------------
+
+    function isValidAIConversation(data) {
+      return data.keys().hasAll(['userId', 'title', 'updatedAt', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.updatedAt == request.time &&
+             data.createdAt <= request.time;
+    }
+
+    match /ai_conversations/{convId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAIConversation(incoming());
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'updatedAt']) &&
+                    incoming().updatedAt == request.time;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      function isValidAIMessage(data) {
+        return data.keys().hasAll(['role', 'content', 'timestamp']) &&
+               data.role in ['user', 'model'] &&
+               data.content is string && data.content.size() <= 10000 &&
+               data.timestamp == request.time;
+      }
+
+      match /messages/{msgId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/ai_conversations/$(convId)).data.userId == request.auth.uid;
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/ai_conversations/$(convId)).data.userId == request.auth.uid &&
+                      isValidAIMessage(incoming());
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Marketplace Listings
+    // ---------------------------------------------------------
+    
+    function isValidListing(data) {
+      return data.keys().hasAll(['title', 'description', 'price', 'category', 'sellerId', 'sellerName', 'status', 'createdAt']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.price is number && data.price >= 0 &&
+             data.sellerId == request.auth.uid &&
+             data.status in ['active', 'sold', 'deleted'] &&
+             data.createdAt == request.time;
+    }
+
+    match /listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidListing(incoming());
+      allow update: if isOwner(existing().sellerId) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'category', 'imageUrl', 'status'])
+      );
+      allow delete: if isOwner(existing().sellerId);
+    }
+
+    // ---------------------------------------------------------
+    // Chat Requests
+    // ---------------------------------------------------------
+
+    function isValidChatRequest(data) {
+      return data.keys().hasAll(['fromId', 'fromName', 'fromPhoto', 'toId', 'status', 'createdAt']) &&
+             data.fromId == request.auth.uid &&
+             data.status in ['pending', 'accepted', 'rejected'] &&
+             data.createdAt == request.time;
+    }
+
+    match /chat_requests/{requestId} {
+      allow get: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow create: if isSignedIn() && isValidChatRequest(incoming());
+      allow update: if isSignedIn() && (
+        (isOwner(existing().toId) && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        (isOwner(existing().fromId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+      );
+      allow delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
     }
   }
 }
