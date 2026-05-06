@@ -94,12 +94,30 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["fromId", "toId", "status", "createdAt"]
+    },
+    "AyahBookmark": {
+      "title": "AyahBookmark",
+      "description": "A bookmarked Quranic verse",
+      "type": "object",
+      "properties": {
+        "number": { "type": "number" },
+        "surahNumber": { "type": "number" },
+        "numberInSurah": { "type": "number" },
+        "text": { "type": "string" },
+        "translation": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["number", "surahNumber", "numberInSurah", "text", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User records"
+    },
+    "/users/{userId}/ayahBookmarks/{bookmarkId}": {
+      "schema": "AyahBookmark",
+      "description": "User saved ayahs"
     },
     "/rooms/{roomId}": {
       "schema": "ChatRoom",

@@ -1,20 +1,31 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Library, 
-  Bookmark,
   BookOpen,
   Users,
   Compass,
-  Archive,
   ChevronRight,
-  Search,
+  ChevronLeft,
   Sparkles,
   History,
   Calculator,
-  Map,
   Baby,
-  Gamepad2
+  Gamepad2,
+  Clock,
+  Moon,
+  Star,
+  MapPin,
+  GraduationCap,
+  Eye,
+  Brain,
+  ShoppingBag,
+  Gem,
+  BarChart3,
+  CalendarDays,
+  MessageCircle,
+  Zap
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -25,6 +36,9 @@ import ZakatCalculator from './ZakatCalculator.tsx';
 import IslamicGuides from './IslamicGuides.tsx';
 import NamesOfAllahView from './NamesOfAllahView.tsx';
 import GamesView from './GamesView.tsx';
+import QiblaView from './QiblaView.tsx';
+import PrayerTimesView from './PrayerTimesView.tsx';
+import IslamicFinanceView from './IslamicFinanceView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 interface ResourcesViewProps {
@@ -43,7 +57,7 @@ interface ResourcesViewProps {
   incrementVerse: () => void;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion';
 
 export default function ResourcesView({
   selectedSurah,
@@ -61,145 +75,230 @@ export default function ResourcesView({
   incrementVerse
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (initialResId) setActiveRes(initialResId);
   }, [initialResId]);
 
-  const resourceCards = [
-    { id: 'quran', title: 'The Holy Quran', desc: 'Read, listen, and explore the divine words of Allah.', icon: BookOpen, color: 'from-purple-600/20 to-purple-900/20', accent: 'text-purple-500' },
-    { id: 'hadith', title: 'Hadith Library', desc: 'Browse through thousands of prophetic narrations.', icon: Library, color: 'from-blue-600/20 to-blue-900/20', accent: 'text-blue-500' },
-    { id: 'adhkar', title: 'Daily Adhkar', desc: 'Authentic supplications for protection and peace.', icon: Sparkles, color: 'from-purple-600/20 to-purple-900/20', accent: 'text-purple-500' },
-    { id: 'feed', title: 'Life Feed', desc: 'Connect with reflections, art, and wisdom from the community.', icon: Users, color: 'from-amber-600/20 to-amber-900/20', accent: 'text-amber-500' },
-    { id: 'names', title: '99 Names', desc: 'Learn and contemplate the Beautiful Names of Allah.', icon: History, color: 'from-cyan-600/20 to-cyan-900/20', accent: 'text-cyan-500' },
-    { id: 'zakat', title: 'Zakat Calc', desc: 'Calculate your obligatory almsgiving easily.', icon: Calculator, color: 'from-rose-600/20 to-rose-900/20', accent: 'text-rose-500' },
-    { id: 'guides', title: 'Hajj & Umrah', desc: 'Step-by-step spiritual guide for pilgrimage.', icon: Map, color: 'from-indigo-600/20 to-indigo-900/20', accent: 'text-indigo-500' },
-    { id: 'babynames', title: 'Baby Names', desc: 'Beautiful Islamic names for boys and girls.', icon: Baby, color: 'from-pink-600/20 to-pink-900/20', accent: 'text-pink-500' },
-    { id: 'games', title: 'Islamic Games', desc: 'Sharpen your knowledge while earning Hasanat rewards.', icon: Gamepad2, color: 'from-orange-600/20 to-orange-900/20', accent: 'text-orange-500' },
-    { id: 'tools', title: 'Islamic Tools', desc: 'Qibla finder, Tasbih, and Prayer time companions.', icon: Compass, color: 'from-teal-600/20 to-teal-900/20', accent: 'text-teal-500' },
+  const categories = [
+    {
+      title: 'DEEN',
+      cards: [
+        { id: 'prayer_times', title: 'Prayer Times', icon: Clock, image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800' },
+        { id: 'quran', title: 'Quran', icon: BookOpen, image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800' },
+        { id: 'tasbih', title: 'Tasbih', icon: History, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
+        { id: 'qibla', title: 'Qibla', icon: Compass, image: 'https://images.unsplash.com/photo-1551041777-ed39feb53934?auto=format&fit=crop&q=80&w=800' },
+        { id: 'adhkar', title: 'Duas & Adhkar', icon: Moon, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
+        { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
+        { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800' },
+        { id: 'guides', title: 'Islamic Wisdom', icon: GraduationCap, image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' },
+        { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
+        { id: 'memorise', title: 'Hifz Companion', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
+        { id: 'market', title: 'Halal Market', icon: ShoppingBag, image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=800' },
+        { id: 'names', title: '99 Names', icon: Sparkles, image: 'https://images.unsplash.com/photo-1583000212006-7e23730e625a?auto=format&fit=crop&q=80&w=800' },
+        { id: 'zakat', title: 'Zakat Calculator', icon: Calculator, image: 'https://images.unsplash.com/photo-1611974717482-aa389182069e?auto=format&fit=crop&q=80&w=800' },
+        { id: 'babynames', title: 'Baby Names', icon: Baby, image: 'https://images.unsplash.com/photo-1519689683291-c1033ef378c5?auto=format&fit=crop&q=80&w=800' },
+        { id: 'games', title: 'Ilm Games', icon: Gamepad2, image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800' },
+      ]
+    },
+    {
+      title: 'PREMIUM',
+      cards: [
+        { id: 'companion', title: 'Holy Aliyah AI', icon: Sparkles, image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', premium: true },
+        { id: 'finance', title: 'Islamic Finance', icon: BarChart3, image: 'https://images.unsplash.com/photo-1454165833221-d8d8b66455db?auto=format&fit=crop&q=80&w=800', premium: true },
+        { id: 'hadith', title: 'Hadith Library', icon: Library, image: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=800', premium: true },
+        { id: 'calendar', title: 'Hijri Calendar', icon: CalendarDays, image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800' },
+      ]
+    },
+    {
+      title: 'COMMUNITY',
+      cards: [
+        { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300' },
+        { id: 'feed', title: 'Social Feed', icon: MessageCircle, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' }
+      ]
+    }
   ];
 
+  const handleCardClick = (id: string) => {
+    if (id === 'chat') {
+      navigate('/chat');
+    } else if (id === 'companion') {
+      navigate('/companion');
+    } else if (id === 'qibla') {
+      navigate('/qibla');
+    } else if (id === 'tasbih') {
+      setActiveRes('tools');
+    } else {
+      setActiveRes(id as TabType);
+    }
+  };
+
   return (
-    <div className="space-y-12 min-h-screen">
-      {/* Hero Section */}
+    <div className="space-y-12 min-h-screen pb-32">
+      {/* Header */}
       {!selectedSurah && (
-        <div className="relative p-6 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] overflow-hidden border border-white/5 bg-brand-sidebar shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/10 via-transparent to-transparent" />
-          <div className="relative z-10 flex flex-col items-center sm:items-start md:flex-row md:items-center justify-between gap-6 md:gap-8 text-center sm:text-left">
-            <div className="space-y-4">
-              <div className="flex items-center justify-center sm:justify-start gap-3">
-                {activeRes && (
-                  <button 
-                    onClick={() => { setActiveRes(null); onSelectSurah(null); }}
-                    className="w-10 h-10 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                  >
-                    <ChevronRight size={20} className="rotate-180" />
-                  </button>
-                )}
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                  {activeRes ? resourceCards.find(c => c.id === activeRes)?.title : 'Islamic Resources'}
-                </h2>
+        <div className="flex items-center justify-between px-4 pt-6">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-4">
+              {activeRes && (
+                <button 
+                  onClick={() => { setActiveRes(null); onSelectSurah(null); }}
+                  className="w-12 h-12 bg-white/5 border border-white/10 text-white rounded-2xl flex items-center justify-center hover:bg-white/10 hover:border-brand-primary/30 transition-all group"
+                >
+                  <ChevronLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
+                </button>
+              )}
+              <div className="space-y-1">
+                <h1 className="text-4xl font-black text-white tracking-tight">
+                  {activeRes ? activeRes.charAt(0).toUpperCase() + activeRes.slice(1).replace('_', ' ') : 'The Conservatory'}
+                </h1>
+                <p className="text-slate-500 font-medium text-sm tracking-wide">
+                  {activeRes ? 'Exploring sacred knowledge' : 'Curated spiritual instruments & knowledge'}
+                </p>
               </div>
-              <p className="text-sm md:text-lg text-slate-400 font-medium max-w-xl leading-relaxed">
-                {activeRes 
-                  ? resourceCards.find(c => c.id === activeRes)?.desc 
-                  : 'Welcome to your digital sanctuary. Explore deep wisdom, spiritual tools, and connection with the Ummah.'
-                }
-              </p>
             </div>
-
-            {!activeRes && (
-               <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-brand-primary/20 to-brand-primary/40 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-                  <div className="relative flex items-center">
-                    <Search className="absolute left-6 text-slate-500" size={20} />
-                    <input 
-                      type="text" 
-                      placeholder="Search for wisdom..."
-                      className="bg-brand-depth border border-white/10 rounded-3xl py-5 pl-14 pr-8 text-white focus:border-brand-primary/40 outline-none w-full md:w-80 backdrop-blur-md transition-all font-medium"
-                    />
-                  </div>
-               </div>
-            )}
           </div>
-
           {!activeRes && (
-            <div className="flex gap-4 mt-10">
-               {['#Quran', '#Hadith', '#Dua', '#Qibla'].map(tag => (
-                 <button key={tag} className="px-5 py-2 bg-white/5 hover:bg-brand-primary/10 rounded-full border border-white/5 text-[10px] font-black text-slate-500 hover:text-brand-primary transition-all uppercase tracking-widest">
-                   {tag}
-                 </button>
-               ))}
+            <div className="hidden md:flex items-center gap-4 px-6 py-3 glass-panel rounded-2xl border-white/5">
+               <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Aura Level</p>
+                  <p className="text-sm font-black text-brand-primary">Radiant</p>
+               </div>
+               <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-brand-primary/20 shadow-lg shadow-brand-primary/10">
+                 <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sanctuary" alt="Profile" className="w-full h-full object-cover" />
+               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Sub-Navigation (Only visible when a resource is selected) */}
-      {activeRes && !selectedSurah && (
-        <div className="flex gap-4 overflow-x-auto pb-6 px-2 no-scrollbar scroll-smooth">
-           {resourceCards.map(card => (
-             <button 
-               key={card.id}
-               onClick={() => { setActiveRes(card.id as TabType); onSelectSurah(null); }}
-               className={`flex-none w-48 p-6 rounded-[2rem] border transition-all relative overflow-hidden group ${activeRes === card.id ? 'bg-brand-primary border-brand-primary shadow-xl shadow-brand-primary/20' : 'bg-brand-sidebar/50 border-white/5 hover:border-white/10'}`}
-             >
-                <div className="relative z-10 flex flex-col items-start gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${activeRes === card.id ? 'bg-brand-depth/20 text-brand-depth' : 'bg-brand-primary/10 text-brand-primary'}`}>
-                    <card.icon size={20} /> 
-                  </div>
-                  <div className="text-left">
-                    <p className={`text-xs font-black uppercase tracking-widest ${activeRes === card.id ? 'text-brand-depth/60' : 'text-slate-500'}`}>Resource</p>
-                    <p className={`text-sm font-black whitespace-nowrap ${activeRes === card.id ? 'text-brand-depth' : 'text-white'}`}>{card.title}</p>
-                  </div>
-                </div>
-                {activeRes === card.id && (
-                  <motion.div 
-                    layoutId="active-bg"
-                    className="absolute inset-0 bg-brand-primary"
-                  />
-                )}
-             </button>
-           ))}
-        </div>
-      )}
-
       {/* Main Content Area */}
-      <div className="pb-20">
+      <div className="px-4">
          <AnimatePresence mode="wait">
             {!activeRes ? (
               <motion.div 
                 key="dashboard"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                className="space-y-16"
               >
-                {resourceCards.map((card, idx) => (
-                  <motion.button
-                    key={card.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    onClick={() => setActiveRes(card.id as TabType)}
-                    className={`group relative text-left p-6 sm:p-8 md:p-10 rounded-[2rem] sm:rounded-[3rem] border border-white/5 overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-br ${card.color} backdrop-blur-md shadow-2xl hover:border-brand-primary/20`}
-                  >
-                    <div className="relative z-10 space-y-4 md:space-y-6">
-                      <div className={`w-12 h-12 md:w-16 md:h-16 rounded-[1.2rem] md:rounded-[1.5rem] bg-brand-depth border border-white/10 flex items-center justify-center transition-transform group-hover:rotate-12 ${card.accent}`}>
-                        <card.icon className="w-6 h-6 md:w-8 md:h-8" />
-                      </div>
-                      <div className="space-y-1 md:space-y-2">
-                        <h3 className="text-xl md:text-2xl font-black text-white group-hover:text-brand-primary transition-colors">{card.title}</h3>
-                        <p className="text-xs md:text-sm text-slate-400 font-medium leading-relaxed line-clamp-2 md:line-clamp-none">{card.desc}</p>
-                      </div>
-                      <div className="pt-2 md:pt-4 flex items-center gap-2 text-brand-primary font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">
-                        Explore Library <ChevronRight size={14} />
+                {/* Immersive Category Layout */}
+                {categories.map((category, catIdx) => (
+                  <div key={category.title} className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                      <h3 className="text-[11px] font-black text-brand-primary uppercase tracking-[0.4em] px-4 py-1.5 bg-brand-primary/5 border border-brand-primary/10 rounded-full">
+                        {category.title}
+                      </h3>
+                      <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                      {/* Featured Hero for each category */}
+                      {(() => {
+                        const Icon = category.cards[0].icon;
+                        return (
+                          <motion.button
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleCardClick(category.cards[0].id)}
+                            className="md:col-span-8 relative h-80 rounded-[3rem] overflow-hidden group shadow-2xl border border-white/5 bg-brand-depth/40"
+                          >
+                            <img 
+                              src={category.cards[0].image} 
+                              alt="" 
+                              className="w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-105" 
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1591146200259-8692697a5a8f?auto=format&fit=crop&q=80&w=800';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                            
+                            <div className="absolute top-8 left-8 flex items-center gap-4">
+                              <div className="w-14 h-14 bg-white/10 backdrop-blur-2xl rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
+                                <Icon size={28} className="text-white" />
+                              </div>
+                              {category.cards[0].premium && (
+                                <span className="bg-amber-500/20 text-amber-500 border border-amber-500/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md">Premium</span>
+                              )}
+                            </div>
+
+                            <div className="absolute bottom-10 left-10 text-left space-y-2">
+                               <h4 className="text-3xl font-black text-white tracking-tight">{category.cards[0].title}</h4>
+                               <p className="text-slate-300 font-medium max-w-sm text-sm">Deeply explore the {category.cards[0].title.toLowerCase()} with our advanced spiritual engine.</p>
+                            </div>
+
+                            <ChevronRight className="absolute bottom-10 right-10 text-brand-primary opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-2" size={32} />
+                          </motion.button>
+                        );
+                      })()}
+
+                      {/* Side Grid for others in category */}
+                      <div className="md:col-span-4 grid grid-cols-2 gap-4">
+                        {category.cards.slice(1, 5).map((card) => {
+                          const CardIcon = card.icon;
+                          return (
+                            <motion.button
+                              key={card.id}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleCardClick(card.id)}
+                              className="relative aspect-square rounded-[2rem] overflow-hidden group border border-white/5 shadow-xl bg-brand-depth/40"
+                            >
+                              <img 
+                                src={card.image} 
+                                alt="" 
+                                className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700" 
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=600';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-brand-depth/40 group-hover:bg-transparent transition-colors" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
+                              
+                              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-3">
+                                <div className="w-10 h-10 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
+                                  <CardIcon size={18} className="text-white" />
+                                </div>
+                                <p className="text-[10px] font-black text-white uppercase tracking-widest">{card.title}</p>
+                              </div>
+                              
+                              {card.premium && (
+                                <div className="absolute top-4 right-4 text-amber-500">
+                                  <Star size={10} fill="currentColor" />
+                                </div>
+                              )}
+                            </motion.button>
+                          );
+                        })}
                       </div>
                     </div>
-                    {/* Decorative Elements */}
-                    <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl group-hover:bg-brand-primary/10 transition-colors" />
-                    <div className="absolute bottom-[-10%] left-[-10%] w-32 h-32 bg-brand-primary/5 rounded-full blur-2xl" />
-                  </motion.button>
+
+                    {/* Remaining items as a clean list for this category */}
+                    {category.cards.length > 5 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                         {category.cards.slice(5).map((card) => {
+                           const ListIcon = card.icon;
+                           return (
+                             <motion.button
+                               key={card.id}
+                               whileHover={{ scale: 1.02 }}
+                               whileTap={{ scale: 0.98 }}
+                               onClick={() => handleCardClick(card.id)}
+                               className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/5 hover:border-brand-primary/30 transition-all group"
+                             >
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-brand-primary transition-colors">
+                                  <ListIcon size={18} />
+                                </div>
+                                <span className="text-[10px] font-bold text-white uppercase tracking-widest">{card.title}</span>
+                             </motion.button>
+                           );
+                         })}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </motion.div>
             ) : (
@@ -230,21 +329,40 @@ export default function ResourcesView({
                    />
                  )}
                  {activeRes === 'feed' && <FeedView />}
-                 {activeRes === 'tools' && <ToolsView />}
+                 {activeRes === 'prayer_times' && <PrayerTimesView />}
+                 {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'names' && <NamesOfAllahView />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
+                 {activeRes === 'finance' && <IslamicFinanceView />}
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" />}
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
-                 {(activeRes === 'dua' || activeRes === 'names_old') && (
+                 {['market', 'coin_shop'].includes(activeRes as string) && (
+                    <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
+                       <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
+                          <ShoppingBag size={48} />
+                       </div>
+                       <div className="space-y-2">
+                         <h3 className="text-2xl font-black text-white">Market Room</h3>
+                         <p className="text-slate-500 max-w-sm mx-auto font-medium">The sanctuary marketplace is coming soon. Use your Hasanat to unlock spiritual rewards.</p>
+                       </div>
+                       <button 
+                         onClick={() => setActiveRes(null)}
+                         className="bg-brand-primary text-brand-depth px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-primary/20"
+                       >
+                          Back to Library
+                       </button>
+                    </div>
+                 )}
+                 {['mirror', 'calendar', 'immerse', 'memorise', 'khatam', 'mosques', 'learn', 'names_old'].includes(activeRes as string) && (
                    <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
                       <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
                          <Sparkles size={48} />
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-white">Knowledge Hub Growing</h3>
-                        <p className="text-slate-500 max-w-sm mx-auto font-medium">This module is being updated with authentic texts and translations. Check back soon!</p>
+                        <h3 className="text-2xl font-black text-white">Module Coming Soon</h3>
+                        <p className="text-slate-500 max-w-sm mx-auto font-medium">We are carefully crafting this spiritual interface. Check back shortly for updates to the Ummah toolkit.</p>
                       </div>
                       <button 
                         onClick={() => setActiveRes(null)}

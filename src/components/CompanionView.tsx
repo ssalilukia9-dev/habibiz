@@ -17,7 +17,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronRight,
-  MoreVertical
+  MoreVertical,
+  BookOpen
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
@@ -38,15 +39,15 @@ import {
 import { auth, db } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 
-const SYSTEM_INSTRUCTION = `You are "Habibi AI", a warm, respectful, and wise Islamic companion. 
-Your goal is to provide guidance, answer questions about Islam, and engage in friendly conversation based on the Quran and Sunnah.
-Always maintain a helpful and compassionate tone. 
-Keep your responses concise but insightful.
-Reference Quranic verses and Hadith where appropriate. 
-Format your responses using Markdown for readability. Use bolding for emphasis and lists for points.
-If someone asks about non-Islamic topics, try to bring the wisdom back to Islamic values or politely refocus if it's too far off.
-If you don't know an answer for certain, suggest consulting a local scholar (Imam).
-Begin your first response with an appropriate Islamic greeting if the user hasn't already.`;
+const SYSTEM_INSTRUCTION = `You are "The Nur Companion", the soul of the Holy Quran Chat.
+Your goal is to provide deep, spiritual, and scholarly guidance based strictly on the Quran and Sunnah.
+Maintain a serene, compassionate, and wise tone at all times.
+Keep your responses insightful, focusing on the spiritual essence of the user's queries.
+Always reference specific Quranic verses (Surah:Verse) and authentic Hadith to support your guidance.
+Format your responses beautifully using Markdown: use headers for key concepts, bolding for emphasis, and blockquotes for scriptural citations.
+If a user seeks advice beyond Islamic jurisprudence, gently bridge the topic back to moral excellence (Ihsan) or prophetic wisdom.
+If a query requires technical legal expertise (Fatwa) beyond your capacity, respectfully advise consulting a qualified local Mufti or scholar.
+Greet the user with "Assalamu Alaikum" in your first response of a session if they haven't initiated the greeting.`;
 
 let genAI: GoogleGenAI | null = null;
 
@@ -398,14 +399,14 @@ export default function CompanionView() {
               {showSidebar ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
             </button>
             <div className="w-10 h-10 bg-brand-primary/20 rounded-xl flex items-center justify-center border border-brand-primary/30 group">
-              <Bot size={20} className="text-brand-primary group-hover:scale-110 transition-transform" />
+              <Sparkles size={20} className="text-brand-primary group-hover:scale-110 transition-transform" />
             </div>
             <div>
               <h2 className="text-sm md:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Habibi AI
-                <span className="hidden xs:inline text-[8px] bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded-full border border-purple-500/20 uppercase">Online</span>
+                Holy Quran Chat
+                <span className="hidden xs:inline text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase">Premium AI</span>
               </h2>
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Islamic Companion</p>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Nur Companion</p>
             </div>
           </div>
           
@@ -430,13 +431,13 @@ export default function CompanionView() {
           {activeConvId === null && messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-6">
               <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shadow-2xl relative">
-                <Bot size={40} className="text-brand-primary" />
+                <Sparkles size={40} className="text-brand-primary" />
                 <div className="absolute -top-1 -right-1 w-6 h-6 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center">
-                  <Sparkles size={12} />
+                  <BookOpen size={12} />
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white mb-2">Welcome, Brother/Sister</h3>
+                <h3 className="text-xl font-bold text-white mb-2">Speak with the Wisdom of Quran</h3>
                 <p className="text-xs text-slate-400 leading-relaxed font-medium">
                   "Invite to the way of your Lord with wisdom and good instruction." (16:125)
                 </p>
@@ -529,7 +530,7 @@ export default function CompanionView() {
             <div className="flex justify-between items-center px-4 mt-3">
               <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2">
                 <Sparkles size={10} className="text-brand-primary" /> 
-                Habibi AI • {activeConvId ? 'History Enabled' : 'New Chat'}
+                Holy Quran Chat • {activeConvId ? 'Deep Memory' : 'Active Heart'}
               </p>
               <button 
                 onClick={() => setVoiceEnabled(!voiceEnabled)}

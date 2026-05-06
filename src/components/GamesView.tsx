@@ -38,17 +38,33 @@ const GAMES: Game[] = [
 // --- GAME DATA ---
 
 const TRIVIA_QUESTIONS = [
-  { q: "Which Surah is known as the 'Heart of the Quran'?", a: ["Surah Ya-Sin", "Surah Al-Fatiha", "Surah Al-Baqarah", "Surah Al-Mulk"], correct: 0 },
-  { q: "In which month was the Quran first revealed?", a: ["Rajab", "Ramadan", "Dhul-Hijjah", "Muharram"], correct: 1 },
-  { q: "How many Sahaba are mentioned by name in the Quran?", a: ["1", "5", "10", "Zero"], correct: 0 },
-  { q: "Which Prophet is mentioned the most in the Quran?", a: ["Prophet Muhammad (PBUH)", "Prophet Musa (AS)", "Prophet Ibrahim (AS)", "Prophet Isa (AS)"], correct: 1 }
+  // Level 1
+  { l: 1, q: "Which Surah is known as the 'Heart of the Quran'?", a: ["Surah Ya-Sin", "Surah Al-Fatiha", "Surah Al-Baqarah", "Surah Al-Mulk"], correct: 0 },
+  { l: 1, q: "In which month was the Quran first revealed?", a: ["Rajab", "Ramadan", "Dhul-Hijjah", "Muharram"], correct: 1 },
+  { l: 1, q: "How many Sahaba are mentioned by name in the Quran?", a: ["1", "5", "10", "Zero"], correct: 0 },
+  // Level 2 (Harder)
+  { l: 2, q: "Which Sahabi was known as 'The Sword of Allah'?", a: ["Umar ibn al-Khattab", "Khalid ibn al-Walid", "Ali ibn Abi Talib", "Hamza ibn 'Abd al-Muttalib"], correct: 1 },
+  { l: 2, q: "What was the first word of the Quran revealed to the Prophet (PBUH)?", a: ["Allahu", "Subhanan", "Iqra", "Bismillah"], correct: 2 },
+  { l: 2, q: "How many times is 'Isa (AS)' mentioned in the Quran?", a: ["25", "15", "5", "40"], correct: 0 },
+  // Level 3 (Advance)
+  { l: 3, q: "In which battle were the most Huffaz (memorizers) of the Quran martyred?", a: ["Battle of Badr", "Battle of Uhud", "Battle of Yamama", "Battle of Khandaq"], correct: 2 },
+  { l: 3, q: "Who was the companion who translated the Quran for the King of Abyssinia?", a: ["Ja'far ibn Abi Talib", "Mus'ab ibn Umayr", "Bilal ibn Rabah", "Abdullah ibn Masud"], correct: 0 },
+  { l: 3, q: "Which Surah does not start with 'Bismillah'?", a: ["Surah An-Naml", "Surah At-Tawbah", "Surah At-Tin", "Surah Al-Alaq"], correct: 1 }
 ];
 
 const NAMES_MATCH = [
-  { name: "Ar-Rahman", meaning: "The Entirely Merciful" },
-  { name: "Al-Malik", meaning: "The Absolute Ruler" },
-  { name: "Al-Quddus", meaning: "The Pure One" },
-  { name: "As-Salam", meaning: "The Source of Peace" }
+  // Easy
+  { l: 1, name: "Ar-Rahman", meaning: "The Entirely Merciful" },
+  { l: 1, name: "Al-Malik", meaning: "The Absolute Ruler" },
+  { l: 1, name: "Al-Quddus", meaning: "The Pure One" },
+  // Medium
+  { l: 2, name: "Al-Mutakabbir", meaning: "The Supreme" },
+  { l: 2, name: "Al-Khaliq", meaning: "The Creator" },
+  { l: 2, name: "Al-Bari", meaning: "The Evolver" },
+  // Hard
+  { l: 3, name: "Al-Mu'min", meaning: "The Infuser of Faith" },
+  { l: 3, name: "Al-Muhaymin", meaning: "The Guardian" },
+  { l: 3, name: "Al-Aziz", meaning: "The All Mighty" }
 ];
 
 const PROPHETS_ORDER = ["Adam (AS)", "Nuh (AS)", "Ibrahim (AS)", "Musa (AS)", "Isa (AS)", "Muhammad (PBUH)"];
@@ -61,11 +77,16 @@ const PILLARS_CATEGORIES = {
 export default function GamesView({ addHasanat }: { addHasanat: (amount: number) => void }) {
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [gameState, setGameState] = useState<'lobby' | 'playing' | 'result'>('lobby');
+  const [gameLevel, setGameLevel] = useState(1);
   const [score, setScore] = useState(0);
 
   // General State
   const [currentStep, setCurrentStep] = useState(0);
   const [lives, setLives] = useState(3);
+
+  // Filtered Data
+  const currentTriviaPool = TRIVIA_QUESTIONS.filter(q => q.l === gameLevel);
+  const currentNamesPool = NAMES_MATCH.filter(n => n.l === gameLevel);
 
   const finishGame = (earnedPoints: number) => {
     setScore(earnedPoints);
@@ -86,19 +107,28 @@ export default function GamesView({ addHasanat }: { addHasanat: (amount: number)
            {Array.from({ length: lives }).map((_, i) => <Heart key={i} size={20} fill="currentColor" />)}
         </div>
         <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-          Question {currentStep + 1} / {TRIVIA_QUESTIONS.length}
+          Level {gameLevel} • Question {currentStep + 1} / {currentTriviaPool.length}
         </div>
       </div>
       <div className="space-y-6">
-        <h3 className="text-3xl font-black text-white text-center leading-tight">{TRIVIA_QUESTIONS[currentStep].q}</h3>
+        <h3 className="text-3xl font-black text-white text-center leading-tight">{currentTriviaPool[currentStep].q}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           {TRIVIA_QUESTIONS[currentStep].a.map((opt, i) => (
+           {currentTriviaPool[currentStep].a.map((opt, i) => (
              <button 
                key={i}
                onClick={() => {
-                 if (i === TRIVIA_QUESTIONS[currentStep].correct) {
-                   if (currentStep + 1 < TRIVIA_QUESTIONS.length) setCurrentStep(currentStep + 1);
-                   else finishGame(200);
+                 if (i === currentTriviaPool[currentStep].correct) {
+                   if (currentStep + 1 < currentTriviaPool.length) {
+                     setCurrentStep(currentStep + 1);
+                   } else {
+                     // Next Level or Finish
+                     if (gameLevel < 3) {
+                       setGameLevel(gameLevel + 1);
+                       setCurrentStep(0);
+                     } else {
+                       finishGame(200 * gameLevel);
+                     }
+                   }
                  } else {
                    if (lives <= 1) failGame();
                    else setLives(lives - 1);
@@ -163,17 +193,25 @@ export default function GamesView({ addHasanat }: { addHasanat: (amount: number)
   const NamesGame = () => (
     <div className="max-w-2xl mx-auto space-y-10">
       <div className="text-center space-y-2">
-         <h3 className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Meaning</h3>
-         <p className="text-4xl font-black text-white">{NAMES_MATCH[currentStep].meaning}</p>
+         <h3 className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Level {gameLevel} • Meaning</h3>
+         <p className="text-4xl font-black text-white">{currentNamesPool[currentStep].meaning}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
-         {NAMES_MATCH.map((n, i) => (
+         {currentNamesPool.map((n, i) => (
            <button 
              key={i}
              onClick={() => {
                if (i === currentStep) {
-                 if (currentStep + 1 < NAMES_MATCH.length) setCurrentStep(currentStep + 1);
-                 else finishGame(300);
+                 if (currentStep + 1 < currentNamesPool.length) {
+                   setCurrentStep(currentStep + 1);
+                 } else {
+                   if (gameLevel < 3) {
+                     setGameLevel(gameLevel + 1);
+                     setCurrentStep(0);
+                   } else {
+                     finishGame(300 * gameLevel);
+                   }
+                 }
                } else {
                  if (lives <= 1) failGame();
                  else setLives(lives - 1);
@@ -298,7 +336,7 @@ export default function GamesView({ addHasanat }: { addHasanat: (amount: number)
                <p className="text-sm text-slate-400 font-medium">{game.desc}</p>
             </div>
           </div>
-          <button onClick={() => { setSelectedGame(game.id); setGameState('playing'); setCurrentStep(0); setLives(3); }} className="mt-8 w-full bg-brand-primary text-brand-depth font-black text-[10px] uppercase py-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">Enter Arena</button>
+          <button onClick={() => { setSelectedGame(game.id); setGameState('playing'); setCurrentStep(0); setLives(3); setGameLevel(1); }} className="mt-8 w-full bg-brand-primary text-brand-depth font-black text-[10px] uppercase py-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">Enter Arena</button>
         </motion.div>
       ))}
     </div>

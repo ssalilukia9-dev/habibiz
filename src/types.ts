@@ -18,6 +18,8 @@ export interface Ayah {
   hizbQuarter: number;
   sajda: boolean | any;
   translation?: string;
+  audio?: string;
+  audioBlob?: Blob;
 }
 
 export interface Translation {

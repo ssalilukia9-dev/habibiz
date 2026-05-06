@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { SURAH_LIST, RECITERS } from '../constants.ts';
+import { SURAH_LIST, RECITERS, TRANSLATIONS } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
 import { 
   ChevronLeft, 
@@ -13,10 +13,18 @@ import {
   X,
   Check,
   Pause,
-  BookOpen
+  SkipForward,
+  SkipBack,
+  Repeat,
+  Repeat1,
+  BookOpen,
+  WifiOff,
+  Languages,
+  ArrowRight,
+  Download
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import quranSample from '../data/quran_sample.json';
+import { offlineService } from '../services/offlineService';
 
 interface SurahDetailProps {
   surah: Surah;
@@ -45,9 +53,23 @@ export default function SurahDetail({
   const [playingAyah, setPlayingAyah] = useState<number | null>(null);
   const [autoPlay, setAutoPlay] = useState(true);
   const [showReciters, setShowReciters] = useState(false);
+  const [showTranslations, setShowTranslations] = useState(false);
+  const [selectedTranslation, setSelectedTranslation] = useState('en.sahih');
   const [readAyahs, setReadAyahs] = useState<Set<number>>(new Set());
   const [isAudioLoading, setIsAudioLoading] = useState<number | null>(null);
+  const [bufferingProgress, setBufferingProgress] = useState(0);
+  const [downloadingAyah, setDownloadingAyah] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handleRead = (num: number) => {
     if (!readAyahs.has(num)) {
@@ -60,10 +82,15 @@ export default function SurahDetail({
 
   useEffect(() => {
     if (playingAyah) {
-      const activeElement = document.getElementById(`ayah-${playingAyah}`);
-      if (activeElement) {
-        activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      setTimeout(() => {
+        const activeElement = document.getElementById(`ayah-${playingAyah}`);
+        if (activeElement) {
+          activeElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }
+      }, 100);
     }
   }, [playingAyah]);
 
@@ -71,6 +98,16 @@ export default function SurahDetail({
     const fetchData = async () => {
       setIsLoading(true);
       
+      const isOfflineMode = localStorage.getItem('offline-mode') === 'true';
+      if (isOfflineMode) {
+        const cachedAyahs = await offlineService.getAyahs(surah.number);
+        if (cachedAyahs) {
+          setAyahs(cachedAyahs);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const reciter = RECITERS.find(r => r.id === selectedReciter);
       
       try {
@@ -79,7 +116,7 @@ export default function SurahDetail({
         const dataArabic = await resArabic.json();
         
         // Fetch English translation
-        const resTrans = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/en.sahih`);
+        const resTrans = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${selectedTranslation}`);
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {
@@ -97,7 +134,7 @@ export default function SurahDetail({
     };
 
     fetchData();
-  }, [surah.number, selectedReciter]);
+  }, [surah.number, selectedReciter, selectedTranslation]);
 
   const togglePlay = (ayah: any) => {
     if (playingAyah === ayah.number) {
@@ -108,12 +145,14 @@ export default function SurahDetail({
     }
   };
 
-  const playAyah = (ayah: any) => {
+  const playAyah = async (ayah: any) => {
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.oncanplaythrough = null;
     }
     
-    // Use the official audio URL from the API response
     const audioUrl = ayah.audio;
     
     if (!audioUrl) {
@@ -122,31 +161,145 @@ export default function SurahDetail({
     }
     
     setIsAudioLoading(ayah.number);
-    audioRef.current = new Audio(audioUrl);
+    setBufferingProgress(0);
     
-    audioRef.current.oncanplaythrough = () => {
-      setIsAudioLoading(null);
-      audioRef.current?.play();
-      setPlayingAyah(ayah.number);
-    };
+    try {
+      let localUrl;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s
 
-    audioRef.current.onended = () => {
-      if (autoPlay) {
-        const currentIndex = ayahs.findIndex(a => a.number === ayah.number);
-        if (currentIndex < ayahs.length - 1) {
-          playAyah(ayahs[currentIndex + 1]);
+      if (ayah.audioBlob) {
+        localUrl = URL.createObjectURL(ayah.audioBlob);
+      } else {
+        try {
+          const response = await fetch(audioUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!response.ok) throw new Error("Fetch failed");
+          const blob = await response.blob();
+          localUrl = URL.createObjectURL(blob);
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          console.warn("Pre-download failed, falling back to streaming", fetchErr);
+          // If fetch fails (CORS/Network), fall back to direct URL
+          localUrl = audioUrl;
+        }
+      }
+      
+      const audio = new Audio();
+      audio.preload = 'auto'; // Help browser download at once
+      audio.src = localUrl;
+      audioRef.current = audio;
+
+      // Handle Buffering Progress
+      audio.onprogress = () => {
+        if (audio.buffered.length > 0) {
+          const duration = audio.duration || 1; // Fallback to avoid division by zero
+          const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+          const progress = Math.min(100, Math.round((bufferedEnd / duration) * 100));
+          setBufferingProgress(progress);
+        }
+      };
+      
+      audio.oncanplaythrough = () => {
+        setIsAudioLoading(null);
+        setBufferingProgress(100);
+        audio.play().catch(e => {
+          console.error("Play failed", e);
+          setIsAudioLoading(null);
+          setPlayingAyah(null);
+        });
+        setPlayingAyah(ayah.number);
+      };
+
+      audio.onended = () => {
+        if (autoPlay) {
+          const currentIndex = ayahs.findIndex(a => a.number === ayah.number);
+          if (currentIndex < ayahs.length - 1) {
+            playAyah(ayahs[currentIndex + 1]);
+          } else {
+            setPlayingAyah(null);
+          }
         } else {
           setPlayingAyah(null);
         }
-      } else {
-        setPlayingAyah(null);
-      }
-    };
+      };
 
-    audioRef.current.onerror = () => {
-      console.error("Audio failed to load from:", audioUrl);
-      setPlayingAyah(null);
-    };
+      audio.onerror = (e) => {
+        console.error("Audio failed to load", e);
+        // Final fallback to direct URL if Blob URL failed
+        if (audio.src.startsWith('blob:')) {
+          console.log("Retrying with direct URL...");
+          audio.src = audioUrl;
+        } else {
+          setPlayingAyah(null);
+          setIsAudioLoading(null);
+        }
+      };
+    } catch (error) {
+      console.error("Failed to download audio ayah", error);
+      setIsAudioLoading(null);
+    }
+  };
+
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const downloadFullSurah = async () => {
+    if (isDownloadingAll) return;
+    setIsDownloadingAll(true);
+    setDownloadProgress(0);
+
+    try {
+      const updatedAyahs = [...ayahs];
+      for (let i = 0; i < updatedAyahs.length; i++) {
+        const ayah = updatedAyahs[i];
+        if (ayah.audio && !ayah.audioBlob) {
+          try {
+            const res = await fetch(ayah.audio, { mode: 'cors' });
+            if (!res.ok) throw new Error("Network response was not ok");
+            const blob = await res.blob();
+            updatedAyahs[i] = {
+              ...ayah,
+              audioBlob: blob
+            };
+          } catch (e) {
+            console.warn(`Failed to cache audio for ayah ${ayah.number}, will stream normally`, e);
+          }
+        }
+        setDownloadProgress(Math.round(((i + 1) / updatedAyahs.length) * 100));
+      }
+      setAyahs(updatedAyahs);
+      await offlineService.saveAyahs(surah.number, updatedAyahs);
+      localStorage.setItem('offline-mode', 'true');
+    } catch (error) {
+      console.error("Download failed", error);
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
+  const downloadSingleAyah = async (ayah: any) => {
+    if (downloadingAyah || ayah.audioBlob) return;
+    setDownloadingAyah(ayah.number);
+
+    try {
+      const res = await fetch(ayah.audio, { mode: 'cors' });
+      if (!res.ok) throw new Error("Audio download failed");
+      const blob = await res.blob();
+      
+      const updatedAyahs = ayahs.map(a => 
+        a.number === ayah.number ? { ...a, audioBlob: blob } : a
+      );
+      
+      setAyahs(updatedAyahs);
+      await offlineService.saveAyahs(surah.number, updatedAyahs);
+      console.log(`Saved Ayah ${ayah.number} offline.`);
+    } catch (error) {
+      console.error("Failed to download individual ayah", error);
+      alert("Offline storage failed for this verse. Please try again.");
+    } finally {
+      setDownloadingAyah(null);
+    }
   };
 
   if (isLoading) {
@@ -207,11 +360,42 @@ export default function SurahDetail({
                <span className="text-[8px] md:text-[10px] text-brand-primary font-bold uppercase tracking-[0.2em]">{surah.revelationType} • {surah.numberOfAyahs} Ayahs</span>
                <div className="w-1 h-1 bg-slate-700 rounded-full" />
                <button 
+                 onClick={downloadFullSurah}
+                 disabled={isDownloadingAll}
+                 className={`text-[8px] md:text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors ${isDownloadingAll ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-primary'}`}
+               >
+                 {isDownloadingAll ? (
+                   <>
+                     <Loader2 size={10} className="animate-spin" /> {downloadProgress}%
+                   </>
+                 ) : (
+                   <>
+                     <ArrowRight size={10} className="rotate-90" /> Download
+                   </>
+                 )}
+               </button>
+               <div className="w-1 h-1 bg-slate-700 rounded-full" />
+               <button 
                  onClick={() => setShowReciters(!showReciters)}
                  className="text-[8px] md:text-[10px] text-slate-400 hover:text-brand-primary font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"
                >
                  <Volume2 className="w-2.5 h-2.5 md:w-3 md:h-3" /> {RECITERS.find(r => r.id === selectedReciter)?.name.split(' ').pop()}
                </button>
+               <div className="w-1 h-1 bg-slate-700 rounded-full" />
+               <button 
+                 onClick={() => setShowTranslations(!showTranslations)}
+                 className="text-[8px] md:text-[10px] text-slate-400 hover:text-brand-primary font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"
+               >
+                 <Languages className="w-2.5 h-2.5 md:w-3 md:h-3" /> {TRANSLATIONS.find(t => t.id === selectedTranslation)?.name}
+               </button>
+               {localStorage.getItem('offline-mode') === 'true' && (
+                 <>
+                   <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                   <div className="flex items-center gap-1 text-[8px] md:text-[10px] text-emerald-500 font-bold uppercase tracking-widest">
+                     <WifiOff size={10} /> Offline Sanctuary
+                   </div>
+                 </>
+               )}
             </div>
           </div>
         </div>
@@ -256,6 +440,41 @@ export default function SurahDetail({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Translation Dropdown */}
+        <AnimatePresence>
+          {showTranslations && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute top-full mt-4 right-0 w-72 glass-panel rounded-3xl p-2 border-brand-primary/20 shadow-2xl z-50 backdrop-blur-3xl"
+            >
+              <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Select Translation</p>
+                <button onClick={() => setShowTranslations(false)}><X size={14} className="text-slate-500" /></button>
+              </div>
+              <div className="py-2 max-h-80 overflow-y-auto no-scrollbar">
+                {TRANSLATIONS.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setSelectedTranslation(t.id);
+                      setShowTranslations(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${selectedTranslation === t.id ? 'bg-brand-primary/10 text-brand-primary' : 'hover:bg-white/5 text-slate-400'}`}
+                  >
+                    <div className="text-left">
+                      <p className="text-sm font-bold">{t.name}</p>
+                      <p className="text-[9px] uppercase tracking-tighter opacity-60">Language: {t.lang.toUpperCase()}</p>
+                    </div>
+                    {selectedTranslation === t.id && <Check size={16} />}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Bismillah */}
@@ -277,26 +496,44 @@ export default function SurahDetail({
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-100px' }}
-            className="group relative"
+            className={`group relative p-6 md:p-8 rounded-[2.5rem] transition-all duration-700 overflow-hidden ${playingAyah === ayah.number ? 'bg-brand-primary/[0.08] shadow-[0_0_40px_rgba(168,85,247,0.15)] border border-brand-primary/30' : ''}`}
           >
+            {/* Active Glow Ornament */}
+            {playingAyah === ayah.number && (
+              <motion.div 
+                layoutId="ayah-highlight-glow"
+                className="absolute inset-0 bg-gradient-to-br from-brand-primary/[0.05] via-transparent to-transparent pointer-events-none"
+              />
+            )}
             {/* Verse Number & Actions */}
-            <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-               <div className="w-8 h-8 md:w-10 md:h-10 border border-brand-primary/30 rounded-full flex items-center justify-center text-brand-primary text-[10px] md:text-xs font-bold font-mono">
+            <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8 relative z-10">
+               <div className={`w-8 h-8 md:w-10 md:h-10 border rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold font-mono transition-colors shadow-lg ${playingAyah === ayah.number ? 'bg-brand-primary border-brand-primary text-brand-depth shadow-brand-primary/20' : 'border-brand-primary/30 text-brand-primary shadow-black/20'}`}>
                   {ayah.numberInSurah}
                </div>
                <div className="h-[1px] flex-1 bg-gradient-to-r from-brand-primary/20 to-transparent" />
                <div className="flex items-center gap-1 md:gap-3">
                   <button 
                     onClick={() => togglePlay(ayah)}
-                    className={`p-2 transition-all ${playingAyah === ayah.number ? 'text-brand-primary scale-110' : 'text-slate-500 hover:text-brand-primary'}`}
+                    className={`p-2 transition-all relative ${playingAyah === ayah.number ? 'text-brand-primary scale-110' : 'text-slate-500 hover:text-brand-primary'}`}
                   >
                     {isAudioLoading === ayah.number ? (
-                      <Loader2 size={16} className="animate-spin text-brand-primary" />
+                      <div className="relative">
+                        <Loader2 size={16} className="animate-spin text-brand-primary" />
+                        <span className="absolute -top-4 -right-4 text-[7px] font-black">{bufferingProgress}%</span>
+                      </div>
                     ) : playingAyah === ayah.number ? (
                       <Pause size={16} fill="currentColor" />
                     ) : (
                       <Play size={16} fill="currentColor" />
                     )}
+                  </button>
+                  <button 
+                    onClick={() => downloadSingleAyah(ayah)}
+                    disabled={!!ayah.audioBlob || downloadingAyah === ayah.number}
+                    className={`p-2 transition-colors ${ayah.audioBlob ? 'text-emerald-500' : downloadingAyah === ayah.number ? 'text-brand-primary animate-bounce' : 'text-slate-500 hover:text-brand-primary'}`}
+                    title={ayah.audioBlob ? "Saved Offline" : "Download Verse"}
+                  >
+                    {ayah.audioBlob ? <Check size={16} /> : <Download size={16} />}
                   </button>
                   <button 
                     onClick={() => onToggleBookmark(ayah)}
@@ -353,85 +590,111 @@ export default function SurahDetail({
         ))}
       </div>
 
-      {/* Play Bar */}
-      <div className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-40 bg-brand-sidebar/80 backdrop-blur-2xl border border-brand-primary/20 rounded-full px-6 py-3 md:px-8 md:py-4 shadow-2xl flex items-center gap-4 md:gap-8 min-w-[280px] md:min-w-[320px]">
-         <button 
-           onClick={() => setAutoPlay(!autoPlay)}
-           className={`text-[8px] md:text-[10px] font-bold uppercase tracking-widest transition-colors ${autoPlay ? 'text-brand-primary' : 'text-slate-500'} hidden xs:block`}
+      {/* Unified Audio Player Control Bar */}
+      <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-2xl">
+         <motion.div 
+           initial={{ y: 100, opacity: 0 }}
+           animate={{ y: 0, opacity: 1 }}
+           className="glass-panel-purple border-brand-primary/30 p-3 md:p-4 rounded-[2.5rem] shadow-2xl backdrop-blur-3xl flex items-center gap-3 md:gap-6"
          >
-           Auto: {autoPlay ? 'ON' : 'OFF'}
-         </button>
-         <button 
-           onClick={() => {
-             if (playingAyah) {
-               audioRef.current?.pause();
-               setPlayingAyah(null);
-             } else {
-               playAyah(ayahs[0]);
-             }
-           }}
-           className="w-10 h-10 md:w-14 md:h-14 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg shadow-brand-primary/20"
-         >
-           {isAudioLoading ? (
-             <Loader2 size={24} className="animate-spin" />
-           ) : playingAyah ? (
-             <Pause fill="currentColor" size={20} />
-           ) : (
-             <Play fill="currentColor" size={20} />
-           )}
-         </button>
-         <div className="flex gap-4">
-            <button 
-              onClick={() => {
-                const currentIndex = ayahs.findIndex(a => a.number === playingAyah);
-                if (currentIndex > 0) playAyah(ayahs[currentIndex - 1]);
-              }}
-              className="text-slate-500 hover:text-white transition-colors text-lg"
-            >
-              ◀
-            </button>
-            <button 
-              onClick={() => {
-                const currentIndex = ayahs.findIndex(a => a.number === playingAyah);
-                if (currentIndex < ayahs.length - 1) playAyah(ayahs[currentIndex + 1]);
-              }}
-              className="text-slate-500 hover:text-white transition-colors text-lg"
-            >
-              ▶
-            </button>
-         </div>
-      </div>
+           {/* Current Ayah / Status */}
+            <div className="flex items-center gap-3 px-2 md:px-4 border-r border-white/10">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth relative overflow-hidden">
+                 {isAudioLoading ? (
+                   <>
+                    <Loader2 size={24} className="animate-spin relative z-10" />
+                    <div 
+                      className="absolute bottom-0 left-0 w-full bg-black/20 transition-all duration-300"
+                      style={{ height: `${bufferingProgress}%` }}
+                    />
+                   </>
+                 ) : playingAyah ? (
+                   <Volume2 size={24} className="animate-pulse" />
+                 ) : (
+                   <BookOpen size={24} />
+                 )}
+              </div>
+              <div className="hidden xs:block">
+                 <p className="text-[8px] font-black text-brand-primary uppercase tracking-[0.2em] mb-0.5">
+                   {isAudioLoading ? `Buffering ${bufferingProgress}%` : playingAyah ? 'Now Reciting' : 'Ready'}
+                 </p>
+                 <p className="text-[10px] md:text-xs font-bold text-white truncate max-w-[80px] md:max-w-[120px]">
+                   {playingAyah ? `Ayah #${ayahs.find(a => a.number === playingAyah)?.numberInSurah}` : `${surah.englishName}`}
+                 </p>
+              </div>
+           </div>
 
-      {/* Sticky Audio Player Floating Bar */}
-      <AnimatePresence>
-        {playingAyah && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 w-[90%] md:w-fit min-w-[300px] glass-panel-purple border-brand-primary/40 p-4 rounded-[2rem] z-50 flex items-center gap-6 shadow-2xl backdrop-blur-2xl"
-          >
-             <div className="w-12 h-12 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth">
-                {isAudioLoading ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} className="animate-pulse" />}
-             </div>
-             <div className="flex-1">
-                <p className="text-[8px] font-black text-brand-primary uppercase tracking-[0.2em] mb-0.5">{isAudioLoading ? 'Buffering Sanctuary' : 'Now Reciting'}</p>
-                <p className="text-xs font-bold text-white truncate max-w-[150px]">
-                  Ayah #{playingAyah} • {RECITERS.find(r => r.id === selectedReciter)?.name}
-                </p>
-             </div>
-             <button 
-               onClick={() => {
-                 audioRef.current?.pause();
-                 setPlayingAyah(null);
-               }}
-               className="w-12 h-12 glass-panel rounded-2xl flex items-center justify-center text-red-400 hover:bg-red-400/10 transition-all"
-             >
-                <Pause size={20} fill="currentColor" />
-             </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+           {/* Player Controls */}
+           <div className="flex-1 flex items-center justify-center gap-2 md:gap-6">
+              <button 
+                onClick={() => {
+                  const currentIndex = ayahs.findIndex(a => a.number === (playingAyah || ayahs[0].number));
+                  if (currentIndex > 0) playAyah(ayahs[currentIndex - 1]);
+                }}
+                className="p-2 text-slate-400 hover:text-white transition-colors"
+                title="Previous Ayah"
+              >
+                <SkipBack size={20} fill="currentColor" />
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (playingAyah) {
+                    audioRef.current?.pause();
+                    setPlayingAyah(null);
+                  } else {
+                    const toPlay = playingAyah ? ayahs.find(a => a.number === playingAyah) : ayahs[0];
+                    playAyah(toPlay);
+                  }
+                }}
+                className="w-12 h-12 md:w-14 md:h-14 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-brand-primary/30"
+              >
+                {isAudioLoading ? (
+                  <Loader2 size={24} className="animate-spin" />
+                ) : playingAyah ? (
+                  <Pause fill="currentColor" size={24} />
+                ) : (
+                  <Play fill="currentColor" size={24} />
+                )}
+              </button>
+
+              <button 
+                onClick={() => {
+                  const currentIndex = ayahs.findIndex(a => a.number === (playingAyah || ayahs[0].number));
+                  if (currentIndex < ayahs.length - 1) playAyah(ayahs[currentIndex + 1]);
+                }}
+                className="p-2 text-slate-400 hover:text-white transition-colors"
+                title="Next Ayah"
+              >
+                <SkipForward size={20} fill="currentColor" />
+              </button>
+           </div>
+
+           {/* Settings Toggles */}
+           <div className="flex items-center gap-2 px-2 md:px-4 border-l border-white/10">
+              <button 
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`p-2.5 rounded-xl transition-all flex flex-col items-center gap-1 ${autoPlay ? 'bg-brand-primary/20 text-brand-primary' : 'text-slate-500 hover:bg-white/5'}`}
+                title="Auto-Play Continuous"
+              >
+                <Repeat size={18} />
+                <span className="text-[7px] font-black uppercase tracking-tighter">Auto</span>
+              </button>
+              
+              <button 
+                onClick={() => {
+                  const activeElement = document.getElementById(`ayah-${playingAyah || ayahs[0].number}`);
+                  activeElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                className="p-2.5 rounded-xl text-slate-500 hover:bg-white/5 hover:text-brand-primary transition-all flex flex-col items-center gap-1"
+                title="Scroll to Active"
+              >
+                <Settings size={18} className="rotate-90" />
+                <span className="text-[7px] font-black uppercase tracking-tighter">Focus</span>
+              </button>
+           </div>
+         </motion.div>
+      </div>
     </div>
   );
 }

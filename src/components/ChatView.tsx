@@ -16,9 +16,8 @@ import {
   Plus,
   Clock,
   Trash2,
-  Crown,
-  ShieldCheck,
-  Zap
+  Inbox,
+  Globe
 } from 'lucide-react';
 import { 
   collection, 
@@ -77,7 +76,7 @@ interface ChatRequest {
 }
 
 export default function ChatView({ isPremium = false }: { isPremium?: boolean }) {
-  const [activeTab, setActiveTab] = useState<'ummah' | 'requests'>('ummah');
+  const [activeTab, setActiveTab] = useState<'messages' | 'ummah' | 'requests'>('messages');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -90,30 +89,16 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
   const [newGroupName, setNewGroupName] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initialize public groups if they don't exist
-  useEffect(() => {
-    const initGroups = async () => {
-      if (!auth.currentUser) return;
-      const globalRoomId = 'global-ummah';
-      const globalRoomRef = doc(db, 'rooms', globalRoomId);
-      try {
-        const docSnap = await getDoc(globalRoomRef);
-        if (!docSnap.exists()) {
-          await setDoc(globalRoomRef, {
-            name: 'Global Ummah',
-            type: 'group',
-            participants: [],
-            updatedAt: serverTimestamp()
-          });
-        }
-      } catch (error) {
-        console.warn("Global room init error or already exists:", error);
-      }
-    };
-    initGroups();
-  }, []);
+  // Layout state for mobile
+  const [mobileViewState, setMobileViewState] = useState<'list' | 'chat'>('list');
 
-  // Fetch rooms
+  // Sync mobile view state with active room
+  useEffect(() => {
+    if (activeRoom) setMobileViewState('chat');
+    else setMobileViewState('list');
+  }, [activeRoom]);
+
+  // Fetch rooms (Groups the user is in + Personal DMs)
   useEffect(() => {
     if (!auth.currentUser) return;
     
@@ -130,18 +115,13 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
       const roomList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Room));
       setRooms(roomList);
       setLoading(false);
-      
-      if (!activeRoom && roomList.length > 0) {
-        const global = roomList.find(r => r.id === 'global-ummah');
-        if (global) setActiveRoom(global);
-      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'rooms');
     });
     return () => unsubscribe();
-  }, [activeRoom]);
+  }, []);
 
-  // Fetch pendings requests
+  // Fetch pending requests
   useEffect(() => {
     if (!auth.currentUser) return;
     const q = query(
@@ -156,7 +136,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
     return () => unsubscribe();
   }, []);
 
-  // Fetch messages for active room
+  // Fetch messages
   useEffect(() => {
     if (!activeRoom || !auth.currentUser) return;
     const q = query(
@@ -166,84 +146,58 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       setMessages(msgList);
-      // Faster scroll for real-time feel
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      });
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 100);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `rooms/${activeRoom.id}/messages`);
     });
     return () => unsubscribe();
   }, [activeRoom]);
 
-  const formatTime = (timestamp: any) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatRelativeTime = (timestamp: any) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    const now = new Date();
-    const diff = (now.getTime() - date.getTime()) / 1000;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
-
-  // Handle user search
+  // Search users for new chats
   useEffect(() => {
     if (activeTab !== 'ummah' || !userSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-
     const searchUsers = async () => {
       try {
         const q = query(
           collection(db, 'users'),
-          where('email', '>=', userSearchQuery),
-          where('email', '<=', userSearchQuery + '\uf8ff'),
+          where('displayName', '>=', userSearchQuery),
+          where('displayName', '<=', userSearchQuery + '\uf8ff'),
           limit(10)
         );
         const snap = await getDocs(q);
         setSearchResults(snap.docs
           .map(doc => doc.data() as ChatUserInfo)
-          .filter(u => u.uid !== auth.currentUser?.uid) // Don't show myself
+          .filter(u => u.uid !== auth.currentUser?.uid)
         );
       } catch (error) {
         console.error("Search error", error);
       }
     };
-
-    const timer = setTimeout(searchUsers, 500);
+    const timer = setTimeout(searchUsers, 400);
     return () => clearTimeout(timer);
   }, [userSearchQuery, activeTab]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeRoom || !auth.currentUser) return;
-
     const msgData = {
       senderId: auth.currentUser.uid,
-      senderName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Anonymous',
+      senderName: auth.currentUser.displayName || 'Anonymous',
       senderPhoto: auth.currentUser.photoURL,
       text: newMessage,
       timestamp: serverTimestamp()
     };
-
     try {
       setNewMessage('');
-      const messagesRef = collection(db, `rooms/${activeRoom.id}/messages`);
-      await addDoc(messagesRef, msgData);
-      
-      const roomRef = doc(db, 'rooms', activeRoom.id);
-      await updateDoc(roomRef, {
+      await addDoc(collection(db, `rooms/${activeRoom.id}/messages`), msgData);
+      await updateDoc(doc(db, 'rooms', activeRoom.id), {
         lastMessage: newMessage,
+        lastSenderId: auth.currentUser.uid,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -256,13 +210,13 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
     try {
       await addDoc(collection(db, 'chat_requests'), {
         fromId: auth.currentUser.uid,
-        fromName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Anonymous',
+        fromName: auth.currentUser.displayName || 'Anonymous',
         fromPhoto: auth.currentUser.photoURL,
         toId: user.uid,
         status: 'pending',
         createdAt: serverTimestamp()
       });
-      alert(`Request sent to ${user.displayName || user.email}`);
+      alert(`Request sent to ${user.displayName}. You can chat once they accept.`);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'chat_requests');
     }
@@ -271,29 +225,18 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
   const handleAcceptRequest = async (request: ChatRequest) => {
     if (!auth.currentUser) return;
     try {
-      // Create room
       const roomId = [auth.currentUser.uid, request.fromId].sort().join('_');
       await setDoc(doc(db, 'rooms', roomId), {
-        name: request.fromName, // This is simplistic, might need better naming for private rooms
+        name: request.fromName,
         type: 'private',
         participants: [auth.currentUser.uid, request.fromId],
         updatedAt: serverTimestamp(),
         lastMessage: 'Chat started'
       });
-
-      // Update request
       await deleteDoc(doc(db, 'chat_requests', request.id));
-      setActiveTab('ummah');
+      setActiveTab('messages');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'chat_requests/rooms');
-    }
-  };
-
-  const handleRejectRequest = async (requestId: string) => {
-    try {
-      await deleteDoc(doc(db, 'chat_requests', requestId));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'chat_requests');
+      handleFirestoreError(error, OperationType.WRITE, 'rooms');
     }
   };
 
@@ -316,353 +259,303 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
     }
   };
 
-  const handleDeleteRoom = async (roomId: string) => {
-    if (!window.confirm('Are you sure you want to delete this group? All messages will be lost.')) return;
+  const handleDeleteRoom = async () => {
+    if (!activeRoom || !auth.currentUser || activeRoom.createdBy !== auth.currentUser.uid) return;
+    
+    if (!confirm('Are you certain you wish to dissolve this sacred circle? All messages and history will be permanently erased from the sanctuary.')) return;
+
     try {
-      await deleteDoc(doc(db, 'rooms', roomId));
-      // Optionally delete messages subcollection - though Firestore doesn't do this automatically
-      // For a demo/simple app, we just delete the room doc
+      // 1. Delete all messages in the subcollection first (optional but good practice)
+      const msgsQuery = query(collection(db, `rooms/${activeRoom.id}/messages`));
+      const msgsSnap = await getDocs(msgsQuery);
+      
+      const deletePromises = msgsSnap.docs.map(m => deleteDoc(doc(db, `rooms/${activeRoom.id}/messages`, m.id)));
+      await Promise.all(deletePromises);
+
+      // 2. Delete the room itself
+      await deleteDoc(doc(db, 'rooms', activeRoom.id));
+      
       setActiveRoom(null);
+      setMobileViewState('list');
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `rooms/${roomId}`);
+      handleFirestoreError(error, OperationType.DELETE, `rooms/${activeRoom.id}`);
     }
   };
 
-  if (!auth.currentUser) {
-    return (
-      <div className="flex flex-col items-center justify-center py-40 text-center space-y-8">
-        <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary">
-          <Lock size={48} />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-3xl font-black text-white">Sacred Conversations</h3>
-          <p className="text-slate-500 max-w-sm mx-auto font-medium">Please login to connect with the global Ummah.</p>
-        </div>
-      </div>
-    );
-  }
+  if (!auth.currentUser) return null;
 
   return (
-    <div className="h-[calc(100vh-220px)] md:h-[700px] flex glass-panel rounded-[2rem] md:rounded-[3.5rem] border-white/5 overflow-hidden shadow-2xl bg-brand-sidebar/30 backdrop-blur-3xl relative">
+    <div className="flex h-[calc(100vh-80px)] md:h-[650px] bg-brand-sidebar/20 rounded-[2rem] md:rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-xl relative">
+      
+      {/* 1. Sidebar Panel (List of Chats/Search/Requests) */}
+      <div className={`w-full md:w-80 border-r border-white/5 flex flex-col transition-all duration-300 ${mobileViewState === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+        
+        {/* Sidebar Header */}
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black text-white tracking-tight">Ummah Hub</h2>
+            <button 
+              onClick={() => setShowCreateGroup(true)}
+              className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-brand-depth transition-all"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex p-1 bg-white/5 rounded-2xl">
+            {[
+              { id: 'messages', label: 'Chats', icon: MessageCircle },
+              { id: 'ummah', label: 'Explore', icon: Globe },
+              { id: 'requests', label: 'Requests', icon: Inbox, count: pendingRequests.length }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all relative ${activeTab === tab.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+              >
+                <tab.icon size={18} />
+                <span className="text-[10px] font-black uppercase mt-1 tracking-widest">{tab.label}</span>
+                {tab.count ? (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black">
+                    {tab.count}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sidebar Scrolable Content */}
+        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2 no-scrollbar">
+          {activeTab === 'messages' && (
+            <>
+              {rooms.map(room => (
+                <button
+                  key={room.id}
+                  onClick={() => setActiveRoom(room)}
+                  className={`w-full text-left p-4 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-xl' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
+                    {room.type === 'group' ? <Hash size={20} /> : <MessageCircle size={20} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-sm truncate">{room.name}</p>
+                    <p className="text-[10px] opacity-60 truncate font-medium">{room.lastMessage || 'No messages yet'}</p>
+                  </div>
+                </button>
+              ))}
+              {rooms.length === 0 && (
+                <div className="py-20 text-center opacity-30 select-none">
+                  <MessageCircle size={40} className="mx-auto mb-4" />
+                  <p className="text-xs font-black uppercase tracking-widest">Quiet in here...</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'ummah' && (
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                <input 
+                  type="text" 
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Search Ummah by username..."
+                  className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:bg-white/10 transition-all font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                {searchResults.map(user => (
+                  <div key={user.uid} className="bg-white/5 p-4 rounded-3xl flex items-center justify-between border border-white/5 hover:bg-white/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary overflow-hidden">
+                        {user.photoURL ? <img src={user.photoURL} alt="" /> : <UserIcon size={20} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-xs text-white truncate">{user.displayName || user.email}</p>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Available</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleSendRequest(user)}
+                      className="p-2 bg-brand-primary text-brand-depth rounded-xl hover:scale-110 active:scale-95 transition-all shadow-lg shadow-brand-primary/20"
+                    >
+                      <UserPlus size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'requests' && (
+            <div className="space-y-3">
+              {pendingRequests.map(req => (
+                <div key={req.id} className="bg-brand-primary/5 p-5 rounded-[2rem] border border-brand-primary/10 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <img src={req.fromPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.fromId}`} alt="" className="w-10 h-10 rounded-xl border border-white/10" />
+                    <div>
+                      <p className="font-black text-xs text-white leading-none">{req.fromName}</p>
+                      <p className="text-[9px] text-brand-primary font-black uppercase tracking-widest mt-1">Connection Request</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleAcceptRequest(req)}
+                      className="flex-1 bg-brand-primary text-brand-depth font-black py-2 rounded-xl text-xs hover:scale-105 transition-all shadow-lg shadow-brand-primary/10 flex items-center justify-center gap-2"
+                    >
+                      <Check size={14} /> Accept
+                    </button>
+                    <button 
+                      onClick={() => deleteDoc(doc(db, 'chat_requests', req.id))}
+                      className="p-2 bg-white/5 text-slate-500 rounded-xl hover:text-red-500 hover:bg-red-500/10 transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pendingRequests.length === 0 && (
+                <div className="py-20 text-center opacity-30">
+                  <Inbox size={40} className="mx-auto mb-4" />
+                  <p className="text-xs font-black uppercase tracking-widest">No Requests</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Chat Window Area */}
+      <div className={`flex-1 flex flex-col relative transition-all duration-300 ${mobileViewState === 'list' ? 'hidden md:flex' : 'flex'}`}>
+        {activeRoom ? (
+          <>
+            {/* Chat Header */}
+            <div className="p-5 md:p-8 border-b border-white/5 bg-brand-sidebar/40 backdrop-blur-3xl flex items-center justify-between sticky top-0 z-20">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setActiveRoom(null)} className="md:hidden p-2 text-brand-primary hover:bg-brand-primary/10 rounded-xl -ml-2">
+                  <ArrowLeft size={24} />
+                </button>
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary shadow-xl shadow-brand-primary/10">
+                  {activeRoom.type === 'group' ? <Hash size={24} /> : <MessageCircle size={24} />}
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-lg font-black text-white leading-tight">{activeRoom.name}</h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-pulse shadow-[0_0_5px_var(--brand-primary)]"></div>
+                    <p className="text-[9px] md:text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">Sanctuary Channel</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeRoom.type === 'group' && activeRoom.createdBy === auth.currentUser?.uid && (
+                  <button 
+                    onClick={handleDeleteRoom}
+                    className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                    title="Dissolve Group"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+                <button className="p-2 text-slate-500 hover:text-white transition-colors"><MoreHorizontal /></button>
+              </div>
+            </div>
+
+            {/* Message Feed */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 md:p-10 md:space-y-8 no-scrollbar scroll-smooth">
+              {messages.map((msg) => {
+                const isMe = msg.senderId === auth.currentUser?.uid;
+                return (
+                  <motion.div 
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                  >
+                    <div className={`flex gap-3 max-w-[85%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <img src={msg.senderPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}`} className="w-8 h-8 rounded-lg shrink-0" alt="" />
+                      <div className={`space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`flex items-center gap-2 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{msg.senderName}</p>
+                          <span className="text-[8px] text-slate-600 font-bold">{msg.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) || ''}</span>
+                        </div>
+                        <div className={`p-4 rounded-[1.5rem] text-sm leading-relaxed shadow-xl ${isMe ? 'bg-brand-primary text-brand-depth rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'}`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+
+            {/* Input Form */}
+            <form onSubmit={handleSendMessage} className="p-5 md:p-8 bg-brand-sidebar/40 border-t border-white/5">
+              <div className="relative flex items-center">
+                <input 
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  placeholder="Reflect and share..."
+                  className="w-full bg-brand-depth border border-white/10 rounded-[1.5rem] py-4 md:py-5 px-6 pr-16 text-sm text-white focus:outline-none focus:border-brand-primary/40 transition-all font-medium shadow-inner"
+                />
+                <button 
+                  type="submit"
+                  disabled={!newMessage.trim()}
+                  className="absolute right-2 w-10 h-10 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center hover:scale-110 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all shadow-xl shadow-brand-primary/20"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-6 islamic-pattern opacity-40">
+            <div className="w-20 h-20 bg-brand-primary/10 rounded-[2rem] flex items-center justify-center text-brand-primary border border-brand-primary/10 shadow-2xl">
+              <MessageCircle size={32} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white tracking-widest uppercase">Sacred Silence</h3>
+              <p className="text-xs text-slate-500 font-medium max-w-[240px] mt-2">Select a brother or sister or join a group ummah to begin conversing.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Create Group Overlay */}
       <AnimatePresence>
         {showCreateGroup && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-brand-depth/80 backdrop-blur-md z-[100] flex items-center justify-center p-6"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-brand-depth/90 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-brand-sidebar border border-white/10 p-8 rounded-[2rem] w-full max-w-sm space-y-6 shadow-2xl"
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-brand-sidebar border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm space-y-6 shadow-[0_0_100px_rgba(var(--brand-primary-rgb),0.1)]"
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black text-white">New Group</h3>
+                <h3 className="text-xl font-black text-white uppercase tracking-tighter">New Community Hub</h3>
                 <button onClick={() => setShowCreateGroup(false)} className="text-slate-500 hover:text-white"><X size={24}/></button>
               </div>
               <form onSubmit={handleCreateGroup} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Group Name</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="e.g., Fiqh Study Group"
-                    className="w-full bg-brand-depth/50 border border-white/10 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/40 transition-all"
-                  />
-                </div>
+                <input 
+                  required value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Group Name (e.g. Fiqh Study)"
+                  className="w-full bg-brand-depth/50 border border-white/5 rounded-2xl py-4 px-6 text-white font-medium outline-none focus:border-brand-primary/30 transition-all"
+                />
                 <button 
                   type="submit"
-                  className="w-full bg-brand-primary text-brand-depth font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-brand-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  className="w-full bg-brand-primary text-brand-depth font-black py-4 rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-widest"
                 >
-                  Create Group
-                  <Plus size={20} />
+                  Create Channel
                 </button>
               </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* VERITCAL NAVIGATION RAIL */}
-      <div className="hidden md:flex w-20 flex-col items-center py-8 gap-8 border-r border-white/5 bg-black/20">
-         {[
-           { id: 'ummah', label: 'Ummah', icon: Users, color: '' },
-           { id: 'requests', label: 'Requests', icon: Clock, count: pendingRequests.length, color: '' },
-         ].map(tab => (
-           <button
-             key={tab.id}
-             onClick={() => {
-               setActiveTab(tab.id as any);
-               setActiveRoom(null);
-             }}
-             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === tab.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-             title={tab.label}
-           >
-              <tab.icon size={22} className={tab.color || ''} />
-              {tab.count ? (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full font-black shadow-lg">
-                  {tab.count}
-                </span>
-              ) : null}
-              {activeTab === tab.id && (
-                <motion.div layoutId="activeChatTab" className="absolute left-[-16px] w-1 h-8 bg-brand-primary rounded-r-full" />
-              )}
-           </button>
-         ))}
-
-         <div className="mt-auto">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isPremium ? 'text-amber-400' : 'text-slate-700'}`}>
-               <ShieldCheck size={24} />
-            </div>
-         </div>
-      </div>
-
-      {/* Sidebar: Content for selected tab */}
-      <div className={`w-full md:w-80 border-r border-white/5 flex flex-col ${activeRoom ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-6 md:p-8 border-b border-white/5 space-y-6">
-           <div className="flex items-center justify-between">
-              <h3 className="text-lg md:text-xl font-black text-white capitalize">{activeTab}</h3>
-              <button 
-                onClick={() => setShowCreateGroup(true)}
-                className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-brand-depth transition-all"
-              >
-                <Plus size={20} />
-              </button>
-           </div>
-
-           {/* Mobile Tabs Wrapper (Vertical Nav is hide) */}
-           <div className="md:hidden flex p-1 bg-white/5 rounded-2xl overflow-x-auto">
-              {[
-                { id: 'ummah', label: 'Ummah', icon: Users },
-                { id: 'requests', label: 'Requests', icon: Clock, count: pendingRequests.length },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 min-w-[70px] flex flex-col items-center py-2 rounded-xl transition-all relative ${activeTab === tab.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                   <tab.icon size={16} />
-                   <span className="text-[10px] font-black uppercase mt-1">{tab.label}</span>
-                </button>
-              ))}
-           </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2 no-scrollbar">
-           {activeTab === 'ummah' && (
-              <div className="space-y-6">
-                 <div className="relative">
-                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                   <input 
-                     type="text" 
-                     value={userSearchQuery}
-                     onChange={(e) => setUserSearchQuery(e.target.value)}
-                     placeholder="Search Ummah..."
-                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all font-medium"
-                   />
-                 </div>
-                 
-                 {rooms.length > 0 && !userSearchQuery && (
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Your Conversations</p>
-                      <div className="space-y-2">
-                        {rooms.map(room => (
-                          <button
-                            key={room.id}
-                            onClick={() => setActiveRoom(room)}
-                            className={`w-full text-left p-4 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-                          >
-                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
-                                {room.type === 'group' ? <Hash size={14} /> : <MessageCircle size={14} />}
-                             </div>
-                             <div className="min-w-0 flex-1">
-                                <p className="font-black text-xs truncate">
-                                  {room.type === 'private' ? `Chat with ${room.name}` : room.name}
-                                </p>
-                             </div>
-                          </button>
-                        ))}
-                      </div>
-                   </div>
-                 )}
-                 
-                 {!userSearchQuery && rooms.filter(r => r.type === 'group').length === 0 && (
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Public Communities</p>
-                      <div className="space-y-2">
-                        <div className="p-4 text-center opacity-40">
-                           <p className="text-[10px] font-bold">No public groups available</p>
-                        </div>
-                      </div>
-                   </div>
-                 )}
-
-                 <div className="space-y-2">
-                    {searchResults.length > 0 && <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Members</p>}
-                    {searchResults.map(user => (
-                      <div key={user.uid} className="bg-white/5 p-4 rounded-3xl flex items-center justify-between border border-white/5">
-                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary overflow-hidden">
-                               {user.photoURL ? <img src={user.photoURL} alt="" /> : <UserIcon size={20} />}
-                            </div>
-                            <div className="min-w-0">
-                               <p className="font-black text-sm text-white truncate">{user.displayName || user.email.split('@')[0]}</p>
-                               <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
-                            </div>
-                         </div>
-                         <button 
-                           onClick={() => handleSendRequest(user)}
-                           className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-brand-depth transition-all"
-                         >
-                            <UserPlus size={18} />
-                         </button>
-                      </div>
-                    ))}
-                    {userSearchQuery && searchResults.length === 0 && (
-                      <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest py-8">No members found</p>
-                    )}
-                 </div>
-              </div>
-            )}
-
-           {activeTab === 'requests' && (
-             <div className="space-y-3">
-                {pendingRequests.map(req => (
-                  <div key={req.id} className="bg-white/5 p-5 rounded-[2rem] space-y-4 border border-white/5">
-                     <div className="flex items-center gap-3">
-                        <img src={req.fromPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.fromId}`} alt="" className="w-10 h-10 rounded-full border border-white/10" />
-                        <div>
-                           <p className="font-black text-xs text-white">{req.fromName}</p>
-                           <p className="text-[9px] text-brand-primary font-black uppercase tracking-widest">Wants to connect</p>
-                        </div>
-                     </div>
-                     <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleAcceptRequest(req)}
-                          className="flex-1 bg-brand-primary text-brand-depth font-black py-2 rounded-xl flex items-center justify-center gap-2 text-xs shadow-lg shadow-brand-primary/20 hover:scale-[1.02] transition-all"
-                        >
-                           <Check size={14} /> Accept
-                        </button>
-                        <button 
-                          onClick={() => handleRejectRequest(req.id)}
-                          className="px-4 py-2 bg-white/5 text-slate-500 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all"
-                        >
-                           <X size={14} />
-                        </button>
-                     </div>
-                  </div>
-                ))}
-                 {pendingRequests.length === 0 && (
-                  <div className="text-center py-12 space-y-2 opacity-40">
-                     <Clock className="mx-auto text-brand-primary mb-4" size={32} />
-                     <p className="text-xs font-bold text-white uppercase tracking-widest">No Requests</p>
-                     <p className="text-[10px] font-medium text-slate-500">Invitations will appear here</p>
-                  </div>
-                )}
-             </div>
-           )}
-        </div>
-      </div>
-
-      {/* Chat Area */}
-      <div className={`flex-1 flex flex-col ${!activeRoom ? 'hidden md:flex' : 'flex'}`}>
-        {activeRoom ? (
-          <>
-            {/* Header */}
-            <div className="p-4 md:p-8 border-b border-white/5 flex items-center justify-between bg-brand-sidebar/50 backdrop-blur-xl">
-               <div className="flex items-center gap-2 md:gap-4">
-                  <button onClick={() => setActiveRoom(null)} className="md:hidden text-brand-primary p-2 mr-1"><ArrowLeft size={24} /></button>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-                       {activeRoom.type === 'group' ? <Users size={16} className="md:w-5 md:h-5" /> : <MessageCircle size={16} className="md:w-5 md:h-5" />}
-                    </div>
-                    <div>
-                      <h4 className="text-sm md:text-lg font-black text-white truncate max-w-[120px] sm:max-w-none">{activeRoom.name}</h4>
-                      <p className="text-[8px] md:text-[10px] font-black text-brand-primary uppercase tracking-widest">
-                        {activeRoom.type === 'group' ? 'Community Hub' : 'Direct Message'}
-                      </p>
-                    </div>
-                  </div>
-               </div>
-               <div className="flex items-center gap-2">
-                 {activeRoom.type === 'group' && activeRoom.createdBy === auth.currentUser?.uid && (
-                    <button 
-                      onClick={() => handleDeleteRoom(activeRoom.id)}
-                      className="p-2 md:p-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-                      title="Delete Group"
-                    >
-                       <Trash2 size={18} className="md:w-5 md:h-5" />
-                    </button>
-                 )}
-                 <button className="p-2 md:p-3 text-slate-500 hover:text-white transition-colors bg-white/5 rounded-xl md:rounded-2xl"><MoreHorizontal size={20} /></button>
-               </div>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 md:p-10 space-y-6 md:space-y-8 no-scrollbar scroll-smooth">
-               {messages.map((msg, idx) => {
-                 const isMe = msg.senderId === auth.currentUser?.uid;
-                 return (
-                   <motion.div 
-                     key={msg.id}
-                     initial={{ opacity: 0, x: isMe ? 20 : -20 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                   >
-                     <div className={`flex gap-3 md:gap-4 max-w-[90%] md:max-w-[80%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <img src={msg.senderPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}`} alt="" className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl shrink-0 border border-white/5" />
-                        <div className={`space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
-                           <div className={`flex items-center gap-2 px-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                             <p className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                                {msg.senderName}
-                                {isMe && isPremium && <Crown size={10} className="text-amber-400" />}
-                             </p>
-                             <span className="text-[8px] font-bold text-slate-600">{formatTime(msg.timestamp)}</span>
-                           </div>
-                           <div className={`p-4 md:p-5 rounded-[1.5rem] md:rounded-[2rem] ${isMe ? 'bg-brand-primary text-brand-depth rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 shadow-xl'}`}>
-                              <p className="text-xs md:text-sm font-medium leading-relaxed">{msg.text}</p>
-                           </div>
-                        </div>
-                     </div>
-                   </motion.div>
-                 );
-               })}
-            </div>
-
-            {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 md:p-8 bg-brand-sidebar/50 border-t border-white/5 islamic-pattern">
-               <div className="relative group">
-                  <input 
-                    type="text" 
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    className="w-full bg-brand-depth border border-white/10 rounded-[1.5rem] md:rounded-[2rem] py-4 md:py-6 pl-6 md:px-8 text-sm md:text-base text-white focus:outline-none focus:border-brand-primary/40 transition-all font-medium pr-16 md:pr-20 shadow-inner"
-                  />
-                  <button 
-                    type="submit"
-                    className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-brand-primary text-brand-depth rounded-xl md:rounded-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl shadow-brand-primary/20"
-                  >
-                     <Send className="w-4.5 h-4.5 md:w-5 md:h-5" />
-                  </button>
-               </div>
-            </form>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-20 space-y-6 islamic-pattern">
-             <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl">
-                <MessageCircle size={48} />
-             </div>
-             <div className="space-y-2">
-               <h4 className="text-2xl font-black text-white">Select a Chat</h4>
-               <p className="text-slate-500 max-w-sm font-medium">Continue your conversations or join the global Ummah feed to connect with others.</p>
-             </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

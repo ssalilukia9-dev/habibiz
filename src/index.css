@@ -12,14 +12,39 @@
   --color-brand-depth: #150B25; /* Midnight Purple */
   --color-brand-sidebar: #0F071B; /* Shadow Purple */
   --color-brand-border: rgba(168, 85, 247, 0.1);
+  
+  --color-app-text: #F3F4F6;
+  --color-app-text-muted: #CBD5E1;
+  --color-app-text-dim: #94A3B8;
 }
 
 @layer base {
+  :root.dark {
+    --color-brand-depth: #150B25;
+    --color-brand-sidebar: #0F071B;
+    --color-app-text: #F3F4F6;
+    --color-app-text-muted: #CBD5E1;
+    --color-app-text-dim: #94A3B8;
+  }
+
+  :root:not(.dark) {
+    --color-brand-depth: #F9FAFB;
+    --color-brand-sidebar: #FFFFFF;
+    --color-app-text: #1F2937;
+    --color-app-text-muted: #475569;
+    --color-app-text-dim: #64748B;
+  }
+
   body {
-    @apply bg-brand-depth text-slate-200 font-sans antialiased;
+    @apply bg-brand-depth text-app-text font-sans antialiased transition-colors duration-300;
     background-image: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
   }
 }
+
+.text-slate-200 { color: var(--color-app-text); }
+.text-slate-400 { color: var(--color-app-text-muted); }
+.text-slate-500 { color: var(--color-app-text-dim); }
+
 
 .arabic-text {
   font-family: var(--font-arabic);

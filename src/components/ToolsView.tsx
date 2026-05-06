@@ -2,12 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import moment from 'moment-hijri';
 import { 
-  Compass, 
   MapPin, 
   Calendar, 
   Hash, 
   RotateCcw,
-  Navigation,
   Clock,
   ExternalLink,
   AlertCircle,
@@ -18,7 +16,7 @@ import {
   Speaker,
   Bell
 } from 'lucide-react';
-import { Qibla, Coordinates } from 'adhan';
+import { Coordinates } from 'adhan';
 import { getPrayerTimes, formatTime, CALCULATION_METHODS } from '../services/prayerService.ts';
 
 interface Mosque {
@@ -29,7 +27,7 @@ interface Mosque {
 }
 
 export default function ToolsView() {
-  const [activeTool, setActiveTool] = useState<'tasbih' | 'qibla' | 'mosques' | 'calendar' | 'reminders'>('tasbih');
+  const [activeTool, setActiveTool] = useState<'tasbih' | 'mosques' | 'calendar' | 'reminders'>('tasbih');
   
   // Notification State
   const [reminders, setReminders] = useState<{ [key: string]: boolean }>(() => {
@@ -46,6 +44,56 @@ export default function ToolsView() {
   });
 
   const [notificationStatus, setNotificationStatus] = useState<string>('idle');
+
+  // Adhan Sound State
+  const [selectedAdhan, setSelectedAdhan] = useState(() => {
+    return localStorage.getItem('selected-adhan') || 'standard';
+  });
+
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+
+  const [customAdhanUrl, setCustomAdhanUrl] = useState(() => {
+    return localStorage.getItem('custom-adhan-url') || '';
+  });
+
+  const ADHAN_OPTIONS = [
+    { id: 'standard', name: 'Makkah Adhan', url: 'https://www.islamcan.com/audio/adhan/makkah.mp3' },
+    { id: 'madinah', name: 'Madinah Adhan', url: 'https://www.islamcan.com/audio/adhan/madinah.mp3' },
+    { id: 'fajr', name: 'Fajr Adhan (Makkah)', url: 'https://www.islamcan.com/audio/adhan/makkah-fajr.mp3' },
+    { id: 'egypt', name: 'Egypt Adhan', url: 'https://www.islamcan.com/audio/adhan/egypt.mp3' },
+    { id: 'custom', name: 'Custom URL', url: customAdhanUrl }
+  ];
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('selected-adhan', selectedAdhan);
+  }, [selectedAdhan]);
+
+  useEffect(() => {
+    localStorage.setItem('custom-adhan-url', customAdhanUrl);
+  }, [customAdhanUrl]);
+
+  const playAdhan = (testUrl?: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    const url = testUrl || ADHAN_OPTIONS.find(o => o.id === selectedAdhan)?.url;
+    if (!url) return;
+
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.play().catch(e => console.warn("Audio playback failed:", e));
+  };
+
+  const stopAdhan = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+  };
 
   // Prayer Settings State
   const [calculationMethod, setCalculationMethod] = useState(() => {
@@ -87,12 +135,6 @@ export default function ToolsView() {
   useEffect(() => {
     localStorage.setItem('tasbih-count', count.toString());
   }, [count]);
-
-  // Qibla Logic
-  const [heading, setHeading] = useState<number | null>(null);
-  const [qiblaDir, setQiblaDir] = useState<number>(0);
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
 
   // Mosques Logic
   const [mosques, setMosques] = useState<Mosque[]>([]);
@@ -154,40 +196,14 @@ export default function ToolsView() {
       navigator.geolocation.getCurrentPosition((pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setLocation(coords);
-        const qibla = Qibla(new Coordinates(coords.lat, coords.lng));
-        setQiblaDir(qibla);
         fetchNearbyMosques(coords.lat, coords.lng);
       }, (err) => {
         console.error("Location error:", err);
         const defaultCoords = { lat: 21.4225, lng: 39.8262 }; // Makkah
         setLocation(defaultCoords);
-        setQiblaDir(Qibla(new Coordinates(defaultCoords.lat, defaultCoords.lng)));
       });
     }
   }, []);
-
-  const requestPermission = async () => {
-    // @ts-ignore - DeviceOrientationEvent.requestPermission is iOS specific
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      try {
-        // @ts-ignore
-        const response = await DeviceOrientationEvent.requestPermission();
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          setPermissionGranted(true);
-        } else {
-          setPermissionGranted(false);
-        }
-      } catch (error) {
-        console.error(error);
-        setPermissionGranted(false);
-      }
-    } else {
-      // Non-iOS or older browser
-      window.addEventListener('deviceorientation', handleOrientation, true);
-      setPermissionGranted(true);
-    }
-  };
 
   // Audio Context for Click Sound
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -217,36 +233,6 @@ export default function ToolsView() {
       console.warn("Audio error:", e);
     }
   };
-
-  const handleOrientation = (event: DeviceOrientationEvent) => {
-    // Priority: webkitCompassHeading (iOS) -> alpha (Android/Desktop)
-    // @ts-ignore
-    let compass = event.webkitCompassHeading;
-    
-    if (compass === undefined || compass === null) {
-      if (event.alpha !== null) {
-        // @ts-ignore
-        compass = event.absolute ? event.alpha : (360 - event.alpha);
-      }
-    }
-
-    if (compass !== undefined && compass !== null) {
-      setHeading(prev => {
-        if (prev === null) return compass;
-        let diff = compass - prev;
-        while (diff < -180) diff += 360;
-        while (diff > 180) diff -= 360;
-        return prev + diff * 0.2;
-      });
-    }
-  };
-
-  useEffect(() => {
-    // Clean up
-    return () => {
-      window.removeEventListener('deviceorientation', handleOrientation, true);
-    };
-  }, []);
 
   const [particles, setParticles] = useState<{id: number, x: number, y: number}[]>([]);
   const particleId = useRef(0);
@@ -308,13 +294,6 @@ export default function ToolsView() {
     return () => clearInterval(checkInterval);
   }, [location, reminders]);
 
-  const playAdhan = () => {
-    // In a real app, this would be a hosted audio file
-    // Simulation with a beep sequence if needed, but here we expect the user to understand it's a sound trigger
-    console.log("Playing Adhan Alert...");
-    playClickSound(); // Temporary audible feedback
-  };
-
   const requestNotificationPermission = async () => {
     if (!('Notification' in window)) {
       alert("This browser does not support desktop notifications");
@@ -338,16 +317,12 @@ export default function ToolsView() {
     setReminders(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Compass needles rotation: (Qibla Angle - Device Heading)
-  const relativeHeading = heading !== null ? (qiblaDir - heading) : 0;
-
   return (
     <div className="space-y-10 pb-20">
       {/* Sub-Nav */}
       <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
         {[
           { id: 'tasbih', label: 'Tasbih', icon: Hash },
-          { id: 'qibla', label: 'Qibla', icon: Compass },
           { id: 'reminders', label: 'Reminders', icon: Bell },
           { id: 'calendar', label: 'Calendar', icon: Calendar },
           { id: 'mosques', label: 'Nearby', icon: MapPin }
@@ -456,96 +431,6 @@ export default function ToolsView() {
                            {val}
                          </button>
                        ))}
-                    </div>
-                  </div>
-               </div>
-            </motion.div>
-          )}
-
-          {activeTool === 'qibla' && (
-            <motion.div
-              key="qibla"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center gap-10"
-            >
-               <div className="text-center">
-                  <h3 className="text-2xl font-black text-white mb-2">Qibla Finder</h3>
-                  <p className="text-slate-500 font-medium italic">Face the Kaaba in Makkah, Saudi Arabia.</p>
-               </div>
-               
-               <div className="relative w-72 h-72 md:w-80 md:h-80 rounded-full border-2 border-brand-primary/20 flex items-center justify-center bg-brand-sidebar shadow-2xl">
-                  {/* Compass Markers */}
-                  <div className="absolute inset-4 rounded-full border border-white/5" />
-                  
-                  {/* Rotating Dial */}
-                  <motion.div 
-                    animate={{ rotate: -(heading || 0) }}
-                    transition={{ type: 'spring', stiffness: 50, damping: 20 }}
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                  >
-                    <div className="absolute top-4 text-[10px] font-black text-slate-500">N</div>
-                    <div className="absolute bottom-4 text-[10px] font-black text-slate-400">S</div>
-                    <div className="absolute left-4 text-[10px] font-black text-slate-400">W</div>
-                    <div className="absolute right-4 text-[10px] font-black text-slate-400">E</div>
-                  </motion.div>
-
-                  {/* Qibla Needle (Absolute direction towards Qibla) */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <motion.div 
-                      animate={{ rotate: relativeHeading }} 
-                      transition={{ type: 'spring', stiffness: 60, damping: 20 }}
-                      className="absolute w-1.5 h-56 md:h-64 flex flex-col items-center pointer-events-none"
-                    >
-                       {/* The Arrow */}
-                       <div className="w-0 h-0 border-l-[10px] md:border-l-[12px] border-l-transparent border-r-[10px] md:border-r-[12px] border-r-transparent border-b-[24px] md:border-b-[30px] border-b-brand-primary drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]" />
-                       <div className="w-1 md:w-1.5 flex-1 bg-gradient-to-b from-brand-primary via-brand-primary/40 to-transparent rounded-full" />
-                    </motion.div>
-                  </div>
-
-                  {/* Kaaba Icon / Center */}
-                  <div className="z-10 bg-brand-sidebar p-4 md:p-5 rounded-full border-4 border-brand-primary/20 flex flex-col items-center justify-center shadow-2xl">
-                     <motion.div 
-                       animate={{ rotate: relativeHeading }}
-                       transition={{ type: 'spring', stiffness: 60, damping: 20 }}
-                     >
-                        <Navigation className="w-5 h-5 md:w-6 md:h-6 text-brand-primary" />
-                     </motion.div>
-                  </div>
-
-                  {/* Degrees Display */}
-                  <div className="absolute -bottom-4 bg-brand-sidebar px-4 py-2 rounded-2xl border border-white/10 flex flex-col items-center shadow-xl">
-                     <span className="text-[8px] font-black text-brand-primary uppercase tracking-[0.3em] mb-0.5">Qibla</span>
-                     <span className="text-lg font-black text-white tabular-nums">{Math.round(qiblaDir)}°</span>
-                  </div>
-               </div>
-
-               <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-                  {permissionGranted === null && (
-                    <button 
-                      onClick={requestPermission}
-                      className="w-full py-4 bg-brand-primary text-brand-depth font-black rounded-2xl shadow-xl shadow-brand-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all"
-                    >
-                      <Navigation size={18} /> ENABLE LIVE COMPASS
-                    </button>
-                  )}
-
-                  {permissionGranted === false && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-xs font-bold w-full">
-                      <AlertCircle size={18} />
-                      Permission denied. Using static compass.
-                    </div>
-                  )}
-
-                  <div className="glass-panel-purple p-6 rounded-3xl border-brand-primary/30 flex items-center gap-4 w-full">
-                    <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary">
-                       <MapPin size={20} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Your Location</p>
-                      <p className="text-[10px] font-medium text-slate-500">
-                        {location ? `${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E` : "Detecting location..."}
-                      </p>
                     </div>
                   </div>
                </div>
@@ -661,20 +546,87 @@ export default function ToolsView() {
 
                {/* Detail Settings (Audio & Offsets) */}
                <div className="grid grid-cols-1 gap-4">
-                  {/* Adhan Toggle */}
-                  <div className="glass-panel p-6 rounded-3xl border-white/5 flex items-center justify-between">
-                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary">
-                           <Speaker size={20} />
+                  {/* Adhan Sound Selection */}
+                  <div className="glass-panel p-6 rounded-3xl border-white/5 space-y-6">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                           <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary">
+                              <Volume2 size={20} />
+                           </div>
+                           <div>
+                              <p className="font-bold text-white">Adhan Selection</p>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Choose a voice for call to prayer</p>
+                           </div>
                         </div>
-                        <div>
-                           <p className="font-bold text-white">Adhan Audio Alert</p>
-                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Play call to prayer sound</p>
+                        <button onClick={() => toggleReminder('Adhan')} className={`w-12 h-6 rounded-full relative transition-colors ${reminders.Adhan ? 'bg-brand-primary' : 'bg-slate-700'}`}>
+                           <motion.div animate={{ x: reminders.Adhan ? 26 : 2 }} className="absolute top-1 w-4 h-4 bg-white rounded-full" />
+                        </button>
+                     </div>
+
+                     <div className="grid grid-cols-1 gap-2">
+                        {ADHAN_OPTIONS.filter(o => o.id !== 'custom').map(option => (
+                           <div 
+                             key={option.id}
+                             className={`flex items-center justify-between p-4 rounded-2xl transition-all border ${selectedAdhan === option.id ? 'bg-brand-primary/10 border-brand-primary/30' : 'bg-white/5 border-transparent hover:bg-white/10'}`}
+                           >
+                              <button 
+                                onClick={() => setSelectedAdhan(option.id)}
+                                className="flex-1 text-left"
+                              >
+                                 <p className={`text-xs font-black ${selectedAdhan === option.id ? 'text-brand-primary' : 'text-slate-200'}`}>{option.name}</p>
+                              </button>
+                              <button 
+                                onClick={() => playAdhan(option.url)}
+                                className="p-2 text-slate-500 hover:text-brand-primary transition-colors"
+                              >
+                                 <Speaker size={14} />
+                              </button>
+                           </div>
+                        ))}
+
+                        {/* Custom URL Option */}
+                        <div className={`p-4 rounded-2xl transition-all border space-y-3 ${selectedAdhan === 'custom' ? 'bg-brand-primary/10 border-brand-primary/30' : 'bg-white/5 border-transparent'}`}>
+                           <div className="flex items-center justify-between">
+                              <button 
+                                onClick={() => setSelectedAdhan('custom')}
+                                className="flex-1 text-left"
+                              >
+                                 <p className={`text-xs font-black ${selectedAdhan === 'custom' ? 'text-brand-primary' : 'text-slate-200'}`}>Custom Audio URL</p>
+                              </button>
+                              <button 
+                                onClick={() => playAdhan(customAdhanUrl)}
+                                className="p-2 text-slate-500 hover:text-brand-primary transition-colors"
+                                disabled={!customAdhanUrl}
+                              >
+                                 <Speaker size={14} />
+                              </button>
+                           </div>
+                           {selectedAdhan === 'custom' && (
+                             <input 
+                               type="text"
+                               value={customAdhanUrl}
+                               onChange={(e) => setCustomAdhanUrl(e.target.value)}
+                               placeholder="https://example.com/adhan.mp3"
+                               className="w-full bg-brand-depth/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white focus:outline-none focus:border-brand-primary/40"
+                             />
+                           )}
                         </div>
                      </div>
-                     <button onClick={() => toggleReminder('Adhan')} className={`w-12 h-6 rounded-full relative transition-colors ${reminders.Adhan ? 'bg-brand-primary' : 'bg-slate-700'}`}>
-                        <motion.div animate={{ x: reminders.Adhan ? 26 : 2 }} className="absolute top-1 w-4 h-4 bg-white rounded-full" />
-                     </button>
+                     
+                     <div className="flex gap-2">
+                        <button 
+                          onClick={() => playAdhan()}
+                          className="flex-1 py-3 bg-brand-primary/10 text-brand-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-primary/20 transition-all"
+                        >
+                           Play Current
+                        </button>
+                        <button 
+                          onClick={stopAdhan}
+                          className="flex-1 py-3 bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-500/20 transition-all underline decoration-dotted"
+                        >
+                           Stop Sound
+                        </button>
+                     </div>
                   </div>
 
                   {/* Offset & Prayer Matrix */}

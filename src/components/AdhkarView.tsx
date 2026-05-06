@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Sun, Moon, Shield, Award, ChevronRight } from 'lucide-react';
+import { Sparkles, Sun, Moon, Shield, Award, ChevronRight, Volume2, Square, Play } from 'lucide-react';
 
 const NAMES_OF_ALLAH = [
   { id: 1, arabic: "الرَّحْمَنُ", transliteration: "Ar-Rahman", english: "The Most Merciful" },
@@ -12,7 +12,6 @@ const NAMES_OF_ALLAH = [
   { id: 7, arabic: "الْمُهَيْمِنُ", transliteration: "Al-Muhaymin", english: "The Protector" },
   { id: 8, arabic: "الْعَزِيزُ", transliteration: "Al-Aziz", english: "The Mighty" },
   { id: 9, arabic: "الْجَبَّارُ", transliteration: "Al-Jabbar", english: "The Compeller" },
-  // ... more names could be added
 ];
 
 const ADHKAR = [
@@ -62,6 +61,32 @@ const ADHKAR = [
 export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (amount: number) => void, incrementDua: () => void }) {
   const [activeTab, setActiveTab] = useState<'names' | 'adhkar'>('adhkar');
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const handleSpeak = (text: string, id: string) => {
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.8;
+    
+    utterance.onstart = () => setSpeakingId(id);
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+
+    window.speechSynthesis.speak(utterance);
+  };
 
   const toggleComplete = (id: string) => {
     const next = new Set(completed);
@@ -69,7 +94,7 @@ export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (
       next.delete(id);
     } else {
       next.add(id);
-      incrementDua(); // Award points and increment count via global handler
+      incrementDua();
     }
     setCompleted(next);
   };
@@ -123,7 +148,7 @@ export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (
             exit={{ opacity: 0, y: -20 }}
             className="space-y-16"
           >
-            {ADHKAR.map((cat, idx) => (
+            {ADHKAR.map((cat) => (
               <section key={cat.category} className="space-y-8">
                 <div className="flex items-center gap-4 px-4">
                    <div className={`p-3 rounded-2xl bg-brand-sidebar shadow-lg border border-white/5 ${cat.category === 'Morning' ? 'text-brand-primary' : 'text-blue-400'}`}>
@@ -143,14 +168,22 @@ export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (
                         className={`glass-panel p-8 rounded-[2.5rem] border-white/5 space-y-6 flex flex-col justify-between transition-all group relative overflow-hidden ${completed.has(dhikr.id) ? 'bg-brand-primary/5 border-brand-primary/20' : ''}`}
                      >
                         <div className="space-y-6 relative z-10">
-                           <div className="flex justify-between items-start">
-                              <button 
-                                onClick={() => toggleComplete(dhikr.id)}
-                                className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${completed.has(dhikr.id) ? 'bg-brand-primary border-brand-primary text-brand-depth' : 'border-white/10 text-transparent hover:border-brand-primary/40'}`}
-                              >
-                                 <ChevronRight size={16} className={`transition-transform ${completed.has(dhikr.id) ? 'rotate-90' : ''}`} />
-                              </button>
-                              <p className="arabic-text text-3xl text-brand-primary leading-loose text-right flex-1 pl-6">{dhikr.arabic}</p>
+                           <div className="flex justify-between items-start gap-4">
+                              <div className="flex flex-col gap-3">
+                                <button 
+                                  onClick={() => toggleComplete(dhikr.id)}
+                                  className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${completed.has(dhikr.id) ? 'bg-brand-primary border-brand-primary text-brand-depth' : 'border-white/10 text-slate-400 hover:border-brand-primary/40 hover:text-brand-primary'}`}
+                                >
+                                   <ChevronRight size={18} className={`transition-transform ${completed.has(dhikr.id) ? 'rotate-90' : ''}`} />
+                                </button>
+                                <button 
+                                  onClick={() => handleSpeak(dhikr.arabic, dhikr.id)}
+                                  className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${speakingId === dhikr.id ? 'bg-amber-500 border-amber-500 text-white animate-pulse' : 'border-white/10 text-slate-400 hover:border-amber-500/40 hover:text-amber-500'}`}
+                                >
+                                   {speakingId === dhikr.id ? <Square size={16} fill="currentColor" /> : <Volume2 size={18} />}
+                                </button>
+                              </div>
+                              <p className="arabic-text text-3xl text-brand-primary leading-loose text-right flex-1">{dhikr.arabic}</p>
                            </div>
                            <p className="text-slate-300 text-sm font-medium leading-relaxed italic">{dhikr.english}</p>
                         </div>
@@ -161,11 +194,11 @@ export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (
                            </div>
                            {completed.has(dhikr.id) && (
                              <motion.span 
-                               initial={{ scale: 0 }}
-                               animate={{ scale: 1 }}
-                               className="text-[10px] font-black text-brand-primary uppercase tracking-widest"
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="text-[10px] font-black text-brand-primary uppercase tracking-widest"
                              >
-                               Done
+                                Done
                              </motion.span>
                            )}
                         </div>
@@ -187,14 +220,24 @@ export default function AdhkarView({ addHasanat, incrementDua }: { addHasanat: (
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {NAMES_OF_ALLAH.map((name) => (
-              <div key={name.id} className="glass-panel p-8 rounded-[2rem] border-white/5 text-center space-y-4 group hover:border-brand-primary/20 transition-all">
-                <div className="w-16 h-16 bg-brand-primary/5 rounded-full flex items-center justify-center text-brand-primary mx-auto group-hover:scale-110 transition-transform">
-                   <Award size={32} />
-                </div>
-                <div className="space-y-1">
-                   <p className="arabic-text text-4xl text-white mb-2">{name.arabic}</p>
-                   <h4 className="text-xl font-black text-brand-primary">{name.transliteration}</h4>
-                   <p className="text-sm text-slate-500 font-bold uppercase tracking-widest">{name.english}</p>
+              <div key={name.id} className="glass-panel p-8 rounded-[2rem] border-white/5 text-center space-y-6 group hover:border-brand-primary/20 transition-all relative overflow-hidden">
+                <div className="relative z-10">
+                  <div className="w-16 h-16 bg-brand-primary/5 rounded-full flex items-center justify-center text-brand-primary mx-auto group-hover:scale-110 transition-transform">
+                     <Award size={32} />
+                  </div>
+                  <div className="space-y-4 mt-6">
+                     <p className="arabic-text text-4xl text-white mb-2">{name.arabic}</p>
+                     <div className="space-y-1">
+                        <h4 className="text-xl font-black text-brand-primary">{name.transliteration}</h4>
+                        <p className="text-sm text-slate-500 font-bold uppercase tracking-widest">{name.english}</p>
+                     </div>
+                     <button 
+                        onClick={() => handleSpeak(name.arabic, `name-${name.id}`)}
+                        className={`mx-auto w-10 h-10 rounded-full border flex items-center justify-center transition-all ${speakingId === `name-${name.id}` ? 'bg-amber-500 border-amber-500 text-white' : 'border-white/10 text-slate-500 hover:border-amber-500 hover:text-amber-500'}`}
+                      >
+                        {speakingId === `name-${name.id}` ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      </button>
+                  </div>
                 </div>
               </div>
             ))}

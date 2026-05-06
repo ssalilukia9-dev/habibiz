@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { Bookmark, Search, Trash2, ArrowRight } from 'lucide-react';
 import { Ayah } from '../types.ts';
+import { SURAH_LIST } from '../constants.ts';
 
 interface BookmarksViewProps {
   bookmarks: Ayah[];
@@ -9,6 +10,10 @@ interface BookmarksViewProps {
 }
 
 export default function BookmarksView({ bookmarks, onRemoveBookmark, onNavigate }: BookmarksViewProps) {
+  const getSurahName = (surahNumber: number) => {
+    return SURAH_LIST.find(s => s.number === surahNumber)?.englishName || 'Unknown Surah';
+  };
+
   if (bookmarks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center h-[70vh]">
@@ -52,16 +57,28 @@ export default function BookmarksView({ bookmarks, onRemoveBookmark, onNavigate 
                       <Bookmark size={22} fill="currentColor" />
                    </div>
                    <div>
-                      <h4 className="font-bold text-slate-200">Verse {bookmark.numberInSurah}</h4>
+                      <h4 className="font-bold text-slate-200">
+                        {getSurahName((bookmark as any).surahNumber)} • Verse {bookmark.numberInSurah}
+                      </h4>
                       <p className="text-[10px] text-brand-primary/60 uppercase tracking-[0.2em] font-bold">Ayah #{bookmark.number}</p>
                    </div>
                 </div>
-                <button 
-                  onClick={() => onRemoveBookmark(bookmark)}
-                  className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-500/5 rounded-full transition-all"
-                >
-                   <Trash2 size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                   <button 
+                     onClick={() => onNavigate('resources', { resId: 'quran', surahNumber: (bookmark as any).surahNumber })}
+                     className="p-3 text-brand-primary hover:bg-brand-primary/10 rounded-full transition-all"
+                     title="Read in Context"
+                   >
+                      <ArrowRight size={20} />
+                   </button>
+                   <button 
+                     onClick={() => onRemoveBookmark(bookmark)}
+                     className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-500/5 rounded-full transition-all"
+                     title="Remove Bookmark"
+                   >
+                      <Trash2 size={20} />
+                   </button>
+                </div>
              </div>
 
              <p className="arabic-text text-4xl text-right mb-8 leading-relaxed text-brand-primary drop-shadow-[0_0_10px_rgba(212,175,55,0.1)]">

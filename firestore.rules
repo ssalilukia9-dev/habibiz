@@ -56,6 +56,22 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastSeen']) &&
         incoming().lastSeen == request.time
       );
+
+      // Bookmarked Ayahs
+      function isValidAyahBookmark(data) {
+        return data.keys().hasAll(['number', 'surahNumber', 'numberInSurah', 'text', 'createdAt']) &&
+               data.number is number &&
+               data.surahNumber is number &&
+               data.numberInSurah is number &&
+               data.text is string && data.text.size() <= 2000 &&
+               data.createdAt == request.time;
+      }
+
+      match /ayahBookmarks/{bookmarkId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidAyahBookmark(incoming());
+        allow delete: if isOwner(userId);
+      }
     }
 
     // ---------------------------------------------------------

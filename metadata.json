@@ -1,6 +1,8 @@
 {
-  "name": "An-Nur Quran Hub",
+  "name": "HABIBI AI",
   "description": "A comprehensive, self-contained Quran and Hadith sanctuary with multi-language translations, Tafsir, and Juz-based navigation.",
-  "requestFramePermissions": ["geolocation"],
+  "requestFramePermissions": [
+    "geolocation"
+  ],
   "majorCapabilities": []
 }

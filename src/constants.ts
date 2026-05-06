@@ -130,8 +130,11 @@ export const NAVIGATION_TABS = [
   { id: 'resources', label: 'Resources', icon: 'BookOpen' },
   { id: 'chat', label: 'Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
+  { id: 'notifications', label: 'Activity', icon: 'Bell' },
   { id: 'bookmarks', label: 'Bookmarks', icon: 'Bookmark' },
-  { id: 'settings', label: 'Settings', icon: 'Settings' }
+  { id: 'settings', label: 'Settings', icon: 'Settings' },
+  { id: 'premium', label: 'Premium', icon: 'Sparkles' },
+  { id: 'qibla', label: 'Qibla', icon: 'Compass' }
 ];
 
 export const LANGUAGES = [
@@ -140,6 +143,18 @@ export const LANGUAGES = [
   { code: 'id', name: 'Indonesian' },
   { code: 'tr', name: 'Turkish' },
   { code: 'ur', name: 'Urdu' }
+];
+
+export const TRANSLATIONS = [
+  { id: 'en.sahih', name: 'Sahih International', lang: 'en' },
+  { id: 'en.pickthall', name: 'Pickthall', lang: 'en' },
+  { id: 'en.yusufali', name: 'Yusuf Ali', lang: 'en' },
+  { id: 'fr.hamidullah', name: 'Hamidullah', lang: 'fr' },
+  { id: 'id.jalalayn', name: 'Tafsir Jalalayn', lang: 'id' },
+  { id: 'id.indonesian', name: 'Indonesian', lang: 'id' },
+  { id: 'tr.ozturk', name: 'Ozturk', lang: 'tr' },
+  { id: 'ur.kanzuliman', name: 'Kanzul Iman', lang: 'ur' },
+  { id: 'ur.maududi', name: 'Maududi', lang: 'ur' }
 ];
 
 export const RECITERS = [

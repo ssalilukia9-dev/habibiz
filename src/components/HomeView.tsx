@@ -22,7 +22,8 @@ import {
   Library,
   Flame,
   Heart,
-  Target
+  Target,
+  Crown
 } from 'lucide-react';
 import { getDailyHadith } from '../data/hadiths.ts';
 import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerService.ts';
@@ -36,6 +37,8 @@ interface HomeViewProps {
   versesRead: number;
   duaCount: number;
   streak: number;
+  topUserId?: string | null;
+  currentUser?: any;
 }
 
 export default function HomeView({ 
@@ -46,7 +49,9 @@ export default function HomeView({
   levelProgress = 0,
   versesRead = 0,
   duaCount = 0,
-  streak = 0
+  streak = 0,
+  topUserId = null,
+  currentUser = null
 }: HomeViewProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -100,11 +105,41 @@ export default function HomeView({
     { name: 'Isha', time: formatTime(prayerData.isha), icon: Moon, active: prayerData.currentPrayer === 'Isha' },
   ] : [];
 
-  const dailyVerse = {
-    arabic: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
-    translation: "For indeed, with hardship [will be] ease.",
-    reference: "Surah Al-Inshirah [94:6]"
+  const DAILY_VERSES = [
+    {
+      arabic: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
+      translation: "For indeed, with hardship [will be] ease.",
+      reference: "Surah Al-Inshirah [94:6]"
+    },
+    {
+      arabic: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ",
+      translation: "Our Lord, give us in this world [that which is] good and in the Hereafter [that which is] good and protect us from the punishment of the Fire.",
+      reference: "Surah Al-Baqarah [2:201]"
+    },
+    {
+      arabic: "اللَّهُ نُورُ السَّمَاوَاتِ وَالْأَرْضِ",
+      translation: "Allah is the Light of the heavens and the earth.",
+      reference: "Surah An-Nur [24:35]"
+    },
+    {
+      arabic: "وَاصْبِرْ لِحُكْمِ رَبِّكَ فَإِنَّكَ بِأَعْيُنِنَا",
+      translation: "And be patient, [O Muhammad], for the decision of your Lord, for indeed, you are in Our eyes.",
+      reference: "Surah At-Tur [52:48]"
+    },
+    {
+      arabic: "فَاذْكُرُونِي أَذْكُرْكُمْ",
+      translation: "So remember Me; I will remember you.",
+      reference: "Surah Al-Baqarah [2:152]"
+    }
+  ];
+
+  const getDailyVerse = () => {
+    const day = new Date().getUTCDate();
+    const index = day % DAILY_VERSES.length;
+    return DAILY_VERSES[index];
   };
+
+  const dailyVerse = getDailyVerse();
 
   return (
     <div className="space-y-6 md:space-y-10 pb-20">
@@ -120,10 +155,20 @@ export default function HomeView({
           <div className="relative z-10 space-y-6">
             <div className="flex items-center gap-2 text-brand-primary text-[10px] font-black uppercase tracking-[0.3em]">
               <Sparkles size={12} className="animate-pulse" />
-              <span>Sanctuary of Light</span>
+              <span>HABIBI AI SANCTUARY</span>
             </div>
-            <h1 className="text-4xl md:text-7xl font-black text-white leading-[0.9] tracking-tighter">
-              Salam,<br/><span className="text-brand-primary">Abdullah</span>
+            <h1 className="text-4xl md:text-7xl font-black text-slate-200 leading-[0.9] tracking-tighter flex items-center gap-4">
+              Salam,<br/><span className="text-brand-primary uppercase">Habibi</span>
+              {currentUser && topUserId === currentUser.uid && (
+                <motion.div 
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  className="bg-amber-400 text-amber-900 p-2 rounded-xl shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-bounce"
+                  title="Habibi Crown Holder"
+                >
+                  <Crown size={32} />
+                </motion.div>
+              )}
             </h1>
             <p className="text-slate-400 text-lg max-w-md leading-relaxed">
               Your spiritual journey is thriving. You've read 12 more verses than yesterday!
@@ -149,7 +194,7 @@ export default function HomeView({
         <div className="lg:col-span-5 glass-panel p-8 md:p-10 rounded-[2.5rem] flex flex-col justify-between border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-start">
              <div className="space-y-1">
-                <div className="text-4xl md:text-5xl font-black text-white font-mono tracking-tighter">
+                <div className="text-4xl md:text-5xl font-black text-slate-200 font-mono tracking-tighter">
                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{hDay} {hMonth} {hYear}</div>
@@ -169,7 +214,7 @@ export default function HomeView({
                        </div>
                        <div>
                           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Next Prayer</p>
-                          <p className="text-sm font-black text-white">{prayerData.nextPrayer}</p>
+                          <p className="text-sm font-black text-slate-200">{prayerData.nextPrayer}</p>
                        </div>
                     </div>
                     <div className="text-right">
@@ -201,7 +246,7 @@ export default function HomeView({
            <div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Quran Progress</p>
               <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-white">{versesRead}</span>
+                 <span className="text-3xl font-black text-slate-200">{versesRead}</span>
                  <span className="text-[10px] text-slate-500 font-bold uppercase">Verses</span>
               </div>
            </div>
@@ -215,7 +260,7 @@ export default function HomeView({
            <div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Hadith Streak</p>
               <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-white">{streak}</span>
+                 <span className="text-3xl font-black text-slate-200">{streak}</span>
                  <span className="text-[10px] text-slate-500 font-bold uppercase">Days</span>
               </div>
            </div>
@@ -229,7 +274,7 @@ export default function HomeView({
            <div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Dua Reflections</p>
               <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-white">{duaCount}</span>
+                 <span className="text-3xl font-black text-slate-200">{duaCount}</span>
                  <span className="text-[10px] text-slate-500 font-bold uppercase">Saved</span>
               </div>
            </div>
@@ -276,7 +321,7 @@ export default function HomeView({
               <div className="px-4 py-1 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">
                  Daily Revelation
               </div>
-              <p className="arabic-text text-3xl md:text-5xl text-white leading-[2] md:leading-[1.8] drop-shadow-lg">
+              <p className="arabic-text text-3xl md:text-5xl text-slate-200 leading-[2] md:leading-[1.8] drop-shadow-lg">
                 {dailyVerse.arabic}
               </p>
               <div className="max-w-2xl space-y-2">
@@ -306,28 +351,40 @@ export default function HomeView({
                   </div>
               </div>
               <div>
-                 <p className="text-[10px] font-black text-brand-depth/60 uppercase tracking-[0.4em] mb-1">Spiritual Rank</p>
-                 <h3 className="text-3xl font-black text-brand-depth">{rank}</h3>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-1">Spiritual Rank</p>
+                 <h3 className="text-3xl font-black text-slate-200">{rank}</h3>
               </div>
            </div>
 
-           <div className="flex-1 w-full max-w-xl space-y-4">
+            <div className="flex-1 w-full max-w-xl space-y-4">
               <div className="flex justify-between items-end">
                  <div className="space-y-1">
-                    <p className="text-[8px] font-black text-brand-depth/40 uppercase tracking-widest">Total Hasanat</p>
-                    <p className="text-2xl font-black text-brand-depth">{hasanat.toLocaleString()}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Total Hasanat</p>
+                    <p className="text-3xl font-black text-slate-200 tracking-tighter">{hasanat.toLocaleString()}</p>
                  </div>
-                 <p className="text-[10px] font-black text-brand-depth/60 uppercase tracking-widest">
-                    {Math.round(levelProgress)}% to Level {level + 1}
-                 </p>
+                 <div className="text-right space-y-1">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Next Level</p>
+                    <p className="text-sm font-black text-slate-200">
+                       {Math.round(levelProgress)}% Complete
+                    </p>
+                 </div>
               </div>
-              <div className="w-full h-4 bg-brand-depth/10 rounded-full overflow-hidden p-1 shadow-inner">
+              <div className="w-full h-5 bg-brand-depth/10 rounded-full overflow-hidden p-1 shadow-inner border border-brand-depth/5">
                  <motion.div 
                    initial={{ width: 0 }}
                    animate={{ width: `${levelProgress}%` }}
-                   className="h-full bg-brand-depth rounded-full shadow-[0_0_20px_rgba(30,30,40,0.3)]" 
-                 />
+                   className="h-full bg-gradient-to-r from-brand-primary to-brand-accent rounded-full shadow-[0_0_20px_rgba(168,85,247,0.5)] relative overflow-hidden"
+                 >
+                    <motion.div 
+                      animate={{ x: ['-100%', '100%'] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-full"
+                    />
+                 </motion.div>
               </div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] text-center">
+                Keep striving for the sake of Allah to unlock Level {level + 1}
+              </p>
            </div>
         </div>
       </div>
@@ -348,7 +405,7 @@ export default function HomeView({
                     <prayer.icon size={20} />
                  </div>
                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${prayer.active ? 'text-brand-depth/60' : 'text-slate-500'}`}>{prayer.name}</p>
-                 <p className={`text-lg font-black ${prayer.active ? 'text-brand-depth' : 'text-white'}`}>{prayer.time}</p>
+                 <p className={`text-lg font-black ${prayer.active ? 'text-brand-depth' : 'text-slate-200'}`}>{prayer.time}</p>
               </div>
             ))}
          </div>
