@@ -51,14 +51,14 @@ export default function QiblaView() {
     };
 
     if ('ondeviceorientationabsolute' in window) {
-      window.addEventListener('deviceorientationabsolute' as any, handleOrientation);
+      (window as any).addEventListener('deviceorientationabsolute', handleOrientation);
     } else if ('ondeviceorientation' in window) {
-      window.addEventListener('deviceorientation' as any, handleOrientation);
+      (window as any).addEventListener('deviceorientation', handleOrientation);
     }
 
     return () => {
-      window.removeEventListener('deviceorientationabsolute' as any, handleOrientation);
-      window.removeEventListener('deviceorientation' as any, handleOrientation);
+      (window as any).removeEventListener('deviceorientationabsolute', handleOrientation);
+      (window as any).removeEventListener('deviceorientation', handleOrientation);
     };
   }, []);
 

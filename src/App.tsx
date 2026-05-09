@@ -259,16 +259,15 @@ export default function App() {
   const popupId = useRef(0);
 
   const addHasanat = (amount: number) => {
-    setHasanat(prev => {
-      const newVal = prev + amount;
-      if (currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
-        updateDoc(userRef, { 
-          hasanat: newVal
-        }).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.uid}`));
-      }
-      return newVal;
-    });
+    const newVal = hasanat + amount;
+    setHasanat(newVal);
+
+    if (currentUser) {
+      const userRef = doc(db, 'users', currentUser.uid);
+      updateDoc(userRef, { 
+        hasanat: newVal
+      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.uid}`));
+    }
 
     const id = popupId.current++;
     setPointPopups(prev => [...prev, { id, amount }]);
@@ -308,6 +307,7 @@ export default function App() {
         // Sync user to firestore
         const userRef = doc(db, 'users', user.uid);
         try {
+          // Try to get from cache first if offline, or server if online
           const docSnap = await getDoc(userRef);
           let joinedDate = new Date();
           
@@ -318,6 +318,7 @@ export default function App() {
                joinedDate = data.createdAt.toDate();
             }
             setUserJoinedAt(joinedDate);
+            setHasanat(data.hasanat || 0); // Sync hasanat from cloud
           } else {
             // New user, starting trial now
             setUserJoinedAt(joinedDate);
@@ -328,7 +329,8 @@ export default function App() {
               photoURL: user.photoURL,
               createdAt: serverTimestamp(),
               isPremium: false,
-              lastSeen: serverTimestamp()
+              lastSeen: serverTimestamp(),
+              hasanat: 0
             });
           }
 
@@ -337,7 +339,7 @@ export default function App() {
                lastSeen: serverTimestamp()
              });
           }
-        } catch (error) {
+        } catch (error: any) {
           handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
         }
       }

@@ -35,14 +35,20 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
     }
   }, [initialCollection]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedHadith, setSelectedHadith] = useState<typeof HADITH_DATABASE[0] | null>(null);
+
+  const TOPICS = ['all', ...Array.from(new Set(HADITH_DATABASE.map(h => h.topic)))].sort();
 
   const filteredHadith = HADITH_DATABASE.filter(h => {
     const matchesCollection = selectedCollection === 'all' || h.collection === selectedCollection;
-    const matchesSearch = h.english.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          h.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          h.narrator.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCollection && matchesSearch;
+    const matchesTopic = selectedTopic === 'all' || h.topic === selectedTopic;
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = h.english.toLowerCase().includes(searchLower) || 
+                          h.topic.toLowerCase().includes(searchLower) ||
+                          h.narrator.toLowerCase().includes(searchLower) ||
+                          h.arabic.includes(searchQuery); // Arabic search
+    return matchesCollection && matchesTopic && matchesSearch;
   });
 
   const HighlightText = ({ text, highlight }: { text: string, highlight: string }) => {
@@ -87,20 +93,41 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-brand-primary/50 transition-all text-slate-200"
                 />
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide w-full md:w-auto">
-                {COLLECTIONS.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCollection(c.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border ${
-                      selectedCollection === c.id 
-                        ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary shadow-lg shadow-brand-primary/10' 
-                        : 'bg-white/5 border-transparent text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-3 w-full md:w-auto">
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {COLLECTIONS.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedCollection(c.id)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all border ${
+                        selectedCollection === c.id 
+                          ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary shadow-lg shadow-brand-primary/10' 
+                          : 'bg-white/5 border-transparent text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  <div className="flex items-center gap-2 px-3 border-r border-white/10 mr-1">
+                    <Filter size={12} className="text-brand-primary" />
+                    <span className="text-[10px] font-black text-slate-500 whitespace-nowrap uppercase tracking-widest">Topic</span>
+                  </div>
+                  {TOPICS.map(topic => (
+                    <button
+                      key={topic}
+                      onClick={() => setSelectedTopic(topic)}
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
+                        selectedTopic === topic 
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
+                          : 'bg-white/5 border-transparent text-slate-600 hover:text-slate-400'
+                      }`}
+                    >
+                      {topic === 'all' ? 'All Topics' : topic}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

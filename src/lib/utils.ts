@@ -27,8 +27,16 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  // Identify common transient/offline errors
+  const isOffline = 
+    errorMessage.includes('offline') || 
+    errorMessage.includes('network-request-failed') ||
+    errorMessage.includes('Could not reach Cloud Firestore backend');
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -43,7 +51,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
+  
   const errorString = JSON.stringify(errInfo);
-  console.error('Firestore Error: ', errorString);
+  
+  if (isOffline) {
+    console.warn('Firestore Connectivity Issue (Offline):', errorString);
+    // Don't throw for offline/transient errors, let persistence handle it
+    return;
+  }
+
+  console.error('Firestore Fatal Error: ', errorString);
   throw new Error(errorString);
 }

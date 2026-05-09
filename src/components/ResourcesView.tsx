@@ -25,7 +25,8 @@ import {
   BarChart3,
   CalendarDays,
   MessageCircle,
-  Zap
+  Zap,
+  Smartphone
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -39,6 +40,7 @@ import GamesView from './GamesView.tsx';
 import QiblaView from './QiblaView.tsx';
 import PrayerTimesView from './PrayerTimesView.tsx';
 import IslamicFinanceView from './IslamicFinanceView.tsx';
+import DownloadAppView from './DownloadAppView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 interface ResourcesViewProps {
@@ -57,7 +59,7 @@ interface ResourcesViewProps {
   incrementVerse: () => void;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile';
 
 export default function ResourcesView({
   selectedSurah,
@@ -115,7 +117,8 @@ export default function ResourcesView({
       title: 'COMMUNITY',
       cards: [
         { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300' },
-        { id: 'feed', title: 'Social Feed', icon: MessageCircle, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' }
+        { id: 'feed', title: 'Social Feed', icon: MessageCircle, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' },
+        { id: 'mobile', title: 'Mobile App', icon: Smartphone, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300' }
       ]
     }
   ];
@@ -338,6 +341,7 @@ export default function ResourcesView({
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" />}
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
+                 {activeRes === 'mobile' && <DownloadAppView />}
                  {['market', 'coin_shop'].includes(activeRes as string) && (
                     <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
                        <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
