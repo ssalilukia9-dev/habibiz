@@ -8,7 +8,8 @@ import {
   Filter,
   ArrowLeft,
   Bookmark,
-  Share2
+  Share2,
+  X
 } from 'lucide-react';
 import { HADITH_DATABASE } from '../data/hadiths.ts';
 
@@ -34,9 +35,16 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
       _setSelectedCollection(initialCollection);
     }
   }, [initialCollection]);
+  // Search and Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedHadith, setSelectedHadith] = useState<typeof HADITH_DATABASE[0] | null>(null);
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedTopic('all');
+    setSelectedCollection('all');
+  };
 
   const TOPICS = ['all', ...Array.from(new Set(HADITH_DATABASE.map(h => h.topic)))].sort();
 
@@ -82,16 +90,34 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
             className="space-y-6"
           >
             {/* Search and Filter */}
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="relative flex-1 w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                <input 
-                  type="text"
-                  placeholder="Search by topic, narrator, or keyword..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-brand-primary/50 transition-all text-slate-200"
-                />
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 w-full group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-primary transition-colors" size={18} />
+                  <input 
+                    type="text"
+                    placeholder="Search by topic, narrator, or keyword..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-brand-primary/50 focus:bg-white/[0.07] transition-all text-slate-200"
+                  />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full text-slate-500 hover:text-white transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                {(searchQuery || selectedTopic !== 'all' || selectedCollection !== 'all') && (
+                  <button 
+                    onClick={clearFilters}
+                    className="text-[10px] font-black text-brand-primary uppercase tracking-widest px-4 py-2 hover:bg-brand-primary/10 rounded-xl transition-all"
+                  >
+                    Clear All Filters
+                  </button>
+                )}
               </div>
               <div className="flex flex-col gap-3 w-full md:w-auto">
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">

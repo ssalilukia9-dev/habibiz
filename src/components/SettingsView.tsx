@@ -9,14 +9,11 @@ interface SettingsViewProps {
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   onLogout: () => void;
+  language: string;
+  setLanguage: (val: string) => void;
 }
 
-export default function SettingsView({ darkMode, setDarkMode, onLogout }: SettingsViewProps) {
-  // Language Setting
-  const [language, setLanguage] = useState(() => {
-    return localStorage.getItem('app-language') || 'en';
-  });
-
+export default function SettingsView({ darkMode, setDarkMode, onLogout, language, setLanguage }: SettingsViewProps) {
   // Offline Mode Setting
   const [offlineMode, setOfflineMode] = useState(() => {
     return localStorage.getItem('offline-mode') === 'true';
@@ -123,10 +120,6 @@ export default function SettingsView({ darkMode, setDarkMode, onLogout }: Settin
   const toggleIndividualReminder = (key: string) => {
     setReminders(prev => ({ ...prev, [key]: !prev[key] }));
   };
-
-  useEffect(() => {
-    localStorage.setItem('app-language', language);
-  }, [language]);
 
   useEffect(() => {
     localStorage.setItem('offline-mode', offlineMode.toString());

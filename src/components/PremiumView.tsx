@@ -1,3 +1,6 @@
+import { auth, db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/utils';
 import { motion } from 'motion/react';
 import { 
   Sparkles, 
@@ -12,6 +15,23 @@ import {
 } from 'lucide-react';
 
 export default function PremiumView() {
+  const handleSubscribe = async () => {
+    if (!auth.currentUser) {
+      alert('Please sign in to upgrade to Habibi Elite.');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        isPremium: true
+      });
+      alert('Welcome to Habibi Elite! Your status has been elevated.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}`);
+    }
+  };
+
   const features = [
     {
       title: "Divine Companion AI",
@@ -93,7 +113,10 @@ export default function PremiumView() {
                 ))}
              </div>
 
-             <button className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+             <button 
+                onClick={handleSubscribe}
+                className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
                 Elevate My Soul Now <Zap size={16} />
              </button>
           </div>

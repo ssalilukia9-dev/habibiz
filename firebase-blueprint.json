@@ -9,10 +9,12 @@
         "displayName": { "type": "string" },
         "email": { "type": "string" },
         "photoURL": { "type": "string" },
-        "status": { "type": "string" },
-        "lastSeen": { "type": "string", "format": "date-time" }
+        "hasanat": { "type": "number" },
+        "isPremium": { "type": "boolean" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email"]
+      "required": ["uid", "email", "hasanat"]
     },
     "Message": {
       "title": "Message",

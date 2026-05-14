@@ -22,7 +22,10 @@ import {
   LogOut,
   User as UserIcon,
   Sparkles,
-  Bell
+  Bell,
+  Trophy,
+  Medal,
+  Terminal
 } from 'lucide-react';
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
 import { Surah, Ayah } from './types.ts';
@@ -60,6 +63,9 @@ import NotificationCenter from './components/NotificationCenter.tsx';
 import NotificationsView from './components/NotificationsView.tsx';
 import PremiumView from './components/PremiumView.tsx';
 import QiblaView from './components/QiblaView.tsx';
+import LeaderboardView from './components/LeaderboardView.tsx';
+import BlueprintView from './components/BlueprintView.tsx';
+import SplashScreen from './components/SplashScreen.tsx';
 import { notificationService } from './services/notificationService.ts';
 
 export default function App() {
@@ -68,6 +74,7 @@ export default function App() {
   const activeTab = location.pathname.substring(1) || 'home';
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastNotification, setLastNotification] = useState<any>(null);
   const [showTrial, setShowTrial] = useState(true);
@@ -87,6 +94,21 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
   const [bookmarks, setBookmarks] = useState<Ayah[]>([]);
   const [initialResId, setInitialResId] = useState<any>(null);
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem('app-language') || 'en';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app-language', language);
+  }, [language]);
+
+  useEffect(() => {
+    // Splash screen timer
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2800);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // 5 mins visible, 30 mins hidden cycle
@@ -468,6 +490,9 @@ export default function App() {
   return (
     <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
       <AnimatePresence>
+        {showSplash && <SplashScreen key="splash" />}
+      </AnimatePresence>
+      <AnimatePresence>
         {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
           <motion.div 
             initial={{ scale: 0.8, opacity: 0, y: 20 }}
@@ -581,7 +606,10 @@ export default function App() {
               MessageCircle,
               Compass,
               ShoppingBag,
-              Sparkles
+              Sparkles,
+              Trophy,
+              Medal,
+              Terminal
             }[tab.icon as keyof typeof Icon] || BookOpen;
             
             const isActive = activeTab === tab.id;
@@ -785,12 +813,15 @@ export default function App() {
                         addHasanat={addHasanat}
                         incrementDua={incrementDua}
                         incrementVerse={incrementVerse}
+                        language={language}
                       />
                     } />
                     <Route path="/market" element={<MarketView />} />
                     <Route path="/market/:productId" element={<MarketView detailMode />} />
                     <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
-                    <Route path="/settings" element={<SettingsView darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} />} />
+                    <Route path="/leaderboard" element={<LeaderboardView />} />
+                    <Route path="/blueprint" element={<BlueprintView />} />
+                    <Route path="/settings" element={<SettingsView darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView />} />
                     <Route path="/premium" element={<PremiumView />} />

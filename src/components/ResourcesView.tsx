@@ -57,6 +57,7 @@ interface ResourcesViewProps {
   addHasanat: (amount: number) => void;
   incrementDua: () => void;
   incrementVerse: () => void;
+  language: string;
 }
 
 type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile';
@@ -74,7 +75,8 @@ export default function ResourcesView({
   initialResId,
   addHasanat,
   incrementDua,
-  incrementVerse
+  incrementVerse,
+  language
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
   const navigate = useNavigate();
@@ -323,6 +325,7 @@ export default function ResourcesView({
                       onReciterChange={onReciterChange}
                       addHasanat={addHasanat}
                       incrementVerse={incrementVerse}
+                      language={language}
                    />
                  )}
                  {activeRes === 'hadith' && (

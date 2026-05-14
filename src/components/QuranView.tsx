@@ -4,6 +4,7 @@ import { SURAH_LIST, JUZ_LIST, RECITERS } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
 import { BookOpen, Hash, ArrowRight, Volume2, Check, ChevronDown } from 'lucide-react';
 import SurahDetail from './SurahDetail.tsx';
+import JuzDetail from './JuzDetail.tsx';
 
 interface QuranViewProps {
   selectedSurah: Surah | null;
@@ -15,6 +16,7 @@ interface QuranViewProps {
   onReciterChange: (id: number) => void;
   addHasanat: (amount: number) => void;
   incrementVerse: () => void;
+  language: string;
 }
 
 export default function QuranView({ 
@@ -26,10 +28,12 @@ export default function QuranView({
   selectedReciter,
   onReciterChange,
   addHasanat,
-  incrementVerse
+  incrementVerse,
+  language
 }: QuranViewProps) {
   const [viewMode, setViewMode] = useState<'surah' | 'juz'>('surah');
   const [showReciterList, setShowReciterList] = useState(false);
+  const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
 
   if (selectedSurah) {
     return (
@@ -42,6 +46,23 @@ export default function QuranView({
         onReciterChange={onReciterChange}
         addHasanat={addHasanat}
         incrementVerse={incrementVerse}
+        language={language}
+      />
+    );
+  }
+
+  if (selectedJuz) {
+    return (
+      <JuzDetail 
+        juzIndex={selectedJuz}
+        onBack={() => setSelectedJuz(null)}
+        bookmarks={bookmarks}
+        onToggleBookmark={onToggleBookmark}
+        selectedReciter={selectedReciter}
+        onReciterChange={onReciterChange}
+        addHasanat={addHasanat}
+        incrementVerse={incrementVerse}
+        language={language}
       />
     );
   }
@@ -165,6 +186,7 @@ export default function QuranView({
             <motion.button
               key={juz.index}
               whileHover={{ y: -8 }}
+              onClick={() => setSelectedJuz(juz.index)}
               className="bg-white/5 p-8 rounded-[2rem] border border-white/5 hover:border-brand-primary/30 text-center space-y-4 hover:bg-brand-primary/10 transition-all"
             >
               <div className="text-4xl font-black text-brand-primary opacity-20">#{juz.index}</div>

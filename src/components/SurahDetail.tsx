@@ -35,6 +35,7 @@ interface SurahDetailProps {
   onReciterChange: (id: number) => void;
   addHasanat: (amount: number) => void;
   incrementVerse: () => void;
+  language: string;
 }
 
 export default function SurahDetail({ 
@@ -45,7 +46,8 @@ export default function SurahDetail({
   selectedReciter,
   onReciterChange,
   addHasanat,
-  incrementVerse
+  incrementVerse,
+  language
 }: SurahDetailProps) {
   const [ayahs, setAyahs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,11 +56,27 @@ export default function SurahDetail({
   const [autoPlay, setAutoPlay] = useState(true);
   const [showReciters, setShowReciters] = useState(false);
   const [showTranslations, setShowTranslations] = useState(false);
-  const [selectedTranslation, setSelectedTranslation] = useState('en.sahih');
+  
+  const getTranslationForLang = (lang: string) => {
+    switch(lang) {
+      case 'tr': return 'tr.ozturk';
+      case 'id': return 'id.indonesian';
+      case 'fr': return 'fr.hamidullah';
+      case 'ur': return 'ur.maududi';
+      default: return 'en.sahih';
+    }
+  };
+
+  const [selectedTranslation, setSelectedTranslation] = useState(() => getTranslationForLang(language));
+
+  useEffect(() => {
+    setSelectedTranslation(getTranslationForLang(language));
+  }, [language]);
   const [readAyahs, setReadAyahs] = useState<Set<number>>(new Set());
   const [isAudioLoading, setIsAudioLoading] = useState<number | null>(null);
   const [bufferingProgress, setBufferingProgress] = useState(0);
   const [downloadingAyah, setDownloadingAyah] = useState<number | null>(null);
+  const [downloadingAyahProgress, setDownloadingAyahProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -156,7 +174,17 @@ export default function SurahDetail({
     const audioUrl = ayah.audio;
     
     if (!audioUrl) {
-      console.error("No audio URL found for this ayah");
+      console.warn(`No audio URL found for ayah ${ayah.number}. Skipping or stopping.`);
+      if (autoPlay) {
+        const currentIndex = ayahs.findIndex(a => a.number === ayah.number);
+        if (currentIndex < ayahs.length - 1) {
+          playAyah(ayahs[currentIndex + 1]);
+        } else {
+          setPlayingAyah(null);
+        }
+      } else {
+        setPlayingAyah(null);
+      }
       return;
     }
     
@@ -281,11 +309,33 @@ export default function SurahDetail({
   const downloadSingleAyah = async (ayah: any) => {
     if (downloadingAyah || ayah.audioBlob) return;
     setDownloadingAyah(ayah.number);
+    setDownloadingAyahProgress(0);
 
     try {
       const res = await fetch(ayah.audio, { mode: 'cors' });
       if (!res.ok) throw new Error("Audio download failed");
-      const blob = await res.blob();
+      
+      const contentLength = res.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      let loaded = 0;
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Could not get stream reader");
+
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          loaded += value.length;
+          if (total > 0) {
+            setDownloadingAyahProgress(Math.round((loaded / total) * 100));
+          }
+        }
+      }
+
+      const blob = new Blob(chunks, { type: res.headers.get('content-type') || 'audio/mpeg' });
       
       const updatedAyahs = ayahs.map(a => 
         a.number === ayah.number ? { ...a, audioBlob: blob } : a
@@ -299,6 +349,7 @@ export default function SurahDetail({
       alert("Offline storage failed for this verse. Please try again.");
     } finally {
       setDownloadingAyah(null);
+      setDownloadingAyahProgress(0);
     }
   };
 
@@ -530,10 +581,19 @@ export default function SurahDetail({
                   <button 
                     onClick={() => downloadSingleAyah(ayah)}
                     disabled={!!ayah.audioBlob || downloadingAyah === ayah.number}
-                    className={`p-2 transition-colors ${ayah.audioBlob ? 'text-emerald-500' : downloadingAyah === ayah.number ? 'text-brand-primary animate-bounce' : 'text-slate-500 hover:text-brand-primary'}`}
+                    className={`p-2 transition-all relative ${ayah.audioBlob ? 'text-emerald-500' : downloadingAyah === ayah.number ? 'text-brand-primary' : 'text-slate-500 hover:text-brand-primary'}`}
                     title={ayah.audioBlob ? "Saved Offline" : "Download Verse"}
                   >
-                    {ayah.audioBlob ? <Check size={16} /> : <Download size={16} />}
+                    {downloadingAyah === ayah.number ? (
+                       <div className="relative flex items-center justify-center">
+                          <Loader2 size={16} className="animate-spin text-brand-primary" />
+                          <span className="absolute -top-3 -right-3 text-[7px] font-black">{downloadingAyahProgress}%</span>
+                       </div>
+                    ) : ayah.audioBlob ? (
+                       <Check size={16} />
+                    ) : (
+                       <Download size={16} />
+                    )}
                   </button>
                   <button 
                     onClick={() => onToggleBookmark(ayah)}
