@@ -14,7 +14,27 @@ import {
   doc,
   getDocFromServer
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseConfigRaw from '../../firebase-applet-config.json';
+
+// Use environment variables if present, fallback to json config
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigRaw.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigRaw.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigRaw.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigRaw.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigRaw.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigRaw.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfigRaw.measurementId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || (firebaseConfigRaw as any).firestoreDatabaseId
+};
+
+if (!firebaseConfig.apiKey) {
+  console.warn("Firebase API Key is missing. This will cause a crash unless provided via environment variables.");
+  // We throw a descriptive error that our new ErrorBoundary will catch
+  if (import.meta.env.PROD) {
+    throw new Error("Critical Configuration Leak: Firebase Sacred Key missing. Please ensure VITE_FIREBASE_API_KEY is set in your deployment environment.");
+  }
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -24,7 +44,7 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-}, (firebaseConfig as any).firestoreDatabaseId);
+}, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export const googleProvider = new GoogleAuthProvider();
 
