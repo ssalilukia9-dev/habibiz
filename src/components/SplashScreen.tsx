@@ -60,12 +60,12 @@ export default function SplashScreen() {
           className="text-center"
         >
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic mb-2">
-            Sanctuary
+            Habibi AI
           </h1>
           <div className="flex items-center justify-center gap-3">
              <span className="h-px w-8 bg-brand-primary/30" />
              <p className="text-[10px] md:text-small font-black text-brand-primary uppercase tracking-[0.4em]">
-               Digital Spiritual Haven
+               Your Heart's Spiritual Companion
              </p>
              <span className="h-px w-8 bg-brand-primary/30" />
           </div>
@@ -82,7 +82,7 @@ export default function SplashScreen() {
       
       <div className="fixed bottom-12 left-0 right-0 text-center">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest animate-pulse">
-          Aligning with the Divine...
+          Awakening the soul...
         </p>
       </div>
     </motion.div>

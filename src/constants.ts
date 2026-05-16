@@ -132,10 +132,10 @@ export const NAVIGATION_TABS = [
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
   { id: 'notifications', label: 'Activity', icon: 'Bell' },
   { id: 'leaderboard', label: 'Hall of Fame', icon: 'Trophy' },
+  { id: 'ummah', label: 'Ummah Hub', icon: 'Users' },
   { id: 'profile', label: 'Profile & Settings', icon: 'User' },
   { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
-  { id: 'premium', label: 'Premium', icon: 'Sparkles' },
-  { id: 'qibla', label: 'Qibla', icon: 'Compass' }
+  { id: 'premium', label: 'Premium', icon: 'Sparkles' }
 ];
 
 export const LANGUAGES = [

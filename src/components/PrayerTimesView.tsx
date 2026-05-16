@@ -13,7 +13,9 @@ import {
   BellRing,
   Globe,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 
 interface PrayerTime {
@@ -21,6 +23,21 @@ interface PrayerTime {
   time: string;
   id: string;
 }
+
+const JUMMAH_HADITHS = [
+  {
+    text: "The best day on which the sun has risen is Friday; on it Adam was created, on it he was made to enter Paradise, and on it he was expelled from it.",
+    source: "Sahih Muslim"
+  },
+  {
+    text: "Whoever takes a bath on Friday... then remains silent while the Imam is delivering the Khutba, his sins between that Friday and the previous one will be forgiven.",
+    source: "Sahih Bukhari"
+  },
+  {
+    text: "There is an hour on Friday and if a Muslim gets it while offering Salat and asks something from Allah, then Allah will definitely meet his demand.",
+    source: "Sahih Bukhari"
+  }
+];
 
 interface AdhanSound {
   id: string;
@@ -148,19 +165,53 @@ export default function PrayerTimesView() {
   const fetchPrayerTimes = async () => {
     try {
       setLoading(true);
-      // Using Aladhan API
-      const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2');
+      // Try to get geolocation
+      let lat = 51.5074;
+      let lng = -0.1278;
+      
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        setLocation(`${lat.toFixed(2)}, ${lng.toFixed(2)}`);
+      } catch (e) {
+        console.warn("Geolocation failed, using default London", e);
+      }
+
+      // Using Aladhan API for more robust data
+      const url = lat && lng 
+        ? `https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2` // Fallback to London text if pos failed but we had lat/lng? No.
+        : `https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2`;
+      
+      // Let's use the lat/lng endpoint if we have them
+      const endpoint = (lat !== 51.5074 || lng !== -0.1278)
+        ? `https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=2`
+        : `https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2`;
+
+      const res = await fetch(endpoint);
       const data = await res.json();
       
       const timings = data.data.timings;
+      const isFriday = new Date().getDay() === 5;
+      
       const formatted: PrayerTime[] = [
         { id: 'fajr', name: 'Fajr', time: timings.Fajr },
         { id: 'sunrise', name: 'Sunrise', time: timings.Sunrise },
-        { id: 'dhuhr', name: 'Dhuhr', time: timings.Dhuhr },
+      ];
+
+      if (isFriday) {
+        formatted.push({ id: 'jummah', name: 'Jummah', time: timings.Dhuhr });
+      } else {
+        formatted.push({ id: 'dhuhr', name: 'Dhuhr', time: timings.Dhuhr });
+      }
+
+      formatted.push(
         { id: 'asr', name: 'Asr', time: timings.Asr },
         { id: 'maghrib', name: 'Maghrib', time: timings.Maghrib },
-        { id: 'isha', name: 'Isha', time: timings.Isha },
-      ];
+        { id: 'isha', name: 'Isha', time: timings.Isha }
+      );
       
       setPrayerData(formatted);
       calculateNextPrayer(formatted);
@@ -279,6 +330,70 @@ export default function PrayerTimesView() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Jummah Special Section */}
+      {new Date().getDay() === 5 && (
+        <section className="animate-in fade-in zoom-in duration-700">
+           <div className="relative overflow-hidden rounded-[3.5rem] bg-gradient-to-br from-brand-primary/20 via-brand-depth to-brand-depth border border-brand-primary/20 p-10 md:p-16">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[100px] -mr-32 -mt-32" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-brand-primary/5 rounded-full blur-[100px] -ml-32 -mb-32" />
+              
+              <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                 <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                       <span className="px-4 py-1.5 bg-brand-primary text-brand-depth rounded-full text-[10px] font-black uppercase tracking-widest">Friday Focus</span>
+                       <div className="h-px flex-1 bg-white/10" />
+                    </div>
+                    
+                    <div className="space-y-4">
+                       <h3 className="text-5xl font-black text-white tracking-tight leading-none">The Sacred<br/><span className="text-brand-primary">Friday (Jummah)</span></h3>
+                       <p className="text-slate-400 font-medium text-lg max-w-md">Today is the master of all days. A day of congregation, purification, and divine mercy.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="p-6 bg-white/5 border border-white/5 rounded-3xl space-y-2">
+                          <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Main Prayer</p>
+                          <p className="text-2xl font-black text-white">Jummah Salat</p>
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Replaces Dhuhr</p>
+                       </div>
+                       <div className="p-6 bg-brand-primary/10 border border-brand-primary/20 rounded-3xl space-y-2">
+                          <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Timing</p>
+                          <p className="text-2xl font-black text-white">
+                            {prayerData.find(p => p.id === 'jummah')?.time || prayerData.find(p => p.id === 'dhuhr')?.time}
+                          </p>
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Sermon & Prayer</p>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-6">
+                    <div className="flex items-center gap-3 text-white">
+                       <BookOpen size={24} className="text-brand-primary" />
+                       <h4 className="text-lg font-black uppercase tracking-widest">Friday Hadith</h4>
+                    </div>
+                    
+                    <div className="space-y-4">
+                       {JUMMAH_HADITHS.map((hadith, i) => (
+                         <motion.div 
+                           key={i}
+                           initial={{ opacity: 0, x: 20 }}
+                           whileInView={{ opacity: 1, x: 0 }}
+                           transition={{ delay: i * 0.1 }}
+                           className="p-6 bg-white/5 border border-white/5 rounded-3xl space-y-3 hover:bg-white/10 transition-all border-l-4 border-l-brand-primary"
+                         >
+                            <p className="text-sm font-medium text-slate-300 italic leading-relaxed">"{hadith.text}"</p>
+                            <div className="flex items-center justify-between">
+                               <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">— {hadith.source}</span>
+                               <Sparkles size={14} className="text-brand-primary/40" />
+                            </div>
+                         </motion.div>
+                       ))}
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </section>
+      )}
+
       {/* Hero Stats */}
       <section className="relative h-[450px] rounded-[3.5rem] overflow-hidden group shadow-2xl border border-white/5 bg-brand-depth/40">
         <img 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Cropper from 'react-easy-crop';
+import { useNavigate } from 'react-router-dom';
 import { 
   User as UserIcon, 
   Mail, 
@@ -25,10 +26,14 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  UserPlus,
+  Users,
+  Smartphone,
+  Zap
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
-import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { updateProfile, deleteUser } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { LANGUAGES } from '../constants.ts';
@@ -93,6 +98,7 @@ interface ProfileViewProps {
 }
 
 export default function ProfileView({ darkMode, setDarkMode, onLogout, language, setLanguage }: ProfileViewProps) {
+  const navigate = useNavigate();
   const currentUser = auth.currentUser;
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -341,6 +347,36 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
       }
     } finally {
       setIsDeletingAccount(false);
+    }
+  };
+
+  const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, 'friend_requests'),
+      where('toId', '==', currentUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setIncomingRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  const handleAcceptRequest = async (request: any) => {
+    try {
+       await updateDoc(doc(db, 'friend_requests', request.id), {
+          status: 'accepted',
+          acceptedAt: serverTimestamp()
+       });
+       notificationService.notify('Circle Expanded', `You are now connected with ${request.fromName}.`, 'community');
+    } catch (error) {
+       handleFirestoreError(error, OperationType.WRITE, `friend_requests/${request.id}`);
     }
   };
 
@@ -641,6 +677,116 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
            </div>
         </section>
       </div>
+
+      {/* SOCIAL CONNECTIVITY */}
+      <section className="space-y-6">
+         <div className="flex items-center gap-3">
+            <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary">
+               <UserPlus size={16} />
+            </div>
+            <h3 className="text-xs font-black text-white uppercase tracking-widest">Ummah Connections</h3>
+         </div>
+
+         <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-xl p-8">
+            {incomingRequests.length > 0 ? (
+              <div className="space-y-4">
+                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-6">Pending Friendly Requests ({incomingRequests.length})</p>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {incomingRequests.map((req) => (
+                      <div key={req.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-brand-primary/30 transition-all">
+                         <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl border border-white/10 overflow-hidden">
+                               <img src={req.fromPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.fromId}`} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                               <p className="text-sm font-bold text-white">{req.fromName}</p>
+                               <p className="text-[10px] text-slate-500 uppercase font-black">Wants to Connect</p>
+                            </div>
+                         </div>
+                         <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleAcceptRequest(req)}
+                              className="p-3 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-brand-depth transition-all"
+                            >
+                               <CheckCircle2 size={18} />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                 await updateDoc(doc(db, 'friend_requests', req.id), { status: 'rejected' });
+                              }}
+                              className="p-3 bg-red-400/10 text-red-400 rounded-xl hover:bg-red-400 hover:text-white transition-all"
+                            >
+                               <XCircle size={18} />
+                            </button>
+                         </div>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
+                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center text-slate-700">
+                    <Users size={32} />
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-sm font-bold text-white">No pending requests</p>
+                    <p className="text-[10px] text-slate-500 max-w-xs uppercase tracking-widest font-black">Your spiritual circle is in harmony.</p>
+                 </div>
+                 <button 
+                   onClick={() => navigate('/ummah')}
+                   className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em] pt-2 hover:underline"
+                 >
+                   Explore Ummah Hub
+                 </button>
+              </div>
+            )}
+         </div>
+      </section>
+
+      {/* ANDROID & SYSTEM NOTIFICATIONS */}
+      <section className="space-y-6">
+         <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+               <Smartphone size={16} />
+            </div>
+            <h3 className="text-xs font-black text-white uppercase tracking-widest">System Notifications</h3>
+         </div>
+
+         <div className="bg-gradient-to-br from-brand-primary/5 to-brand-depth rounded-[2rem] border border-brand-primary/10 p-8 space-y-6">
+            <div className="space-y-2">
+               <p className="text-lg font-bold text-white">Get Notifications on Android</p>
+               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-[0.1em] leading-relaxed">
+                  To receive real-time prayer alerts and hadiths on your Android device:
+               </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="p-5 bg-white/5 rounded-2xl space-y-2 border border-white/5 hover:border-brand-primary/20 transition-all">
+                  <p className="text-[10px] font-black text-brand-primary uppercase">Step 1: Install PWA</p>
+                  <p className="text-xs text-slate-300">Tap the browser menu (three dots) and select <strong>'Add to Home Screen'</strong>.</p>
+               </div>
+               <div className="p-5 bg-white/5 rounded-2xl space-y-2 border border-white/5 hover:border-brand-primary/20 transition-all">
+                  <p className="text-[10px] font-black text-brand-primary uppercase">Step 2: Connect Signals</p>
+                  <p className="text-xs text-slate-300">Click the button below to sync your device with the sanctuary's notification tower.</p>
+               </div>
+            </div>
+
+            <button 
+              onClick={async () => {
+                const granted = await notificationService.requestPermission();
+                if (granted) {
+                  notificationService.notify('Sanctuary Connected', 'System notifications successfully enabled for this device.', 'system');
+                } else {
+                  alert('Please enable notifications in your regular browser settings.');
+                }
+              }}
+              className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+            >
+               <Zap size={16} />
+               Connect System Notifications
+            </button>
+         </div>
+      </section>
 
       {/* DATA & OFFLINE */}
       <section className="space-y-6">

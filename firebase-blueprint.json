@@ -84,6 +84,20 @@
       },
       "required": ["title", "price", "sellerId", "status", "createdAt"]
     },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "A social connection request between users",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "fromPhoto": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status", "createdAt"]
+    },
     "ChatRequest": {
       "title": "ChatRequest",
       "description": "A request to start a private chat",
@@ -111,12 +125,27 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["number", "surahNumber", "numberInSurah", "text", "createdAt"]
+    },
+    "AdhkarProgress": {
+      "title": "AdhkarProgress",
+      "description": "User progress for daily adhkar",
+      "type": "object",
+      "properties": {
+        "adhkarId": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "lastCompletedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adhkarId", "completed", "lastCompletedAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User records"
+    },
+    "/users/{userId}/adhkarProgress/{progressId}": {
+      "schema": "AdhkarProgress",
+      "description": "User daily adhkar completion tracking"
     },
     "/users/{userId}/ayahBookmarks/{bookmarkId}": {
       "schema": "AyahBookmark",
@@ -145,6 +174,10 @@
     "/chat_requests/{requestId}": {
       "schema": "ChatRequest",
       "description": "Pending chat requests"
+    },
+    "/friend_requests/{requestId}": {
+      "schema": "FriendRequest",
+      "description": "User connection requests"
     }
   }
 }

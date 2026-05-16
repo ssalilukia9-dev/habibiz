@@ -76,6 +76,19 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isValidAyahBookmark(incoming());
         allow delete: if isOwner(userId);
       }
+
+      // Adhkar Progress
+      function isValidAdhkarProgress(data) {
+        return data.keys().hasAll(['adhkarId', 'completed', 'lastCompletedAt']) &&
+               data.adhkarId is string && data.adhkarId.size() <= 64 &&
+               data.completed is bool &&
+               (data.lastCompletedAt == request.time || data.lastCompletedAt == null); 
+      }
+
+      match /adhkarProgress/{progressId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidAdhkarProgress(incoming()); 
+      }
     }
 
     // ---------------------------------------------------------
@@ -110,7 +123,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         isValidId(roomId) && (
           // Action: Post Message (Update room metadata)
-          (incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt']) && 
+          (incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt']) && 
            incoming().updatedAt == request.time &&
            (existing().type == 'group' || (request.auth.uid in existing().participants)))
         )
@@ -215,6 +228,28 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidChatRequest(incoming());
       allow update: if isSignedIn() && (
         (isOwner(existing().toId) && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        (isOwner(existing().fromId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+      );
+      allow delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------
+    // Friend Requests
+    // ---------------------------------------------------------
+
+    function isValidFriendRequest(data) {
+      return data.keys().hasAll(['fromId', 'fromName', 'fromPhoto', 'toId', 'status', 'createdAt']) &&
+             data.fromId == request.auth.uid &&
+             data.status in ['pending', 'accepted', 'rejected'] &&
+             data.createdAt == request.time;
+    }
+
+    match /friend_requests/{requestId} {
+      allow get: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow create: if isSignedIn() && isValidFriendRequest(incoming());
+      allow update: if isSignedIn() && (
+        (isOwner(existing().toId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt'])) ||
         (isOwner(existing().fromId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
       );
       allow delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);

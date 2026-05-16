@@ -7,6 +7,7 @@ export interface PrayerTimeData {
   asr: Date;
   maghrib: Date;
   isha: Date;
+  jummah?: Date; // Specifically for Fridays
   currentPrayer: string;
   nextPrayer: string;
   nextTime: Date;
@@ -40,7 +41,6 @@ export function getPrayerTimes(
   // @ts-ignore
   let params = CalculationMethod[methodId] ? CalculationMethod[methodId]() : CalculationMethod.MuslimWorldLeague();
   
-  // Apply offsets if provided (adhan library uses a method to set offsets)
   if (offsets.fajr) params.adjustments.fajr = offsets.fajr;
   if (offsets.sunrise) params.adjustments.sunrise = offsets.sunrise;
   if (offsets.dhuhr) params.adjustments.dhuhr = offsets.dhuhr;
@@ -53,7 +53,8 @@ export function getPrayerTimes(
   const current = prayerTimes.currentPrayer();
   const next = prayerTimes.nextPrayer();
   
-  const names = {
+  const isFriday = date.getDay() === 5;
+  const names: any = {
     fajr: prayerTimes.fajr,
     sunrise: prayerTimes.sunrise,
     dhuhr: prayerTimes.dhuhr,
@@ -61,6 +62,10 @@ export function getPrayerTimes(
     maghrib: prayerTimes.maghrib,
     isha: prayerTimes.isha,
   };
+
+  if (isFriday) {
+    names.jummah = prayerTimes.dhuhr; // Jummah typically at Dhuhr time
+  }
 
   const nextTime = prayerTimes.timeForPrayer(next) || prayerTimes.fajr;
 

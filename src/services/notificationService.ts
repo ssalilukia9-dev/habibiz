@@ -94,8 +94,9 @@ class NotificationService {
 
   private playNotificationSound() {
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // Notification chime
-      audio.volume = 0.5;
+      // iPhone-style "Chime" sound
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); 
+      audio.volume = 0.6;
       audio.play().catch(e => {
         console.warn("Audio playback failed:", e);
         // Fallback for mobile: Play on next interaction or just skip if blocked

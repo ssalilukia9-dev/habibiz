@@ -66,6 +66,7 @@ import QiblaView from './components/QiblaView.tsx';
 import LeaderboardView from './components/LeaderboardView.tsx';
 import ProfileView from './components/ProfileView.tsx';
 import SplashScreen from './components/SplashScreen.tsx';
+import UmmahHubView from './components/UmmahHubView.tsx';
 import { notificationService } from './services/notificationService.ts';
 
 export default function App() {
@@ -252,6 +253,85 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUser]);
 
+  // Friend Request Listener for Notifications
+  const lastRequestTimeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, 'friend_requests'),
+      where('toId', '==', currentUser.uid),
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const req = change.doc.data();
+          const reqTime = req.createdAt?.toMillis() || Date.now();
+          
+          if (reqTime > lastRequestTimeRef.current) {
+            notificationService.notify(
+              'New Friendly Request',
+              `${req.fromName} wants to connect with you in the Ummah Hub.`,
+              'community',
+              '/profile'
+            );
+          }
+        }
+      });
+      // Update last request time to avoid double notifications on initial load
+      if (!snapshot.empty) {
+        const latest = snapshot.docs[0].data();
+        if (latest.createdAt) lastRequestTimeRef.current = latest.createdAt.toMillis();
+      }
+    }, (error) => {
+      console.warn("Friend request notification listener failed", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Friend Request Accepted Listener for Notifications
+  const lastAcceptedTimeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, 'friend_requests'),
+      where('fromId', '==', currentUser.uid),
+      where('status', '==', 'accepted'),
+      orderBy('acceptedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'modified') {
+          const req = change.doc.data();
+          const acceptedTime = req.acceptedAt?.toMillis() || Date.now();
+          
+          if (acceptedTime > lastAcceptedTimeRef.current) {
+            notificationService.notify(
+              'Ummah Connection Established',
+              `Your request was accepted! You are now connected with your brother/sister.`,
+              'community',
+              '/chat'
+            );
+          }
+        }
+      });
+      if (!snapshot.empty) {
+        const latest = snapshot.docs[0].data();
+        if (latest.acceptedAt) lastAcceptedTimeRef.current = latest.acceptedAt.toMillis();
+      }
+    }, (error) => {
+      console.warn("Accepted request notification listener failed", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
   // Trial Logic: 3 days (72 hours)
   const isTrialActive = userJoinedAt ? (Date.now() - userJoinedAt.getTime() < 3 * 24 * 60 * 60 * 1000) : true;
   const trialExpired = !isTrialActive;
@@ -423,6 +503,24 @@ export default function App() {
         );
         localStorage.setItem('last_system_update_notification', '1.3.5');
       }, 8000);
+    }
+
+    // Jummah Reminder
+    const now = new Date();
+    const isFriday = now.getDay() === 5;
+    const lastJummahReminder = localStorage.getItem('last_jummah_reminder_date');
+    const todayDateStr = now.toDateString();
+
+    if (isFriday && lastJummahReminder !== todayDateStr) {
+      setTimeout(() => {
+        notificationService.notify(
+          'Jummah Mubarak',
+          "Today is the master of all days. Don't forget to read Surah Al-Kahf and prepare for Jummah prayer.",
+          'community',
+          '#resources'
+        );
+        localStorage.setItem('last_jummah_reminder_date', todayDateStr);
+      }, 12000);
     }
   }, []);
 
@@ -672,7 +770,7 @@ export default function App() {
       </aside>
 
       {/* SECONDARY SIDEBAR: List Area */}
-      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile'].includes(activeTab) ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
+      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile', 'ummah'].includes(activeTab) ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
         <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-20">
            <h2 className="text-xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
            <div className="flex gap-2">
@@ -837,6 +935,7 @@ export default function App() {
                     <Route path="/companion" element={<CompanionView />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
+                    <Route path="/ummah" element={<UmmahHubView />} />
                     <Route path="/chat" element={<ChatView isPremium={isPremium} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
@@ -898,14 +997,18 @@ export default function App() {
       <AnimatePresence>
         {lastNotification && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, scale: 0.9, y: -20 }}
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 100 }}
-            onDragEnd={(_, info) => {
-              if (info.offset.y < -20) setLastNotification(null);
+            initial={{ opacity: 0, scale: 0.9, y: 40, x: '-50%' }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1, 
+              y: window.innerWidth < 768 ? '-50%' : 0, 
+              x: '-50%',
+              top: window.innerWidth < 768 ? '50%' : '2rem',
+              left: '50%'
             }}
+            exit={{ opacity: 0, scale: 0.9, y: 20, x: '-50%' }}
+            drag="y"
+            className="fixed w-[90%] max-w-md glass-panel-purple border-brand-primary p-6 rounded-[2.5rem] z-[999999] shadow-[0_40px_100px_rgba(168,85,247,0.4)] flex gap-6 cursor-pointer backdrop-blur-3xl"
             onClick={() => {
               if (lastNotification.actionUrl) {
                 if (lastNotification.actionUrl.startsWith('#')) {
@@ -918,7 +1021,6 @@ export default function App() {
               }
               setLastNotification(null);
             }}
-            className="fixed top-8 left-1/2 -translate-x-1/2 w-[95%] max-w-md glass-panel-purple border-brand-primary p-6 rounded-[2.5rem] z-[999999] shadow-2xl flex gap-6 cursor-pointer backdrop-blur-3xl"
           >
             <div className="w-16 h-16 bg-brand-primary rounded-3xl flex items-center justify-center text-brand-depth flex-shrink-0 shadow-lg shadow-brand-primary/20">
               <Bell size={32} className="animate-bounce" />
