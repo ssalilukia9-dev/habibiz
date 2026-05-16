@@ -482,7 +482,7 @@ export default function SettingsView({ darkMode, setDarkMode, onLogout, language
                   <Info size={22} />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-200">Habibi AI Version</p>
+                  <p className="font-bold text-slate-200">Sanctuary Version</p>
                   <p className="text-xs text-slate-500">v1.5.0-purple • Sanctuary Release</p>
                 </div>
              </div>

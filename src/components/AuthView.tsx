@@ -7,10 +7,12 @@ import {
   LogIn, 
   UserPlus,
   Chrome,
+  Github,
   AlertCircle
 } from 'lucide-react';
 import { 
   signInWithGoogle, 
+  signInWithGithub,
   signInWithEmail, 
   signUpWithEmail 
 } from '../lib/firebase';
@@ -52,6 +54,16 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Google authentication failed.');
+    }
+  };
+
+  const handleGithubAuth = async () => {
+    setError(null);
+    try {
+      await signInWithGithub();
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'GitHub authentication failed. Ensure it is enabled in your sanctuary records (Firebase Console).');
     }
   };
 
@@ -141,14 +153,23 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
              </div>
           </div>
 
-          {/* Google Auth */}
-          <button 
-            onClick={handleGoogleAuth}
-            className="w-full bg-white/5 border border-white/10 text-white font-bold py-5 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-[0.98]"
-          >
-             <Chrome size={20} className="text-brand-primary" />
-             Google Account
-          </button>
+          {/* Auth Providers */}
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={handleGoogleAuth}
+              className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-[0.98]"
+            >
+               <Chrome size={18} className="text-brand-primary" />
+               <span className="text-xs">Google</span>
+            </button>
+            <button 
+              onClick={handleGithubAuth}
+              className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-[0.98]"
+            >
+               <Github size={18} className="text-slate-200" />
+               <span className="text-xs">GitHub</span>
+            </button>
+          </div>
 
           {/* Footer toggle */}
           <div className="text-center">

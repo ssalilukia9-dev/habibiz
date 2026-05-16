@@ -155,7 +155,7 @@ export default function HomeView({
           <div className="relative z-10 space-y-6">
             <div className="flex items-center gap-2 text-brand-primary text-[10px] font-black uppercase tracking-[0.3em]">
               <Sparkles size={12} className="animate-pulse" />
-              <span>HABIBI AI SANCTUARY</span>
+              <span>SANCTUARY</span>
             </div>
             <h1 className="text-4xl md:text-7xl font-black text-slate-200 leading-[0.9] tracking-tighter flex items-center gap-4">
               Salam,<br/><span className="text-brand-primary uppercase">Habibi</span>

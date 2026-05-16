@@ -21,7 +21,7 @@ import {
 export default function PremiumView() {
   const handleSubscribe = async () => {
     if (!auth.currentUser) {
-      alert('Please sign in to upgrade to Habibi Elite.');
+      alert('Please sign in to upgrade to Sanctuary Elite.');
       return;
     }
 
@@ -30,7 +30,7 @@ export default function PremiumView() {
       await updateDoc(userRef, {
         isPremium: true
       });
-      alert('Welcome to Habibi Elite! Your status has been elevated.');
+      alert('Welcome to Sanctuary Elite! Your status has been elevated.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}`);
     }
@@ -38,7 +38,7 @@ export default function PremiumView() {
 
   const features = [
     {
-      title: "Habibi Elite AI",
+      title: "Sanctuary Elite AI",
       desc: "Priority access to Gemini-powered spiritual guidance with long-term memory and deep Quranic analysis.",
       icon: Sparkles
     },
@@ -78,7 +78,7 @@ export default function PremiumView() {
           </div>
         </div>
         <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase italic">
-          Habibi <span className="text-brand-primary">Elite</span>
+          Sanctuary <span className="text-brand-primary">Elite</span>
         </h1>
         <p className="text-slate-400 max-w-xl mx-auto text-lg">
           Enhance your journey with sacred tools designed for the modern seeker.
@@ -141,9 +141,9 @@ export default function PremiumView() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            {[
-             { title: "Bank Transfer", desc: "Habibi Sanctuary Intl\nAcc: 123456789\nSwift: HBBIUS33", icon: CreditCard, color: "text-blue-400" },
-             { title: "Mobile Money", desc: "+234 800 HABIBI\nSelect 'Pay Merchant'\nEnter Sanctuary Code: 888", icon: Smartphone, color: "text-green-400" },
-             { title: "Sacred Crypto", desc: "BTC: bc1qhabibi...\nETH: 0xhabibi...\n10% Extra Reward enabled", icon: Zap, color: "text-amber-400" }
+             { title: "Bank Transfer", desc: "Sanctuary Intl\nAcc: 123456789\nSwift: HBBIUS33", icon: CreditCard, color: "text-blue-400" },
+             { title: "Mobile Money", desc: "+234 800 SANCTUARY\nSelect 'Pay Merchant'\nEnter Sanctuary Code: 888", icon: Smartphone, color: "text-green-400" },
+             { title: "Sacred Crypto", desc: "BTC: bc1qsanctuary...\nETH: 0xsanctuary...\n10% Extra Reward enabled", icon: Zap, color: "text-amber-400" }
            ].map((method, i) => (
              <div key={i} className="glass-panel p-8 rounded-[2.5rem] border-white/5 space-y-4">
                 <div className={`w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center ${method.color}`}>

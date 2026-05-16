@@ -497,7 +497,7 @@ export default function App() {
       setTimeout(() => {
         notificationService.notify(
           'System Update',
-          'Habibi AI Version v1.3.5 is now live. New features: Notification Center and enhanced spiritual companion.',
+          'Sanctuary Version v1.3.5 is now live. New features: Notification Center and enhanced spiritual companion.',
           'system',
           '#settings'
         );
@@ -680,7 +680,7 @@ export default function App() {
           <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center shadow-lg shadow-brand-primary/20">
             <BookOpen size={16} className="text-brand-depth" />
           </div>
-          <span className="text-sm font-black text-white tracking-widest uppercase">HABIBI AI</span>
+          <span className="text-sm font-black text-white tracking-widest uppercase">SANCTUARY</span>
         </div>
         <button 
           onClick={() => setIsSidebarOpen(true)}
@@ -975,7 +975,7 @@ export default function App() {
               className="fixed inset-y-0 left-0 w-80 bg-brand-sidebar z-50 p-8 lg:hidden border-r border-brand-border"
             >
                <div className="flex justify-between items-center mb-12">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tighter">HABIBI AI Navigation</h2>
+                  <h2 className="text-xl font-bold text-white uppercase tracking-tighter">SANCTUARY Navigation</h2>
                   <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400"><X size={24} /></button>
                </div>
                <nav className="space-y-3">

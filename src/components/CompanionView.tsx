@@ -519,7 +519,7 @@ export default function CompanionView() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Ask Habibi AI for wisdom..." 
+                placeholder="Ask Sanctuary for wisdom..." 
                 className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-100 placeholder:text-slate-600 text-sm md:text-base selection:bg-brand-primary/30"
               />
               <button 
@@ -557,7 +557,7 @@ export default function CompanionView() {
                 <div key={i} className="w-1 h-3 bg-brand-depth/40 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.1}s` }} />
               ))}
             </div>
-            Habibi is speaking...
+            Sanctuary is speaking...
             <button onClick={stopSpeech} className="p-1 px-2 border border-brand-depth/20 hover:bg-brand-depth/10 rounded-lg transition-colors ml-2 uppercase text-[8px] font-black">
               Stop
             </button>

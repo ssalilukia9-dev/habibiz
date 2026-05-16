@@ -1,6 +1,12 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/ai/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
 
 [[redirects]]
   from = "/*"
