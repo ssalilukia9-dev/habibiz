@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
+import { notificationService } from '../services/notificationService';
 
 interface SurahDetailProps {
   surah: Surah;
@@ -116,18 +117,16 @@ export default function SurahDetail({
     const fetchData = async () => {
       setIsLoading(true);
       
+      const reciter = RECITERS.find(r => r.id === selectedReciter);
       const isOfflineMode = localStorage.getItem('offline-mode') === 'true';
-      if (isOfflineMode) {
-        const cachedAyahs = await offlineService.getAyahs(surah.number);
-        if (cachedAyahs) {
-          setAyahs(cachedAyahs);
-          setIsLoading(false);
-          return;
-        }
+      const cachedAyahs = await offlineService.getAyahs(surah.number);
+      
+      if (isOfflineMode && cachedAyahs) {
+        setAyahs(cachedAyahs);
+        setIsLoading(false);
+        return;
       }
 
-      const reciter = RECITERS.find(r => r.id === selectedReciter);
-      
       try {
         // Fetch Arabic text + Audio
         const resArabic = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`);
@@ -138,14 +137,23 @@ export default function SurahDetail({
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {
-          const combined = dataArabic.data.ayahs.map((a: any, idx: number) => ({
-            ...a,
-            translation: dataTrans.data.ayahs[idx].text
-          }));
+          const combined = dataArabic.data.ayahs.map((a: any, idx: number) => {
+            const cached = cachedAyahs?.find(ca => ca.number === a.number);
+            return {
+              ...a,
+              translation: dataTrans.data.ayahs[idx].text,
+              // Persist audio blob if URLs match
+              audioBlob: cached?.audio === a.audio ? cached.audioBlob : undefined
+            };
+          });
           setAyahs(combined);
         }
       } catch (err) {
         console.error("Failed to fetch surah data", err);
+        // Fallback to cache if fetch fails even if not in strict offline mode
+        if (cachedAyahs) {
+          setAyahs(cachedAyahs);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -299,6 +307,7 @@ export default function SurahDetail({
       setAyahs(updatedAyahs);
       await offlineService.saveAyahs(surah.number, updatedAyahs);
       localStorage.setItem('offline-mode', 'true');
+      notificationService.notify('Surah Downloaded', `${surah.englishName} is now fully available offline.`, 'system');
     } catch (error) {
       console.error("Download failed", error);
     } finally {
@@ -343,6 +352,7 @@ export default function SurahDetail({
       
       setAyahs(updatedAyahs);
       await offlineService.saveAyahs(surah.number, updatedAyahs);
+      notificationService.notify('Ayah Synchronized', `Ayah ${ayah.numberInSurah} is now available offline.`, 'system');
       console.log(`Saved Ayah ${ayah.number} offline.`);
     } catch (error) {
       console.error("Failed to download individual ayah", error);
@@ -456,6 +466,17 @@ export default function SurahDetail({
             <p className="arabic-text text-3xl md:text-4xl font-bold text-brand-primary leading-tight drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">{surah.name}</p>
           </div>
         </div>
+
+        {/* Global Download Progress Bar */}
+        {isDownloadingAll && (
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-brand-primary/10 overflow-hidden">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${downloadProgress}%` }}
+              className="h-full bg-brand-primary shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+            />
+          </div>
+        )}
 
         {/* Reciter Dropdown */}
         <AnimatePresence>
@@ -585,9 +606,31 @@ export default function SurahDetail({
                     title={ayah.audioBlob ? "Saved Offline" : "Download Verse"}
                   >
                     {downloadingAyah === ayah.number ? (
-                       <div className="relative flex items-center justify-center">
-                          <Loader2 size={16} className="animate-spin text-brand-primary" />
-                          <span className="absolute -top-3 -right-3 text-[7px] font-black">{downloadingAyahProgress}%</span>
+                       <div className="relative flex items-center justify-center w-5 h-5">
+                          <svg className="absolute inset-0 w-full h-full -rotate-90">
+                            <circle
+                              cx="10"
+                              cy="10"
+                              r="8"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              className="opacity-20"
+                            />
+                            <motion.circle
+                              cx="10"
+                              cy="10"
+                              r="8"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeDasharray="50.24"
+                              initial={{ strokeDashoffset: 50.24 }}
+                              animate={{ strokeDashoffset: 50.24 - (50.24 * downloadingAyahProgress) / 100 }}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <span className="text-[6px] font-black">{downloadingAyahProgress}%</span>
                        </div>
                     ) : ayah.audioBlob ? (
                        <Check size={16} />

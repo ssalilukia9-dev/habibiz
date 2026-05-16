@@ -288,7 +288,6 @@ export default function HomeView({
         <div className="xl:col-span-3 space-y-4">
            {[ 
              { id: 'resources', sub: 'adhkar', label: 'Adhkar', icon: Zap, color: 'text-blue-400' },
-             { id: 'resources', sub: 'games', label: 'Knowledge Arena', icon: Gamepad2, color: 'text-rose-400' },
              { id: 'resources', sub: 'hadith', label: 'Hadith Library', icon: Library, color: 'text-teal-400' },
              { id: 'companion', sub: '', label: 'AI Companion', icon: MessageCircle, color: 'text-purple-400' }
            ].map((link, idx) => (

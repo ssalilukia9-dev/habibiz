@@ -11,7 +11,11 @@ import {
   ShieldCheck, 
   Users, 
   ArrowRight,
-  WifiOff
+  WifiOff,
+  Map,
+  TrendingUp,
+  Library,
+  Layout
 } from 'lucide-react';
 
 export default function PremiumView() {
@@ -34,29 +38,34 @@ export default function PremiumView() {
 
   const features = [
     {
-      title: "Divine Companion AI",
-      desc: "Unlimited guidance from our personalized AI spiritual companion.",
+      title: "Habibi Elite AI",
+      desc: "Priority access to Gemini-powered spiritual guidance with long-term memory and deep Quranic analysis.",
       icon: Sparkles
     },
     {
-      title: "Offline Sanctuary",
-      desc: "Download full Surahs and Ayahs for reflection anywhere, anytime.",
+      title: "Offline Mushaf Pro",
+      desc: "Download the entire Quran with multiple reciters in high fidelity (4K Audio) for offline spiritual immersion.",
       icon: WifiOff
     },
     {
-      title: "Zero Interruptions",
-      desc: "An ad-free experience to maintain your spiritual flow.",
-      icon: Zap
+      title: "Hajj 3D Cartography",
+      desc: "Interactive, real-time 3D maps of the Holy Sites with step-by-step guidance for Hajj and Umrah.",
+      icon: Map
     },
     {
-      title: "Premium Sanctuary Access",
-      desc: "Exclusive access to private community circles and deep research tools.",
-      icon: ShieldCheck
+      title: "Spiritual Analytics",
+      desc: "Advanced data visualization of your Quran progress, prayer consistency, and Hasanat velocity over time.",
+      icon: TrendingUp
     },
     {
-      title: "Global Community Support",
-      desc: "Priority support and involvement in the sanctuary's future direction.",
-      icon: Users
+      title: "Exclusive Hadith Vaults",
+      desc: "Access to verified scholarly commentaries and historical contexts not available in the public library.",
+      icon: Library
+    },
+    {
+      title: "Custom Sanctuary Themes",
+      desc: "Unlock premium aesthetics including 'Vintage Parchment', 'Midnight Medinah', and 'Golden Haram' skins.",
+      icon: Layout
     }
   ];
 

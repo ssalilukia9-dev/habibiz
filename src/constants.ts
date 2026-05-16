@@ -131,10 +131,9 @@ export const NAVIGATION_TABS = [
   { id: 'chat', label: 'Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
   { id: 'notifications', label: 'Activity', icon: 'Bell' },
-  { id: 'bookmarks', label: 'Bookmarks', icon: 'Bookmark' },
   { id: 'leaderboard', label: 'Hall of Fame', icon: 'Trophy' },
-  { id: 'blueprint', label: 'Blueprint', icon: 'Terminal' },
-  { id: 'settings', label: 'Settings', icon: 'Settings' },
+  { id: 'profile', label: 'Profile & Settings', icon: 'User' },
+  { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
   { id: 'premium', label: 'Premium', icon: 'Sparkles' },
   { id: 'qibla', label: 'Qibla', icon: 'Compass' }
 ];

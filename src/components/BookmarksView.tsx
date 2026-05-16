@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Bookmark, Search, Trash2, ArrowRight } from 'lucide-react';
+import { Bookmark, Search, Trash2, ArrowRight, Sparkles } from 'lucide-react';
 import { Ayah } from '../types.ts';
 import { SURAH_LIST } from '../constants.ts';
 

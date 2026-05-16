@@ -20,7 +20,6 @@ import {
   MoreVertical,
   BookOpen
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
@@ -48,19 +47,6 @@ Format your responses beautifully using Markdown: use headers for key concepts, 
 If a user seeks advice beyond Islamic jurisprudence, gently bridge the topic back to moral excellence (Ihsan) or prophetic wisdom.
 If a query requires technical legal expertise (Fatwa) beyond your capacity, respectfully advise consulting a qualified local Mufti or scholar.
 Greet the user with "Assalamu Alaikum" in your first response of a session if they haven't initiated the greeting.`;
-
-let genAI: GoogleGenAI | null = null;
-
-function getGenAI() {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not set in environment variables");
-    }
-    genAI = new GoogleGenAI({ apiKey });
-  }
-  return genAI;
-}
 
 interface Message {
   id: string;
@@ -232,23 +218,28 @@ export default function CompanionView() {
         timestamp: serverTimestamp()
       });
 
-      // 3. Call AI
-      const ai = getGenAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: messages.map(m => ({
-          role: m.role,
-          parts: [{ text: m.content }]
-        })).concat({
-          role: 'user',
-          parts: [{ text: userText }]
-        }),
-        config: {
+      // 3. Call AI Proxy
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: messages.map(m => ({
+            role: m.role,
+            parts: [{ text: m.content }]
+          })).concat({
+            role: 'user',
+            parts: [{ text: userText }]
+          }),
           systemInstruction: SYSTEM_INSTRUCTION
-        }
+        })
       });
 
-      const assistantText = response.text || "I apologize, I couldn't process that. Please try again.";
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      const assistantText = data.text || "I apologize, I couldn't process that. Please try again.";
 
       // 4. Add assistant message to Firestore
       await addDoc(msgRef, {

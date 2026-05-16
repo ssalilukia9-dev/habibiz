@@ -130,8 +130,8 @@ export default function ResourcesView({
       navigate('/chat');
     } else if (id === 'companion') {
       navigate('/companion');
-    } else if (id === 'qibla') {
-      navigate('/qibla');
+    } else if (id === 'market') {
+      navigate('/market');
     } else if (id === 'tasbih') {
       setActiveRes('tools');
     } else {
@@ -345,7 +345,7 @@ export default function ResourcesView({
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'mobile' && <DownloadAppView />}
-                 {['market', 'coin_shop'].includes(activeRes as string) && (
+                 {['coin_shop'].includes(activeRes as string) && (
                     <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
                        <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
                           <ShoppingBag size={48} />

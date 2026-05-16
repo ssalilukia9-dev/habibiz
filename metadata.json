@@ -1,8 +1,11 @@
 {
-  "name": "HABIBI AI",
-  "description": "A comprehensive, self-contained Quran and Hadith sanctuary with multi-language translations, Tafsir, and Juz-based navigation.",
+  "name": "Sanctuary",
+  "description": "A production-grade Digital Spiritual Haven with Quran Engine, Hasanat gamification, Hadith library, AI Companion, and offline-first persistence.",
   "requestFramePermissions": [
-    "geolocation"
+    "geolocation",
+    "microphone"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

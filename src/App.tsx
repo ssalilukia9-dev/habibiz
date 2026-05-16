@@ -64,7 +64,7 @@ import NotificationsView from './components/NotificationsView.tsx';
 import PremiumView from './components/PremiumView.tsx';
 import QiblaView from './components/QiblaView.tsx';
 import LeaderboardView from './components/LeaderboardView.tsx';
-import BlueprintView from './components/BlueprintView.tsx';
+import ProfileView from './components/ProfileView.tsx';
 import SplashScreen from './components/SplashScreen.tsx';
 import { notificationService } from './services/notificationService.ts';
 
@@ -608,8 +608,7 @@ export default function App() {
               ShoppingBag,
               Sparkles,
               Trophy,
-              Medal,
-              Terminal
+              Medal
             }[tab.icon as keyof typeof Icon] || BookOpen;
             
             const isActive = activeTab === tab.id;
@@ -669,7 +668,7 @@ export default function App() {
       </aside>
 
       {/* SECONDARY SIDEBAR: List Area */}
-      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${activeTab === 'home' || activeTab === 'settings' || activeTab === 'companion' || activeTab === 'premium' ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
+      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile'].includes(activeTab) ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
         <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-20">
            <h2 className="text-xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
            <div className="flex gap-2">
@@ -820,7 +819,15 @@ export default function App() {
                     <Route path="/market/:productId" element={<MarketView detailMode />} />
                     <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
                     <Route path="/leaderboard" element={<LeaderboardView />} />
-                    <Route path="/blueprint" element={<BlueprintView />} />
+                    <Route path="/profile" element={
+                      <ProfileView 
+                        darkMode={darkMode} 
+                        setDarkMode={setDarkMode} 
+                        onLogout={handleLogout} 
+                        language={language} 
+                        setLanguage={setLanguage} 
+                      />
+                    } />
                     <Route path="/settings" element={<SettingsView darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView />} />
@@ -840,7 +847,6 @@ export default function App() {
       <aside className="hidden xl:flex w-20 bg-brand-sidebar border-l border-brand-border flex-col items-center py-8 gap-8 z-30">
         {[
           { icon: LayoutGrid, color: 'text-brand-primary', bg: 'bg-brand-primary/10' },
-          { icon: Bookmark, color: 'text-slate-500', bg: 'bg-white/5' },
           { icon: SettingsIcon, color: 'text-slate-500', bg: 'bg-white/5' }
         ].map((item, i) => (
           <button key={i} className={`w-12 h-12 rounded-full ${item.bg} flex items-center justify-center ${item.color} cursor-pointer hover:border hover:border-brand-primary/20 hover:scale-110 transition-all active:scale-95`}>
