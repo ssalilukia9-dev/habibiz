@@ -26,6 +26,21 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      let displayMessage = this.state.error?.message || 'Unknown mystical anomaly';
+      let errorDetail = null;
+
+      try {
+        if (displayMessage.startsWith('{')) {
+          const parsed = JSON.parse(displayMessage);
+          if (parsed.error) {
+            displayMessage = parsed.error;
+            errorDetail = parsed;
+          }
+        }
+      } catch (e) {
+        // Not JSON, use original message
+      }
+
       return (
         <div className="min-h-screen bg-[#0A0B10] flex items-center justify-center p-6 text-slate-200 font-sans">
           <div className="max-w-md w-full glass-panel-purple p-8 rounded-[2.5rem] border-brand-primary/20 text-center space-y-6 shadow-2xl">
@@ -40,8 +55,18 @@ class ErrorBoundary extends Component<Props, State> {
               </p>
             </div>
 
-            <div className="bg-black/40 border border-white/5 p-4 rounded-2xl text-[10px] font-mono text-red-400/80 overflow-auto max-h-32 text-left">
-              {this.state.error?.message || 'Unknown mystical anomaly'}
+            <div className="bg-black/40 border border-white/5 p-4 rounded-2xl text-[10px] font-mono text-red-400/80 overflow-auto max-h-48 text-left space-y-2">
+               <p className="font-bold border-b border-white/5 pb-2 text-white">Error Logs:</p>
+               <p className="break-words">{displayMessage}</p>
+               {errorDetail && (
+                 <div className="pt-2 text-[8px] text-slate-500 uppercase leading-normal">
+                   <p>Operation: {errorDetail.operationType}</p>
+                   <p>Source: {errorDetail.path}</p>
+                   {displayMessage.includes('index') && (
+                     <p className="mt-2 text-amber-400 font-bold">Action Required: This specific query requires a composite index. Check the browser console (F12) for a direct link to create it in Firebase.</p>
+                   )}
+                 </div>
+               )}
             </div>
 
             <div className="flex flex-col gap-3">

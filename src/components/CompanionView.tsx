@@ -235,9 +235,10 @@ export default function CompanionView() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get AI response');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to get AI response');
       }
-
+      
       const data = await response.json();
       const assistantText = data.text || "I apologize, I couldn't process that. Please try again.";
 
@@ -252,9 +253,20 @@ export default function CompanionView() {
         speak(assistantText);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Error:", error);
-      // We don't necessarily want to halt on AI error, but maybe show an error toast
+      
+      // Temporary system message to inform the user
+      const msgRef = collection(db, `ai_conversations/${activeConvId || 'error'}/messages`);
+      if (activeConvId) {
+        await addDoc(msgRef, {
+          role: 'model',
+          content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
+          timestamp: serverTimestamp()
+        });
+      } else {
+        alert(`AI Error: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -130,6 +130,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
+
     // Leaderboard listener to find top user (Habibi Crown)
     const q = query(
       collection(db, 'users'),
@@ -146,7 +148,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     // Sync hasanat if changed from Firestore
@@ -243,6 +245,8 @@ export default function App() {
             }
         }
       });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'rooms');
     });
 
     return () => unsubscribe();

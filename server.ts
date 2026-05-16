@@ -22,10 +22,17 @@ async function startServer() {
         return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
       }
 
-      const client = new GoogleGenAI({ apiKey });
+      const client = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       
       const response = await client.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3-flash-preview",
         contents,
         config: {
           systemInstruction
@@ -34,9 +41,22 @@ async function startServer() {
 
       const text = response.text || "I apologize, I couldn't process that.";
       res.json({ text });
-    } catch (error) {
-      console.error("Gemini API Error:", error);
-      res.status(500).json({ error: "Failed to communicate with AI" });
+    } catch (error: any) {
+      console.error("Gemini API Error details:", error?.message || error);
+      
+      // Check for specific error types to guide the user
+      let errorMessage = "Failed to communicate with AI";
+      if (error?.message) {
+        if (error.message.includes("API_KEY_INVALID") || error.message.includes("403")) {
+          errorMessage = "Invalid Gemini API Key. Please update it in Settings > Secrets.";
+        } else if (error.message.includes("quota") || error.message.includes("429")) {
+          errorMessage = "Gemini API quota exceeded. Please check your billing or quota limits.";
+        } else if (error.message.includes("NOT_FOUND") || error.message.includes("model")) {
+          errorMessage = "The selected AI model is currently unavailable.";
+        }
+      }
+      
+      res.status(500).json({ error: errorMessage, details: error?.message });
     }
   });
 
