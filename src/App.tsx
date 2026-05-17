@@ -187,20 +187,20 @@ export default function App() {
 
   useEffect(() => {
     // Dynamic Splash Control: 
-    // Wait for auth to be ready, but ensure a minimum of 2.5s for the animation.
-    // Also provide a safety fallback at 8s if something hangs.
+    // Wait for auth to be ready, but ensure a minimum of 1.2s for the animation.
+    // Also provide a safety fallback at 5s if something hangs.
     
     let timer: any;
     if (!authLoading) {
       // Auth is ready! Wait a moment for splash animation to feel right then hide.
       timer = setTimeout(() => {
         setShowSplash(false);
-      }, 2000);
+      }, 1200);
     } else {
-      // Still loading auth? Safety fallback to show app anyway after 8 seconds.
+      // Still loading auth? Safety fallback to show app anyway after 5 seconds.
       timer = setTimeout(() => {
         setShowSplash(false);
-      }, 8000);
+      }, 5000);
     }
 
     return () => clearTimeout(timer);
@@ -504,6 +504,10 @@ export default function App() {
       if (user) {
         // Sync user to firestore
         const userRef = doc(db, 'users', user.uid);
+        
+        // Immediate State Update: Don't block the UI while we sync metadata
+        setCurrentUser(user);
+        
         try {
           // Try to get from cloud/cache
           const docSnap = await getDoc(userRef);
@@ -518,7 +522,7 @@ export default function App() {
             setUserJoinedAt(joinedDate);
             setHasanat(data.hasanat || 0);
           } else {
-            // New user, create profile immediately
+            // New user, create profile in background
             const newUserProfile = {
               uid: user.uid,
               displayName: user.displayName || user.email?.split('@')[0] || `Seeker_${user.uid.substring(0, 4)}`,
@@ -530,30 +534,27 @@ export default function App() {
               hasanat: 0
             };
             
-            await setDoc(userRef, newUserProfile);
+            // Fire and forget (it will eventually persist)
+            setDoc(userRef, newUserProfile).catch(e => console.error("New user save failed", e));
             setUserJoinedAt(joinedDate);
             setHasanat(0);
           }
 
-          // Always update lastSeen for active users - DON'T await this as it is non-essential for initial render
+          // Always update lastSeen for active users - backgrounded
           updateDoc(userRef, {
             lastSeen: serverTimestamp()
           }).catch(e => console.warn("Last seen update failed", e));
           
-          setCurrentUser(user);
         } catch (error: any) {
           console.error("Auth sync error:", error);
-          handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-          // Still set current user so they can at least see the app
-          setCurrentUser(user);
+          // Non-blocking error handling
         }
       } else {
         setCurrentUser(null);
         setHasanat(0);
       }
       
-      // Ensure this is set to false as soon as we have a user object, 
-      // even if profile metadata isn't fully perfect yet.
+      // Release the loading state as soon as we know the auth status
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -699,19 +700,6 @@ export default function App() {
     <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
       <AnimatePresence>
         {showSplash && <SplashScreen key="splash" />}
-      </AnimatePresence>
-      <AnimatePresence>
-        {authLoading && !showSplash && (
-           <motion.div 
-             initial={{ opacity: 0 }} 
-             animate={{ opacity: 1 }} 
-             exit={{ opacity: 0 }}
-             className="fixed inset-0 z-[50] flex flex-col items-center justify-center bg-brand-depth"
-           >
-             <div className="w-16 h-16 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-6" />
-             <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] animate-pulse">Synchronizing Soul Data</p>
-           </motion.div>
-        )}
       </AnimatePresence>
       <AnimatePresence>
         {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
