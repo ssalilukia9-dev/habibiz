@@ -446,18 +446,79 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
       </div>
 
       {/* Product Grid */}
-      <div className="flex flex-col items-center justify-center py-32 px-6 glass-panel rounded-[3rem] border-white/5 bg-brand-sidebar/30">
-          <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary mb-8 shadow-2xl shadow-brand-primary/10 animate-pulse">
-             <Package size={48} />
+      {filteredProducts.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredProducts.map((p) => (
+            <motion.div
+              key={p.id}
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -8 }}
+              className="group glass-panel rounded-[2rem] border-white/5 overflow-hidden flex flex-col h-full bg-brand-sidebar/30 cursor-pointer"
+              onClick={() => setActiveProduct(p)}
+            >
+              <div className="relative aspect-[4/3] overflow-hidden">
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 bg-brand-depth/40">
+                    <Package size={40} className="mb-2 opacity-20" />
+                  </div>
+                )}
+                <div className="absolute top-4 left-4 bg-brand-depth/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-brand-primary/30">
+                  <span className="text-sm font-black text-brand-primary">${p.price}</span>
+                </div>
+                {p.sellerId === auth.currentUser?.uid && (
+                  <button 
+                    onClick={(e) => handleDeleteListing(p.id, e)}
+                    className="absolute top-4 right-4 w-10 h-10 bg-red-500/10 backdrop-blur-xl border border-red-500/20 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+              
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[8px] font-black text-brand-primary uppercase tracking-widest px-2 py-1 bg-brand-primary/10 rounded-lg">{p.category}</span>
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{p.condition || 'New'}</span>
+                </div>
+                <h3 className="text-base font-black text-white line-clamp-1 mb-2 group-hover:text-brand-primary transition-colors">{p.title}</h3>
+                <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">{p.description}</p>
+                
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-brand-primary">
+                      <UserIcon size={12} />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 capitalize">{p.sellerName.split(' ')[0]}</span>
+                  </div>
+                  <StarRating rating={p.rating || 5} />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-32 px-6 glass-panel rounded-[3rem] border-white/5 bg-brand-sidebar/30 text-center">
+          <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary mb-8 shadow-2xl shadow-brand-primary/10">
+             <ShoppingBag size={48} />
           </div>
-          <h3 className="text-3xl font-black text-white mb-4 uppercase italic tracking-tighter">Market Reopening Soon</h3>
-          <p className="text-slate-500 max-w-sm mx-auto text-center font-medium leading-relaxed mb-8">
-            Suq Al-Mubaraki is currently being curated for the highest quality spiritual essentials. Check back soon for authentic prayer collections and modest wear.
+          <h3 className="text-2xl font-black text-white mb-4 uppercase italic tracking-tighter">No Treasures Found</h3>
+          <p className="text-slate-500 max-w-sm mx-auto font-medium leading-relaxed mb-8">
+            {searchQuery ? `No listings match "${searchQuery}" in Suq Al-Mubaraki.` : "The market is currently quiet. Be the first to list a spiritual essential!"}
           </p>
-          <div className="flex gap-4">
-             <div className="px-6 py-3 bg-white/5 rounded-2xl border border-white/5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Sourcing...</div>
-          </div>
-      </div>
+          {activeTab === 'all' && (
+            <button 
+              onClick={() => setShowCreateModal(true)}
+              className="px-8 py-4 bg-brand-primary text-brand-depth rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-brand-primary/20"
+            >
+              Start Selling
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Create Listing Modal */}
       <AnimatePresence>

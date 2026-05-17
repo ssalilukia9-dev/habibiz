@@ -67,6 +67,7 @@ import PremiumView from './components/PremiumView.tsx';
 import QiblaView from './components/QiblaView.tsx';
 import LeaderboardView from './components/LeaderboardView.tsx';
 import ProfileView from './components/ProfileView.tsx';
+import OnboardingView from './components/OnboardingView.tsx';
 import SplashScreen from './components/SplashScreen.tsx';
 import UmmahHubView from './components/UmmahHubView.tsx';
 import { notificationService } from './services/notificationService.ts';
@@ -86,6 +87,7 @@ export default function App() {
   });
   const [topUserId, setTopUserId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [userJoinedAt, setUserJoinedAt] = useState<Date | null>(null);
@@ -139,6 +141,16 @@ export default function App() {
     };
 
     const triggerAdhan = (prayer: string) => {
+      // Check if notifications are globally enabled and enabled for this specific prayer
+      const savedReminders = localStorage.getItem('prayer-reminders');
+      const settings = savedReminders ? JSON.parse(savedReminders) : { 
+        Global: true, Fajr: true, Dhuhr: true, Asr: true, Maghrib: true, Isha: true 
+      };
+      
+      if (!settings.Global || settings[prayer] === false) {
+        return;
+      }
+
       // Find preferred Adhan sound
       const preferredId = localStorage.getItem('preferred-adhan-id') || 'makkah';
       const customUrl = localStorage.getItem('preferred-adhan-custom-url');
@@ -361,8 +373,10 @@ export default function App() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      const communityNotifs = localStorage.getItem('community-notifs') !== 'false';
+      
       snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
+        if (change.type === 'added' && communityNotifs) {
           const req = change.doc.data();
           const reqTime = req.createdAt?.toMillis() || Date.now();
           
@@ -401,8 +415,10 @@ export default function App() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      const communityNotifs = localStorage.getItem('community-notifs') !== 'false';
+      
       snapshot.docChanges().forEach((change) => {
-        if (change.type === 'modified') {
+        if (change.type === 'modified' && communityNotifs) {
           const req = change.doc.data();
           const acceptedTime = req.acceptedAt?.toMillis() || Date.now();
           
@@ -502,59 +518,43 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Sync user to firestore
         const userRef = doc(db, 'users', user.uid);
-        
-        // Immediate State Update: Don't block the UI while we sync metadata
         setCurrentUser(user);
         
         try {
-          // Try to get from cloud/cache
           const docSnap = await getDoc(userRef);
-          let joinedDate = new Date();
           
           if (docSnap.exists()) {
             const data = docSnap.data();
             setIsPremium(data.isPremium || false);
-            if (data.createdAt) {
-               joinedDate = data.createdAt.toDate();
-            }
-            setUserJoinedAt(joinedDate);
+            setUserJoinedAt(data.createdAt?.toDate() || new Date());
             setHasanat(data.hasanat || 0);
-          } else {
-            // New user, create profile in background
-            const newUserProfile = {
-              uid: user.uid,
-              displayName: user.displayName || user.email?.split('@')[0] || `Seeker_${user.uid.substring(0, 4)}`,
-              email: user.email || '',
-              photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-              createdAt: serverTimestamp(),
-              isPremium: false,
-              lastSeen: serverTimestamp(),
-              hasanat: 0
-            };
             
-            // Fire and forget (it will eventually persist)
-            setDoc(userRef, newUserProfile).catch(e => console.error("New user save failed", e));
-            setUserJoinedAt(joinedDate);
-            setHasanat(0);
+            // If onboarding specifically hasn't been completed
+            if (data.onboardingCompleted === false || !data.displayName || data.displayName.startsWith('Seeker_')) {
+              setNeedsOnboarding(true);
+            } else {
+              setNeedsOnboarding(false);
+            }
+          } else {
+            // Document doesn't exist? Mandatory onboarding
+            setNeedsOnboarding(true);
           }
 
-          // Always update lastSeen for active users - backgrounded
+          // Background update for lastSeen
           updateDoc(userRef, {
             lastSeen: serverTimestamp()
-          }).catch(e => console.warn("Last seen update failed", e));
+          }).catch(() => {});
           
         } catch (error: any) {
           console.error("Auth sync error:", error);
-          // Non-blocking error handling
         }
       } else {
         setCurrentUser(null);
         setHasanat(0);
+        setNeedsOnboarding(false);
       }
       
-      // Release the loading state as soon as we know the auth status
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -620,6 +620,9 @@ export default function App() {
 
     if (isFriday && lastJummahReminder !== todayDateStr) {
       setTimeout(() => {
+        const communityNotifs = localStorage.getItem('community-notifs') !== 'false';
+        if (!communityNotifs) return;
+        
         notificationService.notify(
           'Jummah Mubarak',
           "Today is the master of all days. Don't forget to read Surah Al-Kahf and prepare for Jummah prayer.",
@@ -817,7 +820,8 @@ export default function App() {
               ShoppingBag,
               Sparkles,
               Trophy,
-              Medal
+              Medal,
+              User: UserIcon
             }[tab.icon as keyof typeof Icon] || BookOpen;
             
             const isActive = activeTab === tab.id;
@@ -981,6 +985,8 @@ export default function App() {
           <div className="max-w-5xl mx-auto p-4 md:p-12">
             {!currentUser ? (
               <AuthView onSuccess={() => setAuthLoading(true)} />
+            ) : needsOnboarding ? (
+              <OnboardingView user={currentUser} onComplete={() => setNeedsOnboarding(false)} />
             ) : (
               <AnimatePresence mode="wait">
                 <motion.div
@@ -1111,19 +1117,23 @@ export default function App() {
 
       <AnimatePresence>
         {lastNotification && (
-          <motion.div 
-            initial={{ opacity: 0, y: -100, x: '-50%' }}
-            animate={{ opacity: 1, y: 16, x: '-50%' }}
-            exit={{ opacity: 0, y: -100, x: '-50%' }}
-            className="fixed top-0 left-1/2 -translate-x-1/2 w-[95%] max-w-sm z-[999999]"
-          >
-            {/* System Notification Flow Diagram:
-                1. Event Source (Firebase/FCM/Local Scheduler) -> 2. notificationService.ts -> 3. App.tsx (Event Listener) -> 4. UI Layer (Heads-Up)
-                - Supports: Android Material Design & iOS Human Interface Styles
-                - Real-time interaction: Quick Reply / Dismiss / View
-            */}
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[999998]"
+              onClick={() => setLastNotification(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+              exit={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+              className="fixed top-1/2 left-1/2 w-[95%] max-w-sm z-[999999]"
+            >
+            {/* System Notification: Centered Focus System */}
             <div 
-              className="bg-[#1C1C1E]/95 backdrop-blur-3xl border border-white/5 p-4 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-4 cursor-pointer active:scale-95 transition-all group overflow-hidden relative"
+              className="bg-[#1C1C1E]/95 backdrop-blur-3xl border border-white/5 p-4 rounded-[2.5rem] shadow-[0_40px_80px_rgba(0,0,0,0.7)] flex flex-col gap-4 cursor-pointer active:scale-98 transition-all group overflow-hidden relative"
               onClick={() => {
                 if (lastNotification.actionUrl) {
                   if (lastNotification.actionUrl.startsWith('#')) {
@@ -1138,17 +1148,17 @@ export default function App() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16" />
               
               <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-2xl ${
+                <div className={`w-14 h-14 rounded-[1.4rem] flex items-center justify-center shrink-0 shadow-2xl ${
                   lastNotification.type === 'prayer' ? 'bg-amber-500 text-white shadow-amber-500/20' :
                   lastNotification.type === 'community' ? 'bg-emerald-500 text-white shadow-emerald-500/20' :
                   'bg-brand-primary text-white shadow-brand-primary/20'
                 }`}>
-                  {lastNotification.type === 'prayer' ? <Clock size={24} /> :
-                   lastNotification.type === 'community' ? <MessageCircle size={24} /> :
-                   <Bell size={24} />}
+                  {lastNotification.type === 'prayer' ? <Clock size={28} /> :
+                   lastNotification.type === 'community' ? <MessageCircle size={28} /> :
+                   <Bell size={28} />}
                 </div>
 
-                <div className="flex-1 min-w-0 pr-4">
+                <div className="flex-1 min-w-0 pr-4 mt-1">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
                       {lastNotification.type === 'prayer' ? 'Prayer Alert' : 
@@ -1157,8 +1167,8 @@ export default function App() {
                     </p>
                     <span className="text-[9px] text-slate-600 font-bold uppercase">Now</span>
                   </div>
-                  <h5 className="text-sm font-black text-white leading-tight mb-1">{lastNotification.title}</h5>
-                  <p className="text-xs text-slate-400 line-clamp-1 leading-relaxed font-medium">{lastNotification.body}</p>
+                  <h5 className="text-base font-black text-white leading-tight mb-1">{lastNotification.title}</h5>
+                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-medium">{lastNotification.body}</p>
                 </div>
               </div>
 
@@ -1167,24 +1177,22 @@ export default function App() {
                 {lastNotification.type === 'community' && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); navigate('/chat'); setLastNotification(null); }}
-                    className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-500 transition-colors"
+                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-emerald-500 transition-colors"
                   >
                     Reply
                   </button>
                 )}
                 <button 
                   onClick={(e) => { e.stopPropagation(); setLastNotification(null); }}
-                  className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors"
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors"
                 >
                   Dismiss
                 </button>
               </div>
-
-              {/* Handle Bar */}
-              <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mt-2 opacity-50" />
             </div>
           </motion.div>
-        )}
+        </>
+      )}
       </AnimatePresence>
     </div>
   );

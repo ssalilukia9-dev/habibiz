@@ -105,6 +105,8 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhoto, setEditPhoto] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [isGeneratingBio, setIsGeneratingBio] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -191,7 +193,7 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
   const [reminders, setReminders] = useState(() => {
     const saved = localStorage.getItem('prayer-reminders');
     return saved ? JSON.parse(saved) : {
-      Fajr: true, Dhuhr: true, Asr: true, Maghrib: true, Isha: true, Adhan: true, Global: false
+      Fajr: true, Dhuhr: true, Asr: true, Maghrib: true, Isha: true, Adhan: true, Global: true
     };
   });
 
@@ -201,9 +203,11 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
     const userRef = doc(db, 'users', currentUser.uid);
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
-        setUserData(doc.data());
-        setEditName(doc.data().displayName || '');
-        setEditPhoto(doc.data().photoURL || '');
+        const data = doc.data();
+        setUserData(data);
+        setEditName(data.displayName || '');
+        setEditPhoto(data.photoURL || '');
+        setEditBio(data.bio || '');
       }
       setLoading(false);
     }, (error) => {
@@ -251,6 +255,7 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
       await updateDoc(userRef, {
         displayName: editName,
         photoURL: editPhoto,
+        bio: editBio,
         lastSeen: serverTimestamp(),
         emailVerified: currentUser.emailVerified
       });
@@ -261,6 +266,29 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
       handleFirestoreError(error, OperationType.WRITE, `users/${currentUser.uid}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const generateBio = async () => {
+    if (isGeneratingBio) return;
+    setIsGeneratingBio(true);
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Generate a short (max 20 words), poetic, spiritual bio for a person named ${editName}. Focus on peace, growth, and the ummah. Return only the bio text.` }] }],
+          systemInstruction: "You are a specialized spiritual bio generator for the Sanctuary app. Output only the bio, no quotes or intro."
+        })
+      });
+      const data = await response.json();
+      if (data.text) {
+        setEditBio(data.text.trim());
+      }
+    } catch (e) {
+      console.error("Bio generation failed", e);
+    } finally {
+      setIsGeneratingBio(false);
     }
   };
 
@@ -448,6 +476,12 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
                 {userData.displayName || 'Unidentified Wanderer'}
               </h1>
               
+              {userData.bio && (
+                <p className="text-sm text-slate-400 font-medium italic mb-2 max-w-lg mx-auto md:mx-0">
+                  "{userData.bio}"
+                </p>
+              )}
+              
               <div className="flex items-center justify-center md:justify-start gap-4 text-slate-500 font-medium">
                 <div className="flex items-center gap-1.5 text-xs">
                   <Mail size={14} className="text-brand-primary/60" />
@@ -528,6 +562,26 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between pl-4 pr-2">
+                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Divine Bio</label>
+                 <button 
+                  onClick={generateBio}
+                  disabled={isGeneratingBio}
+                  className="flex items-center gap-1.5 text-[8px] font-black text-brand-primary uppercase tracking-widest hover:text-white transition-colors disabled:opacity-50"
+                 >
+                   <Sparkles size={10} className={isGeneratingBio ? 'animate-spin' : ''} />
+                   {isGeneratingBio ? 'Generating...' : 'AI Spirit Generate'}
+                 </button>
+              </div>
+              <textarea 
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                placeholder="Share your spiritual journey in a few words..."
+                className="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-xs focus:border-brand-primary outline-none transition-all text-white resize-none h-24"
+              />
             </div>
             
             <div className="flex gap-4 pt-4">
