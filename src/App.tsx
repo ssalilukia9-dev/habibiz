@@ -87,11 +87,11 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [userJoinedAt, setUserJoinedAt] = useState<Date | null>(null);
-  const [hasanat, setHasanat] = useState(1250);
+  const [hasanat, setHasanat] = useState(0);
   const [rank, setRank] = useState('Seeker');
-  const [versesRead, setVersesRead] = useState(142);
-  const [duaCount, setDuaCount] = useState(84);
-  const [streak, setStreak] = useState(12);
+  const [versesRead, setVersesRead] = useState(0);
+  const [duaCount, setDuaCount] = useState(0);
+  const [streak, setStreak] = useState(0);
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
   const [bookmarks, setBookmarks] = useState<Ayah[]>([]);
   const [initialResId, setInitialResId] = useState<any>(null);
@@ -102,6 +102,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app-language', language);
   }, [language]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     // Splash screen timer
@@ -406,14 +411,11 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-      
       if (user) {
         // Sync user to firestore
         const userRef = doc(db, 'users', user.uid);
         try {
-          // Try to get from cache first if offline, or server if online
+          // Try to get from cloud/cache
           const docSnap = await getDoc(userRef);
           let joinedDate = new Date();
           
@@ -424,31 +426,43 @@ export default function App() {
                joinedDate = data.createdAt.toDate();
             }
             setUserJoinedAt(joinedDate);
-            setHasanat(data.hasanat || 0); // Sync hasanat from cloud
+            setHasanat(data.hasanat || 0);
           } else {
-            // New user, starting trial now
-            setUserJoinedAt(joinedDate);
-            await setDoc(userRef, {
+            // New user, create profile immediately
+            const newUserProfile = {
               uid: user.uid,
-              displayName: user.displayName,
-              email: user.email,
-              photoURL: user.photoURL,
+              displayName: user.displayName || user.email?.split('@')[0] || `Seeker_${user.uid.substring(0, 4)}`,
+              email: user.email || '',
+              photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
               createdAt: serverTimestamp(),
               isPremium: false,
               lastSeen: serverTimestamp(),
               hasanat: 0
-            });
+            };
+            
+            await setDoc(userRef, newUserProfile);
+            setUserJoinedAt(joinedDate);
+            setHasanat(0);
           }
 
-          if (docSnap.exists()) {
-             await updateDoc(userRef, {
-               lastSeen: serverTimestamp()
-             });
-          }
+          // Always update lastSeen for active users
+          await updateDoc(userRef, {
+            lastSeen: serverTimestamp()
+          }).catch(e => console.warn("Last seen update failed", e));
+          
+          setCurrentUser(user);
         } catch (error: any) {
+          console.error("Auth sync error:", error);
           handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+          // Still set current user so they can at least see the app
+          setCurrentUser(user);
         }
+      } else {
+        setCurrentUser(null);
+        setHasanat(0);
       }
+      
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -593,6 +607,19 @@ export default function App() {
     <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
       <AnimatePresence>
         {showSplash && <SplashScreen key="splash" />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {authLoading && !showSplash && (
+           <motion.div 
+             initial={{ opacity: 0 }} 
+             animate={{ opacity: 1 }} 
+             exit={{ opacity: 0 }}
+             className="fixed inset-0 z-[50] flex flex-col items-center justify-center bg-brand-depth"
+           >
+             <div className="w-16 h-16 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-6" />
+             <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] animate-pulse">Synchronizing Soul Data</p>
+           </motion.div>
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
@@ -770,7 +797,7 @@ export default function App() {
       </aside>
 
       {/* SECONDARY SIDEBAR: List Area */}
-      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-all duration-500 flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile', 'ummah'].includes(activeTab) ? 'w-0 opacity-0 overflow-hidden' : 'w-80 opacity-100'}`}>
+      <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-[width,opacity] duration-300 ease-in-out flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile', 'ummah'].includes(activeTab) ? 'w-0 opacity-0 pointer-events-none' : 'w-80 opacity-100'}`}>
         <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-20">
            <h2 className="text-xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
            <div className="flex gap-2">
@@ -873,7 +900,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto scrollbar-hide pb-32 md:pb-12">
           <div className="max-w-5xl mx-auto p-4 md:p-12">
             {!currentUser ? (
-              <AuthView onSuccess={() => {}} />
+              <AuthView onSuccess={() => setAuthLoading(true)} />
             ) : (
               <AnimatePresence mode="wait">
                 <motion.div

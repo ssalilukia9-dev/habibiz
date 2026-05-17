@@ -82,7 +82,9 @@ export default function ResourcesView({
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (initialResId) setActiveRes(initialResId);
+    if (initialResId && initialResId !== activeRes) {
+      setActiveRes(initialResId);
+    }
   }, [initialResId]);
 
   const categories = [
@@ -179,14 +181,15 @@ export default function ResourcesView({
       )}
 
       {/* Main Content Area */}
-      <div className="px-4">
-         <AnimatePresence mode="wait">
+      <div className="px-4 min-h-[600px]">
+         <AnimatePresence mode="wait" initial={false}>
             {!activeRes ? (
               <motion.div 
-                key="dashboard"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                key="dashboard-view"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
                 className="space-y-16"
               >
                 {/* Immersive Category Layout */}
@@ -363,19 +366,21 @@ export default function ResourcesView({
                     </div>
                  )}
                  {['mirror', 'calendar', 'immerse', 'memorise', 'khatam', 'mosques', 'learn', 'names_old'].includes(activeRes as string) && (
-                   <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
-                      <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
-                         <Sparkles size={48} />
+                   <div className="flex flex-col items-center justify-center py-20 md:py-40 text-center space-y-6 bg-white/[0.02] rounded-[3rem] border border-white/5 mx-auto max-w-2xl px-8">
+                      <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
+                         <Sparkles size={32} className="animate-pulse" />
                       </div>
-                      <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-white">Module Coming Soon</h3>
-                        <p className="text-slate-500 max-w-sm mx-auto font-medium">We are carefully crafting this spiritual interface. Check back shortly for updates to the Ummah toolkit.</p>
+                      <div className="space-y-3">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter italic">
+                          <span className="text-brand-primary">Module</span> Under Craft
+                        </h3>
+                        <p className="text-slate-400 max-w-sm mx-auto font-medium text-sm leading-relaxed">We are carefully polishing this sacred interface. Each instrument in the Sanctuary is built with intention. Check back shortly for the update.</p>
                       </div>
                       <button 
                         onClick={() => setActiveRes(null)}
-                        className="bg-brand-primary text-brand-depth px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-primary/20"
+                        className="bg-brand-primary text-brand-depth px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all"
                       >
-                         Back to Library
+                         Return to Library
                       </button>
                    </div>
                  )}

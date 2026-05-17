@@ -53,7 +53,11 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGoogle();
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Google authentication failed.');
+      if (err.message?.includes('auth/unauthorized-domain')) {
+        setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
+      } else {
+        setError(err.message || 'Google authentication failed.');
+      }
     }
   };
 
@@ -63,7 +67,11 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGithub();
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'GitHub authentication failed. Ensure it is enabled in your sanctuary records (Firebase Console).');
+      if (err.message?.includes('auth/unauthorized-domain')) {
+        setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
+      } else {
+        setError(err.message || 'GitHub authentication failed. Ensure it is enabled in your sanctuary records (Firebase Console).');
+      }
     }
   };
 

@@ -100,8 +100,8 @@ export default function SurahDetail({
   const isBookmarked = (ayahNumber: number) => bookmarks.some(b => b.number === ayahNumber);
 
   useEffect(() => {
-    if (playingAyah) {
-      setTimeout(() => {
+    if (playingAyah && autoPlay) {
+      const timer = setTimeout(() => {
         const activeElement = document.getElementById(`ayah-${playingAyah}`);
         if (activeElement) {
           activeElement.scrollIntoView({ 
@@ -109,11 +109,14 @@ export default function SurahDetail({
             block: 'center' 
           });
         }
-      }, 100);
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [playingAyah]);
+  }, [playingAyah, autoPlay]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchData = async () => {
       setIsLoading(true);
       
@@ -129,11 +132,11 @@ export default function SurahDetail({
 
       try {
         // Fetch Arabic text + Audio
-        const resArabic = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`);
+        const resArabic = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
         const dataArabic = await resArabic.json();
         
         // Fetch English translation
-        const resTrans = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${selectedTranslation}`);
+        const resTrans = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${selectedTranslation}`, { signal: controller.signal });
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {
@@ -160,6 +163,7 @@ export default function SurahDetail({
     };
 
     fetchData();
+    return () => controller.abort();
   }, [surah.number, selectedReciter, selectedTranslation]);
 
   const togglePlay = (ayah: any) => {

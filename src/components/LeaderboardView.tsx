@@ -86,13 +86,13 @@ export default function LeaderboardView() {
             <Trophy size={32} />
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic">
-            Hall of <span className="text-brand-primary">Habibis</span>
+            Hall of <span className="text-brand-primary">Souls</span>
           </h1>
           <p className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[10px]">The Digital Sanctuary Leaders</p>
         </div>
       </header>
 
-      {/* Habibi King Spotlight */}
+      {/* Top Seeker Spotlight */}
       {habibiKing && (
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
@@ -131,13 +131,13 @@ export default function LeaderboardView() {
                 <div className="space-y-1">
                    <div className="flex items-center justify-center md:justify-start gap-3">
                       <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight uppercase italic underline decoration-brand-primary decoration-4 underline-offset-8">
-                        Habibi King
+                       Crown Holder
                       </h2>
                       {habibiKing.isPremium && (
                         <div className="px-3 py-1 bg-brand-primary rounded-lg text-brand-depth text-[10px] font-black uppercase">Pro</div>
                       )}
                    </div>
-                   <p className="text-xl md:text-2xl text-brand-primary font-bold">{habibiKing.displayName || 'Anonymous Habibi'}</p>
+                   <p className="text-xl md:text-2xl text-brand-primary font-bold">{habibiKing.displayName || 'Anonymous Sanctuary Soul'}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4">
@@ -166,7 +166,7 @@ export default function LeaderboardView() {
              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
              <input 
                type="text"
-               placeholder="Search Habibis..."
+               placeholder="Search Seekers..."
                value={searchQuery}
                onChange={(e) => setSearchQuery(e.target.value)}
                className="w-full bg-white/5 border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-xs font-bold uppercase tracking-widest outline-none focus:border-brand-primary/50 transition-all"
@@ -180,7 +180,7 @@ export default function LeaderboardView() {
               <thead>
                 <tr className="border-b border-white/5 bg-white/5">
                   <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Rank</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Habibi</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Seeker</th>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</th>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Badge</th>
                 </tr>
@@ -217,7 +217,7 @@ export default function LeaderboardView() {
                         <div>
                            <p className={`text-sm font-bold tracking-tight ${idx === 0 ? 'text-brand-primary' : 'text-slate-200'}`}>
                              {user.displayName || 'Anonymous'}
-                             {idx === 0 && <span className="ml-2 text-[8px] uppercase tracking-[0.2em] px-2 py-0.5 bg-brand-primary rounded-md text-brand-depth">Habibi King</span>}
+                             {idx === 0 && <span className="ml-2 text-[8px] uppercase tracking-[0.2em] px-2 py-0.5 bg-brand-primary rounded-md text-brand-depth">Crown Holder</span>}
                            </p>
                            <p className="text-[10px] text-slate-500 font-medium">{user.isPremium ? 'Premium Voyager' : 'Sanctuary Seeker'}</p>
                         </div>
@@ -248,7 +248,7 @@ export default function LeaderboardView() {
 
           {!isLoading && filteredUsers.length === 0 && (
             <div className="p-20 text-center space-y-4">
-               <p className="text-slate-500 font-medium">No Habibis found matching your search.</p>
+               <p className="text-slate-500 font-medium">No souls found matching your search.</p>
                <button onClick={() => setSearchQuery('')} className="text-brand-primary text-xs font-bold uppercase tracking-widest underline underline-offset-4">Clear Search</button>
             </div>
           )}
@@ -258,7 +258,7 @@ export default function LeaderboardView() {
       <div className="bg-brand-primary/10 p-10 rounded-[3rem] border border-brand-primary/20 text-center space-y-6">
          <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">Ascend the Ranks</h4>
          <p className="text-sm text-slate-400 max-w-lg mx-auto">
-           Gain Hasanat by engaging with the Quran, completing Adhkar, and participating in the Sanctuary Community. The path to Habibi King is open to all seekers of knowledge.
+           Gain Hasanat by engaging with the Quran, completing Adhkar, and participating in the Sanctuary Community. The path to the top is open to all seekers of knowledge.
          </p>
          <button className="bg-brand-primary text-brand-depth px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20">
             Learn More About Hasanat

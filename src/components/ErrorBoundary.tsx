@@ -86,7 +86,7 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             
             <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em]">
-              Habibi AI Core v1.3.5
+              Sanctuary Core v1.3.5
             </p>
           </div>
         </div>

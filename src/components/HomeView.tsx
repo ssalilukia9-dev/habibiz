@@ -158,13 +158,13 @@ export default function HomeView({
               <span>SANCTUARY</span>
             </div>
             <h1 className="text-4xl md:text-7xl font-black text-slate-200 leading-[0.9] tracking-tighter flex items-center gap-4">
-              Salam,<br/><span className="text-brand-primary uppercase">Habibi</span>
+              Salam,<br/><span className="text-brand-primary uppercase">Seeker</span>
               {currentUser && topUserId === currentUser.uid && (
                 <motion.div 
                   initial={{ scale: 0, rotate: -20 }}
                   animate={{ scale: 1, rotate: 0 }}
                   className="bg-amber-400 text-amber-900 p-2 rounded-xl shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-bounce"
-                  title="Habibi Crown Holder"
+                  title="Sanctuary Crown Holder"
                 >
                   <Crown size={32} />
                 </motion.div>

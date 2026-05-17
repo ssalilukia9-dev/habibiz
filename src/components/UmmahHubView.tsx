@@ -108,7 +108,7 @@ export default function UmmahHubView() {
     try {
       await addDoc(collection(db, 'friend_requests'), {
         fromId: currentUser.uid,
-        fromName: currentUser.displayName || 'Habibi User',
+        fromName: currentUser.displayName || 'Sanctuary Soul',
         fromPhoto: currentUser.photoURL || '',
         toId: targetUser.uid,
         status: 'pending',
