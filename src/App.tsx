@@ -112,7 +112,7 @@ export default function App() {
     // Splash screen timer
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 2800);
+    }, 12000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -707,7 +707,7 @@ export default function App() {
           <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center shadow-lg shadow-brand-primary/20">
             <BookOpen size={16} className="text-brand-depth" />
           </div>
-          <span className="text-sm font-black text-white tracking-widest uppercase">SANCTUARY</span>
+          <span className="text-sm font-black text-white tracking-widest uppercase text-nowrap">HABIBI</span>
         </div>
         <button 
           onClick={() => setIsSidebarOpen(true)}
@@ -931,6 +931,7 @@ export default function App() {
                         selectedSurah={selectedSurah}
                         onSelectSurah={setSelectedSurah}
                         searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
                         bookmarks={bookmarks}
                         onToggleBookmark={toggleBookmark}
                         selectedReciter={selectedReciter}
@@ -944,10 +945,10 @@ export default function App() {
                         language={language}
                       />
                     } />
-                    <Route path="/market" element={<MarketView />} />
-                    <Route path="/market/:productId" element={<MarketView detailMode />} />
+                    <Route path="/market" element={<MarketView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+                    <Route path="/market/:productId" element={<MarketView detailMode searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
                     <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
-                    <Route path="/leaderboard" element={<LeaderboardView />} />
+                    <Route path="/leaderboard" element={<LeaderboardView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
                     <Route path="/profile" element={
                       <ProfileView 
                         darkMode={darkMode} 
@@ -962,8 +963,8 @@ export default function App() {
                     <Route path="/companion" element={<CompanionView />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
-                    <Route path="/ummah" element={<UmmahHubView />} />
-                    <Route path="/chat" element={<ChatView isPremium={isPremium} />} />
+                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+                    <Route path="/chat" element={<ChatView isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>
@@ -984,7 +985,7 @@ export default function App() {
           </button>
         ))}
         <div className="mt-auto flex flex-col items-center gap-4 text-[10px] text-brand-primary/40 font-mono vertical-text tracking-widest">
-          SANCTUARY
+           HABIBI • ISIS WRISTS
         </div>
       </aside>
 
@@ -1002,7 +1003,7 @@ export default function App() {
               className="fixed inset-y-0 left-0 w-80 bg-brand-sidebar z-50 p-8 lg:hidden border-r border-brand-border"
             >
                <div className="flex justify-between items-center mb-12">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tighter">SANCTUARY Navigation</h2>
+                  <h2 className="text-xl font-bold text-white uppercase tracking-tighter">HABIBI Navigation</h2>
                   <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400"><X size={24} /></button>
                </div>
                <nav className="space-y-3">
@@ -1024,42 +1025,41 @@ export default function App() {
       <AnimatePresence>
         {lastNotification && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 40, x: '-50%' }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1, 
-              y: window.innerWidth < 768 ? '-50%' : 0, 
-              x: '-50%',
-              top: window.innerWidth < 768 ? '50%' : '2rem',
-              left: '50%'
-            }}
-            exit={{ opacity: 0, scale: 0.9, y: 20, x: '-50%' }}
-            drag="y"
-            className="fixed w-[90%] max-w-md glass-panel-purple border-brand-primary p-6 rounded-[2.5rem] z-[999999] shadow-[0_40px_100px_rgba(168,85,247,0.4)] flex gap-6 cursor-pointer backdrop-blur-3xl"
-            onClick={() => {
-              if (lastNotification.actionUrl) {
-                if (lastNotification.actionUrl.startsWith('#')) {
-                  navigate(`/${lastNotification.actionUrl.substring(1)}`);
-                } else {
-                  navigate(lastNotification.actionUrl);
-                }
-              } else {
-                navigate('/notifications');
-              }
-              setLastNotification(null);
-            }}
+            initial={{ opacity: 0, y: -100, x: '-50%' }}
+            animate={{ opacity: 1, y: 16, x: '-50%' }}
+            exit={{ opacity: 0, y: -100, x: '-50%' }}
+            className="fixed top-0 left-1/2 -translate-x-1/2 w-[95%] max-w-md z-[999999]"
           >
-            <div className="w-16 h-16 bg-brand-primary rounded-3xl flex items-center justify-center text-brand-depth flex-shrink-0 shadow-lg shadow-brand-primary/20">
-              <Bell size={32} className="animate-bounce" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em] mb-2">Divine Notification</p>
-              <h5 className="text-lg font-black text-white line-clamp-1">{lastNotification.title}</h5>
-              <p className="text-sm text-slate-400 line-clamp-2 mt-1 leading-relaxed">{lastNotification.body}</p>
-              <div className="mt-3 flex items-center gap-2">
-                 <div className="w-1 h-1 rounded-full bg-brand-primary animate-pulse" />
-                 <span className="text-[10px] font-bold text-brand-primary uppercase tracking-widest">Tap to view</span>
+            <div 
+              onClick={() => {
+                if (lastNotification.actionUrl) {
+                  if (lastNotification.actionUrl.startsWith('#')) {
+                    navigate(`/${lastNotification.actionUrl.substring(1)}`);
+                  } else {
+                    navigate(lastNotification.actionUrl);
+                  }
+                }
+                setLastNotification(null);
+              }}
+              className="bg-brand-sidebar/95 backdrop-blur-2xl border border-brand-primary/30 p-4 rounded-3xl shadow-[0_20px_50px_rgba(var(--brand-primary-rgb),0.2)] flex items-center gap-4 cursor-pointer active:scale-95 transition-all group"
+            >
+              <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary shrink-0">
+                <Bell size={24} className="group-hover:rotate-12 transition-transform" />
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Sanctuary Signal</p>
+                  <span className="text-[8px] text-slate-500 font-bold uppercase">Now</span>
+                </div>
+                <h5 className="text-sm font-black text-white truncate">{lastNotification.title}</h5>
+                <p className="text-xs text-slate-400 line-clamp-1">{lastNotification.body}</p>
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setLastNotification(null); }}
+                className="p-2 text-slate-600 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
             </div>
           </motion.div>
         )}

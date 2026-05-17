@@ -17,6 +17,7 @@ import {
   collection, 
   query, 
   where, 
+  or,
   onSnapshot, 
   addDoc, 
   serverTimestamp,
@@ -44,9 +45,8 @@ interface FriendRequest {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-export default function UmmahHubView() {
+export default function UmmahHubView({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) {
   const [users, setUsers] = useState<UmmahUser[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({}); // toId -> status
   const [filter, setFilter] = useState<'all' | 'premium' | 'active'>('all');
@@ -56,17 +56,24 @@ export default function UmmahHubView() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Listen to sent requests to show status
+    // Listen to sent/received requests to show status
     const q = query(
       collection(db, 'friend_requests'),
-      where('fromId', '==', currentUser.uid)
+      or(
+        where('fromId', '==', currentUser.uid),
+        where('toId', '==', currentUser.uid)
+      )
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const mapping: Record<string, string> = {};
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        mapping[data.toId] = data.status;
+        if (data.fromId === currentUser.uid) {
+           mapping[data.toId] = data.status;
+        } else if (data.toId === currentUser.uid && data.status === 'accepted') {
+           mapping[data.fromId] = 'accepted';
+        }
       });
       setSentRequests(mapping);
     });
@@ -83,7 +90,7 @@ export default function UmmahHubView() {
         const q = query(
           collection(db, 'users'),
           orderBy('hasanat', 'desc'),
-          limit(50)
+          limit(200)
         );
 
         const snap = await getDocs(q);
@@ -221,7 +228,12 @@ export default function UmmahHubView() {
                         </div>
 
                         <div className="space-y-1">
-                           <h4 className="text-xl font-black text-white tracking-tight line-clamp-1">{user.displayName}</h4>
+                           <div className="flex items-center gap-2">
+                              <h4 className="text-xl font-black text-white tracking-tight line-clamp-1">{user.displayName}</h4>
+                              {user.lastSeen && (Date.now() - user.lastSeen.toMillis() < 300000) && (
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
+                              )}
+                           </div>
                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                               <Sparkles size={12} className="text-brand-primary/60" />
                               <span>Level {Math.floor(user.hasanat / 500) + 1} Seeker</span>
@@ -230,13 +242,25 @@ export default function UmmahHubView() {
 
                         <div className="pt-2">
                            {sentRequests[user.uid] ? (
-                             <div className={`flex items-center justify-center gap-3 w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                               sentRequests[user.uid] === 'pending' 
-                                 ? 'bg-amber-500/5 text-amber-500 border-amber-500/20' 
-                                 : 'bg-brand-primary/10 text-brand-primary border-brand-primary/20'
-                             }`}>
-                                {sentRequests[user.uid] === 'pending' ? <Clock size={16} /> : <CheckCircle2 size={16} />}
-                                {sentRequests[user.uid] === 'pending' ? 'Request Sent' : 'Sanctuary Connected'}
+                             <div className="flex gap-2">
+                               <div className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                 sentRequests[user.uid] === 'pending' 
+                                   ? 'bg-amber-500/5 text-amber-500 border-amber-500/20' 
+                                   : 'bg-brand-primary/10 text-brand-primary border-brand-primary/20'
+                               }`}>
+                                  {sentRequests[user.uid] === 'pending' ? <Clock size={16} /> : <CheckCircle2 size={16} />}
+                                  {sentRequests[user.uid] === 'pending' ? 'Request Sent' : 'Connected'}
+                               </div>
+                               {sentRequests[user.uid] === 'accepted' && (
+                                 <button 
+                                   onClick={() => {
+                                     window.location.hash = '#/chat';
+                                   }}
+                                   className="shrink-0 w-14 h-14 bg-brand-primary text-brand-depth rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/20 group/chat"
+                                 >
+                                    <MessageCircle size={20} className="group-hover:rotate-12 transition-transform" />
+                                 </button>
+                               )}
                              </div>
                            ) : (
                              <button 

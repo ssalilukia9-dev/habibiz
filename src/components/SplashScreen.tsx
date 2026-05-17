@@ -60,14 +60,26 @@ export default function SplashScreen() {
           className="text-center"
         >
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic mb-2">
-            Sanctuary AI
+            Habibi AI
           </h1>
-          <div className="flex items-center justify-center gap-3">
-             <span className="h-px w-8 bg-brand-primary/30" />
-             <p className="text-[10px] md:text-small font-black text-brand-primary uppercase tracking-[0.4em]">
-               Your Heart's Spiritual Companion
-             </p>
-             <span className="h-px w-8 bg-brand-primary/30" />
+          <div className="flex flex-col items-center gap-4">
+             <div className="flex items-center justify-center gap-3">
+                <span className="h-px w-8 bg-brand-primary/30" />
+                <p className="text-[10px] md:text-small font-black text-brand-primary uppercase tracking-[0.4em]">
+                  Your Heart's Spiritual Companion
+                </p>
+                <span className="h-px w-8 bg-brand-primary/30" />
+             </div>
+             <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               transition={{ delay: 1.5, duration: 1 }}
+               className="mt-4 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md"
+             >
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Sponsored by <span className="text-brand-primary">Aloha Group of Companies</span>
+                </p>
+             </motion.div>
           </div>
         </motion.div>
       </div>

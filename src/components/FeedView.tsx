@@ -12,7 +12,21 @@ import {
   Trash2,
   X,
   CheckCircle2,
-  Bookmark
+  Bookmark,
+  ShieldCheck,
+  AlertCircle,
+  TrendingUp,
+  Hash,
+  ArrowUp,
+  ArrowDown,
+  BookOpen,
+  MessageSquare,
+  HandHeart,
+  Users,
+  Compass,
+  Trophy,
+  Filter,
+  Flag
 } from 'lucide-react';
 
 interface Comment {
@@ -22,540 +36,647 @@ interface Comment {
   time: string;
 }
 
+interface Poll {
+  options: { id: string; text: string; votes: number }[];
+  totalVotes: number;
+  userSelection?: string;
+}
+
 interface Post {
   id: string;
   user: string;
+  isScholar?: boolean;
   content: string;
   time: string;
-  likes: number;
-  hasLiked?: boolean;
+  supportCount: number;
+  reconsiderCount: number;
+  userVote: 'support' | 'reconsider' | null;
   comments: Comment[];
-  category: 'spiritual' | 'reminder' | 'art' | 'community';
+  category: 'Quran' | 'Hadith' | 'Reminders' | 'Lifestyle' | 'Charity';
   image?: string;
+  isFlagged?: boolean;
   isVerified?: boolean;
-  expanded?: boolean;
+  approved?: boolean;
+  poll?: Poll;
 }
 
 const INITIAL_POSTS: Post[] = [
   {
-    id: '1',
-    user: 'Sheikh Abdullah',
-    isVerified: true,
-    content: "The beauty of Fajr is that you chose Allah over your sleep. May He accept our prayers today. #Fajr #Blessings",
+    id: 'nt-1',
+    user: 'Al-Azhar Student',
+    isScholar: true,
+    content: "Reflecting on Surah Al-Kahf today. The story of the youth in the cave teaches us that even when the whole world seems against truth, Allah's protection is sufficient. #Quran #Tafsir",
     time: '2h ago',
-    likes: 124,
-    hasLiked: false,
+    supportCount: 450,
+    reconsiderCount: 2,
+    userVote: 'support',
     comments: [
-      { id: 'c1', user: 'Fatima', text: 'MashaAllah, truly a beautiful reminder.', time: '1h ago' }
+      { id: 'c1', user: 'Zaid', text: 'Beautiful reflection, JazakAllah Khair.', time: '1h ago' }
     ],
-    category: 'spiritual'
+    category: 'Quran',
+    approved: true
   },
   {
-    id: 'vid-1',
-    user: 'Haramain Live',
-    isVerified: true,
-    content: "Live scenes from the Holy Masjid of Makkah. The tawaf never stops, subhanAllah. #Makkah #Umrah",
-    time: '3h ago',
-    likes: 2450,
-    hasLiked: false,
-    comments: [],
-    category: 'community',
-    image: 'https://images.unsplash.com/photo-1564769662533-4f00a87b4056?q=80&w=2070&auto=format&fit=crop'
-  },
-  {
-    id: '2',
-    user: 'Islamic Art Collective',
-    content: "Sharing a piece of modern calligraphy of Surah Al-Ikhlas. The geometric perfection in Allah's word is unmatched.",
+    id: 'nt-2',
+    user: 'Sheikh Ibrahim',
+    isScholar: true,
+    content: "Hadith of the Day: 'The best of you are those who are best to their families.' Sunan al-Tirmidhi. A reminder for us all to start our kindness at home.",
     time: '4h ago',
-    likes: 850,
-    hasLiked: true,
+    supportCount: 1200,
+    reconsiderCount: 5,
+    userVote: null,
     comments: [],
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?q=80&w=2070&auto=format&fit=crop'
+    category: 'Hadith',
+    approved: true
   },
   {
-    id: 'art-6',
-    user: 'Masjid Hub',
-    content: "The sunset over the Blue Mosque in Istanbul. Architecture that reaches for the heavens. #Masjid #Travel",
-    time: '5h ago',
-    likes: 1205,
-    hasLiked: false,
-    comments: [],
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1541432901042-2bad311215bb?q=80&w=2072&auto=format&fit=crop'
-  },
-  {
-    id: 'vid-2',
-    user: 'Global Ummah',
+    id: 'nt-3',
+    user: 'Help Gaza Relief',
     isVerified: true,
-    content: "Documentary snippet: The preservation of ancient Quranic manuscripts in Timbuktu. Our intellectual heritage is vast. #History #Knowledge",
+    content: "Assalamu Alaikum Ummah, we are looking for volunteers for the upcoming food drive this Saturday at Masjid Al-Noor. Please DM if interested! #Community #Charity",
     time: '6h ago',
-    likes: 1800,
-    hasLiked: false,
+    supportCount: 89,
+    reconsiderCount: 0,
+    userVote: null,
     comments: [],
-    category: 'spiritual',
-    image: 'https://images.unsplash.com/photo-1584281723400-13e200ec0301?q=80&w=2070&auto=format&fit=crop'
+    category: 'Charity',
+    image: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=2070&auto=format&fit=crop',
+    approved: true
   },
   {
-    id: '3',
-    user: 'Hajj Companion',
-    isVerified: true,
-    content: "To those traveling for Hajj this year: remember that patience is half of faith. There will be crowds, but there will be immense mercy. #Hajj2024",
-    time: '6h ago',
-    likes: 312,
-    hasLiked: false,
-    comments: [
-      { id: 'c2', user: 'Omar', text: 'Labaik Allahuma Labaik!', time: '2h ago' }
-    ],
-    category: 'reminder'
-  },
-  {
-    id: 'art-2',
-    user: 'Nomad Soul',
-    content: "Found this beautiful old mosque while traveling in the mountains. The architecture tells so many stories of our elders. #History #Masjid",
+    id: 'nt-flagged-1',
+    user: 'UnknownUser',
+    content: "This content was flagged because it appeared to contain non-compliant themes or inappropriate discussion not fitting for NoorTalk's sacred environment.",
     time: '8h ago',
-    likes: 156,
-    hasLiked: false,
+    supportCount: 0,
+    reconsiderCount: 150,
+    userVote: null,
     comments: [],
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?q=80&w=1964&auto=format&fit=crop'
+    category: 'Lifestyle',
+    isFlagged: true,
+    approved: false
   },
   {
-    id: 'vid-3',
-    user: 'Nature & Iman',
-    isVerified: true,
-    content: "Time-lapse of the night sky in the Arabian desert. 'And He is the One Who has placed the stars for you...' (Surah Al-An'am). #SubhanAllah #Nature",
-    time: '10h ago',
-    likes: 3200,
-    hasLiked: false,
-    comments: [],
-    category: 'spiritual',
-    image: 'https://images.unsplash.com/photo-1473580044384-7ba9967e16a0?q=80&w=2070&auto=format&fit=crop'
-  },
-  {
-    id: 'ref-1',
-    user: 'Daily Dua',
-    content: "A quick article on the power of Istighfar. Seeking forgiveness isn't just about deleting sins, it's about opening doors of Barakah (blessings) in our life. \n\nIstighfar is the spiritual shield that protects us from the weights of our own mistakes. When we say 'Astaghfirullah', we are acknowledging our humanness and reaching for Divine Perfection. In the Quran, Allah tells us that through Istighfar, He will send down rain in abundance and provide for us with wealth and children. It is a key that unlocks the treasures of both worlds.",
+    id: 'nt-4',
+    user: 'Halal Living',
+    content: "Quick tip for meal prepping halal: Focus on high-protein legumes and organic zabiha meat. It fuels the body and the soul. #HalalLifestyle",
     time: '12h ago',
-    likes: 98,
-    hasLiked: false,
+    supportCount: 230,
+    reconsiderCount: 12,
+    userVote: null,
     comments: [],
-    category: 'spiritual'
-  },
-  {
-    id: 'art-3',
-    user: 'Islamic Geometrician',
-    content: "The intersection of math and faith: the 12-fold symmetry in this tilework represents the infinite nature of the Creator. #Art #Geometry",
-    time: '13h ago',
-    likes: 450,
-    hasLiked: false,
-    comments: [],
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1590422321526-70f9da56f7e4?q=80&w=1974&auto=format&fit=crop'
-  },
-  {
-    id: 'ref-2',
-    user: 'Quranic Insights',
-    content: "Reflection on Surah Ad-Duha: 'Your Lord has not forsaken you, nor has He detested you.' Sometimes we feel abandoned when things go wrong, but this verse is a warm hug for the soul. It reminds us that periods of silence are not periods of absence. Just as the morning sun follows the darkest night, ease is guaranteed after every hardship.",
-    time: '15h ago',
-    likes: 560,
-    hasLiked: true,
-    comments: [],
-    category: 'spiritual'
-  },
-  {
-    id: 'art-img-1',
-    user: 'Cairo Lens',
-    content: "The intricate details of the dome of Sultan Hassan Mosque. #Cairo #Heritage",
-    time: '16h ago',
-    likes: 314,
-    hasLiked: false,
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1566440263301-443360879308?q=80&w=2070&auto=format&fit=crop',
-    comments: []
-  },
-  {
-    id: 'rem-2',
-    user: 'Ummah News',
-    isVerified: true,
-    content: "Construction of the new community center in our neighborhood is almost complete. A place for learning, sports, and sisterhood. Alhamdulillah for the growth of our community. #Community #Ummah",
-    time: '18h ago',
-    likes: 310,
-    hasLiked: false,
-    comments: [],
-    category: 'community'
-  },
-  {
-    id: 'art-img-2',
-    user: 'Art of Iman',
-    content: "Watercolor painting of the Prophet's Mosque in Madinah. The peace of this place is unparalleled.",
-    time: '20h ago',
-    likes: 920,
-    hasLiked: false,
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=80&w=2070&auto=format&fit=crop',
-    comments: []
-  },
-  {
-    id: 'art-img-3',
-    user: 'Persian Patterns',
-    content: "Blue tilework from Isfahan. The recursive patterns symbolize the unity of the cosmos.",
-    time: '22h ago',
-    likes: 450,
-    hasLiked: false,
-    category: 'art',
-    image: 'https://images.unsplash.com/photo-1528643198035-7798705f416a?q=80&w=2071&auto=format&fit=crop',
-    comments: []
+    category: 'Lifestyle',
+    approved: true
   }
 ];
 
-// Helper to generate repetitive but diverse content for the requested large volume
-const GENERATED_ARTICLES: Post[] = Array.from({ length: 45 }).map((_, i) => ({
-  id: `gen-article-${i}`,
-  user: ['Daily Reflection', 'Spiritual Path', 'Hadith Today', 'Ummah Voice', 'Sheikh Yusuf'][i % 5],
-  content: [
-    "The concept of Tawakkul (Trust in Allah) isn't about being passive. It's about tying your camel and then trusting Allah. It means putting in your 100% effort while knowing that the outcome is in the hands of the Al-Mighty. When we truly have Tawakkul, our hearts find peace even amidst chaos.",
-    "The power of a consistent Dhikr. SubhanAllah, Alhamdulillah, Allahu Akbar. These simple words weigh heavy on the scales of judgment. Make it a habit to keep your tongue moist with the remembrance of Allah while you walk, work, or rest.",
-    "Kindness to neighbors is a forgotten Sunnah. The Prophet (PBUH) emphasized the rights of neighbors so much that the companions thought they might inherit from each other. Today, reach out to your neighbor with a small gift or even just a sincere smile.",
-    "Patience in times of trial. Every difficulty we face is a means of purification. 'Indeed, with hardship comes ease.' This Quranic promise is the ultimate anchor for a believer's soul. Stay firm, for the relief is near.",
-    "The importance of seeking knowledge. 'Seeking knowledge is obligatory upon every Muslim.' Whether it's religious knowledge or secular sciences that benefit humanity, we are a nation of readers and thinkers."
-  ][i % 5] + ` (Reflecting on Chapter ${i + 1} of spiritual growth series.)`,
-  time: `${i + 1}d ago`,
-  likes: Math.floor(Math.random() * 1000),
-  hasLiked: false,
-  comments: [],
-  category: i % 2 === 0 ? 'spiritual' : 'community'
-}));
+const SIDEBAR_TOPICS = [
+  { name: 'Quran & Tafsir', icon: BookOpen, count: '1.2k' },
+  { name: 'Hadith Studies', icon: ShieldCheck, count: '850' },
+  { name: 'Spiritual Reminders', icon: Sparkles, count: '2.4k' },
+  { name: 'Halal Lifestyle', icon: Users, count: '3.1k' },
+  { name: 'Charity & Relief', icon: HandHeart, count: '500' }
+];
 
-const GENERATED_IMAGES: Post[] = Array.from({ length: 27 }).map((_, i) => ({
-  id: `gen-art-${i}`,
-  user: ['Islamic Arts', 'Global Masjids', 'Pattern Master', 'Caligraphy Oasis'][i % 4],
-  content: [
-    "Breathtaking view of the sunset behind the minarets.",
-    "Extreme close-up of intricate geometric patterns.",
-    "A candid shot of the Quran being read in a peaceful corner.",
-    "The play of light and shadow in a historical mosque courtyard."
-  ][i % 4] + ` #IslamicArt #Beauty #Reflection`,
-  time: `${i + 2}d ago`,
-  likes: Math.floor(Math.random() * 2000),
-  hasLiked: false,
-  comments: [],
-  category: 'art',
-  image: [
-    'https://images.unsplash.com/photo-1542810634-71277d95dcbb',
-    'https://images.unsplash.com/photo-1590076033100-336338b7764f',
-    'https://images.unsplash.com/photo-1507567330391-1f398ef3c025',
-    'https://images.unsplash.com/photo-1498050108023-c5249f4df085'
-  ][i % 4] + `?q=80&w=2070&auto=format&fit=crop`
-}));
+const TRENDING_DUAS = [
+  { title: 'Dua for Knowledge', text: 'Rabbi Zidni Ilma' },
+  { title: 'Dua for Parents', text: 'Rabbir hamhuma kama...' },
+  { title: 'Dua for Relief', text: 'Ya Hayyu Ya Qayyum...' }
+];
 
-INITIAL_POSTS.push(...GENERATED_ARTICLES, ...GENERATED_IMAGES);
-
+const ACTIVE_SCHOLARS = [
+  { name: 'Dr. Yasir', tag: 'Aalim' },
+  { name: 'Sr. Fatima', tag: 'Scholar' },
+  { name: 'Ustad Abu Bakr', tag: 'Imam' }
+];
 
 export default function FeedView() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [newPost, setNewPost] = useState('');
-  const [activeTab, setActiveTab] = useState('All');
-  const [showProfile, setShowProfile] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [selectedPost, setSelectedPost] = useState<string | null>(null);
+  const [isScholarMode, setIsScholarMode] = useState(false);
+  
+  // New creation state
+  const [showPollEditor, setShowPollEditor] = useState(false);
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handlePost = () => {
-    if (!newPost.trim()) return;
+  const handleVote = (postId: string, type: 'support' | 'reconsider') => {
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        if (p.userVote === type) {
+          // Untoggle
+          return {
+            ...p,
+            userVote: null,
+            [type === 'support' ? 'supportCount' : 'reconsiderCount']: p[type === 'support' ? 'supportCount' : 'reconsiderCount'] - 1
+          };
+        } else {
+          // Switch or new toggle
+          const oldVote = p.userVote;
+          let newP = { ...p, userVote: type };
+          if (oldVote) {
+             newP[oldVote === 'support' ? 'supportCount' : 'reconsiderCount']--;
+          }
+          newP[type === 'support' ? 'supportCount' : 'reconsiderCount']++;
+          return newP;
+        }
+      }
+      return p;
+    }));
+  };
+
+  const handlePostSubmit = () => {
+    if (!newPost.trim() && !imagePreview && !showPollEditor) return;
+    
+    let pollData: Post['poll'] | undefined;
+    if (showPollEditor && pollOptions.filter(o => o.trim()).length >= 2) {
+      pollData = {
+        options: pollOptions
+          .filter(o => o.trim())
+          .map((text, i) => ({ id: `opt-${i}`, text, votes: 0 })),
+        totalVotes: 0
+      };
+    }
+
     const post: Post = {
-      id: Date.now().toString(),
+      id: `nt-${Date.now()}`,
       user: 'You',
       content: newPost,
       time: 'Just now',
-      likes: 0,
-      hasLiked: false,
+      supportCount: 0,
+      reconsiderCount: 0,
+      userVote: null,
       comments: [],
-      category: 'community'
+      category: 'Reminders',
+      approved: true,
+      image: imagePreview || undefined,
+      poll: pollData
     };
     setPosts([post, ...posts]);
     setNewPost('');
+    setImagePreview(null);
+    setShowPollEditor(false);
+    setPollOptions(['', '']);
   };
 
-  const toggleLike = (postId: string) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePollVote = (postId: string, optionId: string) => {
     setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
+      if (p.id === postId && p.poll && !p.poll.userSelection) {
         return {
           ...p,
-          hasLiked: !p.hasLiked,
-          likes: p.hasLiked ? p.likes - 1 : p.likes + 1
+          poll: {
+            ...p.poll,
+            userSelection: optionId,
+            totalVotes: p.poll.totalVotes + 1,
+            options: p.poll.options.map(opt => 
+              opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt
+            )
+          }
         };
       }
       return p;
     }));
   };
 
-  const deletePost = (postId: string) => {
-    setPosts(prev => prev.filter(p => p.id !== postId));
+  const handleApprovePost = (postId: string) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, isFlagged: false, approved: true } : p));
   };
 
-  const sharePost = async (post: Post) => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Islamic Reflection',
-          text: `"${post.content}" - shared via Ummah App`,
-          url: window.location.href,
-        });
-      } catch (err) {
-        console.error("Error sharing:", err);
-      }
-    } else {
-      navigator.clipboard.writeText(post.content);
-      alert('Content copied to clipboard!');
-    }
-  };
-
-  const toggleExpanded = (postId: string) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, expanded: !p.expanded } : p));
+  const handleReportPost = (postId: string) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, isFlagged: true, approved: false } : p));
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-24 relative">
-      {/* Stories / Members Section */}
-      <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-        {['You', 'Aisha', 'Hassan', 'Zainab', 'Bilal', 'Iman'].map((name, i) => (
-          <button 
-            key={name}
-            onClick={() => setShowProfile(name)}
-            className="flex flex-col items-center gap-1 shrink-0"
-          >
-            <div className={`w-16 h-16 rounded-full p-0.5 border-2 ${i === 0 ? 'border-brand-primary' : 'border-brand-primary/30'} flex items-center justify-center bg-brand-sidebar shadow-lg active:scale-90 transition-transform`}>
-               <div className="w-full h-full rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary font-black text-xs">
-                 {name[0]}
+    <div className="max-w-7xl mx-auto px-4 lg:grid lg:grid-cols-12 gap-8 pb-32">
+      {/* Left Sidebar - Topics */}
+      <div className="hidden lg:block lg:col-span-3 space-y-6 sticky top-24 h-fit">
+        <div className="glass-panel border-white/10 rounded-[2rem] p-6 space-y-6">
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <Compass className="text-noor-gold" size={20} />
+            <h3 className="font-black text-xs uppercase tracking-[0.2em] text-white/50">Browse NoorTalk</h3>
+          </div>
+          <div className="space-y-1">
+            {['All Feed', 'Following', 'Popular', 'Scholars'].map((item) => (
+              <button 
+                key={item}
+                className={`w-full text-left px-4 py-3 rounded-2xl text-sm font-bold transition-all group flex items-center justify-between ${item === 'All Feed' ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+              >
+                {item}
+                <ArrowUp className="opacity-0 group-hover:opacity-100 -rotate-45 transition-all" size={14} />
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-6 border-t border-white/5 space-y-6">
+             <div className="flex items-center justify-between px-2">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Scholar Mode</h4>
+                <button 
+                  onClick={() => setIsScholarMode(!isScholarMode)}
+                  className={`w-10 h-5 rounded-full relative transition-colors ${isScholarMode ? 'bg-noor-gold' : 'bg-white/10'}`}
+                >
+                  <motion.div 
+                    animate={{ x: isScholarMode ? 20 : 2 }}
+                    className="absolute top-1 w-3 h-3 bg-white rounded-full"
+                  />
+                </button>
+             </div>
+
+             <div className="space-y-4">
+                <h4 className="px-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">Islamic Topics</h4>
+                <div className="space-y-1">
+                    {SIDEBAR_TOPICS.map((topic) => (
+                      <button 
+                        key={topic.name}
+                        onClick={() => setActiveCategory(topic.name.split(' ')[0])}
+                        className="w-full text-left px-4 py-3 rounded-2xl text-xs font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all flex items-center gap-3"
+                      >
+                        <topic.icon size={18} className="text-noor-gold/60" />
+                        <span className="flex-1">{topic.name}</span>
+                        <span className="text-[10px] opacity-50">{topic.count}</span>
+                      </button>
+                    ))}
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <div className="glass-panel border-white/10 rounded-[2rem] p-6 bg-noor-emerald/5 border-noor-emerald/10">
+           <div className="flex items-center gap-3 mb-4">
+              <ShieldCheck className="text-noor-emerald" size={20} />
+              <h3 className="text-sm font-black text-white">Community Adab</h3>
+           </div>
+           <p className="text-[11px] text-slate-400 leading-relaxed italic">
+             NoorTalk is a space for scholarly discussion and spiritual upliftment. Please maintain respectful dialogue and verify all religious quotes.
+           </p>
+        </div>
+      </div>
+
+      {/* Main Feed */}
+      <div className="lg:col-span-6 space-y-6">
+        {/* Header - Mobile Only or Search */}
+        <div className="lg:hidden flex items-center justify-between py-4">
+           <h2 className="text-2xl font-black text-white px-2">NoorTalk</h2>
+           <button className="p-3 bg-white/5 rounded-2xl">
+              <Filter size={20} className="text-noor-gold" />
+           </button>
+        </div>
+
+        {/* Create Post */}
+        <div className="glass-panel rounded-[2.5rem] border-white/10 overflow-hidden bg-noor-charcoal/40 backdrop-blur-3xl shadow-2xl">
+          <div className="p-6 md:p-8 space-y-4">
+            <div className="flex gap-5">
+               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-noor-emerald to-noor-emerald/30 shrink-0 flex items-center justify-center text-white border border-white/10 shadow-lg">
+                  <User size={24} />
+               </div>
+               <div className="flex-1 space-y-4">
+                  <textarea 
+                    value={newPost}
+                    onChange={(e) => setNewPost(e.target.value)}
+                    placeholder="Share a Quranic reflection or reminder..."
+                    className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-slate-600 resize-none py-2 font-medium text-lg min-h-[60px]"
+                  />
+                  
+                  {imagePreview && (
+                    <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-white/10">
+                      <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                      <button 
+                        onClick={() => setImagePreview(null)}
+                        className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
+
+                  {showPollEditor && (
+                    <div className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black text-noor-gold uppercase tracking-widest">Create Poll</span>
+                        <button onClick={() => setShowPollEditor(false)} className="text-slate-500 hover:text-white">
+                          <X size={14} />
+                        </button>
+                      </div>
+                      {pollOptions.map((opt, i) => (
+                        <input 
+                          key={i}
+                          value={opt}
+                          onChange={(e) => {
+                            const newOpts = [...pollOptions];
+                            newOpts[i] = e.target.value;
+                            setPollOptions(newOpts);
+                          }}
+                          placeholder={`Option ${i + 1}`}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-noor-gold/50"
+                        />
+                      ))}
+                      {pollOptions.length < 4 && (
+                        <button 
+                          onClick={() => setPollOptions([...pollOptions, ''])}
+                          className="text-[10px] font-bold text-noor-emerald/70 hover:text-noor-emerald transition-colors"
+                        >
+                          + Add Option
+                        </button>
+                      )}
+                    </div>
+                  )}
                </div>
             </div>
-            <span className="text-[10px] font-bold text-slate-400 capitalize">{i === 0 ? 'My Story' : name}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Create Post */}
-      <div className="glass-panel p-6 rounded-[2rem] border-brand-primary/20 bg-brand-sidebar/40 backdrop-blur-xl">
-        <div className="flex gap-4">
-          <div className="w-10 h-10 rounded-full border border-brand-primary/20 flex items-center justify-center text-brand-primary shrink-0">
-             <User size={20} />
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+               <div className="flex gap-2">
+                  <input 
+                    type="file" 
+                    hidden 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    onChange={handleImageUpload}
+                  />
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`p-3 rounded-2xl transition-all ${imagePreview ? 'bg-noor-gold text-black' : 'hover:bg-white/5 text-slate-500 hover:text-noor-gold'}`}
+                  >
+                     <ImageIcon size={20} />
+                  </button>
+                  <button 
+                    onClick={() => setShowPollEditor(!showPollEditor)}
+                    className={`p-3 rounded-2xl transition-all ${showPollEditor ? 'bg-noor-emerald text-white' : 'hover:bg-white/5 text-slate-500 hover:text-noor-emerald'}`}
+                  >
+                     <Trophy size={20} />
+                  </button>
+               </div>
+               <button 
+                  onClick={handlePostSubmit}
+                  disabled={!newPost.trim() && !imagePreview && (!showPollEditor || pollOptions.filter(o => o.trim()).length < 2)}
+                  className="px-8 py-3 bg-noor-emerald text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-noor-emerald/20 disabled:opacity-30"
+               >
+                  Publish Noor
+               </button>
+            </div>
           </div>
-          <textarea 
-            value={newPost}
-            onChange={(e) => setNewPost(e.target.value)}
-            placeholder="Share a spiritual reflection..."
-            className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-slate-500 resize-none py-1 font-medium text-sm"
-            rows={2}
-          />
         </div>
-        <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/5">
-           <button className="flex items-center gap-2 text-slate-500 hover:text-brand-primary transition-colors font-bold text-[10px] uppercase tracking-widest">
-              <ImageIcon size={16} />
-              Add Image
-           </button>
-           <button 
-             onClick={handlePost}
-             disabled={!newPost.trim()}
-             className="px-6 py-2 bg-brand-primary text-brand-depth font-black text-[10px] uppercase tracking-[0.2em] rounded-full hover:scale-105 active:scale-95 transition-all disabled:opacity-30"
-           >
-             POST
-           </button>
-        </div>
-      </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
-        {['All', 'Spiritual', 'Art', 'Community'].map((tab) => (
-          <button 
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-              activeTab === tab 
-              ? 'bg-brand-primary text-brand-depth shadow-lg shadow-brand-primary/20' 
-              : 'border border-white/5 text-slate-500 hover:border-brand-primary/30'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Feed List */}
-      <div className="space-y-8">
-        <AnimatePresence mode="popLayout">
-          {posts
-            .filter(p => activeTab === 'All' || p.category.toLowerCase() === activeTab.toLowerCase())
-            .map((post) => (
-            <motion.div 
-              key={post.id}
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-brand-sidebar/40 border border-white/5 rounded-[2.5rem] overflow-hidden group"
-            >
-              {/* Post Header */}
-              <div className="p-5 flex items-center justify-between">
-                <div 
-                  className="flex items-center gap-3 cursor-pointer group/user"
-                  onClick={() => setShowProfile(post.user)}
-                >
-                  <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary group-hover/user:scale-105 transition-transform">
-                     {post.user[0]}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="font-black text-white text-xs uppercase tracking-wider">{post.user}</h4>
-                      {post.isVerified && <CheckCircle2 size={12} className="text-brand-primary" />}
+        {/* Posts List */}
+        <div className="space-y-6">
+          <AnimatePresence mode="popLayout">
+            {posts
+              .filter(p => activeCategory === 'All' || p.category === activeCategory)
+              .map((post) => (
+              <motion.div 
+                key={post.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className={`relative group overflow-hidden ${
+                  post.isFlagged 
+                  ? 'glass-panel border-red-500/20 bg-red-500/5 transition-all duration-500' 
+                  : 'glass-panel border-white/10 hover:border-noor-emerald/30 transition-all rounded-[2.5rem]'
+                }`}
+              >
+                {post.isFlagged ? (
+                  <div className="p-8 md:p-10 space-y-6">
+                    <div className="flex items-center gap-6">
+                       <div className="p-4 bg-red-500/10 rounded-3xl text-red-500 border border-red-500/20">
+                          <AlertCircle size={24} />
+                       </div>
+                       <div className="flex-1 text-left">
+                          <h3 className="text-sm font-black text-white/90 uppercase tracking-widest mb-1">Halal Compliance Flag</h3>
+                          <p className="text-[11px] text-slate-500 font-bold uppercase">Awaiting Scholar Approval</p>
+                       </div>
+                       {isScholarMode && (
+                        <button 
+                          onClick={() => handleApprovePost(post.id)}
+                          className="px-6 py-3 bg-noor-emerald text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all"
+                        >
+                          Approve Post
+                        </button>
+                       )}
                     </div>
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">{post.time} • {post.category}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {post.user === 'You' && (
-                    <button 
-                      onClick={() => deletePost(post.id)}
-                      className="p-2 text-slate-700 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  <button className="p-2 text-slate-700 hover:text-white transition-colors">
-                    <MoreHorizontal size={18} />
-                  </button>
-                </div>
-              </div>
 
-              {/* Post Content */}
-              <div className="px-5 pb-4 space-y-4">
-                <p className={`text-sm text-slate-200 leading-relaxed font-medium transition-all ${!post.expanded && post.content.length > 200 ? 'line-clamp-3' : ''}`}>
-                  {post.content}
-                </p>
-                {post.content.length > 200 && (
-                  <button 
-                    onClick={() => toggleExpanded(post.id)}
-                    className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:underline"
-                  >
-                    {post.expanded ? 'Show Less' : 'Read More'}
-                  </button>
+                    <div className="px-6 py-5 bg-white/5 rounded-[2rem] border border-white/5 relative group/review overflow-hidden">
+                       <div className="absolute inset-0 bg-brand-depth/80 backdrop-blur-md flex items-center justify-center opacity-100 group-hover/review:opacity-0 transition-opacity duration-500 z-10 pointer-events-none">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Hidden for Review</span>
+                       </div>
+                       <p className="text-sm text-slate-400 italic blur-[2px] group-hover/review:blur-0 transition-all duration-700">
+                          {post.content}
+                       </p>
+                    </div>
+                     
+                    {!isScholarMode && (
+                      <div className="flex justify-center gap-6 pt-2">
+                        <button className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-white transition-colors underline">Community Rules</button>
+                        <button className="text-[10px] font-black text-red-500/60 uppercase tracking-widest hover:text-red-500 transition-colors">Appeal Removal</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Post Content */}
+                    <div className="p-6 md:p-8 space-y-6">
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-inner border border-white/5 ${post.isScholar ? 'bg-noor-gold/10 text-noor-gold' : 'bg-noor-emerald/10 text-noor-emerald'}`}>
+                               {post.user[0]}
+                            </div>
+                            <div>
+                               <div className="flex items-center gap-2">
+                                  <h4 className="font-black text-white text-sm">{post.user}</h4>
+                                  {post.isScholar && (
+                                    <span className="px-2 py-0.5 bg-noor-gold/20 text-noor-gold rounded-full text-[8px] font-black uppercase tracking-widest">Scholar</span>
+                                  )}
+                                  {post.isVerified && <CheckCircle2 size={14} className="text-noor-emerald" />}
+                               </div>
+                               <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase">{post.time}</span>
+                                  <span className="w-1 h-1 bg-white/10 rounded-full" />
+                                  <span className="text-[10px] font-black text-noor-emerald uppercase tracking-wider">{post.category}</span>
+                               </div>
+                            </div>
+                         </div>
+                         <button className="p-2 text-slate-600 hover:text-white transition-colors">
+                            <MoreHorizontal size={20} />
+                         </button>
+                      </div>
+
+                      <div className="space-y-4">
+                         <p className="text-lg text-slate-200 leading-relaxed font-medium">
+                            {post.content}
+                         </p>
+                         
+                         {post.poll && (
+                           <div className="space-y-3 bg-white/5 p-6 rounded-[2rem] border border-white/5">
+                              {post.poll.options.map((opt) => {
+                                const percentage = post.poll!.totalVotes > 0 
+                                  ? Math.round((opt.votes / post.poll!.totalVotes) * 100) 
+                                  : 0;
+                                const isSelected = post.poll?.userSelection === opt.id;
+
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    disabled={!!post.poll!.userSelection}
+                                    onClick={() => handlePollVote(post.id, opt.id)}
+                                    className="w-full relative h-12 rounded-xl overflow-hidden group/poll border border-white/10 hover:border-noor-gold/30 transition-all text-left"
+                                  >
+                                    <div 
+                                      className={`absolute left-0 top-0 h-full transition-all duration-1000 ${isSelected ? 'bg-noor-gold/20' : 'bg-noor-emerald/10'}`}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                    <div className="relative px-4 h-full flex items-center justify-between">
+                                      <span className={`text-xs font-bold ${isSelected ? 'text-noor-gold' : 'text-white'}`}>
+                                        {opt.text}
+                                      </span>
+                                      {post.poll!.userSelection && (
+                                        <span className="text-[10px] font-black text-slate-500">{percentage}%</span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                              {post.poll.userSelection && (
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">
+                                  {post.poll.totalVotes} total responses
+                                </p>
+                              )}
+                           </div>
+                         )}
+
+                         {post.image && (
+                           <div className="rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl">
+                              <img src={post.image} alt="Post asset" className="w-full h-auto" referrerPolicy="no-referrer" />
+                           </div>
+                         )}
+                      </div>
+
+                      <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                         <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl">
+                            <button 
+                              onClick={() => handleVote(post.id, 'support')}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${post.userVote === 'support' ? 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/30' : 'text-slate-400 hover:text-noor-emerald'}`}
+                            >
+                               <ArrowUp size={16} />
+                               Support ({post.supportCount})
+                            </button>
+                            <button 
+                              onClick={() => handleVote(post.id, 'reconsider')}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${post.userVote === 'reconsider' ? 'bg-red-500/20 text-red-500' : 'text-slate-400 hover:text-red-500'}`}
+                            >
+                               <ArrowDown size={16} />
+                               Reconsider ({post.reconsiderCount})
+                            </button>
+                         </div>
+
+                         <div className="flex items-center gap-2">
+                             <button className="flex items-center gap-2 text-slate-500 hover:text-white px-4 py-2 rounded-xl transition-colors font-bold text-xs">
+                                <MessageCircle size={18} />
+                                {post.comments.length}
+                             </button>
+                             <button className="p-3 text-slate-500 hover:text-noor-gold transition-colors">
+                                <Bookmark size={20} />
+                             </button>
+                             <button className="p-3 text-slate-500 hover:text-noor-emerald transition-colors">
+                                <Share2 size={20} />
+                             </button>
+                             <button 
+                               onClick={() => handleReportPost(post.id)}
+                               className="p-3 text-slate-500 hover:text-red-500 transition-colors"
+                               title="Report content"
+                             >
+                                <Flag size={18} />
+                             </button>
+                         </div>
+                      </div>
+                    </div>
+                  </>
                 )}
-              </div>
-
-              {post.image && (
-                <div className="relative aspect-[4/5] overflow-hidden border-y border-white/5">
-                   <img src={post.image} alt="Post content" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                   {post.id.startsWith('vid') && (
-                     <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                        <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/30 shadow-2xl scale-110 group-hover:scale-125 transition-transform">
-                           <div className="w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[18px] border-l-white ml-1" />
-                        </div>
-                     </div>
-                   )}
-                   <div className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-md rounded-full text-white/60">
-                      <Bookmark size={14} />
-                   </div>
-                </div>
-              )}
-
-              {/* Interaction Bar */}
-              <div className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <button 
-                    onClick={() => toggleLike(post.id)}
-                    className={`flex items-center gap-1.5 transition-all active:scale-125 ${post.hasLiked ? 'text-brand-primary' : 'text-slate-500 hover:text-red-400'}`}
-                  >
-                     <Heart size={20} fill={post.hasLiked ? "currentColor" : "none"} />
-                     <span className="text-[10px] font-black tabular-nums">{post.likes}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 text-slate-500 hover:text-brand-primary transition-colors">
-                     <MessageCircle size={20} />
-                     <span className="text-[10px] font-black tabular-nums">{post.comments.length}</span>
-                  </button>
-                  <button 
-                    onClick={() => sharePost(post)}
-                    className="text-slate-500 hover:text-brand-primary transition-colors"
-                  >
-                     <Share2 size={20} />
-                  </button>
-                </div>
-                <div className="p-2 bg-brand-primary/5 rounded-xl text-brand-primary/40 group-hover:text-brand-primary transition-colors">
-                  <Sparkles size={16} />
-                </div>
-              </div>
-
-              {/* Comments Section (IG Style) */}
-              {post.comments.length > 0 && (
-                <div className="px-5 pb-5 pt-0 space-y-2">
-                  {post.comments.map(c => (
-                    <div key={c.id} className="text-[11px]">
-                      <span className="font-black text-white mr-2">{c.user}</span>
-                      <span className="text-slate-400 font-medium">{c.text}</span>
-                    </div>
-                  ))}
-                  <button className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-brand-primary transition-colors">View all comments</button>
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* Profile Modal Overlay */}
-      <AnimatePresence>
-        {showProfile && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-brand-depth/80 backdrop-blur-md flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-brand-sidebar border border-white/5 rounded-[3rem] w-full max-w-sm overflow-hidden shadow-2xl"
-            >
-              <div className="h-24 bg-gradient-to-r from-brand-primary/20 to-brand-primary/5 relative">
-                <button 
-                  onClick={() => setShowProfile(null)}
-                  className="absolute top-4 right-4 p-2 bg-black/20 rounded-full text-white hover:bg-black/40 transition-all"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="px-8 pb-8 -mt-10 text-center space-y-6">
-                <div className="inline-flex relative">
-                   <div className="w-20 h-20 rounded-full bg-brand-depth border-4 border-brand-sidebar flex items-center justify-center text-brand-primary text-2xl font-black shadow-xl">
-                      {showProfile[0]}
-                   </div>
-                   <div className="absolute bottom-1 right-1 w-5 h-5 bg-purple-500 border-2 border-brand-sidebar rounded-full" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-white capitalize">{showProfile}</h3>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Community Member</p>
-                </div>
-                <div className="flex gap-4 justify-center py-4 border-y border-white/5">
-                   <div className="text-center">
-                      <p className="text-sm font-black text-white">42</p>
-                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Reflections</p>
-                   </div>
-                   <div className="w-px h-8 bg-white/5" />
-                   <div className="text-center">
-                      <p className="text-sm font-black text-white">1.2k</p>
-                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Followers</p>
-                   </div>
-                </div>
-                <button className="w-full py-4 bg-brand-primary text-brand-depth font-black rounded-2xl shadow-xl shadow-brand-primary/20 uppercase tracking-widest text-[10px] active:scale-95 transition-all">
-                  FOLLOW
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Right Sidebar - Trending & Scholars */}
+      <div className="hidden lg:block lg:col-span-3 space-y-6 sticky top-24 h-fit">
+         {/* Trending Section */}
+         <div className="glass-panel border-white/10 rounded-[2rem] p-6 space-y-6 bg-noor-gold/5 border-noor-gold/10">
+            <div className="flex items-center gap-3">
+               <TrendingUp className="text-noor-gold" size={20} />
+               <h3 className="text-sm font-black text-white uppercase tracking-wider">Trending Noor</h3>
+            </div>
+            
+            <div className="space-y-6">
+               <div>
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Daily Duas</h4>
+                  <div className="space-y-3">
+                     {TRENDING_DUAS.map((dua) => (
+                       <div key={dua.title} className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-noor-gold/30 transition-all cursor-pointer group">
+                          <p className="text-xs font-black text-white group-hover:text-noor-gold mb-1">{dua.title}</p>
+                          <p className="text-[10px] text-slate-400 italic font-arabic">{dua.text}</p>
+                       </div>
+                     ))}
+                  </div>
+               </div>
 
-      <div className="text-center py-10 opacity-50">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">End of Daily Reflections</p>
+               <div>
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Active Circles</h4>
+                  <div className="space-y-3">
+                     {ACTIVE_SCHOLARS.map((scholar) => (
+                       <div key={scholar.name} className="flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all cursor-pointer">
+                          <div className="w-10 h-10 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-black text-[10px]">
+                             {scholar.name[0]}
+                          </div>
+                          <div>
+                             <p className="text-xs font-black text-white">{scholar.name}</p>
+                             <span className="text-[9px] font-black text-noor-gold uppercase tracking-tighter">{scholar.tag}</span>
+                          </div>
+                          <div className="ml-auto w-2 h-2 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40" />
+                       </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* Scholarship Ad */}
+         <div className="glass-panel border-white/10 rounded-[2rem] p-1 overflow-hidden group">
+            <div className="relative p-6 space-y-4">
+               <div className="absolute top-0 right-0 p-6 opacity-10">
+                  <BookOpen size={64} className="text-noor-emerald" />
+               </div>
+               <h3 className="text-lg font-black text-white leading-tight">Deepen Your <br/>Religious Understanding</h3>
+               <p className="text-[11px] text-slate-400 font-medium">Join our verified scholar program to lead circles and moderate content.</p>
+               <button className="w-full py-4 bg-white text-black rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:scale-105 transition-all">
+                  Apply Now
+               </button>
+            </div>
+         </div>
+
+         {/* ISIS Wrists Sponsorship */}
+         <div className="glass-panel border-brand-primary/20 rounded-[2rem] p-6 bg-brand-primary/5 flex flex-col items-center gap-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20">
+               <Sparkles size={24} />
+            </div>
+            <div>
+               <p className="text-[8px] font-black text-brand-primary uppercase tracking-[0.3em] mb-1">Official Partner</p>
+               <h4 className="text-sm font-black text-white">ISIS WRISTS</h4>
+               <p className="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-widest leading-relaxed">Timeless Precision for the Modern Believer</p>
+            </div>
+            <button className="text-[10px] font-black text-noor-gold uppercase underline tracking-widest hover:text-white transition-colors">Shop Collection</button>
+         </div>
       </div>
     </div>
   );
 }
-

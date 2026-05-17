@@ -21,7 +21,7 @@ const COLLECTIONS = [
   { id: 'Al-Adab Al-Mufrad', name: 'Al-Adab Al-Mufrad', color: 'bg-purple-500' }
 ];
 
-export default function HadithLibraryView({ initialCollection, onCollectionChange }: { initialCollection?: string, onCollectionChange?: (id: string) => void }) {
+export default function HadithLibraryView({ initialCollection, onCollectionChange, searchQuery, setSearchQuery }: { initialCollection?: string, onCollectionChange?: (id: string) => void, searchQuery: string, setSearchQuery: (q: string) => void }) {
   const [selectedCollection, _setSelectedCollection] = useState(initialCollection || 'all');
 
   const setSelectedCollection = (id: string) => {
@@ -36,7 +36,6 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
     }
   }, [initialCollection]);
   // Search and Filter State
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedHadith, setSelectedHadith] = useState<typeof HADITH_DATABASE[0] | null>(null);
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SURAH_LIST, JUZ_LIST, RECITERS } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
-import { BookOpen, Hash, ArrowRight, Volume2, Check, ChevronDown } from 'lucide-react';
+import { BookOpen, Hash, ArrowRight, Volume2, Check, ChevronDown, Sparkles } from 'lucide-react';
 import SurahDetail from './SurahDetail.tsx';
 import JuzDetail from './JuzDetail.tsx';
 
@@ -174,10 +174,20 @@ export default function QuranView({
             </motion.button>
           ))}
           
-          <div className="sm:col-span-2 lg:col-span-3 p-8 md:p-12 border border-brand-primary/20 bg-brand-primary/5 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center text-center">
-             <BookOpen size={48} className="mb-6 opacity-20 text-brand-primary" />
-             <p className="text-brand-primary font-bold tracking-widest uppercase text-xs md:text-sm mb-2">Infinite Wisdom</p>
-             <p className="text-slate-500 max-w-sm italic text-xs md:text-sm px-4">"Indeed, it is We who sent down the Qur'an and indeed, We will be its guardian." (15:9)</p>
+          <div className="sm:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+            <div className="p-8 md:p-12 border border-brand-primary/20 bg-brand-primary/5 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center text-center">
+               <BookOpen size={48} className="mb-6 opacity-20 text-brand-primary" />
+               <p className="text-brand-primary font-bold tracking-widest uppercase text-xs md:text-sm mb-2">Infinite Wisdom</p>
+               <p className="text-slate-500 max-w-sm italic text-xs md:text-sm px-4">"Indeed, it is We who sent down the Qur'an and indeed, We will be its guardian." (15:9)</p>
+            </div>
+            <div className="p-8 md:p-12 border border-brand-primary/20 bg-brand-primary/5 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center text-center">
+               <div className="w-16 h-16 rounded-3xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary mb-6 shadow-xl shadow-brand-primary/10">
+                  <Sparkles size={32} />
+               </div>
+               <p className="text-brand-primary font-bold tracking-widest uppercase text-xs md:text-sm mb-2">Sponsored by ISIS Wrists</p>
+               <p className="text-white text-lg font-black tracking-tight mb-2">TIMELESS ELEGANCE</p>
+               <p className="text-slate-500 text-xs md:text-sm px-4">Handcrafted luxury timepieces for the spiritual soul. Precision in every movement.</p>
+            </div>
           </div>
         </div>
       ) : (

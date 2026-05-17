@@ -13,6 +13,11 @@
   --color-brand-sidebar: #0F071B; /* Shadow Purple */
   --color-brand-border: rgba(168, 85, 247, 0.1);
   
+  /* NoorTalk Colors */
+  --color-noor-emerald: #2E8B57;
+  --color-noor-gold: #D4AF37;
+  --color-noor-charcoal: #121212;
+
   --color-app-text: #F3F4F6;
   --color-app-text-muted: #CBD5E1;
   --color-app-text-dim: #94A3B8;

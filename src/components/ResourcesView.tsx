@@ -58,6 +58,7 @@ interface ResourcesViewProps {
   incrementDua: () => void;
   incrementVerse: () => void;
   language: string;
+  setSearchQuery: (q: string) => void;
 }
 
 type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile';
@@ -76,7 +77,8 @@ export default function ResourcesView({
   addHasanat,
   incrementDua,
   incrementVerse,
-  language
+  language,
+  setSearchQuery
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
   const navigate = useNavigate();
@@ -121,7 +123,7 @@ export default function ResourcesView({
       title: 'COMMUNITY',
       cards: [
         { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300' },
-        { id: 'feed', title: 'Social Feed', icon: MessageCircle, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' },
+        { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' },
         { id: 'mobile', title: 'Mobile App', icon: Smartphone, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300' }
       ]
     }
@@ -157,8 +159,8 @@ export default function ResourcesView({
                 </button>
               )}
               <div className="space-y-1">
-                <h1 className="text-4xl font-black text-white tracking-tight">
-                  {activeRes ? activeRes.charAt(0).toUpperCase() + activeRes.slice(1).replace('_', ' ') : 'The Conservatory'}
+                <h1 className="text-4xl font-black text-white tracking-tight text-nowrap">
+                  {activeRes === 'feed' ? 'NoorTalk Feed' : (activeRes ? activeRes.charAt(0).toUpperCase() + activeRes.slice(1).replace('_', ' ') : 'The Conservatory')}
                 </h1>
                 <p className="text-slate-500 font-medium text-sm tracking-wide">
                   {activeRes ? 'Exploring sacred knowledge' : 'Curated spiritual instruments & knowledge'}
@@ -181,19 +183,25 @@ export default function ResourcesView({
       )}
 
       {/* Main Content Area */}
-      <div className="px-4 min-h-[600px]">
-         <AnimatePresence mode="wait" initial={false}>
+      <div className="px-4 min-h-[70vh]">
+         <AnimatePresence mode="popLayout" initial={false}>
             {!activeRes ? (
               <motion.div 
                 key="dashboard-view"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                transition={{ duration: 0.5, ease: [0.19, 1, 0.22, 1] }}
                 className="space-y-16"
               >
                 {/* Immersive Category Layout */}
-                {categories.map((category, catIdx) => (
+                {categories.map((category, catIdx) => {
+                  const filteredCards = category.cards.filter(c => 
+                    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+                  );
+                  if (filteredCards.length === 0) return null;
+
+                  return (
                   <div key={category.title} className="space-y-8">
                     <div className="flex items-center gap-4">
                       <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
@@ -206,16 +214,16 @@ export default function ResourcesView({
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                       {/* Featured Hero for each category */}
                       {(() => {
-                        const Icon = category.cards[0].icon;
+                        const Icon = filteredCards[0].icon;
                         return (
                           <motion.button
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => handleCardClick(category.cards[0].id)}
+                            onClick={() => handleCardClick(filteredCards[0].id)}
                             className="md:col-span-8 relative h-80 rounded-[3rem] overflow-hidden group shadow-2xl border border-white/5 bg-brand-depth/40"
                           >
                             <img 
-                              src={category.cards[0].image} 
+                              src={filteredCards[0].image} 
                               alt="" 
                               className="w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-105" 
                               onError={(e) => {
@@ -228,14 +236,14 @@ export default function ResourcesView({
                               <div className="w-14 h-14 bg-white/10 backdrop-blur-2xl rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
                                 <Icon size={28} className="text-white" />
                               </div>
-                              {category.cards[0].premium && (
+                              {filteredCards[0].premium && (
                                 <span className="bg-amber-500/20 text-amber-500 border border-amber-500/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md">Premium</span>
                               )}
                             </div>
 
                             <div className="absolute bottom-10 left-10 text-left space-y-2">
-                               <h4 className="text-3xl font-black text-white tracking-tight">{category.cards[0].title}</h4>
-                               <p className="text-slate-300 font-medium max-w-sm text-sm">Deeply explore the {category.cards[0].title.toLowerCase()} with our advanced spiritual engine.</p>
+                               <h4 className="text-3xl font-black text-white tracking-tight">{filteredCards[0].title}</h4>
+                               <p className="text-slate-300 font-medium max-w-sm text-sm">Deeply explore the {filteredCards[0].title.toLowerCase()} with our advanced spiritual engine.</p>
                             </div>
 
                             <ChevronRight className="absolute bottom-10 right-10 text-brand-primary opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-2" size={32} />
@@ -245,7 +253,7 @@ export default function ResourcesView({
 
                       {/* Side Grid for others in category */}
                       <div className="md:col-span-4 grid grid-cols-2 gap-4">
-                        {category.cards.slice(1, 5).map((card) => {
+                        {filteredCards.slice(1, 5).map((card) => {
                           const CardIcon = card.icon;
                           return (
                             <motion.button
@@ -285,9 +293,9 @@ export default function ResourcesView({
                     </div>
 
                     {/* Remaining items as a clean list for this category */}
-                    {category.cards.length > 5 && (
+                    {filteredCards.length > 5 && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                         {category.cards.slice(5).map((card) => {
+                         {filteredCards.slice(5).map((card) => {
                            const ListIcon = card.icon;
                            return (
                              <motion.button
@@ -307,7 +315,8 @@ export default function ResourcesView({
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </motion.div>
             ) : (
               <motion.div
@@ -335,17 +344,19 @@ export default function ResourcesView({
                    <HadithLibraryView 
                       initialCollection={selectedHadithCollection}
                       onCollectionChange={onHadithCollectionChange}
+                      searchQuery={searchQuery}
+                      setSearchQuery={setSearchQuery}
                    />
                  )}
                  {activeRes === 'feed' && <FeedView />}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
-                 {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} />}
-                 {activeRes === 'names' && <NamesOfAllahView />}
+                 {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}
+                 {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView />}
-                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" />}
-                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" />}
+                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} />}
+                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'mobile' && <DownloadAppView />}
                  {['coin_shop'].includes(activeRes as string) && (

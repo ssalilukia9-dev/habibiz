@@ -78,7 +78,7 @@ const StarRating = ({ rating }: { rating: number }) => {
   );
 };
 
-export default function MarketView({ detailMode }: { detailMode?: boolean }) {
+export default function MarketView({ detailMode, searchQuery, setSearchQuery }: { detailMode?: boolean, searchQuery: string, setSearchQuery: (q: string) => void }) {
   const navigate = useNavigate();
   const { productId } = useParams<{ productId: string }>();
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
@@ -87,7 +87,6 @@ export default function MarketView({ detailMode }: { detailMode?: boolean }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Form State
@@ -244,7 +243,12 @@ export default function MarketView({ detailMode }: { detailMode?: boolean }) {
 
   if (detailMode && activeProduct) {
     return (
-      <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 1.02 }}
+        className="space-y-12 pb-32"
+      >
         <header className="flex items-center gap-6">
           <button 
             onClick={() => navigate('/market')}
@@ -373,7 +377,7 @@ export default function MarketView({ detailMode }: { detailMode?: boolean }) {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 

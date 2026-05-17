@@ -229,12 +229,24 @@ const HAJJ_STEPS = [
 
 interface IslamicGuidesProps {
   initialTab?: 'hajj' | 'names';
+  searchQuery?: string;
 }
 
-export default function IslamicGuides({ initialTab = 'hajj' }: IslamicGuidesProps) {
+export default function IslamicGuides({ initialTab = 'hajj', searchQuery = '' }: IslamicGuidesProps) {
   const [activeTab, setActiveTab] = useState<'hajj' | 'names'>(initialTab);
   const [nameGender, setNameGender] = useState<'boys' | 'girls'>('boys');
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+
+  const filteredHajjSteps = HAJJ_STEPS.filter(step => 
+    step.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    step.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    step.rituals.some(r => r.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredBabyNames = (nameGender === 'boys' ? BABY_NAMES.boys : BABY_NAMES.girls).filter(n =>
+    n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    n.meaning.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="space-y-10">
@@ -268,7 +280,7 @@ export default function IslamicGuides({ initialTab = 'hajj' }: IslamicGuidesProp
              </div>
 
              <div className="grid grid-cols-1 gap-6 px-4 md:px-0">
-                {HAJJ_STEPS.map((step, idx) => (
+                {filteredHajjSteps.map((step, idx) => (
                   <div 
                     key={idx} 
                     className="glass-panel p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-white/5 flex flex-col gap-6 hover:border-brand-primary/20 transition-all cursor-pointer group"
@@ -376,7 +388,7 @@ export default function IslamicGuides({ initialTab = 'hajj' }: IslamicGuidesProp
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-4 md:px-0">
-               {(nameGender === 'boys' ? BABY_NAMES.boys : BABY_NAMES.girls).map((n, idx) => (
+               {filteredBabyNames.map((n, idx) => (
                  <div key={idx} className="glass-panel p-5 md:p-6 rounded-xl md:rounded-2xl border-white/5 group hover:border-brand-primary/20 transition-all">
                     <div className="flex items-center justify-between mb-1">
                        <h5 className="text-base md:text-lg font-black text-white group-hover:text-brand-primary transition-colors">{n.name}</h5>

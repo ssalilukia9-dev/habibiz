@@ -103,7 +103,13 @@ const NAMES_OF_ALLAH = [
   { name: "As-Sabur", transliteration: "The Patient", meaning: "The One who does not quickly punish the sinners." }
 ];
 
-export default function NamesOfAllahView() {
+export default function NamesOfAllahView({ searchQuery }: { searchQuery: string }) {
+  const filteredNames = NAMES_OF_ALLAH.filter(n => 
+    n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    n.transliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    n.meaning.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-12">
       <div className="text-center space-y-4 px-4">
@@ -112,7 +118,7 @@ export default function NamesOfAllahView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {NAMES_OF_ALLAH.map((n, idx) => (
+        {filteredNames.map((n, idx) => (
           <motion.div 
             key={idx}
             initial={{ opacity: 0, y: 20 }}
@@ -140,6 +146,11 @@ export default function NamesOfAllahView() {
             </div>
           </motion.div>
         ))}
+        {filteredNames.length === 0 && (
+          <div className="col-span-full py-20 text-center">
+            <p className="text-slate-500 font-bold uppercase tracking-widest italic">No names found matching your search</p>
+          </div>
+        )}
       </div>
 
       <div className="p-12 glass-panel rounded-[3rem] border-brand-primary/10 text-center space-y-6">

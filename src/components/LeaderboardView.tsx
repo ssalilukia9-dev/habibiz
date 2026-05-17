@@ -33,10 +33,9 @@ interface LeaderboardUser {
   isPremium?: boolean;
 }
 
-export default function LeaderboardView() {
+export default function LeaderboardView({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'kings'>('all');
 
   useEffect(() => {

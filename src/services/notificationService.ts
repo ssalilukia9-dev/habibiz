@@ -74,18 +74,46 @@ class NotificationService {
 
     // Trigger System Notification
     if (Notification.permission === 'granted') {
-      const n = new Notification(title, {
-        body,
-        icon: '/pwa-192x192.png', // Assuming icon exists
-        badge: '/pwa-192x192.png',
-        tag: type,
-      });
+      const iconUrl = 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7';
+      try {
+        const n = new Notification(title, {
+          body,
+          icon: iconUrl,
+          badge: iconUrl,
+          tag: type,
+          vibrate: [200, 100, 200],
+          requireInteraction: type === 'community',
+          renotify: true,
+          silent: false
+        } as any);
 
-      n.onclick = () => {
-        window.focus();
-        if (actionUrl) window.location.hash = actionUrl;
-        n.close();
-      };
+        n.onclick = (e) => {
+          e.preventDefault();
+          window.focus();
+          if (actionUrl) {
+             if (actionUrl.startsWith('#')) {
+                window.location.hash = actionUrl;
+             } else {
+                window.location.pathname = actionUrl;
+             }
+          }
+          n.close();
+        };
+      } catch (e) {
+        // Fallback for some browsers/Android versions that require SW for background notifications
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, {
+              body,
+              icon: iconUrl,
+              badge: iconUrl,
+              tag: type,
+              vibrate: [200, 100, 200],
+              data: { actionUrl }
+            } as any);
+          });
+        }
+      }
     }
 
     // Custom Event for UI update

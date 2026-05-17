@@ -75,19 +75,23 @@ interface ChatRequest {
   createdAt: any;
 }
 
-export default function ChatView({ isPremium = false }: { isPremium?: boolean }) {
+export default function ChatView({ isPremium = false, searchQuery, setSearchQuery }: { isPremium?: boolean, searchQuery: string, setSearchQuery: (q: string) => void }) {
   const [activeTab, setActiveTab] = useState<'messages' | 'ummah' | 'requests'>('messages');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ChatUserInfo[]>([]);
   const [pendingRequests, setPendingRequests] = useState<ChatRequest[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const filteredRooms = rooms.filter(room => 
+    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (room.lastMessage && room.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   // Layout state for mobile
   const [mobileViewState, setMobileViewState] = useState<'list' | 'chat'>('list');
@@ -125,7 +129,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
   useEffect(() => {
     if (!auth.currentUser) return;
     const q = query(
-      collection(db, 'chat_requests'),
+      collection(db, 'friend_requests'),
       where('toId', '==', auth.currentUser.uid),
       where('status', '==', 'pending'),
       orderBy('createdAt', 'desc')
@@ -157,18 +161,30 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
 
   // Search users for new chats
   useEffect(() => {
-    if (activeTab !== 'ummah' || !userSearchQuery.trim()) {
+    if (activeTab !== 'ummah') {
       setSearchResults([]);
       return;
     }
+
     const searchUsers = async () => {
       try {
-        const q = query(
-          collection(db, 'users'),
-          where('displayName', '>=', userSearchQuery),
-          where('displayName', '<=', userSearchQuery + '\uf8ff'),
-          limit(10)
-        );
+        let q;
+        if (searchQuery.trim()) {
+           q = query(
+            collection(db, 'users'),
+            where('displayName', '>=', searchQuery),
+            where('displayName', '<=', searchQuery + '\uf8ff'),
+            limit(20)
+          );
+        } else {
+          // Default: show latest users or top hasanat users
+          q = query(
+            collection(db, 'users'),
+            orderBy('hasanat', 'desc'),
+            limit(20)
+          );
+        }
+        
         const snap = await getDocs(q);
         setSearchResults(snap.docs
           .map(doc => doc.data() as ChatUserInfo)
@@ -180,7 +196,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
     };
     const timer = setTimeout(searchUsers, 400);
     return () => clearTimeout(timer);
-  }, [userSearchQuery, activeTab]);
+  }, [searchQuery, activeTab]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +224,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
   const handleSendRequest = async (user: ChatUserInfo) => {
     if (!auth.currentUser) return;
     try {
-      await addDoc(collection(db, 'chat_requests'), {
+      await addDoc(collection(db, 'friend_requests'), {
         fromId: auth.currentUser.uid,
         fromName: auth.currentUser.displayName || 'Anonymous',
         fromPhoto: auth.currentUser.photoURL,
@@ -218,7 +234,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
       });
       alert(`Request sent to ${user.displayName}. You can chat once they accept.`);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'chat_requests');
+      handleFirestoreError(error, OperationType.WRITE, 'friend_requests');
     }
   };
 
@@ -233,7 +249,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
         updatedAt: serverTimestamp(),
         lastMessage: 'Chat started'
       });
-      await deleteDoc(doc(db, 'chat_requests', request.id));
+      await deleteDoc(doc(db, 'friend_requests', request.id));
       setActiveTab('messages');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'rooms');
@@ -302,8 +318,18 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
             </button>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex p-1 bg-white/5 rounded-2xl">
+          {/* Tab Navigation with sliding indicator */}
+          <div className="relative flex p-1 bg-white/5 rounded-2xl overflow-hidden">
+            {/* Sliding background */}
+            <motion.div 
+              className="absolute top-1 bottom-1 bg-brand-primary rounded-xl shadow-lg z-0"
+              initial={false}
+              animate={{ 
+                left: activeTab === 'messages' ? '0.25rem' : activeTab === 'ummah' ? '33.33%' : '66.66%',
+                width: 'calc(33.33% - 0.5rem)' 
+              }}
+              transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+            />
             {[
               { id: 'messages', label: 'Chats', icon: MessageCircle },
               { id: 'ummah', label: 'Explore', icon: Globe },
@@ -312,15 +338,22 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all relative ${activeTab === tab.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all relative z-10 ${activeTab === tab.id ? 'text-brand-depth font-black' : 'text-slate-500 hover:text-white'}`}
               >
-                <tab.icon size={18} />
-                <span className="text-[10px] font-black uppercase mt-1 tracking-widest">{tab.label}</span>
-                {tab.count ? (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black">
-                    {tab.count}
-                  </span>
-                ) : null}
+                <tab.icon size={18} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+                <span className="text-[10px] font-black uppercase mt-1 tracking-widest leading-none">{tab.label}</span>
+                <AnimatePresence>
+                  {tab.count ? (
+                    <motion.span 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      className={`absolute top-1.5 right-1.5 w-4 h-4 text-[8px] flex items-center justify-center rounded-full font-black ${activeTab === tab.id ? 'bg-brand-depth text-brand-primary' : 'bg-red-500 text-white shadow-lg shadow-red-500/20'}`}
+                    >
+                      {tab.count}
+                    </motion.span>
+                  ) : null}
+                </AnimatePresence>
               </button>
             ))}
           </div>
@@ -330,14 +363,18 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
         <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2 no-scrollbar">
           {activeTab === 'messages' && (
             <>
-              {rooms.map(room => (
+              {filteredRooms.map(room => (
                 <button
                   key={room.id}
                   onClick={() => setActiveRoom(room)}
                   className={`w-full text-left p-4 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-xl' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
-                    {room.type === 'group' ? <Hash size={20} /> : <MessageCircle size={20} />}
+                    {room.type === 'group' ? <Hash size={18} /> : (
+                      <div className="relative">
+                        <MessageCircle size={18} />
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-black text-sm truncate">{room.name}</p>
@@ -360,32 +397,59 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                 <input 
                   type="text" 
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  placeholder="Search Ummah by username..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Find seeker by name..."
                   className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:bg-white/10 transition-all font-medium"
                 />
               </div>
-              <div className="space-y-2">
-                {searchResults.map(user => (
-                  <div key={user.uid} className="bg-white/5 p-4 rounded-3xl flex items-center justify-between border border-white/5 hover:bg-white/10 transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary overflow-hidden">
-                        {user.photoURL ? <img src={user.photoURL} alt="" /> : <UserIcon size={20} />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-black text-xs text-white truncate">{user.displayName || user.email}</p>
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Available</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleSendRequest(user)}
-                      className="p-2 bg-brand-primary text-brand-depth rounded-xl hover:scale-110 active:scale-95 transition-all shadow-lg shadow-brand-primary/20"
-                    >
-                      <UserPlus size={18} />
-                    </button>
+              
+              <div className="space-y-4">
+                {searchQuery === '' && (
+                  <div className="px-1 flex items-center justify-between">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Seekers</p>
+                    <div className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 rounded text-[8px] font-black uppercase">Live</div>
                   </div>
-                ))}
+                )}
+                
+                <div className="space-y-2">
+                  {searchResults.map(user => (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={user.uid} 
+                      className="bg-white/5 p-4 rounded-3xl flex items-center justify-between border border-white/5 hover:bg-white/10 transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary overflow-hidden relative border border-white/5 shadow-xl">
+                          {user.photoURL ? (
+                            <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <UserIcon size={20} />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-xs text-white truncate group-hover:text-brand-primary transition-colors">{user.displayName || user.email?.split('@')[0]}</p>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Voyager</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleSendRequest(user)}
+                        className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-brand-depth hover:scale-110 active:scale-95 transition-all shadow-lg shadow-brand-primary/0 hover:shadow-brand-primary/20"
+                      >
+                        <UserPlus size={18} />
+                      </button>
+                    </motion.div>
+                  ))}
+
+                  {searchResults.length === 0 && (
+                     <div className="py-20 text-center opacity-30 select-none">
+                        <Globe size={40} className="mx-auto mb-4 animate-pulse" />
+                        <p className="text-xs font-black uppercase tracking-widest">Discovering Souls...</p>
+                     </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -409,7 +473,7 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
                       <Check size={14} /> Accept
                     </button>
                     <button 
-                      onClick={() => deleteDoc(doc(db, 'chat_requests', req.id))}
+                      onClick={() => deleteDoc(doc(db, 'friend_requests', req.id))}
                       className="p-2 bg-white/5 text-slate-500 rounded-xl hover:text-red-500 hover:bg-red-500/10 transition-all"
                     >
                       <X size={16} />
@@ -481,8 +545,18 @@ export default function ChatView({ isPremium = false }: { isPremium?: boolean })
                           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{msg.senderName}</p>
                           <span className="text-[8px] text-slate-600 font-bold">{msg.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) || ''}</span>
                         </div>
-                        <div className={`p-4 rounded-[1.5rem] text-sm leading-relaxed shadow-xl ${isMe ? 'bg-brand-primary text-brand-depth rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'}`}>
+                        <div className={`p-4 rounded-[2rem] text-sm leading-relaxed shadow-xl relative group/msg ${
+                          isMe 
+                            ? 'bg-brand-primary text-brand-depth rounded-tr-none' 
+                            : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'
+                        }`}>
                           {msg.text}
+                          {isMe && (
+                            <div className="absolute -bottom-1.5 -right-1 flex items-center bg-brand-sidebar/80 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-brand-primary/20 scale-75 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                              <Check size={10} className="text-brand-primary" />
+                              <Check size={10} className="-ml-1 text-brand-primary" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
