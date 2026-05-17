@@ -186,12 +186,25 @@ export default function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    // Splash screen timer
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 12000);
+    // Dynamic Splash Control: 
+    // Wait for auth to be ready, but ensure a minimum of 2.5s for the animation.
+    // Also provide a safety fallback at 8s if something hangs.
+    
+    let timer: any;
+    if (!authLoading) {
+      // Auth is ready! Wait a moment for splash animation to feel right then hide.
+      timer = setTimeout(() => {
+        setShowSplash(false);
+      }, 2000);
+    } else {
+      // Still loading auth? Safety fallback to show app anyway after 8 seconds.
+      timer = setTimeout(() => {
+        setShowSplash(false);
+      }, 8000);
+    }
+
     return () => clearTimeout(timer);
-  }, []);
+  }, [authLoading]);
 
   useEffect(() => {
     // 5 mins visible, 30 mins hidden cycle
@@ -522,8 +535,8 @@ export default function App() {
             setHasanat(0);
           }
 
-          // Always update lastSeen for active users
-          await updateDoc(userRef, {
+          // Always update lastSeen for active users - DON'T await this as it is non-essential for initial render
+          updateDoc(userRef, {
             lastSeen: serverTimestamp()
           }).catch(e => console.warn("Last seen update failed", e));
           
@@ -539,6 +552,8 @@ export default function App() {
         setHasanat(0);
       }
       
+      // Ensure this is set to false as soon as we have a user object, 
+      // even if profile metadata isn't fully perfect yet.
       setAuthLoading(false);
     });
     return () => unsubscribe();

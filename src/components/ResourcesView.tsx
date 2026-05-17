@@ -26,7 +26,11 @@ import {
   CalendarDays,
   MessageCircle,
   Zap,
-  Smartphone
+  Smartphone,
+  Activity,
+  Share2,
+  Terminal,
+  Bell
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -326,6 +330,106 @@ export default function ResourcesView({
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
               >
+                 {(activeRes as any) === 'system' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                       <div className="glass-panel p-10 rounded-[3rem] border-white/5 bg-brand-sidebar/40">
+                          <div className="flex flex-col md:flex-row items-center gap-8 mb-12">
+                             <div className="w-20 h-20 bg-brand-primary/10 rounded-[2rem] flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
+                                <Activity size={40} />
+                             </div>
+                             <div className="text-center md:text-left">
+                                <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-2">Sanctuary <span className="text-brand-primary">OS</span> Core</h2>
+                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.4em]">Notification System Architecture v2.0</p>
+                             </div>
+                          </div>
+
+                          {/* Architecture Diagram */}
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+                             {/* Arrows between columns on desktop */}
+                             <div className="hidden lg:block absolute top-1/2 left-1/3 -translate-y-1/2 w-12 h-px bg-gradient-to-r from-brand-primary/50 to-transparent z-0" />
+                             <div className="hidden lg:block absolute top-1/2 left-2/3 -translate-y-1/2 w-12 h-px bg-gradient-to-r from-brand-primary/50 to-transparent z-0" />
+
+                             {/* Column 1: Sources */}
+                             <div className="space-y-4 relative z-10">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Event Sources</p>
+                                {[
+                                  { icon: <Clock size={16} />, title: 'Prayer Engine', desc: 'Local Scheduler (30s Tick)', color: 'amber' },
+                                  { icon: <Share2 size={16} />, title: 'Cloud Sync', desc: 'Firebase FCM Listeners', color: 'blue' },
+                                  { icon: <MessageCircle size={16} />, title: 'Community', desc: 'Real-time WebSocket', color: 'emerald' }
+                                ].map((item, i) => (
+                                  <div key={i} className="p-5 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-primary/20 transition-all group">
+                                     <div className={`w-10 h-10 rounded-xl bg-${item.color}-500/10 text-${item.color}-500 flex items-center justify-center mb-4`}>
+                                        {item.icon}
+                                     </div>
+                                     <h4 className="text-sm font-bold text-white mb-1">{item.title}</h4>
+                                     <p className="text-[10px] text-slate-500 font-medium">{item.desc}</p>
+                                  </div>
+                                ))}
+                             </div>
+
+                             {/* Column 2: Logic Center */}
+                             <div className="space-y-4 relative z-10">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Middleware Logic</p>
+                                <div className="p-8 bg-brand-primary/5 border border-brand-primary/20 rounded-[2.5rem] h-full flex flex-col items-center justify-center text-center space-y-6">
+                                   <div className="w-16 h-16 bg-brand-primary rounded-3xl flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/30">
+                                      <Terminal size={32} />
+                                   </div>
+                                   <div>
+                                      <h4 className="text-lg font-black text-white italic uppercase mb-2">Signal Dispatcher</h4>
+                                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                                        Validates user preferences, checks "Do Not Disturb" windows, and selects target interface layer (Heads-up vs Background).
+                                      </p>
+                                   </div>
+                                   <div className="w-full h-px bg-white/5" />
+                                   <div className="flex gap-2">
+                                      <span className="px-3 py-1 bg-white/5 rounded-lg text-[8px] font-black text-brand-primary uppercase tracking-widest tracking-tighter">Prioritizing...</span>
+                                      <span className="px-3 py-1 bg-white/5 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-widest tracking-tighter">Halal Filtered</span>
+                                   </div>
+                                </div>
+                             </div>
+
+                             {/* Column 3: Output Channels */}
+                             <div className="space-y-4 relative z-10">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Output Layers</p>
+                                <div className="p-6 bg-white/5 border border-white/5 rounded-2xl space-y-6">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-brand-primary">
+                                         <Bell size={20} />
+                                      </div>
+                                      <div>
+                                         <h4 className="text-xs font-black text-white uppercase tracking-widest">Heads-Up Banner</h4>
+                                         <p className="text-[9px] text-slate-500 font-bold uppercase italic">In-App Foreground</p>
+                                      </div>
+                                   </div>
+                                   <div className="p-4 bg-brand-depth/40 rounded-xl border border-white/5">
+                                      <div className="w-full h-1 bg-white/10 rounded-full mb-3" />
+                                      <div className="flex gap-2">
+                                         <div className="w-4 h-4 rounded-full bg-brand-primary" />
+                                         <div className="flex-1 h-2 bg-white/5 rounded-full" />
+                                      </div>
+                                   </div>
+                                </div>
+
+                                <div className="p-6 bg-white/5 border border-white/5 rounded-2xl space-y-6">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-500">
+                                         <Smartphone size={20} />
+                                      </div>
+                                      <div>
+                                         <h4 className="text-xs font-black text-white uppercase tracking-widest">Push Alert (FCM)</h4>
+                                         <p className="text-[9px] text-slate-500 font-bold uppercase italic">System Background</p>
+                                      </div>
+                                   </div>
+                                   <div className="grid grid-cols-2 gap-2">
+                                      <div className="h-10 bg-white/5 rounded-lg flex items-center justify-center text-[8px] font-black text-slate-600 uppercase tracking-widest">Android</div>
+                                      <div className="h-10 bg-white/5 rounded-lg flex items-center justify-center text-[8px] font-black text-slate-600 uppercase tracking-widest">iOS</div>
+                                   </div>
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                 )}
                  {activeRes === 'quran' && (
                    <QuranView 
                       selectedSurah={selectedSurah}

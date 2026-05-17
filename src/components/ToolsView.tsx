@@ -50,6 +50,14 @@ export default function ToolsView() {
     return localStorage.getItem('selected-adhan') || 'standard';
   });
 
+  const [selectedPriority, setSelectedPriority] = useState(() => {
+    return localStorage.getItem('notification-priority') || 'High';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('notification-priority', selectedPriority);
+  }, [selectedPriority]);
+
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
 
   const [customAdhanUrl, setCustomAdhanUrl] = useState(() => {
@@ -646,7 +654,11 @@ export default function ToolsView() {
                            <span className="text-xs font-bold text-slate-300">Priority Level</span>
                            <div className="flex gap-2">
                               {['Low', 'High', 'Urgent'].map(p => (
-                                <button key={p} className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${p === 'High' ? 'bg-brand-primary text-brand-depth' : 'text-slate-500 hover:text-white'}`}>
+                                <button 
+                                  key={p} 
+                                  onClick={() => setSelectedPriority(p)}
+                                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${selectedPriority === p ? 'bg-brand-primary text-brand-depth' : 'text-slate-500 hover:text-white'}`}
+                                >
                                   {p}
                                 </button>
                               ))}
