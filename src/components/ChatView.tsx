@@ -75,7 +75,7 @@ interface ChatRequest {
   createdAt: any;
 }
 
-export default function ChatView({ isPremium = false, searchQuery, setSearchQuery }: { isPremium?: boolean, searchQuery: string, setSearchQuery: (q: string) => void }) {
+export default function ChatView({ isPremium = false, searchQuery, setSearchQuery, addHasanat }: { isPremium?: boolean, searchQuery: string, setSearchQuery: (q: string) => void, addHasanat?: (amount: number) => void }) {
   const [activeTab, setActiveTab] = useState<'messages' | 'ummah' | 'requests'>('messages');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
@@ -211,6 +211,7 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
     try {
       setNewMessage('');
       await addDoc(collection(db, `rooms/${activeRoom.id}/messages`), msgData);
+      if (addHasanat) addHasanat(5); // Points for messaging
       await updateDoc(doc(db, 'rooms', activeRoom.id), {
         lastMessage: newMessage,
         lastSenderId: auth.currentUser.uid,

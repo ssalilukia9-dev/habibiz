@@ -446,92 +446,18 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
       </div>
 
       {/* Product Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4 md:px-0">
-        <AnimatePresence mode='popLayout'>
-          {filteredProducts.map((product, idx) => (
-            <motion.div
-              key={product.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ delay: idx * 0.05 }}
-              className="group glass-panel rounded-[2.5rem] border-white/5 overflow-hidden hover:border-brand-primary/20 transition-all shadow-2xl flex flex-col h-full bg-brand-sidebar/30 hover:translate-y-[-4px]"
-            >
-              <div className="relative h-72 overflow-hidden bg-brand-depth/40">
-                  <img 
-                    src={product.imageUrl || 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=600'} 
-                    alt={product.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=600';
-                    }}
-                  />
-                 <div className="absolute top-6 left-6 flex flex-col gap-2">
-                    {product.sellerId === auth.currentUser?.uid && (
-                      <button 
-                        onClick={(e) => handleDeleteListing(product.id, e)}
-                        className="p-3 bg-red-500/20 text-red-400 backdrop-blur-md rounded-2xl hover:bg-red-500 hover:text-white transition-all border border-red-500/30 shadow-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                    <div className="bg-brand-depth/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 w-fit">
-                       <span className="text-[10px] font-black text-white uppercase tracking-tighter">{product.condition || 'New'}</span>
-                    </div>
-                 </div>
-                 <div className="absolute bottom-6 right-6 bg-brand-depth px-4 py-2 rounded-2xl border border-brand-primary/30 shadow-2xl">
-                    <span className="text-xl font-black text-brand-primary">${product.price}</span>
-                 </div>
-              </div>
-              <div className="p-8 flex-1 flex flex-col">
-                 <div className="flex items-center justify-between mb-4">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">{product.category}</span>
-                      <StarRating rating={product.rating || 5.0} />
-                    </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5">
-                       <UserIcon size={12} className="text-slate-500" />
-                       <span className="text-[10px] font-bold text-slate-400">{product.sellerName}</span>
-                    </div>
-                 </div>
-                 <h4 className="text-xl font-bold text-white mb-3 group-hover:text-brand-primary transition-colors cursor-pointer line-clamp-1" onClick={() => navigate(`/market/${product.id}`)}>
-                   {product.title}
-                 </h4>
-                 <p className="text-sm text-slate-500 line-clamp-2 mb-8 font-medium leading-relaxed flex-1">
-                    {product.description}
-                 </p>
-                 <div className="flex gap-3">
-                    <button 
-                      onClick={() => navigate(`/market/${product.id}`)}
-                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl text-xs transition-all border border-white/5"
-                    >
-                      View Details
-                    </button>
-                    {product.sellerId !== auth.currentUser?.uid && (
-                      <button 
-                        onClick={() => handleMessageSeller(product)}
-                        className="w-14 h-14 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-2xl flex items-center justify-center hover:bg-brand-primary hover:text-brand-depth transition-all"
-                      >
-                        <MessageCircle size={20} />
-                      </button>
-                    )}
-                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      <div className="flex flex-col items-center justify-center py-32 px-6 glass-panel rounded-[3rem] border-white/5 bg-brand-sidebar/30">
+          <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary mb-8 shadow-2xl shadow-brand-primary/10 animate-pulse">
+             <Package size={48} />
+          </div>
+          <h3 className="text-3xl font-black text-white mb-4 uppercase italic tracking-tighter">Market Reopening Soon</h3>
+          <p className="text-slate-500 max-w-sm mx-auto text-center font-medium leading-relaxed mb-8">
+            Suq Al-Mubaraki is currently being curated for the highest quality spiritual essentials. Check back soon for authentic prayer collections and modest wear.
+          </p>
+          <div className="flex gap-4">
+             <div className="px-6 py-3 bg-white/5 rounded-2xl border border-white/5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Sourcing...</div>
+          </div>
       </div>
-
-      {/* Empty State */}
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-20 px-6">
-           <Package size={64} className="mx-auto text-slate-800 mb-6" />
-           <h3 className="text-xl font-bold text-slate-400 mb-2">No listings found</h3>
-           <p className="text-slate-600 max-w-xs mx-auto">Try a different category or search term, or be the first to create one!</p>
-        </div>
-      )}
 
       {/* Create Listing Modal */}
       <AnimatePresence>

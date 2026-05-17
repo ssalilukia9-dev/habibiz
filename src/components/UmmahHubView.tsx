@@ -45,7 +45,7 @@ interface FriendRequest {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-export default function UmmahHubView({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) {
+export default function UmmahHubView({ searchQuery, setSearchQuery, addHasanat }: { searchQuery: string, setSearchQuery: (q: string) => void, addHasanat?: (amount: number) => void }) {
   const [users, setUsers] = useState<UmmahUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({}); // toId -> status
@@ -122,6 +122,7 @@ export default function UmmahHubView({ searchQuery, setSearchQuery }: { searchQu
         createdAt: serverTimestamp()
       });
 
+      if (addHasanat) addHasanat(25); // Points for connecting
       // No longer notifying the sender here, let the system handle it or just show status change
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'friend_requests');

@@ -143,6 +143,21 @@ export default function HomeView({
 
   return (
     <div className="space-y-6 md:space-y-10 pb-20">
+      {/* Sponsorship Banner */}
+      <div className="glass-panel border-brand-primary/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-8 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl -mr-16 -mt-16" />
+        <div className="flex items-center gap-6 relative z-10">
+          <div className="w-16 h-16 rounded-[2.5rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20">
+            <Sparkles size={32} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.5em] mb-1">Sponsored by Aloha Group</p>
+            <h4 className="text-xl font-black text-white px-1 uppercase tracking-tighter">Habibi x <span className="text-brand-primary">ISIS WRISTS</span></h4>
+            <p className="text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for the modern believer</p>
+          </div>
+        </div>
+        <button className="px-8 py-4 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest">Explore Collection</button>
+      </div>
       
       {/* 1. BENTO HEADER GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
@@ -239,15 +254,25 @@ export default function HomeView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         
         {/* QURAN PROGRESS */}
-        <motion.div whileHover={{ y: -5 }} className="glass-panel p-6 rounded-[2rem] border-white/5 flex items-center gap-5 group">
+        <motion.div 
+          whileHover={{ y: -5 }} 
+          onClick={() => onNavigate('quran')}
+          className="glass-panel p-6 rounded-[2rem] border-white/5 flex items-center gap-5 group cursor-pointer"
+        >
            <div className="w-16 h-16 rounded-3xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-all shadow-inner">
               <BookOpen size={28} />
            </div>
-           <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Quran Progress</p>
+           <div className="flex-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Quran Journey</p>
               <div className="flex items-baseline gap-1">
                  <span className="text-3xl font-black text-slate-200">{versesRead}</span>
-                 <span className="text-[10px] text-slate-500 font-bold uppercase">Verses</span>
+                 <span className="text-[10px] text-slate-500 font-bold uppercase">Verses Read</span>
+              </div>
+              <div className="mt-2 h-1 bg-white/5 rounded-full overflow-hidden">
+                 <div 
+                   className="h-full bg-purple-500 transition-all duration-1000" 
+                   style={{ width: `${Math.min((versesRead / 6236) * 100, 100)}%` }}
+                 />
               </div>
            </div>
         </motion.div>

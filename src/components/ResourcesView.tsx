@@ -348,7 +348,7 @@ export default function ResourcesView({
                       setSearchQuery={setSearchQuery}
                    />
                  )}
-                 {activeRes === 'feed' && <FeedView />}
+                 {activeRes === 'feed' && <FeedView addHasanat={addHasanat} />}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}

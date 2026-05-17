@@ -544,8 +544,8 @@ export default function ToolsView() {
                   </select>
                </div>
 
-               {/* Detail Settings (Audio & Offsets) */}
-               <div className="grid grid-cols-1 gap-4">
+               {/* Detail Settings (Audio & Interface) */}
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Adhan Sound Selection */}
                   <div className="glass-panel p-6 rounded-3xl border-white/5 space-y-6">
                      <div className="flex items-center justify-between">
@@ -629,6 +629,50 @@ export default function ToolsView() {
                      </div>
                   </div>
 
+                  {/* Notification Style Mockup Settings */}
+                  <div className="glass-panel p-6 rounded-3xl border-white/5 space-y-6">
+                     <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary">
+                           <Settings2 size={20} />
+                        </div>
+                        <div>
+                           <p className="font-bold text-white">Interface Optimization</p>
+                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Material Design / iOS Human Interface</p>
+                        </div>
+                     </div>
+
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
+                           <span className="text-xs font-bold text-slate-300">Priority Level</span>
+                           <div className="flex gap-2">
+                              {['Low', 'High', 'Urgent'].map(p => (
+                                <button key={p} className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${p === 'High' ? 'bg-brand-primary text-brand-depth' : 'text-slate-500 hover:text-white'}`}>
+                                  {p}
+                                </button>
+                              ))}
+                           </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-brand-primary/5 border border-brand-primary/10">
+                           <div className="flex items-center justify-between mb-2">
+                              <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Heads-Up Preview</p>
+                              <div className="w-6 h-1 bg-brand-primary/20 rounded-full" />
+                           </div>
+                           <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-brand-primary/20 flex items-center justify-center text-brand-primary">
+                                 <Bell size={16} />
+                              </div>
+                              <div>
+                                 <p className="text-[10px] font-black text-white">New Sanctuary Message</p>
+                                 <p className="text-[8px] text-slate-500">Ustad Abu Bakr replied to your reflection.</p>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 gap-4">
                   {/* Offset & Prayer Matrix */}
                   <div className="glass-panel rounded-[2rem] border-white/5 overflow-hidden">
                      <div className="p-4 bg-white/5 flex items-center justify-between">

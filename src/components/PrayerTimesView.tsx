@@ -52,85 +52,57 @@ const ADHAN_SOUNDS: AdhanSound[] = [
     id: 'makkah',
     title: 'Haram Al-Sharif',
     location: 'Makkah, Saudi Arabia',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Makkah.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan2.mp3',
     image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800'
   },
   {
     id: 'madinah',
     title: 'Masjid Nabawi',
     location: 'Madinah, Saudi Arabia',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Madinah.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan1.mp3',
     image: 'https://images.unsplash.com/photo-1597401411513-41c37f7a771a?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'jerusalem',
-    title: 'Al-Aqsa Mosque',
-    location: 'Jerusalem, Palestine',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Jerusalem.mp3',
-    image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'egypt',
-    title: 'Al-Azhar Styles',
-    location: 'Cairo, Egypt',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Egypt.mp3',
-    image: 'https://images.unsplash.com/photo-1555500333-aee80104953c?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'turkey',
-    title: 'Blue Mosque',
-    location: 'Istanbul, Turkey',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Turkey.mp3',
-    image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'kuwait',
-    title: 'Mishary Alafasy',
-    location: 'Kuwait',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan20.mp3',
-    image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'nusantara',
-    title: 'Nusantara Style',
-    location: 'Malaysia/Indonesia',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan21.mp3',
-    image: 'https://images.unsplash.com/photo-1590076214667-c0f3509f9d7c?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'turkey',
-    title: 'Blue Mosque',
-    location: 'Istanbul, Turkey',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Turkey.mp3',
-    image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800'
   },
   {
     id: 'mishary',
     title: 'Mishary Alafasy',
     location: 'Kuwait City, Kuwait',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Mishary.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan20.mp3',
     image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800'
   },
   {
-    id: 'indonesia',
-    title: 'Nusantara Style',
-    location: 'Jakarta, Indonesia',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Indonesia.mp3',
-    image: 'https://images.unsplash.com/photo-1590076214667-c0f3509f9d7c?auto=format&fit=crop&q=80&w=800'
+    id: 'turkey',
+    title: 'Blue Mosque',
+    location: 'Istanbul, Turkey',
+    audioUrl: 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
+    image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800'
   },
   {
-    id: 'viral_1',
-    title: 'Emotional Echo (Viral)',
-    location: 'Mansour Al-Salimi',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Salimi.mp3',
+    id: 'movie_style',
+    title: 'Cinematic Echo',
+    location: 'Emotional / Movie Style',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan14.mp3',
     image: 'https://images.unsplash.com/photo-1519817650390-64a934479f67?auto=format&fit=crop&q=80&w=800'
   },
   {
-    id: 'viral_2',
-    title: 'Modern Soul (Viral)',
-    location: 'Omar Hisham Al Arabi',
-    audioUrl: 'https://ia801007.us.archive.org/28/items/Adhan_Collection/Adhan-Hisham.mp3', 
-    image: 'https://images.unsplash.com/photo-1447069387593-a5de0862501e?auto=format&fit=crop&q=80&w=800'
+    id: 'sharjah',
+    title: 'Noor Mosque',
+    location: 'Sharjah, UAE',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan3.mp3',
+    image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'bosnia',
+    title: 'Sarajevo Style',
+    location: 'Sarajevo, Bosnia',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan12.mp3',
+    image: 'https://images.unsplash.com/photo-1563914442296-e2652b123689?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'africa',
+    title: 'Bilal Harmony',
+    location: 'West African Echo',
+    audioUrl: 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3',
+    image: 'https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?auto=format&fit=crop&q=80&w=800'
   }
 ];
 

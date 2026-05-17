@@ -498,7 +498,23 @@ export default function AdhkarView({ addHasanat, incrementDua, searchQuery }: { 
   const totalCount = ADHKAR.reduce((acc, cat) => acc + cat.items.length, 0);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
+      {/* ISIS Wrists Header Sponsorship */}
+      <div className="glass-panel border-brand-primary/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-8 mb-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl -mr-16 -mt-16" />
+        <div className="flex items-center gap-6 relative z-10">
+          <div className="w-16 h-16 rounded-[2rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20">
+            <Sparkles size={32} />
+          </div>
+          <div className="text-center md:text-left">
+            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.5em] mb-2 text-nowrap">Sponsored by Aloha Group of Companies</p>
+            <h4 className="text-2xl font-black text-white uppercase tracking-tighter">Official Timekeeper: <span className="text-brand-primary">ISIS WRISTS</span></h4>
+            <p className="text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for your sacred moments</p>
+          </div>
+        </div>
+        <button className="w-full md:w-auto px-10 py-5 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest relative z-10">Shop the Selection</button>
+      </div>
+
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex p-1 bg-white/5 rounded-2xl w-full md:w-fit">
           {['adhkar', 'names'].map((tab) => (

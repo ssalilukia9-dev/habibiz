@@ -130,7 +130,7 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
                 <div className="space-y-1">
                    <div className="flex items-center justify-center md:justify-start gap-3">
                       <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight uppercase italic underline decoration-brand-primary decoration-4 underline-offset-8">
-                       Crown Holder
+                       Habibi King
                       </h2>
                       {habibiKing.isPremium && (
                         <div className="px-3 py-1 bg-brand-primary rounded-lg text-brand-depth text-[10px] font-black uppercase">Pro</div>
@@ -216,7 +216,7 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
                         <div>
                            <p className={`text-sm font-bold tracking-tight ${idx === 0 ? 'text-brand-primary' : 'text-slate-200'}`}>
                              {user.displayName || 'Anonymous'}
-                             {idx === 0 && <span className="ml-2 text-[8px] uppercase tracking-[0.2em] px-2 py-0.5 bg-brand-primary rounded-md text-brand-depth">Crown Holder</span>}
+                             {idx === 0 && <span className="ml-2 text-[8px] uppercase tracking-[0.2em] px-2 py-0.5 bg-brand-primary rounded-md text-brand-depth">Habibi King of the Month</span>}
                            </p>
                            <p className="text-[10px] text-slate-500 font-medium">{user.isPremium ? 'Premium Voyager' : 'Sanctuary Seeker'}</p>
                         </div>

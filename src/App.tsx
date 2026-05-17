@@ -25,7 +25,9 @@ import {
   Bell,
   Trophy,
   Medal,
-  Terminal
+  Terminal,
+  Volume2,
+  Clock
 } from 'lucide-react';
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
 import { Surah, Ayah } from './types.ts';
@@ -98,6 +100,81 @@ export default function App() {
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('app-language') || 'en';
   });
+
+  // Prayer Scheduler State
+  const [prayerTimes, setPrayerTimes] = useState<Record<string, string>>({});
+  const lastPlayedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const fetchTimings = async () => {
+      try {
+        const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2');
+        const data = await res.json();
+        if (data.data) {
+          setPrayerTimes(data.data.timings);
+        }
+      } catch (e) {
+        console.warn("Global prayer sync failed", e);
+      }
+    };
+    fetchTimings();
+    const interval = setInterval(fetchTimings, 60 * 60 * 1000); // Refetch hourly
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const checkPrayerTimes = () => {
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      const prayersToCheck = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+      
+      for (const prayer of prayersToCheck) {
+        if (prayerTimes[prayer] === timeStr && lastPlayedRef.current !== prayer) {
+          lastPlayedRef.current = prayer;
+          triggerAdhan(prayer);
+          break;
+        }
+      }
+    };
+
+    const triggerAdhan = (prayer: string) => {
+      // Find preferred Adhan sound
+      const preferredId = localStorage.getItem('preferred-adhan-id') || 'makkah';
+      const customUrl = localStorage.getItem('preferred-adhan-custom-url');
+      
+      let audioUrl = 'https://www.islamcan.com/audio/adhan/azan2.mp3'; // Default Makkah
+      
+      if (preferredId === 'custom' && customUrl) {
+        audioUrl = customUrl;
+      } else {
+        const adhanMap: Record<string, string> = {
+          'makkah': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
+          'madinah': 'https://www.islamcan.com/audio/adhan/azan1.mp3',
+          'mishary': 'https://www.islamcan.com/audio/adhan/azan20.mp3',
+          'turkey': 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
+          'movie_style': 'https://www.islamcan.com/audio/adhan/azan14.mp3',
+          'sharjah': 'https://www.islamcan.com/audio/adhan/azan3.mp3',
+          'bosnia': 'https://www.islamcan.com/audio/adhan/azan12.mp3',
+          'africa': 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3'
+        };
+        audioUrl = adhanMap[preferredId] || audioUrl;
+      }
+
+      notificationService.notify(
+        `Time for ${prayer}`,
+        `The call to prayer for ${prayer} has begun. Come to success.`,
+        'prayer',
+        '/resources'
+      );
+
+      const audio = new Audio(audioUrl);
+      audio.play().catch(e => console.warn("Adhan autoplay failed", e));
+    };
+
+    const interval = setInterval(checkPrayerTimes, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [prayerTimes]);
 
   useEffect(() => {
     localStorage.setItem('app-language', language);
@@ -963,8 +1040,8 @@ export default function App() {
                     <Route path="/companion" element={<CompanionView />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
-                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
-                    <Route path="/chat" element={<ChatView isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/chat" element={<ChatView isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>
@@ -1017,6 +1094,13 @@ export default function App() {
                    </button>
                  ))}
                </nav>
+               <div className="mt-8 pt-8 border-t border-white/10">
+                 <div className="p-6 rounded-3xl bg-white/5 border border-white/5 text-center">
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] mb-2">Partner</p>
+                    <h4 className="text-white font-black uppercase tracking-widest text-sm">ISIS WRISTS</h4>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Aloha Group Sponsorship</p>
+                 </div>
+               </div>
             </motion.div>
           </>
         )}
@@ -1028,9 +1112,15 @@ export default function App() {
             initial={{ opacity: 0, y: -100, x: '-50%' }}
             animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -100, x: '-50%' }}
-            className="fixed top-0 left-1/2 -translate-x-1/2 w-[95%] max-w-md z-[999999]"
+            className="fixed top-0 left-1/2 -translate-x-1/2 w-[95%] max-w-sm z-[999999]"
           >
+            {/* System Notification Flow Diagram:
+                1. Event Source (Firebase/FCM/Local Scheduler) -> 2. notificationService.ts -> 3. App.tsx (Event Listener) -> 4. UI Layer (Heads-Up)
+                - Supports: Android Material Design & iOS Human Interface Styles
+                - Real-time interaction: Quick Reply / Dismiss / View
+            */}
             <div 
+              className="bg-[#1C1C1E]/95 backdrop-blur-3xl border border-white/5 p-4 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-4 cursor-pointer active:scale-95 transition-all group overflow-hidden relative"
               onClick={() => {
                 if (lastNotification.actionUrl) {
                   if (lastNotification.actionUrl.startsWith('#')) {
@@ -1041,25 +1131,54 @@ export default function App() {
                 }
                 setLastNotification(null);
               }}
-              className="bg-brand-sidebar/95 backdrop-blur-2xl border border-brand-primary/30 p-4 rounded-3xl shadow-[0_20px_50px_rgba(var(--brand-primary-rgb),0.2)] flex items-center gap-4 cursor-pointer active:scale-95 transition-all group"
             >
-              <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary shrink-0">
-                <Bell size={24} className="group-hover:rotate-12 transition-transform" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Sanctuary Signal</p>
-                  <span className="text-[8px] text-slate-500 font-bold uppercase">Now</span>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16" />
+              
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-2xl ${
+                  lastNotification.type === 'prayer' ? 'bg-amber-500 text-white shadow-amber-500/20' :
+                  lastNotification.type === 'community' ? 'bg-emerald-500 text-white shadow-emerald-500/20' :
+                  'bg-brand-primary text-white shadow-brand-primary/20'
+                }`}>
+                  {lastNotification.type === 'prayer' ? <Clock size={24} /> :
+                   lastNotification.type === 'community' ? <MessageCircle size={24} /> :
+                   <Bell size={24} />}
                 </div>
-                <h5 className="text-sm font-black text-white truncate">{lastNotification.title}</h5>
-                <p className="text-xs text-slate-400 line-clamp-1">{lastNotification.body}</p>
+
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                      {lastNotification.type === 'prayer' ? 'Prayer Alert' : 
+                       lastNotification.type === 'community' ? 'Ummah Hub' : 
+                       'Sanctuary OS'}
+                    </p>
+                    <span className="text-[9px] text-slate-600 font-bold uppercase">Now</span>
+                  </div>
+                  <h5 className="text-sm font-black text-white leading-tight mb-1">{lastNotification.title}</h5>
+                  <p className="text-xs text-slate-400 line-clamp-1 leading-relaxed font-medium">{lastNotification.body}</p>
+                </div>
               </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setLastNotification(null); }}
-                className="p-2 text-slate-600 hover:text-white transition-colors"
-              >
-                <X size={16} />
-              </button>
+
+              {/* Quick Actions Bar */}
+              <div className="flex gap-2 pt-1">
+                {lastNotification.type === 'community' && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigate('/chat'); setLastNotification(null); }}
+                    className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-500 transition-colors"
+                  >
+                    Reply
+                  </button>
+                )}
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setLastNotification(null); }}
+                  className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+
+              {/* Handle Bar */}
+              <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mt-2 opacity-50" />
             </div>
           </motion.div>
         )}

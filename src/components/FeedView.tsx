@@ -34,6 +34,7 @@ interface Comment {
   user: string;
   text: string;
   time: string;
+  replies?: Comment[];
 }
 
 interface Poll {
@@ -71,7 +72,15 @@ const INITIAL_POSTS: Post[] = [
     reconsiderCount: 2,
     userVote: 'support',
     comments: [
-      { id: 'c1', user: 'Zaid', text: 'Beautiful reflection, JazakAllah Khair.', time: '1h ago' }
+      { 
+        id: 'c1', 
+        user: 'Zaid', 
+        text: 'Beautiful reflection, JazakAllah Khair.', 
+        time: '1h ago',
+        replies: [
+          { id: 'r1', user: 'Layla', text: 'Indeed, Allah is the best of protectors.', time: '45m ago' }
+        ]
+      }
     ],
     category: 'Quran',
     approved: true
@@ -150,13 +159,21 @@ const ACTIVE_SCHOLARS = [
   { name: 'Ustad Abu Bakr', tag: 'Imam' }
 ];
 
-export default function FeedView() {
+export default function FeedView({ addHasanat }: { addHasanat?: (amount: number) => void }) {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [newPost, setNewPost] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [isScholarMode, setIsScholarMode] = useState(false);
   
+  // Comment/Reply state
+  const [replyingTo, setReplyingTo] = useState<{ postId: string, commentId: string } | null>(null);
+  const [activePostComment, setActivePostComment] = useState<{ postId: string, text: string } | null>(null);
+  const [replyText, setReplyText] = useState('');
+
+  // Confirmation state
+  const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'report', id: string, title: string, message: string } | null>(null);
+
   // New creation state
   const [showPollEditor, setShowPollEditor] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
@@ -191,6 +208,11 @@ export default function FeedView() {
   const handlePostSubmit = () => {
     if (!newPost.trim() && !imagePreview && !showPollEditor) return;
     
+    // AI Flagging Simulation
+    const isSensitive = ['debate', 'attack', 'haram', 'politics'].some(word => 
+      newPost.toLowerCase().includes(word)
+    );
+
     let pollData: Post['poll'] | undefined;
     if (showPollEditor && pollOptions.filter(o => o.trim()).length >= 2) {
       pollData = {
@@ -211,11 +233,13 @@ export default function FeedView() {
       userVote: null,
       comments: [],
       category: 'Reminders',
-      approved: true,
+      isFlagged: isSensitive,
+      approved: !isSensitive,
       image: imagePreview || undefined,
       poll: pollData
     };
     setPosts([post, ...posts]);
+    if (addHasanat) addHasanat(50); // Points for publishing
     setNewPost('');
     setImagePreview(null);
     setShowPollEditor(false);
@@ -234,6 +258,7 @@ export default function FeedView() {
   };
 
   const handlePollVote = (postId: string, optionId: string) => {
+    if (addHasanat) addHasanat(10); // Points for engaging in poll
     setPosts(prev => prev.map(p => {
       if (p.id === postId && p.poll && !p.poll.userSelection) {
         return {
@@ -257,11 +282,197 @@ export default function FeedView() {
   };
 
   const handleReportPost = (postId: string) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, isFlagged: true, approved: false } : p));
+    setConfirmAction({
+      type: 'report',
+      id: postId,
+      title: 'Report for Review?',
+      message: 'This will hide the post and alert our community moderators to review it for halal compliance.'
+    });
+  };
+
+  const handleDeletePost = (postId: string) => {
+    setConfirmAction({
+      type: 'delete',
+      id: postId,
+      title: 'Delete this post?',
+      message: 'This action cannot be undone. Your reflection will be removed from the NoorTalk feed.'
+    });
+  };
+
+  const executeConfirmedAction = () => {
+    if (!confirmAction) return;
+
+    if (confirmAction.type === 'report') {
+      setPosts(prev => prev.map(p => p.id === confirmAction.id ? { ...p, isFlagged: true, approved: false } : p));
+    } else if (confirmAction.type === 'delete') {
+      setPosts(prev => prev.filter(p => p.id !== confirmAction.id));
+    }
+    
+    setConfirmAction(null);
+  };
+
+  const handleReplySubmit = (postId: string, commentId: string) => {
+    if (!replyText.trim()) return;
+
+    const newReply: Comment = {
+      id: `r-${Date.now()}`,
+      user: 'You',
+      text: replyText,
+      time: 'Just now'
+    };
+
+    setPosts(prev => prev.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          comments: post.comments.map(comment => {
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                replies: [...(comment.replies || []), newReply]
+              };
+            }
+            return comment;
+          })
+        };
+      }
+      return post;
+    }));
+
+    if (addHasanat) addHasanat(15); // Points for replying
+    setReplyText('');
+    setReplyingTo(null);
+  };
+
+  const handleCommentSubmit = (postId: string) => {
+    if (!activePostComment || activePostComment.postId !== postId || !activePostComment.text.trim()) return;
+
+    const newComment: Comment = {
+      id: `c-${Date.now()}`,
+      user: 'You',
+      text: activePostComment.text,
+      time: 'Just now',
+      replies: []
+    };
+
+    setPosts(prev => prev.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          comments: [...post.comments, newComment]
+        };
+      }
+      return post;
+    }));
+
+    if (addHasanat) addHasanat(20); // Points for commenting
+    setActivePostComment(null);
+  };
+
+  const RenderComment = ({ comment, postId, isReply = false }: { comment: Comment, postId: string, isReply?: boolean }) => {
+    const isReplying = replyingTo?.commentId === comment.id;
+
+    return (
+      <div className={`space-y-4 ${isReply ? 'ml-8' : ''}`}>
+        <div className="flex gap-4 group/comment">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 ${isReply ? 'bg-white/5 text-slate-500' : 'bg-noor-emerald/20 text-noor-emerald'}`}>
+            {comment.user[0]}
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-white">{comment.user}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">{comment.time}</span>
+            </div>
+            <p className="text-sm text-slate-300 font-medium leading-relaxed">
+              {comment.text}
+            </p>
+            {!isReply && (
+              <button 
+                onClick={() => setReplyingTo(isReplying ? null : { postId, commentId: comment.id })}
+                className="text-[10px] font-black text-noor-gold uppercase tracking-widest hover:text-white transition-colors"
+              >
+                {isReplying ? 'Cancel' : 'Reply'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isReplying && (
+          <div className="ml-12 flex gap-3">
+            <input 
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write a reply..."
+              autoFocus
+              className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-noor-gold/50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleReplySubmit(postId, comment.id);
+              }}
+            />
+            <button 
+              onClick={() => handleReplySubmit(postId, comment.id)}
+              className="p-2 bg-noor-gold text-black rounded-xl hover:scale-105 transition-all"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        )}
+
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="space-y-4 pt-2">
+            {comment.replies.map(reply => (
+              <RenderComment key={reply.id} comment={reply} postId={postId} isReply={true} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:grid lg:grid-cols-12 gap-8 pb-32">
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmAction && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-brand-depth/90 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass-panel border-white/10 p-8 rounded-[3rem] max-w-sm w-full text-center space-y-6 shadow-2xl"
+            >
+              <div className={`w-16 h-16 rounded-3xl mx-auto flex items-center justify-center ${confirmAction.type === 'delete' ? 'bg-red-500/10 text-red-500' : 'bg-noor-gold/10 text-noor-gold'}`}>
+                {confirmAction.type === 'delete' ? <Trash2 size={32} /> : <AlertCircle size={32} />}
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-white mb-2">{confirmAction.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                  {confirmAction.message}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={executeConfirmedAction}
+                  className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${confirmAction.type === 'delete' ? 'bg-red-500 text-white' : 'bg-noor-gold text-black'}`}
+                >
+                  Confirm Action
+                </button>
+                <button 
+                  onClick={() => setConfirmAction(null)}
+                  className="w-full py-4 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Left Sidebar - Topics */}
       <div className="hidden lg:block lg:col-span-3 space-y-6 sticky top-24 h-fit">
         <div className="glass-panel border-white/10 rounded-[2rem] p-6 space-y-6">
@@ -561,7 +772,72 @@ export default function FeedView() {
                          )}
                       </div>
 
-                      <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                      {/* Quick Comments Section */}
+                      {post.comments.length > 0 && (
+                        <div className="pt-6 border-t border-white/5 space-y-6">
+                           <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Community Reflections</h5>
+                           <div className="space-y-6">
+                              {post.comments.map((comment) => (
+                                <RenderComment key={comment.id} comment={comment} postId={post.id} />
+                              ))}
+                           </div>
+                           
+                           {/* Add Top-Level Comment */}
+                           <div className="mt-4 flex gap-4">
+                              <div className="w-8 h-8 rounded-xl bg-noor-emerald/10 text-noor-emerald flex items-center justify-center text-[10px] font-black shrink-0">
+                                 Y
+                              </div>
+                              <div className="flex-1 flex gap-2">
+                                 <input 
+                                   value={(activePostComment?.postId === post.id) ? activePostComment.text : ''}
+                                   onChange={(e) => setActivePostComment({ postId: post.id, text: e.target.value })}
+                                   onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleCommentSubmit(post.id);
+                                   }}
+                                   placeholder="Add your reflection..."
+                                   className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-noor-emerald/50 transition-all font-medium"
+                                 />
+                                 <button 
+                                   onClick={() => handleCommentSubmit(post.id)}
+                                   disabled={!(activePostComment?.postId === post.id && activePostComment.text.trim())}
+                                   className="p-2 bg-noor-emerald text-white rounded-xl shadow-lg shadow-noor-emerald/10 disabled:opacity-30 active:scale-95 transition-all"
+                                 >
+                                    <Send size={16} />
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+                      )}
+                      
+                      {post.comments.length === 0 && (
+                        <div className="pt-6 border-t border-white/5">
+                           <div className="flex gap-4">
+                              <div className="w-8 h-8 rounded-xl bg-white/5 text-slate-600 flex items-center justify-center text-[10px] font-black shrink-0">
+                                 ?
+                              </div>
+                              <div className="flex-1 flex gap-2">
+                                 <input 
+                                   value={(activePostComment?.postId === post.id) ? activePostComment.text : ''}
+                                   onChange={(e) => setActivePostComment({ postId: post.id, text: e.target.value })}
+                                   onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleCommentSubmit(post.id);
+                                   }}
+                                   placeholder="Be the first to reflect..."
+                                   className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-noor-emerald/50"
+                                 />
+                                 <button 
+                                   onClick={() => handleCommentSubmit(post.id)}
+                                   disabled={!(activePostComment?.postId === post.id && activePostComment.text.trim())}
+                                   className="p-2 bg-noor-emerald text-white rounded-xl shadow-lg shadow-noor-emerald/10 disabled:opacity-30"
+                                 >
+                                    <Send size={16} />
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+                      )}
+
+                      <div className="pt-6 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl">
                             <button 
                               onClick={() => handleVote(post.id, 'support')}
@@ -577,13 +853,23 @@ export default function FeedView() {
                                <ArrowDown size={16} />
                                Reconsider ({post.reconsiderCount})
                             </button>
+                            <div className="w-px h-6 bg-white/5 mx-1 hidden sm:block" />
+                            <button className="flex items-center gap-2 text-slate-500 hover:text-white px-4 py-2.5 rounded-xl transition-colors font-bold text-[10px] uppercase tracking-widest">
+                               <MessageCircle size={16} />
+                               {post.comments.length} Comments
+                            </button>
                          </div>
 
-                         <div className="flex items-center gap-2">
-                             <button className="flex items-center gap-2 text-slate-500 hover:text-white px-4 py-2 rounded-xl transition-colors font-bold text-xs">
-                                <MessageCircle size={18} />
-                                {post.comments.length}
-                             </button>
+                         <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                             {post.user === 'You' && (
+                               <button 
+                                 onClick={() => handleDeletePost(post.id)}
+                                 className="p-3 text-slate-500 hover:text-red-500 transition-colors"
+                                 title="Delete post"
+                               >
+                                  <Trash2 size={18} />
+                               </button>
+                             )}
                              <button className="p-3 text-slate-500 hover:text-noor-gold transition-colors">
                                 <Bookmark size={20} />
                              </button>
