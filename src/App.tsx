@@ -331,6 +331,9 @@ export default function App() {
       }
 
       snapshot.docChanges().forEach((change) => {
+        const communityNotifs = localStorage.getItem('community-notifs') !== 'false';
+        if (!communityNotifs) return;
+
         if (change.type === 'modified') {
           const room = { id: change.doc.id, ...change.doc.data() } as any;
           const lastTime = lastInteractionRef.current[room.id] || 0;

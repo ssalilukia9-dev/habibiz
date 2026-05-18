@@ -48,6 +48,8 @@ If a user seeks advice beyond Islamic jurisprudence, gently bridge the topic bac
 If a query requires technical legal expertise (Fatwa) beyond your capacity, respectfully advise consulting a qualified local Mufti or scholar.
 Greet the user with "Assalamu Alaikum" in your first response of a session if they haven't initiated the greeting.`;
 
+import { apiFetch } from '../lib/api';
+
 interface Message {
   id: string;
   role: 'user' | 'model';
@@ -222,7 +224,7 @@ export default function CompanionView() {
       });
 
       // 3. Call AI Proxy
-      const response = await fetch('/api/ai/chat', {
+      const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

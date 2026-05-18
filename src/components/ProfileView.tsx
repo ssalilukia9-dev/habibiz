@@ -30,7 +30,9 @@ import {
   UserPlus,
   Users,
   Smartphone,
-  Zap
+  Zap,
+  Volume2,
+  Play
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -39,6 +41,8 @@ import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
+
+import { apiFetch } from '../lib/api';
 
 interface ProfileImageProps {
   src: string | null;
@@ -138,8 +142,19 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
 
     if (!ctx) return '';
 
-    canvas.width = pixelCrop.width;
-    canvas.height = pixelCrop.height;
+    // Limit size to prevent "URL too long" errors
+    const MAX_SIZE = 400;
+    let width = pixelCrop.width;
+    let height = pixelCrop.height;
+
+    if (width > MAX_SIZE || height > MAX_SIZE) {
+      const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
+      width *= ratio;
+      height *= ratio;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
 
     ctx.drawImage(
       image,
@@ -149,11 +164,11 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
       pixelCrop.height,
       0,
       0,
-      pixelCrop.width,
-      pixelCrop.height
+      width,
+      height
     );
 
-    return canvas.toDataURL('image/jpeg');
+    return canvas.toDataURL('image/jpeg', 0.8); // Add quality reduction as well
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,6 +212,9 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
     };
   });
 
+  const [preferredAdhan, setPreferredAdhan] = useState(() => localStorage.getItem('preferred-adhan-id') || 'makkah');
+  const [customAdhanUrl, setCustomAdhanUrl] = useState(() => localStorage.getItem('preferred-adhan-custom-url') || '');
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -221,6 +239,14 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
   useEffect(() => {
     localStorage.setItem('prayer-reminders', JSON.stringify(reminders));
   }, [reminders]);
+
+  useEffect(() => {
+    localStorage.setItem('preferred-adhan-id', preferredAdhan);
+  }, [preferredAdhan]);
+
+  useEffect(() => {
+    localStorage.setItem('preferred-adhan-custom-url', customAdhanUrl);
+  }, [customAdhanUrl]);
 
   useEffect(() => {
     if (offlineMode) {
@@ -273,7 +299,7 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
     if (isGeneratingBio) return;
     setIsGeneratingBio(true);
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -307,6 +333,60 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
 
   const toggleIndividualReminder = (key: string) => {
     setReminders(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const adhanOptions = [
+    { id: 'makkah', name: 'Makkah (Grand Mosque)', city: 'Saudi Arabia' },
+    { id: 'madinah', name: 'Madinah (Prophet\'s Mosque)', city: 'Saudi Arabia' },
+    { id: 'mishary', name: 'Mishary Rashid Alafasy', city: 'Kuwait' },
+    { id: 'turkey', name: 'Turkish Style', city: 'Istanbul' },
+    { id: 'movie_style', name: 'Cinematic Adhan', city: 'Spiritual' },
+    { id: 'sharjah', name: 'Sharjah Mosque', city: 'UAE' },
+    { id: 'bosnia', name: 'Bosnian Adhan', city: 'Sarajevo' },
+    { id: 'africa', name: 'African Adhan', city: 'West Africa' },
+    { id: 'custom', name: 'Custom Upload', city: 'Personal' }
+  ];
+
+  const handleCustomAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Audio file too large. Please select a file smaller than 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setCustomAdhanUrl(reader.result as string);
+        setPreferredAdhan('custom');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const testAdhan = () => {
+    let audioUrl = '';
+    const adhanMap: Record<string, string> = {
+      'makkah': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
+      'madinah': 'https://www.islamcan.com/audio/adhan/azan1.mp3',
+      'mishary': 'https://www.islamcan.com/audio/adhan/azan20.mp3',
+      'turkey': 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
+      'movie_style': 'https://www.islamcan.com/audio/adhan/azan14.mp3',
+      'sharjah': 'https://www.islamcan.com/audio/adhan/azan3.mp3',
+      'bosnia': 'https://www.islamcan.com/audio/adhan/azan12.mp3',
+      'africa': 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3'
+    };
+
+    if (preferredAdhan === 'custom' && customAdhanUrl) {
+      audioUrl = customAdhanUrl;
+    } else {
+      audioUrl = adhanMap[preferredAdhan] || adhanMap['makkah'];
+    }
+
+    const audio = new Audio(audioUrl);
+    audio.play().catch(e => {
+      console.error("Test playback failed", e);
+      alert("Playback failed. Please check the audio source.");
+    });
   };
 
   const startSync = async () => {
@@ -727,6 +807,70 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
                 >
                   <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${communityNotifs ? 'left-7' : 'left-1'} shadow-lg`} />
                 </button>
+              </div>
+           </div>
+
+           {/* ADHAN SELECTION SECTION */}
+           <div className="flex items-center gap-3 mt-8">
+              <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary">
+                 <Volume2 size={16} />
+              </div>
+              <h3 className="text-xs font-black text-white uppercase tracking-widest">Adhan Symphony</h3>
+           </div>
+
+           <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-xl mt-4">
+              <div className="p-6 space-y-6">
+                 <div className="grid grid-cols-1 gap-3">
+                    {adhanOptions.map((opt) => (
+                      <button 
+                        key={opt.id}
+                        onClick={() => setPreferredAdhan(opt.id)}
+                        className={`group flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                          preferredAdhan === opt.id 
+                            ? 'bg-brand-primary/10 border-brand-primary/30' 
+                            : 'bg-black/20 border-white/5 hover:border-white/10'
+                        }`}
+                      >
+                         <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                              preferredAdhan === opt.id ? 'bg-brand-primary text-brand-depth' : 'bg-white/5 text-slate-500 group-hover:text-white'
+                            }`}>
+                               <Sun size={20} />
+                            </div>
+                            <div className="text-left">
+                               <p className={`text-sm font-bold ${preferredAdhan === opt.id ? 'text-white' : 'text-slate-400'}`}>{opt.name}</p>
+                               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-none">{opt.city}</p>
+                            </div>
+                         </div>
+                         {preferredAdhan === opt.id && <CheckCircle2 size={16} className="text-brand-primary" />}
+                      </button>
+                    ))}
+                 </div>
+
+                 {preferredAdhan === 'custom' && (
+                   <div className="p-5 bg-brand-primary/5 border border-brand-primary/20 rounded-2xl space-y-4">
+                      <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Custom Audio File</span>
+                         <label className="cursor-pointer px-4 py-2 bg-brand-primary text-brand-depth rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                            Choose File
+                            <input type="file" className="hidden" accept="audio/*" onChange={handleCustomAudioUpload} />
+                         </label>
+                      </div>
+                      {customAdhanUrl && (
+                        <div className="flex items-center gap-3 p-3 bg-black/40 rounded-xl border border-white/5">
+                           <Volume2 size={14} className="text-brand-primary" />
+                           <span className="text-[10px] text-slate-400 font-bold truncate">Custom Adhan Loaded (Ready to Manifest)</span>
+                        </div>
+                      )}
+                   </div>
+                 )}
+
+                 <button 
+                  onClick={testAdhan}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black text-brand-primary uppercase tracking-widest transition-all"
+                 >
+                   <Play size={16} /> Test Sacred Call
+                 </button>
               </div>
            </div>
         </section>

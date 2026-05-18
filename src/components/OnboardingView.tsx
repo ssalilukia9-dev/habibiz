@@ -2,17 +2,17 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User as UserIcon, 
-  Camera, 
   Sparkles, 
   ArrowRight,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import Cropper from 'react-easy-crop';
 import { db, auth } from '../lib/firebase.ts';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { notificationService } from '../services/notificationService';
+
+import { apiFetch } from '../lib/api';
 
 interface OnboardingViewProps {
   user: FirebaseUser;
@@ -22,88 +22,17 @@ interface OnboardingViewProps {
 export default function OnboardingView({ user, onComplete }: OnboardingViewProps) {
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState(user.displayName || '');
-  const [photoURL, setPhotoURL] = useState(user.photoURL || '');
+  const [photoURL] = useState(user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`);
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingBio, setIsGeneratingBio] = useState(false);
 
-  // Cropping states
-  const [showCropper, setShowCropper] = useState(false);
-  const [tempImage, setTempImage] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const onCropComplete = useCallback((_setCroppedArea: any, pixels: any) => {
-    setCroppedAreaPixels(pixels);
-  }, []);
-
-  const createImage = (url: string): Promise<HTMLImageElement> =>
-    new Promise((resolve, reject) => {
-      const image = new Image();
-      image.addEventListener('load', () => resolve(image));
-      image.addEventListener('error', (error) => reject(error));
-      image.setAttribute('crossOrigin', 'anonymous');
-      image.src = url;
-    });
-
-  const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> => {
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) return '';
-
-    canvas.width = pixelCrop.width;
-    canvas.height = pixelCrop.height;
-
-    ctx.drawImage(
-      image,
-      pixelCrop.x,
-      pixelCrop.y,
-      pixelCrop.width,
-      pixelCrop.height,
-      0,
-      0,
-      pixelCrop.width,
-      pixelCrop.height
-    );
-
-    return canvas.toDataURL('image/jpeg');
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.addEventListener('load', () => {
-        setTempImage(reader.result as string);
-        setShowCropper(true);
-      });
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleCropSave = async () => {
-    try {
-      if (tempImage && croppedAreaPixels) {
-        const croppedImageBase64 = await getCroppedImg(tempImage, croppedAreaPixels);
-        setPhotoURL(croppedImageBase64);
-        setShowCropper(false);
-        setTempImage(null);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const generateBio = async () => {
     if (!displayName) return;
     setIsGeneratingBio(true);
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,28 +127,6 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
                 </div>
                 <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Your Sacred Identity</h2>
                 <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.4em]">Step 1: Manifestation</p>
-              </div>
-
-              <div className="flex flex-col items-center gap-6">
-                 <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] border-4 border-brand-primary/20 overflow-hidden bg-brand-sidebar relative shadow-2xl">
-                       {photoURL ? (
-                         <img src={photoURL} className="w-full h-full object-cover" />
-                       ) : (
-                         <div className="w-full h-full flex items-center justify-center text-brand-primary/40 bg-gradient-to-br from-brand-sidebar to-brand-depth">
-                            <UserIcon size={48} />
-                         </div>
-                       )}
-                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Camera size={24} className="text-white" />
-                       </div>
-                    </div>
-                    <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center shadow-xl">
-                       <Camera size={18} />
-                    </div>
-                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                 </div>
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Click to upload your image</p>
               </div>
 
               <div className="space-y-4">
@@ -324,80 +231,6 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
           )}
         </AnimatePresence>
       </motion.div>
-
-      {/* Cropper Modal Overlay */}
-      <AnimatePresence>
-        {showCropper && tempImage && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 md:p-8"
-          >
-            <div className="bg-brand-sidebar w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col h-[80vh] border border-white/10 shadow-2xl">
-              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-depth">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-8 bg-brand-primary/20 rounded-lg flex items-center justify-center text-brand-primary">
-                      <Camera size={16} />
-                   </div>
-                   <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">Sacred Image Calibration</h3>
-                </div>
-                <button 
-                  onClick={() => { setShowCropper(false); setTempImage(null); }}
-                  className="p-2 hover:bg-white/5 rounded-full text-slate-500 transition-all"
-                >
-                  <XCircle size={24} />
-                </button>
-              </div>
-
-              <div className="relative flex-1 bg-black">
-                <Cropper
-                  image={tempImage}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onCropComplete={onCropComplete}
-                  onZoomChange={setZoom}
-                />
-              </div>
-
-              <div className="p-8 space-y-6 bg-brand-sidebar">
-                <div className="space-y-4">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    <span>Magnification Level</span>
-                    <span>{Math.round(zoom * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    value={zoom}
-                    min={1}
-                    max={3}
-                    step={0.1}
-                    onChange={(e) => setZoom(Number(e.target.value))}
-                    className="w-full accent-brand-primary h-1 bg-white/10 rounded-full cursor-pointer appearance-none outline-none"
-                  />
-                </div>
-
-                <div className="flex gap-4">
-                  <button 
-                    onClick={handleCropSave}
-                    className="flex-1 py-5 bg-brand-primary text-brand-depth rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-brand-primary/20 active:scale-95 transition-all"
-                  >
-                    Set Identity Image
-                  </button>
-                  <button 
-                    onClick={() => { setShowCropper(false); setTempImage(null); }}
-                    className="px-8 py-5 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-all"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -2,9 +2,21 @@ import { Handler } from '@netlify/functions';
 import { GoogleGenAI } from "@google/genai";
 
 export const handler: Handler = async (event, context) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers };
+  }
+
   // Only allow POST
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, headers, body: 'Method Not Allowed' };
   }
 
   try {
@@ -14,6 +26,7 @@ export const handler: Handler = async (event, context) => {
     if (!apiKey) {
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ error: "GEMINI_API_KEY is not configured on Netlify. Please add it to your Site Settings > Environment Variables." })
       };
     }
@@ -39,14 +52,14 @@ export const handler: Handler = async (event, context) => {
     
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ text })
     };
   } catch (error: any) {
     console.error("Netlify Function AI Error:", error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ 
         error: "Failed to communicate with AI", 
         details: error?.message 
