@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import { db, auth } from '../lib/firebase.ts';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { notificationService } from '../services/notificationService';
 
@@ -156,19 +156,14 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
         photoURL: authPhotoURL
       });
 
-      // 2. Create Firestore Record - Firestore supports large objects (up to 1MB)
+      // 2. Update Firestore Record using updateDoc to preserve existing fields like createdAt and email
       const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
-        uid: user.uid,
+      await updateDoc(userRef, {
         displayName,
         photoURL,
         bio,
-        email: user.email || '',
         emailVerified: user.emailVerified,
-        createdAt: serverTimestamp(),
         lastSeen: serverTimestamp(),
-        isPremium: false,
-        hasanat: 0,
         onboardingCompleted: true
       });
 
