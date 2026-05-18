@@ -144,30 +144,30 @@ export default function HomeView({
   return (
     <div className="space-y-6 md:space-y-10 pb-20">
       {/* Sponsorship Banner */}
-      <div className="glass-panel border-brand-primary/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-8 overflow-hidden relative">
+      <div className="glass-panel border-brand-primary/20 p-6 md:p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-6 md:gap-8 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="w-16 h-16 rounded-[2.5rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20">
-            <Sparkles size={32} />
+        <div className="flex items-center gap-4 md:gap-6 relative z-10 w-full md:w-auto">
+          <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[2.5rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20 shrink-0">
+            <Sparkles size={24} className="md:w-8 md:h-8" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.5em] mb-1">Sponsored by Aloha Group</p>
-            <h4 className="text-xl font-black text-white px-1 uppercase tracking-tighter">Habibi x <span className="text-brand-primary">ISIS WRISTS</span></h4>
-            <p className="text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for the modern believer</p>
+            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] md:tracking-[0.5em] mb-1">Sponsored by Aloha Group</p>
+            <h4 className="text-lg md:text-xl font-black text-white px-1 uppercase tracking-tighter">Habibi x <span className="text-brand-primary">ISIS WRISTS</span></h4>
+            <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for the modern believer</p>
           </div>
         </div>
-        <button className="px-8 py-4 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest">Explore Collection</button>
+        <button className="w-full md:w-auto px-8 py-3 md:py-4 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest">Explore Collection</button>
       </div>
       
       {/* 1. BENTO HEADER GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
         
         {/* WELCOME BLOCK (LG:7) */}
-        <div className="lg:col-span-7 glass-panel-purple p-8 md:p-12 rounded-[2.5rem] flex flex-col justify-between relative overflow-hidden group">
+        <div className="lg:col-span-7 glass-panel-purple p-6 md:p-12 rounded-[2rem] md:rounded-[2.5rem] flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">
             <Sparkles size={180} />
           </div>
-          <div className="relative z-10 space-y-6">
+          <div className="relative z-10 space-y-4 md:space-y-6">
             <div className="flex items-center gap-2 text-brand-primary text-[10px] font-black uppercase tracking-[0.3em]">
               <Sparkles size={12} className="animate-pulse" />
               <span>SANCTUARY</span>
@@ -178,26 +178,26 @@ export default function HomeView({
                 <motion.div 
                   initial={{ scale: 0, rotate: -20 }}
                   animate={{ scale: 1, rotate: 0 }}
-                  className="bg-amber-400 text-amber-900 p-2 rounded-xl shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-bounce"
+                  className="bg-amber-400 text-amber-900 p-2 rounded-xl shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-bounce shrink-0"
                   title="Sanctuary Crown Holder"
                 >
-                  <Crown size={32} />
+                  <Crown size={24} className="md:w-8 md:h-8" />
                 </motion.div>
               )}
             </h1>
-            <p className="text-slate-400 text-lg max-w-md leading-relaxed">
+            <p className="text-slate-400 text-base md:text-lg max-w-md leading-relaxed">
               Your spiritual journey is thriving. You've read 12 more verses than yesterday!
             </p>
-            <div className="flex flex-wrap gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-2 md:pt-4">
               <button 
                 onClick={() => onNavigate('quran')}
-                className="px-8 py-4 bg-brand-primary text-brand-depth font-black rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 text-xs uppercase"
+                className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-brand-depth font-black rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs uppercase"
               >
                 Continue Quran <ArrowRight size={16} />
               </button>
               <button 
                 onClick={() => onNavigate('market')}
-                className="px-8 py-4 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all text-xs uppercase flex items-center gap-3"
+                className="w-full sm:w-auto px-8 py-4 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all text-xs uppercase flex items-center justify-center gap-3"
               >
                 Marketplace <ShoppingBag size={16} />
               </button>
@@ -206,7 +206,7 @@ export default function HomeView({
         </div>
 
         {/* CLOCK & PRAYER QUICK VIEW (LG:5) */}
-        <div className="lg:col-span-5 glass-panel p-8 md:p-10 rounded-[2.5rem] flex flex-col justify-between border-white/5 relative overflow-hidden">
+        <div className="lg:col-span-5 glass-panel p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] flex flex-col justify-between border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-start">
              <div className="space-y-1">
                 <div className="text-4xl md:text-5xl font-black text-slate-200 font-mono tracking-tighter">
@@ -214,30 +214,30 @@ export default function HomeView({
                 </div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{hDay} {hMonth} {hYear}</div>
              </div>
-             <button onClick={requestNotificationPermission} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-brand-primary border border-white/10 transition-all">
-               <Bell size={20} />
+             <button onClick={requestNotificationPermission} className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-brand-primary border border-white/10 transition-all">
+               <Bell size={18} className="md:w-5 md:h-5" />
              </button>
           </div>
 
-          <div className="space-y-4 mt-8">
+          <div className="space-y-3 mt-6 md:mt-8">
              {prayerData ? (
                <>
-                 <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                 <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl md:rounded-2xl border border-white/5">
                     <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-                          <Target size={20} />
+                       <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                          <Target size={18} className="md:w-5 md:h-5" />
                        </div>
                        <div>
                           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Next Prayer</p>
-                          <p className="text-sm font-black text-slate-200">{prayerData.nextPrayer}</p>
+                          <p className="text-xs md:text-sm font-black text-slate-200">{prayerData.nextPrayer}</p>
                        </div>
                     </div>
                     <div className="text-right">
-                       <p className="text-lg font-black text-brand-primary leading-none">{formatTime(prayerData.nextTime)}</p>
+                       <p className="text-base md:text-lg font-black text-brand-primary leading-none">{formatTime(prayerData.nextTime)}</p>
                     </div>
                  </div>
-                 <div className="flex items-center gap-2 text-[10px] text-slate-600 justify-center font-bold">
-                    <MapPin size={10} /> Active: {prayerData.currentPrayer} • {location?.lat.toFixed(2)}° N
+                 <div className="flex items-center gap-2 text-[9px] text-slate-600 justify-center font-bold">
+                    <MapPin size={10} /> Active: {prayerData.currentPrayer} • {location?.lat.toFixed(1)}°
                  </div>
                </>
              ) : (
@@ -371,7 +371,7 @@ export default function HomeView({
               <div className="w-20 h-20 rounded-[2rem] bg-brand-primary flex items-center justify-center text-brand-depth shadow-2xl relative">
                   <span className="text-4xl font-black">{level}</span>
                   <div className="absolute -top-2 -right-2 bg-brand-depth text-brand-primary p-2 rounded-full border border-brand-primary shadow-lg">
-                     <TrophyIcon size={16} />
+                     {currentUser && topUserId === currentUser.uid ? <Crown size={16} className="text-yellow-500 animate-bounce" /> : <Sparkles size={16} />}
                   </div>
               </div>
               <div>

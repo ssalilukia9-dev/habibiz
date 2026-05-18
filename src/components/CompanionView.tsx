@@ -10,6 +10,7 @@ import {
   MessageSquare,
   User,
   Bot,
+  Crown,
   Plus,
   History,
   Menu,
@@ -64,8 +65,43 @@ interface Conversation {
   createdAt: any;
 }
 
-export default function CompanionView() {
+export default function CompanionView({ 
+  isPremium, 
+  onShowPremium 
+}: { 
+  isPremium: boolean;
+  onShowPremium: () => void;
+}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  
+  // Return Gateway if not premium
+  if (!isPremium) {
+    return (
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-8 glass-panel rounded-[2.5rem] border-white/10 relative overflow-hidden bg-brand-sidebar/20">
+        <div className="absolute inset-0 islamic-pattern opacity-5 pointer-events-none" />
+        <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl animate-pulse">
+           <Sparkles size={48} />
+        </div>
+        <div className="text-center max-w-sm px-6 space-y-4 relative z-10">
+           <h2 className="text-3xl font-black text-white tracking-tight uppercase italic">Divine Consultation</h2>
+           <p className="text-slate-400 font-medium text-sm leading-relaxed">
+             Unlock the power of our **Premium AI Companion**. Deep Quranic insights, personalized spiritual guidance, and voice interaction.
+           </p>
+           <button 
+             onClick={onShowPremium}
+             className="w-full bg-brand-primary text-brand-depth font-black py-4 rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs uppercase"
+           >
+              Upgrade to Premium
+              <Crown size={20} className="text-brand-depth/40" />
+           </button>
+        </div>
+        <div className="flex gap-4 opacity-30 pt-4">
+           {[Bot, MessageSquare, History, Mic].map((Icon, i) => <Icon key={i} size={16} className="text-slate-500" />)}
+        </div>
+      </div>
+    );
+  }
+
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');

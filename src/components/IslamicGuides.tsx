@@ -230,9 +230,16 @@ const HAJJ_STEPS = [
 interface IslamicGuidesProps {
   initialTab?: 'hajj' | 'names';
   searchQuery?: string;
+  isPremium: boolean;
+  onShowPremium: () => void;
 }
 
-export default function IslamicGuides({ initialTab = 'hajj', searchQuery = '' }: IslamicGuidesProps) {
+export default function IslamicGuides({ 
+  initialTab = 'hajj', 
+  searchQuery = '',
+  isPremium,
+  onShowPremium
+}: IslamicGuidesProps) {
   const [activeTab, setActiveTab] = useState<'hajj' | 'names'>(initialTab);
   const [nameGender, setNameGender] = useState<'boys' | 'girls'>('boys');
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
@@ -356,7 +363,7 @@ export default function IslamicGuides({ initialTab = 'hajj', searchQuery = '' }:
                   <h4 className="text-xl md:text-2xl font-black text-white mb-2">Interactive Hajj Map</h4>
                   <p className="text-xs md:text-sm text-slate-400 font-medium">Explore the holy sites and track your journey in real-time.</p>
                </div>
-               <HajjMap />
+               <HajjMap isPremium={isPremium} onShowPremium={onShowPremium} />
             </div>
           </motion.div>
         ) : (

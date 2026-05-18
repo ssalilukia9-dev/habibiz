@@ -50,9 +50,49 @@ function PanToLocation({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
-export default function HajjMap() {
+export default function HajjMap({ 
+  isPremium, 
+  onShowPremium 
+}: { 
+  isPremium: boolean;
+  onShowPremium: () => void;
+}) {
   const [selectedLocation, setSelectedLocation] = useState(HAJJ_LOCATIONS[1]); // Default to Mina
   const [mapCenter, setMapCenter] = useState<[number, number]>([21.4133, 39.8933]);
+
+  if (!isPremium) {
+    return (
+      <div className="relative h-[400px] md:h-[500px] rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl flex flex-col items-center justify-center p-8 bg-brand-sidebar/40">
+        <div className="absolute inset-0 bg-brand-depth/60 backdrop-blur-sm z-10" />
+        <div className="absolute inset-0 grayscale opacity-20 pointer-events-none">
+           <MapContainer 
+            center={mapCenter} 
+            zoom={13} 
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+            dragging={false}
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          </MapContainer>
+        </div>
+        <div className="relative z-20 text-center space-y-6 max-w-sm">
+           <div className="w-20 h-20 bg-brand-primary/20 rounded-3xl mx-auto flex items-center justify-center text-brand-primary border border-brand-primary/30">
+              <Navigation size={40} className="animate-pulse" />
+           </div>
+           <h3 className="text-2xl font-black text-white uppercase italic tracking-tight leading-none">Holy Journey Tracker</h3>
+           <p className="text-slate-400 text-xs font-medium leading-relaxed">
+             Join the sacred pilgrimage with real-time location tracking for Hajj and Umrah. Interactive map of holy sites included in our Premium Sanctuary.
+           </p>
+           <button 
+             onClick={onShowPremium}
+             className="w-full bg-brand-primary text-brand-depth font-black py-4 rounded-2xl flex items-center justify-center gap-3 text-[10px] uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-brand-primary/20"
+           >
+              Unlock Sacred Map
+           </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

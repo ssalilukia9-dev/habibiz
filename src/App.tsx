@@ -25,6 +25,7 @@ import {
   Bell,
   Trophy,
   Medal,
+  Crown,
   Terminal,
   Volume2,
   Clock
@@ -45,7 +46,8 @@ import {
   where,
   onSnapshot,
   orderBy,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/utils.ts';
 
@@ -70,6 +72,7 @@ import ProfileView from './components/ProfileView.tsx';
 import OnboardingView from './components/OnboardingView.tsx';
 import SplashScreen from './components/SplashScreen.tsx';
 import UmmahHubView from './components/UmmahHubView.tsx';
+import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 
 export default function App() {
@@ -90,6 +93,7 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
+  const [showPremiumGateway, setShowPremiumGateway] = useState(false);
   const [userJoinedAt, setUserJoinedAt] = useState<Date | null>(null);
   const [hasanat, setHasanat] = useState(0);
   const [rank, setRank] = useState('Seeker');
@@ -249,7 +253,33 @@ export default function App() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setTopUserId(snapshot.docs[0].id);
+        const topUser = snapshot.docs[0];
+        setTopUserId(topUser.id);
+
+        // Habibi King Reward: If I am the top user, grant premium!
+        if (currentUser && topUser.id === currentUser.uid) {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const topUserData = topUser.data();
+          
+          // Only update if not already handled to avoid infinite loops
+          if (!topUserData.isPremium || !topUserData.isHabibiKing) {
+            updateDoc(userRef, { 
+              isPremium: true,
+              isHabibiKing: true,
+              habibiKingAwardedAt: serverTimestamp()
+            }).then(() => {
+              if (!isPremium) {
+                setIsPremium(true);
+                notificationService.notify(
+                  'Sacred Ascension',
+                  'You have been crowned the Habibi King! Premium Sanctuary access is yours.',
+                  'system',
+                  '/leaderboard'
+                );
+              }
+            }).catch(e => console.error("Failed to award Habibi King status", e));
+          }
+        }
       }
     }, (e) => {
       handleFirestoreError(e, OperationType.GET, 'users');
@@ -479,13 +509,12 @@ export default function App() {
   const popupId = useRef(0);
 
   const addHasanat = (amount: number) => {
-    const newVal = hasanat + amount;
-    setHasanat(newVal);
+    setHasanat(prev => prev + amount);
 
     if (currentUser) {
       const userRef = doc(db, 'users', currentUser.uid);
       updateDoc(userRef, { 
-        hasanat: newVal
+        hasanat: increment(amount)
       }).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.uid}`));
     }
 
@@ -721,6 +750,7 @@ export default function App() {
 
   return (
     <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
+      <HeadsUpNotification />
       <AnimatePresence>
         {showSplash && <SplashScreen key="splash" />}
       </AnimatePresence>
@@ -771,35 +801,38 @@ export default function App() {
         )}
       </AnimatePresence>
       {/* Background Glow */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-primary/5 blur-[150px] rounded-full pointer-events-none z-0"></div>
-<div id="trial-info" className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[800px] max-h-[800px] bg-brand-primary/5 blur-[120px] md:blur-[150px] rounded-full pointer-events-none z-0"></div>
+<div id="trial-info" className="fixed top-20 md:top-24 left-1/2 -translate-x-1/2 z-[100] pointer-events-none w-full flex justify-center px-6">
 <AnimatePresence>
 {currentUser && !isPremium && !trialExpired && showTrial && (
   <motion.div 
     initial={{ opacity: 0, y: -20 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.9 }}
-    className="bg-amber-500/20 backdrop-blur-md border border-amber-500/30 px-6 py-2 rounded-full overflow-hidden"
+    className="bg-brand-sidebar/90 md:bg-amber-500/20 backdrop-blur-xl border border-amber-500/30 px-4 md:px-6 py-3 md:py-2 rounded-[2rem] md:rounded-full shadow-2xl flex items-center gap-3"
   >
-     <div className="flex items-center gap-3">
-        <Sparkles size={14} className="text-amber-400 animate-pulse" />
-        <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">3-Day Trial Active</p>
-        <div className="w-[1px] h-3 bg-amber-500/30" />
-        <p className="text-[9px] font-bold text-white/70">
-           {Math.ceil((3 * 24 * 60 * 60 * 1000 - (Date.now() - (userJoinedAt?.getTime() || 0))) / (1000 * 60 * 60))} Hours Left
-        </p>
-     </div>
+           <div className="w-8 h-8 md:w-6 md:h-6 bg-amber-500/20 rounded-xl md:rounded-lg flex items-center justify-center text-amber-500 shrink-0">
+             <Sparkles size={14} className="animate-pulse" />
+           </div>
+           <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-3 leading-none">
+             <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1 md:mb-0">3-Day Trial Active</p>
+             <div className="hidden md:block w-[1px] h-3 bg-amber-500/30" />
+             <p className="text-[9px] font-bold text-white/40">
+                {Math.ceil((3 * 24 * 60 * 60 * 1000 - (Date.now() - (userJoinedAt?.getTime() || 0))) / (1000 * 60 * 60))} Hours Left
+             </p>
+           </div>
   </motion.div>
 )}
 </AnimatePresence>
 </div>
 
-      {currentUser && !isPremium && trialExpired && (
+      {((currentUser && !isPremium && trialExpired) || showPremiumGateway) && (
         <PremiumGateway onActivate={async () => {
           if (currentUser) {
              const userRef = doc(db, 'users', currentUser.uid);
              await updateDoc(userRef, { isPremium: true });
              setIsPremium(true);
+             setShowPremiumGateway(false);
           }
         }} />
       )}
@@ -988,6 +1021,11 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
+             {currentUser && topUserId === currentUser.uid && (
+               <div className="w-10 h-10 rounded-full border border-yellow-500 bg-yellow-500/10 flex items-center justify-center text-yellow-500 shadow-lg shadow-yellow-500/20" title="Habibi King">
+                  <Crown size={18} />
+               </div>
+             )}
              <button 
                 onClick={() => setDarkMode(!darkMode)}
                 className="w-10 h-10 rounded-full border border-brand-border bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors shadow-lg shadow-brand-primary/5"
@@ -1049,6 +1087,8 @@ export default function App() {
                         incrementDua={incrementDua}
                         incrementVerse={incrementVerse}
                         language={language}
+                        isPremium={isPremium}
+                        onShowPremium={() => setShowPremiumGateway(true)}
                       />
                     } />
                     <Route path="/market" element={<MarketView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
@@ -1062,14 +1102,15 @@ export default function App() {
                         onLogout={handleLogout} 
                         language={language} 
                         setLanguage={setLanguage} 
+                        isHabibiKing={currentUser && topUserId === currentUser.uid}
                       />
                     } />
                     <Route path="/settings" element={<SettingsView darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
-                    <Route path="/companion" element={<CompanionView />} />
+                    <Route path="/companion" element={<CompanionView isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
-                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
                     <Route path="/chat" element={<ChatView isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>

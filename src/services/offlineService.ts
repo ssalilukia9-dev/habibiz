@@ -1,5 +1,6 @@
 import localforage from 'localforage';
 import { Surah, Ayah } from '../types';
+import { RECITERS } from '../constants';
 
 const quranStore = localforage.createInstance({
   name: 'AnNurCache',
@@ -32,12 +33,40 @@ class OfflineService {
     return await quranStore.getItem<Surah[]>('surah_list');
   }
 
-  async saveAyahs(surahNumber: number, ayahs: Ayah[]) {
-    await quranStore.setItem(`surah_${surahNumber}_ayahs`, ayahs);
+  async saveAyahs(surahNumber: number, ayahs: Ayah[], reciterId?: number) {
+    const key = reciterId ? `surah_${surahNumber}_reciter_${reciterId}_ayahs` : `surah_${surahNumber}_ayahs`;
+    await quranStore.setItem(key, ayahs);
+    
+    // Store metadata about this download
+    const downloadedKey = `download_metadata`;
+    const metadata: any = await quranStore.getItem(downloadedKey) || {};
+    const metaKey = `${surahNumber}_${reciterId || 'default'}`;
+    metadata[metaKey] = {
+      timestamp: Date.now(),
+      ayahCount: ayahs.length,
+      isFullyCached: ayahs.every(a => !!a.audioBlob)
+    };
+    await quranStore.setItem(downloadedKey, metadata);
   }
 
-  async getAyahs(surahNumber: number): Promise<Ayah[] | null> {
-    return await quranStore.getItem<Ayah[]>(`surah_${surahNumber}_ayahs`);
+  async getAyahs(surahNumber: number, reciterId?: number): Promise<Ayah[] | null> {
+    const key = reciterId ? `surah_${surahNumber}_reciter_${reciterId}_ayahs` : `surah_${surahNumber}_ayahs`;
+    return await quranStore.getItem<Ayah[]>(key);
+  }
+
+  async getDownloadStatus(surahNumber: number, reciterId: number): Promise<{ isDownloaded: boolean; progress: number }> {
+    const ayahs = await this.getAyahs(surahNumber, reciterId);
+    if (!ayahs) return { isDownloaded: false, progress: 0 };
+    
+    const cachedCount = ayahs.filter(a => !!a.audioBlob).length;
+    return {
+      isDownloaded: cachedCount === ayahs.length,
+      progress: Math.round((cachedCount / ayahs.length) * 100)
+    };
+  }
+
+  async getAllDownloadedSurahs(): Promise<Record<string, any>> {
+    return await quranStore.getItem('download_metadata') || {};
   }
 
   async clearCache() {
@@ -103,6 +132,66 @@ class OfflineService {
       }
     } catch (error) {
       console.error('Offline sync failed:', error);
+      if (onProgress) onProgress({ total: 114, current: 0, status: 'error' });
+    }
+  }
+
+  async syncFullReciter(reciterId: number, onProgress?: (progress: SyncProgress) => void) {
+    try {
+      const reciter = RECITERS.find(r => r.id === reciterId);
+      if (!reciter) throw new Error('Reciter not found');
+
+      if (onProgress) onProgress({ total: 114, current: 0, status: 'syncing' });
+
+      for (let i = 1; i <= 114; i++) {
+        // First check if we already have the ayahs for this surah/reciter
+        let ayahs = await this.getAyahs(i, reciterId);
+        
+        if (!ayahs) {
+          // Fetch if missing
+          const ayahRes = await fetch(`https://api.alquran.cloud/v1/surah/${i}/editions/quran-uthmani,en.sahih,${reciter.slug}`);
+          const ayahData = await ayahRes.json();
+          
+          const uthmani = ayahData.data[0].ayahs;
+          const translation = ayahData.data[1].ayahs;
+          const audio = ayahData.data[2].ayahs;
+
+          ayahs = uthmani.map((a: any, idx: number) => ({
+            number: a.number,
+            text: a.text,
+            numberInSurah: a.numberInSurah,
+            translation: translation[idx].text,
+            audio: audio[idx].audio
+          }));
+        }
+
+        // Now download audio blobs for any missing ones
+        const updatedAyahs = [...ayahs];
+        for (let j = 0; j < updatedAyahs.length; j++) {
+          if (updatedAyahs[j].audio && !updatedAyahs[j].audioBlob) {
+            try {
+              const res = await fetch(updatedAyahs[j].audio, { mode: 'cors' });
+              if (res.ok) {
+                updatedAyahs[j].audioBlob = await res.blob();
+              }
+            } catch (e) {
+              console.warn(`Failed to sync audio for surah ${i} ayah ${j+1}`, e);
+            }
+          }
+        }
+
+        await this.saveAyahs(i, updatedAyahs, reciterId);
+
+        if (onProgress) {
+          onProgress({ 
+            total: 114, 
+            current: i, 
+            status: i === 114 ? 'completed' : 'syncing' 
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Reciter sync failed:', error);
       if (onProgress) onProgress({ total: 114, current: 0, status: 'error' });
     }
   }

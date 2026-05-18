@@ -45,7 +45,19 @@ interface FriendRequest {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-export default function UmmahHubView({ searchQuery, setSearchQuery, addHasanat }: { searchQuery: string, setSearchQuery: (q: string) => void, addHasanat?: (amount: number) => void }) {
+export default function UmmahHubView({ 
+  searchQuery, 
+  setSearchQuery, 
+  addHasanat,
+  isPremium,
+  onShowPremium
+}: { 
+  searchQuery: string, 
+  setSearchQuery: (q: string) => void, 
+  addHasanat?: (amount: number) => void,
+  isPremium: boolean,
+  onShowPremium: () => void
+}) {
   const [users, setUsers] = useState<UmmahUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({}); // toId -> status
@@ -138,27 +150,27 @@ export default function UmmahHubView({ searchQuery, setSearchQuery, addHasanat }
   return (
     <div className="space-y-12 pb-32">
        {/* Header Section */}
-       <section className="relative overflow-hidden rounded-[3.5rem] bg-gradient-to-br from-brand-primary/20 via-brand-depth to-brand-depth border border-brand-primary/20 p-10 md:p-16">
+       <section className="relative overflow-hidden rounded-[2.5rem] md:rounded-[3.5rem] bg-gradient-to-br from-brand-primary/20 via-brand-depth to-brand-depth border border-brand-primary/20 p-8 md:p-16">
           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[100px] -mr-32 -mt-32" />
-          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-             <div className="space-y-6">
+          <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
+             <div className="space-y-4 md:space-y-6">
                 <div className="flex items-center gap-4">
-                   <span className="px-4 py-1.5 bg-brand-primary text-brand-depth rounded-full text-[10px] font-black uppercase tracking-widest">Global Community</span>
-                   <div className="h-px w-24 bg-white/10" />
+                   <span className="px-3 md:px-4 py-1.5 bg-brand-primary text-brand-depth rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest">Global Community</span>
+                   <div className="h-px w-12 md:w-24 bg-white/10" />
                 </div>
                 <div className="space-y-2">
-                   <h2 className="text-5xl font-black text-white tracking-tight leading-none">Ummah<br/><span className="text-brand-primary">Hub</span></h2>
-                   <p className="text-slate-400 font-medium text-lg max-w-sm">Discover and connect with brothers and sisters on the same spiritual journey.</p>
+                   <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-none">Ummah<br/><span className="text-brand-primary">Hub</span></h2>
+                   <p className="text-slate-400 font-medium text-base md:text-lg max-w-sm">Discover and connect with brothers and sisters on the same spiritual journey.</p>
                 </div>
              </div>
 
-             <div className="flex flex-col gap-4 w-full md:w-auto">
+             <div className="flex flex-col gap-4 w-full lg:w-auto">
                 <div className="relative group">
                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-primary/40 group-focus-within:text-brand-primary transition-colors" size={20} />
                    <input 
                      type="text" 
                      placeholder="Search for a heart..."
-                     className="w-full md:w-96 bg-white/5 border border-white/10 rounded-[2rem] pl-14 pr-6 py-5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200 placeholder:text-slate-600"
+                     className="w-full lg:w-96 bg-white/5 border border-white/10 rounded-2xl md:rounded-[2rem] pl-14 pr-6 py-4 md:py-5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200 placeholder:text-slate-600"
                      value={searchQuery}
                      onChange={(e) => setSearchQuery(e.target.value)}
                    />
@@ -168,7 +180,7 @@ export default function UmmahHubView({ searchQuery, setSearchQuery, addHasanat }
                      <button
                        key={f}
                        onClick={() => setFilter(f as any)}
-                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-brand-primary text-brand-depth' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
+                       className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-brand-primary text-brand-depth' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
                      >
                        {f}
                      </button>

@@ -70,8 +70,8 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
   const others = users.slice(3);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-12 pb-32">
-      <header className="relative py-12 px-8 overflow-hidden rounded-[3rem] bg-brand-sidebar border border-white/5 shadow-2xl">
+    <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 pb-32">
+      <header className="relative py-8 md:py-12 px-6 md:px-8 overflow-hidden rounded-[2.5rem] md:rounded-[3rem] bg-brand-sidebar border border-white/5 shadow-2xl">
         {/* Animated Background Elements */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[100px] -mr-32 -mt-32" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[100px] -ml-32 -mb-32" />
@@ -80,14 +80,14 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="w-16 h-16 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/20 mb-2"
+            className="w-14 h-14 md:w-16 md:h-16 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/20 mb-2"
           >
-            <Trophy size={32} />
+            <Trophy size={28} className="md:w-8 md:h-8" />
           </motion.div>
-          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic">
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase italic leading-none">
             Hall of <span className="text-brand-primary">Souls</span>
           </h1>
-          <p className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[10px]">The Digital Sanctuary Leaders</p>
+          <p className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[9px] md:text-[10px]">The Digital Sanctuary Leaders</p>
         </div>
       </header>
 
@@ -96,57 +96,57 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="relative group h-full"
+          className="relative group w-full"
         >
           <div className="absolute inset-0 bg-brand-primary/20 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative bg-gradient-to-br from-brand-primary/10 to-brand-sidebar p-8 md:p-12 rounded-[3.5rem] border-2 border-brand-primary/30 shadow-2xl overflow-hidden">
+          <div className="relative bg-gradient-to-br from-brand-sidebar via-brand-sidebar to-brand-primary/10 p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] border-2 border-brand-primary/30 shadow-2xl overflow-hidden">
             
             {/* Visual Flair */}
-            <div className="absolute top-4 right-8 opacity-20 rotate-12">
-               <Crown size={120} className="text-brand-primary" />
+            <div className="absolute top-4 right-8 opacity-10 md:opacity-20 rotate-12 pointer-events-none">
+               <Crown size={120} className="text-brand-primary w-24 h-24 md:w-48 md:h-48" />
             </div>
 
-            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 relative z-10">
-              <div className="relative">
-                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] overflow-hidden border-4 border-brand-primary shadow-2xl relative z-10 bg-slate-800">
+            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-12 relative z-10">
+              <div className="relative shrink-0">
+                <div className="w-28 h-28 md:w-48 md:h-48 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-2 md:border-4 border-brand-primary shadow-2xl relative z-10 bg-slate-800">
                   {habibiKing.photoURL ? (
                     <img src={habibiKing.photoURL} alt={habibiKing.displayName} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-500">
-                      <UserIcon size={48} />
+                      <UserIcon size={40} />
                     </div>
                   )}
                 </div>
                 <motion.div 
-                   animate={{ rotate: [0, 10, -10, 0] }}
+                   animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
                    transition={{ duration: 4, repeat: Infinity }}
-                   className="absolute -top-6 -right-6 w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-brand-depth shadow-xl z-20"
+                   className="absolute -top-4 -right-4 md:-top-6 md:-right-6 w-12 h-12 md:w-16 md:h-16 bg-yellow-400 rounded-xl md:rounded-2xl flex items-center justify-center text-brand-depth shadow-xl z-20"
                 >
-                   <Crown size={32} />
+                   <Crown size={24} className="md:w-8 md:h-8" />
                 </motion.div>
               </div>
 
-              <div className="text-center md:text-left space-y-4 flex-1">
+              <div className="text-center md:text-left space-y-4 flex-1 w-full">
                 <div className="space-y-1">
-                   <div className="flex items-center justify-center md:justify-start gap-3">
-                      <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight uppercase italic underline decoration-brand-primary decoration-4 underline-offset-8">
+                   <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4">
+                      <h2 className="text-2xl md:text-5xl font-black text-white tracking-tight uppercase italic decoration-brand-primary decoration-2 md:decoration-4 underline underline-offset-4 md:underline-offset-8">
                        Habibi King
                       </h2>
                       {habibiKing.isPremium && (
-                        <div className="px-3 py-1 bg-brand-primary rounded-lg text-brand-depth text-[10px] font-black uppercase">Pro</div>
+                        <div className="px-3 py-1 bg-brand-primary rounded-lg text-brand-depth text-[9px] md:text-[10px] font-black uppercase">Guardian</div>
                       )}
                    </div>
-                   <p className="text-xl md:text-2xl text-brand-primary font-bold">{habibiKing.displayName || 'Anonymous Sanctuary Soul'}</p>
+                   <p className="text-lg md:text-2xl text-brand-primary font-bold">{habibiKing.displayName || 'Anonymous Warrior'}</p>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Current Points</p>
-                      <p className="text-2xl font-black text-white">{habibiKing.hasanat.toLocaleString()}</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 pt-2 md:pt-4 w-full">
+                   <div className="bg-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/5">
+                      <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Spirit Points</p>
+                      <p className="text-lg md:text-2xl font-black text-white leading-none">{habibiKing.hasanat.toLocaleString()}</p>
                    </div>
-                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Global Title</p>
-                      <p className="text-2xl font-black text-brand-primary uppercase italic text-xs tracking-tighter">Sultan of Spirit</p>
+                   <div className="bg-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/5">
+                      <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Global Title</p>
+                      <p className="text-[10px] md:text-xs font-black text-brand-primary uppercase italic tracking-tighter leading-none mt-1">Sultan of Spirit</p>
                    </div>
                 </div>
               </div>

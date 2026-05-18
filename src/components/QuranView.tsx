@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SURAH_LIST, JUZ_LIST, RECITERS } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
-import { BookOpen, Hash, ArrowRight, Volume2, Check, ChevronDown, Sparkles } from 'lucide-react';
+import { BookOpen, Hash, ArrowRight, Volume2, Check, Crown, ChevronDown, Sparkles } from 'lucide-react';
 import SurahDetail from './SurahDetail.tsx';
 import JuzDetail from './JuzDetail.tsx';
 
@@ -29,11 +29,23 @@ export default function QuranView({
   onReciterChange,
   addHasanat,
   incrementVerse,
-  language
-}: QuranViewProps) {
+  language,
+  isPremium,
+  onShowPremium
+}: QuranViewProps & { isPremium: boolean; onShowPremium: () => void }) {
   const [viewMode, setViewMode] = useState<'surah' | 'juz'>('surah');
   const [showReciterList, setShowReciterList] = useState(false);
   const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
+
+  const handleReciterSelect = (id: number) => {
+    // First 2 reciters are free
+    if (id > 2 && !isPremium) {
+      onShowPremium();
+      return;
+    }
+    onReciterChange(id);
+    setShowReciterList(false);
+  };
 
   if (selectedSurah) {
     return (
@@ -129,14 +141,11 @@ export default function QuranView({
                   {RECITERS.map(r => (
                     <button
                       key={r.id}
-                      onClick={() => {
-                        onReciterChange(r.id);
-                        setShowReciterList(false);
-                      }}
-                      className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${selectedReciter === r.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'hover:bg-white/5 text-slate-300'}`}
+                      onClick={() => handleReciterSelect(r.id)}
+                      className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${selectedReciter === r.id ? 'bg-brand-primary text-brand-depth shadow-lg' : 'hover:bg-white/5 text-slate-300'} ${r.id > 2 && !isPremium ? 'opacity-50' : ''}`}
                     >
                       <div className="text-left min-w-0">
-                        <p className={`text-sm font-bold truncate ${selectedReciter === r.id ? 'text-brand-depth' : 'text-slate-200'}`}>{r.name}</p>
+                        <p className={`text-sm font-bold truncate ${selectedReciter === r.id ? 'text-brand-depth' : 'text-slate-200'}`}>{r.name} {r.id > 2 && !isPremium && <Crown size={12} className="inline ml-1 text-amber-500" />}</p>
                         <p className={`text-[10px] uppercase font-bold tracking-tighter opacity-60 ${selectedReciter === r.id ? 'text-brand-depth/70' : 'text-slate-500'}`}>{r.sub}</p>
                       </div>
                       {selectedReciter === r.id && <Check size={16} className="flex-shrink-0" />}

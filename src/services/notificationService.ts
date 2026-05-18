@@ -56,6 +56,22 @@ class NotificationService {
       actionUrl
     };
 
+    // Median.co / GoNative Bridge support
+    // This triggers native device-level alerts that can wake the screen
+    if ((window as any).median || (window as any).gonative) {
+      const bridge = (window as any).median || (window as any).gonative;
+      try {
+        bridge.nativebridge.postMessage(JSON.stringify({
+          type: 'notification',
+          title,
+          message: body,
+          actionUrl: actionUrl || '/'
+        }));
+      } catch (e) {
+        console.warn("Median bridge call failed", e);
+      }
+    }
+
     // Add to in-app list
     this.notifications.unshift(notification);
     this.notifications = this.notifications.slice(0, 50); // Keep last 50
@@ -75,44 +91,42 @@ class NotificationService {
     // Trigger System Notification
     if (Notification.permission === 'granted') {
       const iconUrl = 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7';
-      try {
-        const n = new Notification(title, {
-          body,
-          icon: iconUrl,
-          badge: iconUrl,
-          tag: type,
-          vibrate: [200, 100, 200],
-          requireInteraction: type === 'community',
-          renotify: true,
-          silent: false
-        } as any);
+      const notificationOptions: any = {
+        body,
+        icon: iconUrl,
+        badge: iconUrl,
+        tag: type,
+        vibrate: [500, 110, 500, 110, 450, 110, 200, 110, 170, 40, 450, 110, 200, 110, 170, 40], // Complex "attention" pattern
+        requireInteraction: type === 'community' || type === 'prayer',
+        renotify: true,
+        silent: false,
+        priority: 'high',
+        dir: 'auto'
+      };
 
-        n.onclick = (e) => {
-          e.preventDefault();
-          window.focus();
-          if (actionUrl) {
-             if (actionUrl.startsWith('#')) {
-                window.location.hash = actionUrl;
-             } else {
-                window.location.pathname = actionUrl;
-             }
-          }
-          n.close();
-        };
-      } catch (e) {
-        // Fallback for some browsers/Android versions that require SW for background notifications
+      try {
+        // Try SW first if controller exists (better for "heads-up" on mobile)
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(title, {
-              body,
-              icon: iconUrl,
-              badge: iconUrl,
-              tag: type,
-              vibrate: [200, 100, 200],
-              data: { actionUrl }
-            } as any);
+            registration.showNotification(title, notificationOptions);
           });
+        } else {
+          const n = new Notification(title, notificationOptions);
+          n.onclick = (e) => {
+            e.preventDefault();
+            window.focus();
+            if (actionUrl) {
+               if (actionUrl.startsWith('#')) {
+                  window.location.hash = actionUrl;
+               } else {
+                  window.location.pathname = actionUrl;
+               }
+            }
+            n.close();
+          };
         }
+      } catch (e) {
+        console.error("Notification trigger failed", e);
       }
     }
 

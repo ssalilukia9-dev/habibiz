@@ -158,14 +158,30 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
 
       // 2. Update Firestore Record using updateDoc to preserve existing fields like createdAt and email
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      const profileData = {
         displayName,
         photoURL,
         bio,
+        email: user.email || '',
         emailVerified: user.emailVerified,
         lastSeen: serverTimestamp(),
         onboardingCompleted: true
-      });
+      };
+      
+      await updateDoc(userRef, profileData);
+
+      // 3. Create/Update Secondary Profile (Email-based) for app-wide indexing
+      if (user.email) {
+        const emailRef = doc(db, 'profiles', user.email.toLowerCase());
+        await setDoc(emailRef, {
+          uid: user.uid,
+          displayName,
+          photoURL,
+          bio,
+          lastSeen: serverTimestamp(),
+          isPremium: false
+        }, { merge: true });
+      }
 
       notificationService.notify('Welcome to Sanctuary', `Peace be upon you, ${displayName}. Your profile is ready.`, 'system');
       onComplete();

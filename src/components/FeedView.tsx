@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -28,116 +28,10 @@ import {
   Filter,
   Flag
 } from 'lucide-react';
-
-interface Comment {
-  id: string;
-  user: string;
-  text: string;
-  time: string;
-  replies?: Comment[];
-}
-
-interface Poll {
-  options: { id: string; text: string; votes: number }[];
-  totalVotes: number;
-  userSelection?: string;
-}
-
-interface Post {
-  id: string;
-  user: string;
-  isScholar?: boolean;
-  content: string;
-  time: string;
-  supportCount: number;
-  reconsiderCount: number;
-  userVote: 'support' | 'reconsider' | null;
-  comments: Comment[];
-  category: 'Quran' | 'Hadith' | 'Reminders' | 'Lifestyle' | 'Charity';
-  image?: string;
-  isFlagged?: boolean;
-  isVerified?: boolean;
-  approved?: boolean;
-  poll?: Poll;
-}
-
-const INITIAL_POSTS: Post[] = [
-  {
-    id: 'nt-1',
-    user: 'Al-Azhar Student',
-    isScholar: true,
-    content: "Reflecting on Surah Al-Kahf today. The story of the youth in the cave teaches us that even when the whole world seems against truth, Allah's protection is sufficient. #Quran #Tafsir",
-    time: '2h ago',
-    supportCount: 450,
-    reconsiderCount: 2,
-    userVote: 'support',
-    comments: [
-      { 
-        id: 'c1', 
-        user: 'Zaid', 
-        text: 'Beautiful reflection, JazakAllah Khair.', 
-        time: '1h ago',
-        replies: [
-          { id: 'r1', user: 'Layla', text: 'Indeed, Allah is the best of protectors.', time: '45m ago' }
-        ]
-      }
-    ],
-    category: 'Quran',
-    approved: true
-  },
-  {
-    id: 'nt-2',
-    user: 'Sheikh Ibrahim',
-    isScholar: true,
-    content: "Hadith of the Day: 'The best of you are those who are best to their families.' Sunan al-Tirmidhi. A reminder for us all to start our kindness at home.",
-    time: '4h ago',
-    supportCount: 1200,
-    reconsiderCount: 5,
-    userVote: null,
-    comments: [],
-    category: 'Hadith',
-    approved: true
-  },
-  {
-    id: 'nt-3',
-    user: 'Help Gaza Relief',
-    isVerified: true,
-    content: "Assalamu Alaikum Ummah, we are looking for volunteers for the upcoming food drive this Saturday at Masjid Al-Noor. Please DM if interested! #Community #Charity",
-    time: '6h ago',
-    supportCount: 89,
-    reconsiderCount: 0,
-    userVote: null,
-    comments: [],
-    category: 'Charity',
-    image: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=2070&auto=format&fit=crop',
-    approved: true
-  },
-  {
-    id: 'nt-flagged-1',
-    user: 'UnknownUser',
-    content: "This content was flagged because it appeared to contain non-compliant themes or inappropriate discussion not fitting for NoorTalk's sacred environment.",
-    time: '8h ago',
-    supportCount: 0,
-    reconsiderCount: 150,
-    userVote: null,
-    comments: [],
-    category: 'Lifestyle',
-    isFlagged: true,
-    approved: false
-  },
-  {
-    id: 'nt-4',
-    user: 'Halal Living',
-    content: "Quick tip for meal prepping halal: Focus on high-protein legumes and organic zabiha meat. It fuels the body and the soul. #HalalLifestyle",
-    time: '12h ago',
-    supportCount: 230,
-    reconsiderCount: 12,
-    userVote: null,
-    comments: [],
-    category: 'Lifestyle',
-    approved: true
-  }
-];
+import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase.ts';
+import { handleFirestoreError, OperationType } from '../lib/utils.ts';
+import PremiumGateway from './PremiumGateway';
 
 const SIDEBAR_TOPICS = [
   { name: 'Quran & Tafsir', icon: BookOpen, count: '1.2k' },
@@ -159,12 +53,54 @@ const ACTIVE_SCHOLARS = [
   { name: 'Ustad Abu Bakr', tag: 'Imam' }
 ];
 
-export default function FeedView({ addHasanat }: { addHasanat?: (amount: number) => void }) {
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
+interface Comment {
+  id: string;
+  userId: string;
+  user: string;
+  text: string;
+  time: any;
+  replies?: Comment[];
+}
+
+interface Poll {
+  options: { id: string; text: string; votes: number }[];
+  totalVotes: number;
+  userSelections?: Record<string, string>; // userId -> optionId
+}
+
+interface Post {
+  id: string;
+  userId: string;
+  user: string;
+  isScholar?: boolean;
+  content: string;
+  time: any;
+  supportCount: number;
+  reconsiderCount: number;
+  userVotes?: Record<string, 'support' | 'reconsider'>;
+  comments: Comment[];
+  category: string;
+  image?: string;
+  isFlagged?: boolean;
+  isVerified?: boolean;
+  approved?: boolean;
+  poll?: Poll;
+}
+
+export default function FeedView({ 
+  addHasanat, 
+  isPremium,
+  onShowPremium 
+}: { 
+  addHasanat?: (amount: number) => void;
+  isPremium: boolean;
+  onShowPremium: () => void;
+}) {
+  const [posts, setPosts] = useState<Post[]>([]);
   const [newPost, setNewPost] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [isScholarMode, setIsScholarMode] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   // Comment/Reply state
   const [replyingTo, setReplyingTo] = useState<{ postId: string, commentId: string } | null>(null);
@@ -178,75 +114,123 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
   const [showPollEditor, setShowPollEditor] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleVote = (postId: string, type: 'support' | 'reconsider') => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        if (p.userVote === type) {
-          // Untoggle
-          return {
-            ...p,
-            userVote: null,
-            [type === 'support' ? 'supportCount' : 'reconsiderCount']: p[type === 'support' ? 'supportCount' : 'reconsiderCount'] - 1
-          };
-        } else {
-          // Switch or new toggle
-          const oldVote = p.userVote;
-          let newP = { ...p, userVote: type };
-          if (oldVote) {
-             newP[oldVote === 'support' ? 'supportCount' : 'reconsiderCount']--;
-          }
-          newP[type === 'support' ? 'supportCount' : 'reconsiderCount']++;
-          return newP;
-        }
+  // Fetch Posts from Firestore
+  useEffect(() => {
+    const q = query(
+      collection(db, 'posts'),
+      orderBy('time', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        // Map time if it exists
+        timeDisplay: doc.data().time ? new Date(doc.data().time.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'
+      } as any));
+      setPosts(list);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'posts');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleVote = async (postId: string, type: 'support' | 'reconsider') => {
+    if (!auth.currentUser) return;
+    const userId = auth.currentUser.uid;
+    const postRef = doc(db, 'posts', postId);
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    const currentVote = post.userVotes?.[userId];
+    const updates: any = {};
+
+    if (currentVote === type) {
+      // Remove vote
+      updates[`userVotes.${userId}`] = null;
+      updates[type === 'support' ? 'supportCount' : 'reconsiderCount'] = increment(-1);
+    } else {
+      // Add or change vote
+      if (currentVote) {
+        updates[currentVote === 'support' ? 'supportCount' : 'reconsiderCount'] = increment(-1);
       }
-      return p;
-    }));
+      updates[`userVotes.${userId}`] = type;
+      updates[type === 'support' ? 'supportCount' : 'reconsiderCount'] = increment(1);
+    }
+
+    try {
+      await updateDoc(postRef, updates);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}`);
+    }
   };
 
-  const handlePostSubmit = () => {
+  const handlePostSubmit = async () => {
     if (!newPost.trim() && !imagePreview && !showPollEditor) return;
+    if (!auth.currentUser) return;
+
+    // Premium Check for Media/Polls
+    if ((imagePreview || showPollEditor) && !isPremium) {
+      onShowPremium();
+      return;
+    }
     
     // AI Flagging Simulation
     const isSensitive = ['debate', 'attack', 'haram', 'politics'].some(word => 
       newPost.toLowerCase().includes(word)
     );
 
-    let pollData: Post['poll'] | undefined;
+    let pollData: any | undefined;
     if (showPollEditor && pollOptions.filter(o => o.trim()).length >= 2) {
       pollData = {
         options: pollOptions
           .filter(o => o.trim())
           .map((text, i) => ({ id: `opt-${i}`, text, votes: 0 })),
-        totalVotes: 0
+        totalVotes: 0,
+        userSelections: {}
       };
     }
 
-    const post: Post = {
-      id: `nt-${Date.now()}`,
-      user: 'You',
+    const postData = {
+      userId: auth.currentUser.uid,
+      user: auth.currentUser.displayName || 'Spiritual Soul',
       content: newPost,
-      time: 'Just now',
+      time: serverTimestamp(),
       supportCount: 0,
       reconsiderCount: 0,
-      userVote: null,
+      userVotes: {},
       comments: [],
       category: 'Reminders',
       isFlagged: isSensitive,
       approved: !isSensitive,
-      image: imagePreview || undefined,
+      image: imagePreview || null,
       poll: pollData
     };
-    setPosts([post, ...posts]);
-    if (addHasanat) addHasanat(50); // Points for publishing
-    setNewPost('');
-    setImagePreview(null);
-    setShowPollEditor(false);
-    setPollOptions(['', '']);
+
+    try {
+      await addDoc(collection(db, 'posts'), postData);
+      if (addHasanat) addHasanat(50);
+      setNewPost('');
+      setImagePreview(null);
+      setShowPollEditor(false);
+      setPollOptions(['', '']);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'posts');
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Media is premium
+    if (!isPremium) {
+      onShowPremium();
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -257,28 +241,36 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
     }
   };
 
-  const handlePollVote = (postId: string, optionId: string) => {
-    if (addHasanat) addHasanat(10); // Points for engaging in poll
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId && p.poll && !p.poll.userSelection) {
-        return {
-          ...p,
-          poll: {
-            ...p.poll,
-            userSelection: optionId,
-            totalVotes: p.poll.totalVotes + 1,
-            options: p.poll.options.map(opt => 
-              opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt
-            )
-          }
-        };
+  const handlePollVote = async (postId: string, optionId: string) => {
+    if (!auth.currentUser) return;
+    const userId = auth.currentUser.uid;
+    const postRef = doc(db, 'posts', postId);
+    const post = posts.find(p => p.id === postId);
+    
+    if (post && post.poll && !post.poll.userSelections?.[userId]) {
+      const newOptions = post.poll.options.map(opt => 
+        opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt
+      );
+
+      try {
+        await updateDoc(postRef, {
+          'poll.totalVotes': increment(1),
+          'poll.options': newOptions,
+          [`poll.userSelections.${userId}`]: optionId
+        });
+        if (addHasanat) addHasanat(10);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/poll`);
       }
-      return p;
-    }));
+    }
   };
 
-  const handleApprovePost = (postId: string) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, isFlagged: false, approved: true } : p));
+  const handleApprovePost = async (postId: string) => {
+    try {
+      await updateDoc(doc(db, 'posts', postId), { isFlagged: false, approved: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}`);
+    }
   };
 
   const handleReportPost = (postId: string) => {
@@ -299,74 +291,47 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
     });
   };
 
-  const executeConfirmedAction = () => {
+  const executeConfirmedAction = async () => {
     if (!confirmAction) return;
 
-    if (confirmAction.type === 'report') {
-      setPosts(prev => prev.map(p => p.id === confirmAction.id ? { ...p, isFlagged: true, approved: false } : p));
-    } else if (confirmAction.type === 'delete') {
-      setPosts(prev => prev.filter(p => p.id !== confirmAction.id));
+    try {
+      if (confirmAction.type === 'report') {
+        await updateDoc(doc(db, 'posts', confirmAction.id), { isFlagged: true, approved: false });
+      } else if (confirmAction.type === 'delete') {
+        await deleteDoc(doc(db, 'posts', confirmAction.id));
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `posts/${confirmAction.id}`);
     }
     
     setConfirmAction(null);
   };
 
-  const handleReplySubmit = (postId: string, commentId: string) => {
-    if (!replyText.trim()) return;
-
-    const newReply: Comment = {
-      id: `r-${Date.now()}`,
-      user: 'You',
-      text: replyText,
-      time: 'Just now'
-    };
-
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          comments: post.comments.map(comment => {
-            if (comment.id === commentId) {
-              return {
-                ...comment,
-                replies: [...(comment.replies || []), newReply]
-              };
-            }
-            return comment;
-          })
-        };
-      }
-      return post;
-    }));
-
-    if (addHasanat) addHasanat(15); // Points for replying
-    setReplyText('');
-    setReplyingTo(null);
-  };
-
-  const handleCommentSubmit = (postId: string) => {
-    if (!activePostComment || activePostComment.postId !== postId || !activePostComment.text.trim()) return;
+  const handleCommentSubmit = async (postId: string) => {
+    if (!activePostComment || activePostComment.postId !== postId || !activePostComment.text.trim() || !auth.currentUser) return;
 
     const newComment: Comment = {
       id: `c-${Date.now()}`,
-      user: 'You',
+      userId: auth.currentUser.uid,
+      user: auth.currentUser.displayName || 'User',
       text: activePostComment.text,
-      time: 'Just now',
+      time: new Date().toISOString(),
       replies: []
     };
 
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const post = posts.find(p => p.id === postId);
+      if (post) {
+        await updateDoc(postRef, {
           comments: [...post.comments, newComment]
-        };
+        });
       }
-      return post;
-    }));
-
-    if (addHasanat) addHasanat(20); // Points for commenting
-    setActivePostComment(null);
+      if (addHasanat) addHasanat(20);
+      setActivePostComment(null);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/comments`);
+    }
   };
 
   const RenderComment = ({ comment, postId, isReply = false }: { comment: Comment, postId: string, isReply?: boolean }) => {
@@ -381,50 +346,13 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-white">{comment.user}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase">{comment.time}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Just now</span>
             </div>
             <p className="text-sm text-slate-300 font-medium leading-relaxed">
               {comment.text}
             </p>
-            {!isReply && (
-              <button 
-                onClick={() => setReplyingTo(isReplying ? null : { postId, commentId: comment.id })}
-                className="text-[10px] font-black text-noor-gold uppercase tracking-widest hover:text-white transition-colors"
-              >
-                {isReplying ? 'Cancel' : 'Reply'}
-              </button>
-            )}
           </div>
         </div>
-
-        {isReplying && (
-          <div className="ml-12 flex gap-3">
-            <input 
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Write a reply..."
-              autoFocus
-              className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-noor-gold/50"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleReplySubmit(postId, comment.id);
-              }}
-            />
-            <button 
-              onClick={() => handleReplySubmit(postId, comment.id)}
-              className="p-2 bg-noor-gold text-black rounded-xl hover:scale-105 transition-all"
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        )}
-
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="space-y-4 pt-2">
-            {comment.replies.map(reply => (
-              <RenderComment key={reply.id} comment={reply} postId={postId} isReply={true} />
-            ))}
-          </div>
-        )}
       </div>
     );
   };
@@ -644,7 +572,11 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
           <AnimatePresence mode="popLayout">
             {posts
               .filter(p => activeCategory === 'All' || p.category === activeCategory)
-              .map((post) => (
+              .map((post) => {
+                const myVote = post.userVotes?.[auth.currentUser?.uid || ''];
+                const myPollSelection = post.poll?.userSelections?.[auth.currentUser?.uid || ''];
+
+                return (
               <motion.div 
                 key={post.id}
                 layout
@@ -733,12 +665,12 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
                                 const percentage = post.poll!.totalVotes > 0 
                                   ? Math.round((opt.votes / post.poll!.totalVotes) * 100) 
                                   : 0;
-                                const isSelected = post.poll?.userSelection === opt.id;
+                                const isSelected = myPollSelection === opt.id;
 
                                 return (
                                   <button
                                     key={opt.id}
-                                    disabled={!!post.poll!.userSelection}
+                                    disabled={!!myPollSelection}
                                     onClick={() => handlePollVote(post.id, opt.id)}
                                     className="w-full relative h-12 rounded-xl overflow-hidden group/poll border border-white/10 hover:border-noor-gold/30 transition-all text-left"
                                   >
@@ -750,14 +682,14 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
                                       <span className={`text-xs font-bold ${isSelected ? 'text-noor-gold' : 'text-white'}`}>
                                         {opt.text}
                                       </span>
-                                      {post.poll!.userSelection && (
+                                      {myPollSelection && (
                                         <span className="text-[10px] font-black text-slate-500">{percentage}%</span>
                                       )}
                                     </div>
                                   </button>
                                 );
                               })}
-                              {post.poll.userSelection && (
+                              {myPollSelection && (
                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">
                                   {post.poll.totalVotes} total responses
                                 </p>
@@ -841,14 +773,14 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
                          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl">
                             <button 
                               onClick={() => handleVote(post.id, 'support')}
-                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${post.userVote === 'support' ? 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/30' : 'text-slate-400 hover:text-noor-emerald'}`}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${myVote === 'support' ? 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/30' : 'text-slate-400 hover:text-noor-emerald'}`}
                             >
                                <ArrowUp size={16} />
                                Support ({post.supportCount})
                             </button>
                             <button 
                               onClick={() => handleVote(post.id, 'reconsider')}
-                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${post.userVote === 'reconsider' ? 'bg-red-500/20 text-red-500' : 'text-slate-400 hover:text-red-500'}`}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${myVote === 'reconsider' ? 'bg-red-500/20 text-red-500' : 'text-slate-400 hover:text-red-500'}`}
                             >
                                <ArrowDown size={16} />
                                Reconsider ({post.reconsiderCount})
@@ -889,7 +821,8 @@ export default function FeedView({ addHasanat }: { addHasanat?: (amount: number)
                   </>
                 )}
               </motion.div>
-            ))}
+            );
+          })}
           </AnimatePresence>
         </div>
       </div>

@@ -68,6 +68,18 @@ export default function NotificationsView() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => {
+              notificationService.notify(
+                'Sacred Signal Test', 
+                'This is how you will receive divine reminders and community updates. Peace be upon you.', 
+                'system'
+              );
+            }}
+            className="px-6 py-3 bg-brand-primary text-brand-depth rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/30"
+          >
+            Test Signals
+          </button>
+          <button 
+            onClick={() => {
               if (confirm('Permanently clear all notification history?')) notificationService.clearAll();
             }}
             className="p-3 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20 hover:bg-red-500/20 transition-all"

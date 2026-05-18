@@ -45,7 +45,7 @@ service cloud.firestore {
              (data.get('displayName', '') == null || (data.displayName is string && data.displayName.size() <= 200)) &&
              data.email is string && data.email.size() <= 100 &&
              data.emailVerified is bool &&
-             (data.get('photoURL', '') == null || (data.photoURL is string && data.photoURL.size() <= 200000)) &&
+             (data.get('photoURL', '') == null || (data.photoURL is string && data.photoURL.size() <= 1000000)) &&
              data.hasanat is number &&
              data.isPremium is bool &&
              data.lastSeen == request.time &&
@@ -89,6 +89,42 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId) && isValidAdhkarProgress(incoming()); 
       }
+    }
+
+    // ---------------------------------------------------------
+    // Secondary Profiles (Searchable index by email)
+    // ---------------------------------------------------------
+    
+    match /profiles/{email} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        (incoming().uid == request.auth.uid) || 
+        (resource != null && resource.data.uid == request.auth.uid)
+      );
+    }
+
+    // ---------------------------------------------------------
+    // NoorTalk Feed Posts
+    // ---------------------------------------------------------
+    
+    function isValidPost(data) {
+      return data.keys().hasAll(['userId', 'user', 'content', 'time', 'category', 'isFlagged', 'approved']) &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.time == request.time;
+    }
+
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidPost(incoming());
+      allow update: if isSignedIn() && (
+        // Owner can edit content or delete (sets to flagged or deleted)
+        (isOwner(existing().userId) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['content', 'category', 'isFlagged', 'approved', 'image', 'poll'])) ||
+        // Anyone can vote or add comment metadata
+        (incoming().diff(existing()).affectedKeys().hasOnly(['supportCount', 'reconsiderCount', 'userVotes', 'comments', 'poll']))
+      );
+      allow delete: if isOwner(existing().userId);
     }
 
     // ---------------------------------------------------------

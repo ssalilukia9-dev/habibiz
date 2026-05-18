@@ -122,7 +122,7 @@ export default function SurahDetail({
       
       const reciter = RECITERS.find(r => r.id === selectedReciter);
       const isOfflineMode = localStorage.getItem('offline-mode') === 'true';
-      const cachedAyahs = await offlineService.getAyahs(surah.number);
+      const cachedAyahs = await offlineService.getAyahs(surah.number, selectedReciter);
       
       if (isOfflineMode && cachedAyahs) {
         setAyahs(cachedAyahs);
@@ -309,7 +309,7 @@ export default function SurahDetail({
         setDownloadProgress(Math.round(((i + 1) / updatedAyahs.length) * 100));
       }
       setAyahs(updatedAyahs);
-      await offlineService.saveAyahs(surah.number, updatedAyahs);
+      await offlineService.saveAyahs(surah.number, updatedAyahs, selectedReciter);
       localStorage.setItem('offline-mode', 'true');
       notificationService.notify('Surah Downloaded', `${surah.englishName} is now fully available offline.`, 'system');
     } catch (error) {
@@ -355,7 +355,7 @@ export default function SurahDetail({
       );
       
       setAyahs(updatedAyahs);
-      await offlineService.saveAyahs(surah.number, updatedAyahs);
+      await offlineService.saveAyahs(surah.number, updatedAyahs, selectedReciter);
       notificationService.notify('Ayah Synchronized', `Ayah ${ayah.numberInSurah} is now available offline.`, 'system');
       console.log(`Saved Ayah ${ayah.number} offline.`);
     } catch (error) {

@@ -32,7 +32,8 @@ import {
   Smartphone,
   Zap,
   Volume2,
-  Play
+  Play,
+  Crown
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -99,9 +100,10 @@ interface ProfileViewProps {
   onLogout: () => void;
   language: string;
   setLanguage: (val: string) => void;
+  isHabibiKing?: boolean;
 }
 
-export default function ProfileView({ darkMode, setDarkMode, onLogout, language, setLanguage }: ProfileViewProps) {
+export default function ProfileView({ darkMode, setDarkMode, onLogout, language, setLanguage, isHabibiKing }: ProfileViewProps) {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
   const [userData, setUserData] = useState<any>(null);
@@ -554,6 +556,11 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
                 <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em]">Spirit Seeker Profile</span>
                 {userData.isPremium && (
                   <span className="bg-brand-primary/10 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Premium Elite</span>
+                )}
+                {isHabibiKing && (
+                  <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                    <Crown size={8} /> Habibi King
+                  </span>
                 )}
               </div>
               

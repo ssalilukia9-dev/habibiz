@@ -30,7 +30,8 @@ import {
   Activity,
   Share2,
   Terminal,
-  Bell
+  Bell,
+  WifiOff
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -46,6 +47,8 @@ import PrayerTimesView from './PrayerTimesView.tsx';
 import IslamicFinanceView from './IslamicFinanceView.tsx';
 import DownloadAppView from './DownloadAppView.tsx';
 import { Surah, Ayah } from '../types.ts';
+
+import OfflineManagerView from './OfflineManagerView.tsx';
 
 interface ResourcesViewProps {
   selectedSurah: Surah | null;
@@ -63,9 +66,11 @@ interface ResourcesViewProps {
   incrementVerse: () => void;
   language: string;
   setSearchQuery: (q: string) => void;
+  isPremium: boolean;
+  onShowPremium: () => void;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline';
 
 export default function ResourcesView({
   selectedSurah,
@@ -82,7 +87,9 @@ export default function ResourcesView({
   incrementDua,
   incrementVerse,
   language,
-  setSearchQuery
+  setSearchQuery,
+  isPremium,
+  onShowPremium
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
   const navigate = useNavigate();
@@ -120,15 +127,15 @@ export default function ResourcesView({
         { id: 'companion', title: 'Holy Aliyah AI', icon: Sparkles, image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', premium: true },
         { id: 'finance', title: 'Islamic Finance', icon: BarChart3, image: 'https://images.unsplash.com/photo-1454165833221-d8d8b66455db?auto=format&fit=crop&q=80&w=800', premium: true },
         { id: 'hadith', title: 'Hadith Library', icon: Library, image: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=800', premium: true },
-        { id: 'calendar', title: 'Hijri Calendar', icon: CalendarDays, image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800' },
+        { id: 'calendar', title: 'Hijri Calendar', icon: CalendarDays, image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800', premium: false },
       ]
     },
     {
       title: 'COMMUNITY',
       cards: [
-        { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300' },
-        { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300' },
-        { id: 'mobile', title: 'Mobile App', icon: Smartphone, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300' }
+        { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300', premium: false },
+        { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300', premium: false },
+        { id: 'offline', title: 'Offline Sanctuary', icon: WifiOff, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300', premium: false }
       ]
     }
   ];
@@ -240,7 +247,7 @@ export default function ResourcesView({
                               <div className="w-14 h-14 bg-white/10 backdrop-blur-2xl rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
                                 <Icon size={28} className="text-white" />
                               </div>
-                              {filteredCards[0].premium && (
+                              {((filteredCards[0] as any)?.premium) && (
                                 <span className="bg-amber-500/20 text-amber-500 border border-amber-500/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md">Premium</span>
                               )}
                             </div>
@@ -285,7 +292,7 @@ export default function ResourcesView({
                                 <p className="text-[10px] font-black text-white uppercase tracking-widest">{card.title}</p>
                               </div>
                               
-                              {card.premium && (
+                              {(card as any).premium && (
                                 <div className="absolute top-4 right-4 text-amber-500">
                                   <Star size={10} fill="currentColor" />
                                 </div>
@@ -438,7 +445,7 @@ export default function ResourcesView({
                       bookmarks={bookmarks}
                       onToggleBookmark={onToggleBookmark}
                       selectedReciter={selectedReciter}
-                      onReciterChange={onReciterChange}
+                      onReciterChange={onReciterChange} isPremium={isPremium} onShowPremium={onShowPremium}
                       addHasanat={addHasanat}
                       incrementVerse={incrementVerse}
                       language={language}
@@ -452,17 +459,17 @@ export default function ResourcesView({
                       setSearchQuery={setSearchQuery}
                    />
                  )}
-                 {activeRes === 'feed' && <FeedView addHasanat={addHasanat} />}
+                 {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}
                  {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView />}
-                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} />}
-                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} />}
+                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
-                 {activeRes === 'mobile' && <DownloadAppView />}
+                 {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} />}
                  {['coin_shop'].includes(activeRes as string) && (
                     <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
                        <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
