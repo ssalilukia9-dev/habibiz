@@ -540,7 +540,23 @@ export default function App() {
               setNeedsOnboarding(false);
             }
           } else {
-            // Document doesn't exist? Mandatory onboarding
+            // Document doesn't exist? Create a minimal one to establish presence
+            const newProfile = {
+              uid: user.uid,
+              email: user.email || '',
+              emailVerified: user.emailVerified,
+              displayName: user.displayName || (user.email ? user.email.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`),
+              photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+              hasanat: 0,
+              isPremium: false,
+              createdAt: serverTimestamp(),
+              lastSeen: serverTimestamp(),
+              onboardingCompleted: false
+            };
+            
+            await setDoc(userRef, newProfile);
+            setHasanat(0);
+            setIsPremium(false);
             setNeedsOnboarding(true);
           }
 
@@ -551,14 +567,15 @@ export default function App() {
           
         } catch (error: any) {
           console.error("Auth sync error:", error);
+        } finally {
+          setAuthLoading(false);
         }
       } else {
         setCurrentUser(null);
         setHasanat(0);
         setNeedsOnboarding(false);
+        setAuthLoading(false);
       }
-      
-      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);

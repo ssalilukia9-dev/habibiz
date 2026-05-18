@@ -272,9 +272,14 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
 
     setSaving(true);
     try {
+      // 1. Update Auth Profile - use a lightweight reference to avoid "URL too long" error
+      const authPhotoURL = editPhoto.startsWith('data:') 
+        ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.uid}` 
+        : editPhoto;
+
       await updateProfile(currentUser, {
         displayName: editName,
-        photoURL: editPhoto
+        photoURL: authPhotoURL
       });
 
       const userRef = doc(db, 'users', currentUser.uid);
