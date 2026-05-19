@@ -259,9 +259,9 @@ export default function HajjUmrahHub({ onNavigate, addHasanat, incrementDua }: H
                   <p className="text-slate-300 font-bold uppercase text-[10px] tracking-widest">Navigate the architecture of faith</p>
                </div>
             </div>
-            <button className="px-10 py-5 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-primary transition-colors flex items-center gap-4">
+            <div className="px-10 py-5 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-primary transition-colors flex items-center gap-4">
                Open Sanctuary Map <ArrowRight size={18} />
-            </button>
+            </div>
           </div>
         </motion.button>
 

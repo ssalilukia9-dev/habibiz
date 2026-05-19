@@ -15,6 +15,7 @@ import {
   signInWithGithub,
   signInWithEmail, 
   signUpWithEmail,
+  signInAnon,
   handleRedirectResult
 } from '../lib/firebase';
 
@@ -67,17 +68,14 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       const user = await signInWithGoogle();
       if (user) {
         onSuccess();
-      } else {
-        setError('Compatibility mode: Redirecting to Google...');
-        // The page will redirect shortly handled by firebase.ts
       }
     } catch (err: any) {
       console.error("Google Auth Error:", err);
       setLoading(false);
       if (err.message?.includes('auth/unauthorized-domain')) {
-        setError('Unauthorized domain. Please add this domain to Firebase Console > Auth > Settings > Authorized domains.');
+        setError('Unauthorized domain. Please add this preview domain to your Firebase Authorized Domains.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup blocked. We are attempting to redirect you instead...');
+        setError('Popup blocked by your browser. Please stay within the app and use Email & Password, or allow popups to continue with Google.');
       } else {
         setError(err.message || 'Google authentication failed.');
       }
@@ -91,17 +89,30 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       const user = await signInWithGithub();
       if (user) {
         onSuccess();
-      } else {
-        setError('Compatibility mode: Redirecting to GitHub...');
       }
     } catch (err: any) {
       console.error("GitHub Auth Error:", err);
       setLoading(false);
       if (err.message?.includes('auth/unauthorized-domain')) {
-        setError('Unauthorized domain. Please add this domain to Firebase Console > Auth > Settings > Authorized domains.');
+        setError('Unauthorized domain. Please add this preview domain to your Firebase Authorized Domains.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup blocked by your browser. Please stay within the app and use Email & Password, or allow popups to continue with GitHub.');
       } else {
         setError(err.message || 'GitHub authentication failed.');
       }
+    }
+  };
+
+  const handleGuestAuth = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInAnon();
+      onSuccess();
+    } catch (err: any) {
+      console.error("Guest Auth Error:", err);
+      setLoading(false);
+      setError(err.message || 'Failed to enter as guest.');
     }
   };
 
@@ -137,13 +148,13 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                  <p className="text-red-400 text-xs font-medium leading-relaxed">{error}</p>
               </div>
               
-              {(error.includes('missing initial state') || error.includes('Redirect') || error.includes('failed')) && (
+              {(error.includes('missing initial state') || error.includes('Redirect') || error.includes('failed') || error.includes('blocked')) && (
                  <div className="pt-2 border-t border-red-500/10 space-y-2">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Median App Solution:</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sanctuary Stability Tip:</p>
                     <ul className="text-[10px] text-slate-400 space-y-1 list-disc pl-4 font-medium">
-                       <li>Add <code className="text-brand-primary">median.co</code> to your Firebase Authorized Domains.</li>
-                       <li>Disable "Block All Cookies" in mobile browser settings.</li>
-                       <li>Use the **Email & Password** login below for 100% stability.</li>
+                      <li>Use **Email & Password** to stay 100% within the app window.</li>
+                      <li>Allow popups in your browser if using Google or GitHub login.</li>
+                      <li>Social login is powered by Firebase for secure access.</li>
                     </ul>
                  </div>
               )}
@@ -205,7 +216,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
           </div>
 
           {/* Auth Providers */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 pb-2">
             <button 
               onClick={handleGoogleAuth}
               className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-[0.98]"
@@ -221,6 +232,13 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                <span className="text-xs">GitHub</span>
             </button>
           </div>
+
+          <button 
+             onClick={handleGuestAuth}
+             className="w-full py-4 border border-brand-primary/20 text-brand-primary/60 hover:text-brand-primary hover:border-brand-primary transition-all text-[10px] font-black uppercase tracking-widest rounded-2xl"
+          >
+             Stay within app & Setup Profile
+          </button>
 
           {/* Footer toggle */}
           <div className="text-center">

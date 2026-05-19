@@ -231,7 +231,7 @@ export default function HomeView({
                 onClick={handleContinue}
                 className="group relative px-10 py-6 bg-brand-primary text-brand-depth font-black rounded-3xl overflow-hidden hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4 text-sm uppercase tracking-widest shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
               >
-                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 <BookOpen size={20} />
                 {lastRead ? `Resume ${lastRead.title}` : 'Read Quran'}
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />

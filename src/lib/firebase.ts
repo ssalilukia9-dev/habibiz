@@ -8,6 +8,7 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   setPersistence,
   browserLocalPersistence,
   indexedDBLocalPersistence
@@ -76,39 +77,24 @@ export const testConnection = async () => {
 
 export const signInWithGoogle = async () => {
   try {
-    if (isMobile()) {
-      await signInWithRedirect(auth, googleProvider);
-      return null; // Redirecting, user will be handled by observer
-    }
+    // We prefer popup even on mobile for AI Studio environment to prevent losing iframe state
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
     console.error("Error signing in with Google", error);
-    // If popup is blocked, fails or is closed prematurely, try redirect as fallback
-    const fallbackCodes = ['auth/popup-blocked', 'auth/internal-error', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
-    if (fallbackCodes.includes(error.code)) {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
+    // If popup is blocked, fails or is closed prematurely, we re-throw to AuthView
+    // which advises the user on how to proceed.
     throw error;
   }
 };
 
 export const signInWithGithub = async () => {
   try {
-    if (isMobile()) {
-      await signInWithRedirect(auth, githubProvider);
-      return null;
-    }
+    // We prefer popup even on mobile for AI Studio environment to prevent losing iframe state
     const result = await signInWithPopup(auth, githubProvider);
     return result.user;
   } catch (error: any) {
     console.error("Error signing in with GitHub", error);
-    const fallbackCodes = ['auth/popup-blocked', 'auth/internal-error', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
-    if (fallbackCodes.includes(error.code)) {
-      await signInWithRedirect(auth, githubProvider);
-      return null;
-    }
     throw error;
   }
 };
@@ -130,5 +116,10 @@ export const signInWithEmail = async (email: string, pass: string) => {
 
 export const signUpWithEmail = async (email: string, pass: string) => {
   const result = await createUserWithEmailAndPassword(auth, email, pass);
+  return result.user;
+};
+
+export const signInAnon = async () => {
+  const result = await signInAnonymously(auth);
   return result.user;
 };

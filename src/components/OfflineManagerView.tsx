@@ -28,13 +28,19 @@ export default function OfflineManagerView({ selectedReciter }: OfflineManagerVi
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncType, setSyncType] = useState<'text' | 'audio'>('text');
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeReciterId, setActiveReciterId] = useState<number | 'default'>(selectedReciter);
   const [offlineMode, setOfflineMode] = useState(() => localStorage.getItem('offline-mode') === 'true');
 
-  const activeReciter = RECITERS.find(r => r.id === selectedReciter);
+  const activeReciter = RECITERS.find(r => r.id === (activeReciterId === 'default' ? selectedReciter : activeReciterId));
 
-  useEffect(() => {
-    loadStatus();
-  }, []);
+  const filteredSurahs = Object.entries(downloadedSurahs)
+    .filter(([key, _]) => {
+      const [surahNum, recId] = key.split('_');
+      if (searchQuery && !surahNum.includes(searchQuery)) return false;
+      if (activeReciterId !== 'default' && recId !== activeReciterId.toString() && recId !== 'default') return false;
+      return true;
+    });
 
   const loadStatus = async () => {
     const size = await offlineService.getCacheSize();
@@ -239,23 +245,49 @@ export default function OfflineManagerView({ selectedReciter }: OfflineManagerVi
 
       {/* Downloaded Surahs List */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3">
-           <div className="w-8 h-8 bg-brand-primary/10 rounded-lg flex items-center justify-center text-brand-primary">
-              <CheckCircle2 size={16} />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-brand-primary/10 rounded-lg flex items-center justify-center text-brand-primary">
+                 <CheckCircle2 size={16} />
+              </div>
+              <h2 className="text-lg font-black text-white uppercase italic tracking-tighter">Content Management</h2>
            </div>
-           <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">Downloaded Content</h3>
+           
+           <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Search Surah #..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-brand-primary/50 outline-none w-32"
+                />
+              </div>
+              <select 
+                value={activeReciterId}
+                onChange={(e) => setActiveReciterId(e.target.value === 'default' ? 'default' : Number(e.target.value))}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-brand-primary font-bold focus:border-brand-primary/50 outline-none"
+              >
+                <option value="default">All Sources</option>
+                <option value="text">Text Core</option>
+                {RECITERS.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-           {Object.keys(downloadedSurahs).length === 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+           {filteredSurahs.length === 0 ? (
              <div className="col-span-full py-12 text-center bg-white/5 rounded-[2rem] border border-dashed border-white/10">
                 <Download size={32} className="mx-auto mb-4 text-slate-600 opacity-20" />
-                <p className="text-slate-500 text-sm font-medium">No surahs downloaded yet.</p>
+                <p className="text-slate-500 text-sm font-medium">No surahs match your criteria.</p>
              </div>
            ) : (
-             Object.entries(downloadedSurahs).map(([key, meta]: [string, any]) => {
-              const [surahNum, reciterId] = key.split('_');
-              const reciter = RECITERS.find(r => r.id === Number(reciterId));
+             filteredSurahs.map(([key, meta]: [string, any]) => {
+              const [surahNum, recId] = key.split('_');
+              const reciter = RECITERS.find(r => r.id === (recId === 'default' ? selectedReciter : Number(recId)));
+              const isTextOnly = recId === 'default' && !meta.isFullyCached;
               
               return (
                 <div key={key} className="bg-white/5 border border-white/5 p-5 rounded-2xl hover:border-brand-primary/20 transition-all group relative">
@@ -276,7 +308,7 @@ export default function OfflineManagerView({ selectedReciter }: OfflineManagerVi
                         <button 
                           onClick={async () => {
                             if (confirm(`Remove offline data for Surah ${surahNum}?`)) {
-                              await offlineService.removeDownloadedSurah(Number(surahNum), reciterId === 'default' ? undefined : Number(reciterId));
+                              await offlineService.removeDownloadedSurah(Number(surahNum), recId === 'default' ? undefined : Number(recId));
                               loadStatus();
                             }
                           }}
@@ -287,12 +319,20 @@ export default function OfflineManagerView({ selectedReciter }: OfflineManagerVi
                       </div>
                    </div>
                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Reciter</p>
-                      <p className="text-sm font-bold text-white truncate">{reciter?.name || 'Text only'}</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Source Interface</p>
+                      <p className="text-sm font-bold text-white truncate">{isTextOnly ? 'Uthmani Text Core' : reciter?.name || 'Reciter Entry'}</p>
                    </div>
-                   <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase tracking-widest">
-                      <span>{new Date(meta.timestamp).toLocaleDateString()}</span>
-                      <span>{meta.ayahCount} Ayahs</span>
+                   <div className="mt-4 pt-4 border-t border-white/5 flex flex-col gap-3">
+                      <div className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                         <span>{new Date(meta.timestamp).toLocaleDateString()}</span>
+                         <span>{meta.ayahCount} Ayahs</span>
+                      </div>
+                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                         <div 
+                           className={`h-full transition-all duration-1000 ${meta.isFullyCached ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500'}`} 
+                           style={{ width: `${meta.isFullyCached ? 100 : 30}%` }}
+                         />
+                      </div>
                    </div>
                 </div>
               );

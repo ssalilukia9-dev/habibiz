@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
@@ -93,6 +93,31 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
     };
   });
 
+  const [downloadedSuras, setDownloadedSuras] = useState<Record<string, any>>({});
+  const [surahList, setSurahList] = useState<any[]>([]);
+  const [isOfflineManagerExpanded, setIsOfflineManagerExpanded] = useState(false);
+
+  useEffect(() => {
+    const loadOfflineData = async () => {
+      const meta = await offlineService.getAllDownloadedSurahs();
+      setDownloadedSuras(meta);
+      const list = await offlineService.getSurahs();
+      if (list) setSurahList(list);
+    };
+    loadOfflineData();
+  }, [offlineMode, syncProgress]);
+
+  const removeSura = async (metaKey: string) => {
+    const [num, reciter] = metaKey.split('_');
+    if (confirm(`Remove Sura ${num} from your offline cache?`)) {
+      await offlineService.removeDownloadedSurah(parseInt(num), reciter === 'default' ? undefined : parseInt(reciter));
+      const meta = await offlineService.getAllDownloadedSurahs();
+      setDownloadedSuras(meta);
+      const size = await offlineService.getCacheSize();
+      setCacheSize(size);
+    }
+  };
+
   const [isRemindersExpanded, setIsRemindersExpanded] = useState(false);
 
   useEffect(() => {
@@ -184,6 +209,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                 { id: 'light', label: 'Blue & White', desc: 'Oceanic Calm', icon: Waves, color: 'bg-blue-800' },
                 { id: 'blue', label: 'White & Blue', desc: 'Daylight Clarity', icon: Sun, color: 'bg-sky-500' },
                 { id: 'green', label: 'White & Green', desc: 'Morning Dew', icon: Tent, color: 'bg-emerald-500' },
+                { id: 'light-green', label: 'Green & White', desc: 'Eden Forest', icon: Tent, color: 'bg-emerald-800' },
                 { id: 'purple', label: 'Purple & Black', desc: 'Ethereal Deep', icon: Moon, color: 'bg-purple-900' }
               ].map((t) => (
                 <button
@@ -422,13 +448,22 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                </div>
                <div className="flex items-center gap-4">
                  {offlineMode && !syncProgress && (
-                  <button 
-                    onClick={clearCacheManual}
-                    className="p-2 text-slate-500 hover:text-red-500 transition-colors"
-                    title="Clear Cache"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
+                   <>
+                     <button 
+                       onClick={() => setIsOfflineManagerExpanded(!isOfflineManagerExpanded)}
+                       className={`p-2 transition-all ${isOfflineManagerExpanded ? 'text-brand-primary bg-brand-primary/10 rounded-lg' : 'text-slate-500 hover:text-white'}`}
+                       title="Manage Downloads"
+                     >
+                       <Database size={18} />
+                     </button>
+                     <button 
+                       onClick={clearCacheManual}
+                       className="p-2 text-slate-500 hover:text-red-500 transition-colors"
+                       title="Clear All Cache"
+                     >
+                       <RefreshCw size={16} />
+                     </button>
+                   </>
                  )}
                  <button 
                     onClick={toggleOfflineMode}
@@ -491,6 +526,60 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                    </div>
                  </motion.div>
                )}
+             </AnimatePresence>
+
+             <AnimatePresence>
+                {isOfflineManagerExpanded && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden bg-black/20"
+                  >
+                    <div className="p-6 space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <h4 className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">Offline Manager</h4>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{Object.keys(downloadedSuras).length} Items Cached</p>
+                      </div>
+                      
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                        {Object.entries(downloadedSuras).map(([key, data]) => {
+                          const [num] = key.split('_');
+                          const sura = surahList.find(s => s.number === parseInt(num));
+                          return (
+                            <div key={key} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group hover:bg-white/10 transition-all">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-black text-sm">
+                                  {num}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-white">{sura?.englishName || `Sura ${num}`}</p>
+                                  <div className="flex items-center gap-3">
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{data.ayahCount} Ayahs</p>
+                                    <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                                    <p className="text-[9px] text-brand-primary font-black uppercase tracking-widest">{new Date(data.timestamp).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => removeSura(key)}
+                                className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {Object.keys(downloadedSuras).length === 0 && (
+                          <div className="text-center py-10 space-y-3 opacity-30">
+                            <WifiOff size={40} className="mx-auto" />
+                            <p className="text-xs font-black uppercase tracking-widest">No Offline Data</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
              </AnimatePresence>
            </div>
 

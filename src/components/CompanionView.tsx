@@ -19,7 +19,12 @@ import {
   PanelLeftOpen,
   ChevronRight,
   MoreVertical,
-  BookOpen
+  BookOpen,
+  Image as ImageIcon,
+  FileText,
+  Paperclip,
+  Play,
+  StopCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -51,11 +56,21 @@ Greet the user with "Assalamu Alaikum" in your first response of a session if th
 
 import { apiFetch } from '../lib/api';
 
+interface Attachment {
+  id: string;
+  type: 'image' | 'file' | 'voice';
+  name: string;
+  url: string;
+  base64?: string;
+  mimeType: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'model';
   content: string;
   timestamp: any;
+  attachments?: Attachment[];
 }
 
 interface Conversation {
@@ -112,8 +127,13 @@ export default function CompanionView({
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   // Initialize sidebar based on screen size
   useEffect(() => {
@@ -227,10 +247,12 @@ export default function CompanionView({
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading || !auth.currentUser) return;
+    if ((!input.trim() && attachments.length === 0) || isLoading || !auth.currentUser) return;
 
     const userText = input.trim();
+    const currentAttachments = [...attachments];
     setInput('');
+    setAttachments([]);
     setIsLoading(true);
 
     try {
@@ -238,9 +260,10 @@ export default function CompanionView({
 
       // 1. Create conversation if it doesn't exist
       if (!currentConvId) {
+        const titleText = userText || (currentAttachments.length > 0 ? `Shared ${currentAttachments[0].type}` : 'New Consult');
         const convRef = await addDoc(collection(db, 'ai_conversations'), {
           userId: auth.currentUser.uid,
-          title: userText.slice(0, 40) + (userText.length > 40 ? '...' : ''),
+          title: titleText.slice(0, 40) + (titleText.length > 40 ? '...' : ''),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -258,21 +281,41 @@ export default function CompanionView({
       await addDoc(msgRef, {
         role: 'user',
         content: userText,
+        attachments: currentAttachments,
         timestamp: serverTimestamp()
       });
 
       // 3. Call AI Proxy
+      // Structure contents for Gemini multimodal
+      const contents = messages.map(m => ({
+        role: m.role,
+        parts: [
+          { text: m.content },
+          ...(m.attachments || []).map(a => ({
+            inlineData: {
+              data: a.base64?.split(',')[1],
+              mimeType: a.mimeType
+            }
+          }))
+        ]
+      })).concat({
+        role: 'user',
+        parts: [
+          { text: userText },
+          ...currentAttachments.map(a => ({
+            inlineData: {
+              data: a.base64?.split(',')[1],
+              mimeType: a.mimeType
+            }
+          }))
+        ]
+      });
+
       const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: messages.map(m => ({
-            role: m.role,
-            parts: [{ text: m.content }]
-          })).concat({
-            role: 'user',
-            parts: [{ text: userText }]
-          }),
+          contents,
           systemInstruction: SYSTEM_INSTRUCTION
         })
       });
@@ -336,6 +379,74 @@ export default function CompanionView({
     utterance.onend = () => setIsSpeaking(false);
     
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        const type: 'image' | 'file' = file.type.startsWith('image/') ? 'image' : 'file';
+        
+        setAttachments(prev => [...prev, {
+          id: Math.random().toString(36).substr(2, 9),
+          type,
+          name: file.name,
+          url: URL.createObjectURL(file),
+          base64,
+          mimeType: file.type
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = e.target?.result as string;
+          setAttachments(prev => [...prev, {
+            id: 'voice-' + Date.now(),
+            type: 'voice',
+            name: 'Voice Message',
+            url: URL.createObjectURL(blob),
+            base64,
+            mimeType: 'audio/webm'
+          }]);
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Recording error:", err);
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
   const stopSpeech = () => {
@@ -525,6 +636,29 @@ export default function CompanionView({
                         ? 'bg-brand-primary text-brand-depth font-semibold' 
                         : 'glass-panel text-slate-200 border-white/10'
                     }`}>
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {m.attachments.map(a => (
+                            <div key={a.id} className="relative group/att">
+                              {a.type === 'image' ? (
+                                <img src={a.url} alt={a.name} className="w-40 h-40 object-cover rounded-lg border border-white/10" />
+                              ) : a.type === 'voice' ? (
+                                <div className="bg-brand-depth/40 p-3 rounded-xl flex items-center gap-3 border border-white/5">
+                                   <div className="w-8 h-8 bg-brand-primary/20 rounded-full flex items-center justify-center text-brand-primary">
+                                      <Mic size={14} />
+                                   </div>
+                                   <audio src={a.url} controls className="h-8 w-48 opacity-60" />
+                                </div>
+                              ) : (
+                                <div className="bg-white/5 p-3 rounded-lg flex items-center gap-2 border border-white/5 min-w-[120px]">
+                                  <FileText size={16} className="text-brand-primary" />
+                                  <span className="text-[10px] font-bold truncate max-w-[100px]">{a.name}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="markdown-body prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-brand-primary">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {m.content}
@@ -551,14 +685,74 @@ export default function CompanionView({
         {/* Input */}
         <div className="p-4 md:p-8 bg-gradient-to-t from-brand-sidebar/80 to-transparent">
           <div className="max-w-3xl mx-auto relative group">
+            {/* Attachment Preview */}
+            <AnimatePresence>
+              {attachments.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="mb-4 flex flex-wrap gap-3 p-4 glass-panel border-white/10 rounded-2xl"
+                >
+                  {attachments.map(a => (
+                    <div key={a.id} className="relative group/preview">
+                      {a.type === 'image' ? (
+                        <div className="w-16 h-16 rounded-xl overflow-hidden border border-white/10">
+                           <img src={a.url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="h-16 px-4 bg-white/5 rounded-xl flex items-center gap-2 border border-white/10">
+                           {a.type === 'voice' ? <Mic size={16} className="text-brand-primary" /> : <FileText size={16} className="text-brand-primary" />}
+                           <span className="text-[10px] font-bold max-w-[80px] truncate">{a.name}</span>
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => removeAttachment(a.id)}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-brand-depth group-hover/preview:scale-110 transition-transform shadow-lg"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="absolute inset-0 bg-brand-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
             <div className="relative glass-panel p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-2xl">
-              <button 
-                onClick={toggleListening}
-                className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse ring-1 ring-red-500/50' : 'text-slate-500 hover:bg-white/5 hover:text-brand-primary'}`}
-              >
-                <Mic size={20} />
-              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileSelect} 
+                className="hidden" 
+                multiple 
+                accept="image/*,application/pdf,text/plain"
+              />
+              
+              <div className="flex items-center gap-1">
+                <button 
+                   onClick={() => fileInputRef.current?.click()}
+                   className="p-3 text-slate-500 hover:text-brand-primary hover:bg-white/5 rounded-xl transition-all"
+                   title="Attach media"
+                >
+                  <Paperclip size={20} />
+                </button>
+                <button 
+                  onClick={toggleListening}
+                  className={`p-3 rounded-xl transition-all ${isListening ? 'bg-brand-primary/20 text-brand-primary animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
+                  title="Voice Type (Speech back)"
+                >
+                  <Mic size={20} />
+                </button>
+                <button 
+                  onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+                  className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
+                  title={isRecording ? "Stop recording" : "Send Voice Message"}
+                >
+                  {isRecording ? <StopCircle size={20} /> : <Play size={20} />}
+                </button>
+              </div>
+
               <input 
                 type="text" 
                 value={input}
@@ -569,7 +763,7 @@ export default function CompanionView({
               />
               <button 
                 onClick={handleSend}
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || (!input.trim() && attachments.length === 0)}
                 className="bg-brand-primary text-brand-depth w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 disabled:shadow-none font-bold"
               >
                 <Send size={18} />

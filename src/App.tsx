@@ -7,6 +7,7 @@ import {
   Bookmark, 
   Settings as SettingsIcon, 
   Search, 
+  Mic,
   ChevronRight, 
   Menu, 
   X,
@@ -106,6 +107,40 @@ export default function App() {
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('app-language') || 'en';
   });
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsListening(false);
+        // If we're not currently on a search-related page or the home page, 
+        // we might want to navigate to a search results view if we have one.
+        // For now, it just updates the global search query.
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   // Prayer Scheduler State
   const [prayerTimes, setPrayerTimes] = useState<Record<string, string>>({});
@@ -325,8 +360,8 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app-theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
-    // Backward compatibility for .dark class
-    if (theme === 'dark' || theme === 'purple') {
+    // Backward compatibility for .dark class - these themes have dark backgrounds
+    if (theme === 'dark' || theme === 'purple' || theme === 'light' || theme === 'light-green') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
@@ -1061,10 +1096,17 @@ export default function App() {
                 <input 
                   type="text" 
                   placeholder="Deep search through the wisdom..."
-                  className="w-full bg-white/5 border border-white/5 rounded-full pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200"
+                  className="w-full bg-white/5 border border-white/5 rounded-full pl-11 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                <button 
+                  onClick={toggleListening}
+                  className={`absolute right-4 p-1.5 rounded-lg transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                  title="Voice Search"
+                >
+                  <Mic size={16} />
+                </button>
              </div>
           </div>
           
@@ -1162,7 +1204,7 @@ export default function App() {
                     } />
                     <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
-                    <Route path="/companion" element={<CompanionView isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/companion" element={<CompanionView isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
                     <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />

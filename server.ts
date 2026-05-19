@@ -22,20 +22,15 @@ async function startServer() {
         return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
       }
 
-      const client = new GoogleGenAI({ 
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
+      const client = new GoogleGenAI({ apiKey });
       
       const response = await client.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents,
         config: {
-          systemInstruction
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          }
         }
       });
 

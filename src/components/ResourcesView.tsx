@@ -31,7 +31,9 @@ import {
   Share2,
   Terminal,
   Bell,
-  WifiOff
+  WifiOff,
+  Mic,
+  Search
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -92,8 +94,38 @@ export default function ResourcesView({
   onShowPremium
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   useEffect(() => {
     if (initialResId) {
@@ -189,14 +221,33 @@ export default function ResourcesView({
             </div>
           </div>
           {!activeRes && (
-            <div className="hidden md:flex items-center gap-4 px-6 py-3 glass-panel rounded-2xl border-white/5">
-               <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Aura Level</p>
-                  <p className="text-sm font-black text-brand-primary">Radiant</p>
-               </div>
-               <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-brand-primary/20 shadow-lg shadow-brand-primary/10">
-                 <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sanctuary" alt="Profile" className="w-full h-full object-cover" />
-               </div>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-4 relative">
+                 <Search className="absolute left-4 text-brand-primary/40" size={16} />
+                 <input 
+                   type="text" 
+                   placeholder="Search library..."
+                   className="w-full bg-white/5 border border-white/5 rounded-2xl pl-11 pr-12 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200"
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                 />
+                 <button 
+                   onClick={toggleListening}
+                   className={`absolute right-4 p-1.5 rounded-lg transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                   title="Voice Search"
+                 >
+                   <Mic size={16} />
+                 </button>
+              </div>
+              <div className="hidden md:flex items-center gap-4 px-6 py-3 glass-panel rounded-2xl border-white/5">
+                 <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Aura Level</p>
+                    <p className="text-sm font-black text-brand-primary">Radiant</p>
+                 </div>
+                 <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-brand-primary/20 shadow-lg shadow-brand-primary/10">
+                   <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sanctuary" alt="Profile" className="w-full h-full object-cover" />
+                 </div>
+              </div>
             </div>
           )}
         </div>
@@ -252,19 +303,20 @@ export default function ResourcesView({
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                             
-                            <div className="absolute top-8 left-8 flex items-center gap-4">
-                              <div className="w-14 h-14 bg-white/10 backdrop-blur-2xl rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
-                                <Icon size={28} className="text-white" />
-                              </div>
-                              {((filteredCards[0] as any)?.premium) && (
-                                <span className="bg-amber-500/20 text-amber-500 border border-amber-500/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md">Premium</span>
-                              )}
-                            </div>
-
-                            <div className="absolute bottom-10 left-10 text-left space-y-2">
-                               <h4 className="text-3xl font-black text-white tracking-tight">{filteredCards[0].title}</h4>
-                               <p className="text-slate-300 font-medium max-w-sm text-sm">Deeply explore the {filteredCards[0].title.toLowerCase()} with our advanced spiritual engine.</p>
-                            </div>
+                            <span className="absolute inset-x-12 bottom-12 flex flex-col md:flex-row items-end justify-between gap-8 text-left">
+                              <span className="space-y-4">
+                                <span className="w-20 h-20 bg-brand-primary rounded-[2.5rem] flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/20">
+                                  <Icon size={40} />
+                                </span>
+                                <span className="block space-y-1">
+                                  <h4 className="text-5xl font-black text-white italic tracking-tighter leading-none mb-1">{filteredCards[0].title}</h4>
+                                  <p className="text-slate-300 font-bold uppercase text-[10px] tracking-widest">{filteredCards[0].id === 'hajj_umrah' ? 'Coordinate the sacred steps' : `Explore the ${filteredCards[0].title.toLowerCase()}`}</p>
+                                </span>
+                              </span>
+                              <span className="px-10 py-5 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-primary transition-colors flex items-center gap-4">
+                                Open Module <ArrowRight size={18} />
+                              </span>
+                            </span>
 
                             <ChevronRight className="absolute bottom-10 right-10 text-brand-primary opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-2" size={32} />
                           </motion.button>
@@ -291,15 +343,15 @@ export default function ResourcesView({
                                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=600';
                                 }}
                               />
-                              <div className="absolute inset-0 bg-brand-depth/40 group-hover:bg-transparent transition-colors" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
+                              <span className="absolute inset-0 bg-brand-depth/40 group-hover:bg-transparent transition-colors" />
+                              <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
                               
-                              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-3">
-                                <div className="w-10 h-10 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
+                              <span className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-3">
+                                <span className="w-10 h-10 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
                                   <CardIcon size={18} className="text-white" />
-                                </div>
-                                <p className="text-[10px] font-black text-white uppercase tracking-widest">{card.title}</p>
-                              </div>
+                                </span>
+                                <span className="block text-[10px] font-black text-white uppercase tracking-widest">{card.title}</span>
+                              </span>
                               
                               {(card as any).premium && (
                                 <div className="absolute top-4 right-4 text-amber-500">
@@ -476,9 +528,9 @@ export default function ResourcesView({
                  {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView />}
-                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'hajj_umrah' && <HajjUmrahHub onNavigate={(view) => setActiveRes(view as TabType)} addHasanat={addHasanat} incrementDua={incrementDua} />}
-                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} />}
                  {['coin_shop'].includes(activeRes as string) && (

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
+  Mic,
   MessageCircle, 
   Users, 
   Search, 
@@ -17,7 +18,9 @@ import {
   Clock,
   Trash2,
   Inbox,
-  Globe
+  Globe,
+  Paperclip,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   collection, 
@@ -81,12 +84,47 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [attachment, setAttachment] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState<ChatUserInfo[]>([]);
   const [pendingRequests, setPendingRequests] = useState<ChatRequest[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (activeRoom) {
+          setNewMessage(prev => prev + ' ' + transcript);
+        } else if (activeTab === 'ummah' || activeTab === 'messages') {
+          setSearchQuery(transcript);
+        }
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, [activeRoom, activeTab, setSearchQuery]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   const filteredRooms = rooms.filter(room => 
     room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -200,26 +238,46 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !activeRoom || !auth.currentUser) return;
-    const msgData = {
+    if ((!newMessage.trim() && !attachment) || !activeRoom || !auth.currentUser) return;
+    const msgData: any = {
       senderId: auth.currentUser.uid,
       senderName: auth.currentUser.displayName || 'Anonymous',
       senderPhoto: auth.currentUser.photoURL,
       text: newMessage,
       timestamp: serverTimestamp()
     };
+    if (attachment) {
+      msgData.imageUrl = attachment;
+    }
     try {
       setNewMessage('');
+      setAttachment(null);
       await addDoc(collection(db, `rooms/${activeRoom.id}/messages`), msgData);
       if (addHasanat) addHasanat(5); // Points for messaging
       await updateDoc(doc(db, 'rooms', activeRoom.id), {
-        lastMessage: newMessage,
+        lastMessage: attachment ? '📷 Photo' : newMessage,
         lastSenderId: auth.currentUser.uid,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `rooms/${activeRoom.id}`);
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 800000) {
+      alert("Image is too large. Please use a smaller heart (file size < 800KB).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAttachment(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendRequest = async (user: ChatUserInfo) => {
@@ -401,8 +459,14 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Find seeker by name..."
-                  className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:bg-white/10 transition-all font-medium"
+                  className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-sm text-white focus:outline-none focus:bg-white/10 transition-all font-medium"
                 />
+                <button 
+                  onClick={toggleListening}
+                  className={`absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                >
+                  <Mic size={14} />
+                </button>
               </div>
               
               <div className="space-y-4">
@@ -551,6 +615,16 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
                             ? 'bg-brand-primary text-brand-depth rounded-tr-none' 
                             : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'
                         }`}>
+                          {msg.imageUrl && (
+                            <img 
+                              src={msg.imageUrl} 
+                              alt="attachment" 
+                              className="max-w-full rounded-2xl mb-2 border border-white/10"
+                              onLoad={() => {
+                                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                              }}
+                            />
+                          )}
                           {msg.text}
                           {isMe && (
                             <div className="absolute -bottom-1.5 -right-1 flex items-center bg-brand-sidebar/80 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-brand-primary/20 scale-75 opacity-0 group-hover/msg:opacity-100 transition-opacity">
@@ -568,20 +642,59 @@ export default function ChatView({ isPremium = false, searchQuery, setSearchQuer
 
             {/* Input Form */}
             <form onSubmit={handleSendMessage} className="p-5 md:p-8 bg-brand-sidebar/40 border-t border-white/5">
-              <div className="relative flex items-center">
-                <input 
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  placeholder="Reflect and share..."
-                  className="w-full bg-brand-depth border border-white/10 rounded-[1.5rem] py-4 md:py-5 px-6 pr-16 text-sm text-white focus:outline-none focus:border-brand-primary/40 transition-all font-medium shadow-inner"
-                />
-                <button 
-                  type="submit"
-                  disabled={!newMessage.trim()}
-                  className="absolute right-2 w-10 h-10 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center hover:scale-110 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all shadow-xl shadow-brand-primary/20"
-                >
-                  <Send size={18} />
-                </button>
+              <AnimatePresence>
+                {attachment && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="mb-4 relative w-24 h-24"
+                  >
+                    <img src={attachment} className="w-full h-full object-cover rounded-2xl border border-brand-primary/30 shadow-xl" alt="Preview" />
+                    <button 
+                      type="button"
+                      onClick={() => setAttachment(null)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                    >
+                      <X size={12} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="relative flex items-center gap-2">
+                <div className="flex gap-1">
+                  <button 
+                    type="button"
+                    onClick={toggleListening}
+                    className={`flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center transition-all ${isListening ? 'bg-brand-primary/20 text-brand-primary animate-pulse border border-brand-primary/30' : 'bg-brand-depth border border-white/5 text-slate-500 hover:text-brand-primary'}`}
+                  >
+                    <Mic size={20} />
+                  </button>
+                  <label className="flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center bg-brand-depth border border-white/5 text-slate-500 hover:text-brand-primary cursor-pointer transition-all">
+                    <ImageIcon size={20} />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handleImageUpload} 
+                    />
+                  </label>
+                </div>
+                <div className="relative flex-1 flex items-center">
+                  <input 
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    placeholder="Reflect and share..."
+                    className="w-full bg-brand-depth border border-white/10 rounded-[1.5rem] py-4 md:py-5 px-6 pr-16 text-sm text-white focus:outline-none focus:border-brand-primary/40 transition-all font-medium shadow-inner"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!newMessage.trim() && !attachment}
+                    className="absolute right-2 w-10 h-10 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center hover:scale-110 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all shadow-xl shadow-brand-primary/20"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
               </div>
             </form>
           </>

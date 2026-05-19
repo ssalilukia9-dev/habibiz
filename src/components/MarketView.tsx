@@ -21,7 +21,8 @@ import {
   Video,
   Phone,
   LayoutGrid,
-  ChevronLeft
+  ChevronLeft,
+  Mic
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { 
@@ -88,6 +89,36 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, [setSearchQuery]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   // Form State
   const [newListing, setNewListing] = useState({
@@ -398,8 +429,15 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Suq..."
-                className="w-full md:w-64 bg-brand-sidebar/50 border border-white/5 rounded-2xl py-3 pl-11 pr-4 md:pl-12 md:pr-6 text-sm text-white focus:border-brand-primary/40 outline-none backdrop-blur-md transition-all"
+                className="w-full md:w-64 bg-brand-sidebar/50 border border-white/5 rounded-2xl py-3 pl-11 pr-12 md:pl-12 md:pr-12 text-sm text-white focus:border-brand-primary/40 outline-none backdrop-blur-md transition-all"
               />
+              <button 
+                onClick={toggleListening}
+                className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                title="Voice Search"
+              >
+                <Mic size={16} />
+              </button>
            </div>
            <button 
              onClick={() => setShowCreateModal(true)}

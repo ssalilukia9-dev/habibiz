@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Filter,
   MessageCircle,
-  Heart
+  Heart,
+  Mic
 } from 'lucide-react';
 import { 
   collection, 
@@ -62,6 +63,36 @@ export default function UmmahHubView({
   const [loading, setLoading] = useState(true);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({}); // toId -> status
   const [filter, setFilter] = useState<'all' | 'premium' | 'active'>('all');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, [setSearchQuery]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   const currentUser = auth.currentUser;
 
@@ -170,10 +201,17 @@ export default function UmmahHubView({
                    <input 
                      type="text" 
                      placeholder="Search for a heart..."
-                     className="w-full lg:w-96 bg-white/5 border border-white/10 rounded-2xl md:rounded-[2rem] pl-14 pr-6 py-4 md:py-5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200 placeholder:text-slate-600"
+                     className="w-full lg:w-96 bg-white/5 border border-white/10 rounded-2xl md:rounded-[2rem] pl-14 pr-12 py-4 md:py-5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200 placeholder:text-slate-600"
                      value={searchQuery}
                      onChange={(e) => setSearchQuery(e.target.value)}
                    />
+                   <button 
+                     onClick={toggleListening}
+                     className={`absolute right-6 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                     title="Voice Search"
+                   >
+                     <Mic size={18} />
+                   </button>
                 </div>
                 <div className="flex gap-2">
                    {['all', 'premium'].map((f) => (

@@ -11,7 +11,8 @@ import {
   Share2,
   X,
   Volume2,
-  Pause
+  Pause,
+  Mic
 } from 'lucide-react';
 import { HADITH_DATABASE } from '../data/hadiths.ts';
 import { VoiceService } from '../services/voiceService.ts';
@@ -80,6 +81,36 @@ export default function HadithLibraryView({
   // Search and Filter State
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedHadith, setSelectedHadith] = useState<typeof HADITH_DATABASE[0] | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, [setSearchQuery]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -133,23 +164,32 @@ export default function HadithLibraryView({
             {/* Search and Filter */}
             <div className="flex flex-col gap-4">
               <div className="flex flex-col md:flex-row gap-4 items-center">
-                <div className="relative flex-1 w-full group">
+                 <div className="relative flex-1 w-full group">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-primary transition-colors" size={18} />
                   <input 
                     type="text"
                     placeholder="Search by topic, narrator, or keyword..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-brand-primary/50 focus:bg-white/[0.07] transition-all text-slate-200"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-20 outline-none focus:border-brand-primary/50 focus:bg-white/[0.07] transition-all text-slate-200"
                   />
-                  {searchQuery && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <button 
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full text-slate-500 hover:text-white transition-all"
+                      onClick={toggleListening}
+                      className={`p-1.5 rounded-lg transition-all ${isListening ? 'text-brand-primary bg-brand-primary/10 animate-pulse' : 'text-slate-500 hover:text-white'}`}
+                      title="Voice Search"
                     >
-                      <X size={16} />
+                      <Mic size={18} />
                     </button>
-                  )}
+                    {searchQuery && (
+                      <button 
+                        onClick={() => setSearchQuery('')}
+                        className="p-1 hover:bg-white/10 rounded-full text-slate-500 hover:text-white transition-all"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {(searchQuery || selectedTopic !== 'all' || selectedCollection !== 'all') && (
                   <button 

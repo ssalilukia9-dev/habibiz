@@ -235,13 +235,17 @@ interface IslamicGuidesProps {
   searchQuery?: string;
   isPremium: boolean;
   onShowPremium: () => void;
+  addHasanat: (amount: number) => void;
+  incrementDua: () => void;
 }
 
 export default function IslamicGuides({ 
   initialTab = 'hajj', 
   searchQuery = '',
   isPremium,
-  onShowPremium
+  onShowPremium,
+  addHasanat,
+  incrementDua
 }: IslamicGuidesProps) {
   const [activeTab, setActiveTab] = useState<'hajj' | 'names'>(initialTab);
   const [nameGender, setNameGender] = useState<'boys' | 'girls'>('boys');
@@ -286,11 +290,15 @@ export default function IslamicGuides({
             className="w-full"
           >
             {hajjView === 'hub' && (
-              <HajjUmrahHub onNavigate={(view) => {
-                if (view === 'hajj') setHajjView('guide');
-                else if (view === 'maps') setHajjView('map');
-                else setHajjView('guide'); // Fallback for others
-              }} />
+              <HajjUmrahHub 
+                onNavigate={(view) => {
+                  if (view === 'hajj') setHajjView('guide');
+                  else if (view === 'maps') setHajjView('map');
+                  else setHajjView('guide'); // Fallback for others
+                }} 
+                addHasanat={addHasanat}
+                incrementDua={incrementDua}
+              />
             )}
 
             {hajjView === 'map' && (

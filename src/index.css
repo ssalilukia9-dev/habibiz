@@ -57,6 +57,17 @@
     --color-app-text-dim: #059669;
   }
 
+  :root[data-theme="light-green"] {
+    --color-brand-primary: #ffffff;
+    --color-brand-secondary: #dcfce7;
+    --color-brand-depth: #064e3b; /* Green 900 background */
+    --color-brand-sidebar: #065f46;
+    --color-brand-border: rgba(255, 255, 255, 0.1);
+    --color-app-text: #f0fdf4;
+    --color-app-text-muted: #86efac;
+    --color-app-text-dim: #4ade80;
+  }
+
   :root[data-theme="purple"] {
     --color-brand-primary: #a855f7; /* Purple 500 */
     --color-brand-secondary: #f472b6; /* Pink 400 */
