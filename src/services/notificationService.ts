@@ -40,7 +40,28 @@ class NotificationService {
 
   async requestPermission(): Promise<boolean> {
     if (!('Notification' in window)) return false;
+    
+    // Some mobile browsers require serviceWorker registration before permission
+    if ('serviceWorker' in navigator) {
+      await navigator.serviceWorker.ready;
+    }
+
     const permission = await Notification.requestPermission();
+    
+    // Median bridge specific push registration
+    if (permission === 'granted' && ((window as any).median || (window as any).gonative)) {
+      const bridge = (window as any).median || (window as any).gonative;
+      try {
+        // Request deep native integration
+        bridge.nativebridge.postMessage(JSON.stringify({
+          type: 'push',
+          action: 'register'
+        }));
+      } catch (e) {
+        console.warn("Median push registration failed", e);
+      }
+    }
+
     return permission === 'granted';
   }
 
@@ -61,6 +82,18 @@ class NotificationService {
     if ((window as any).median || (window as any).gonative) {
       const bridge = (window as any).median || (window as any).gonative;
       try {
+        // Native local notification (works without internet if app is in background)
+        bridge.nativebridge.postMessage(JSON.stringify({
+          type: 'localNotification',
+          title,
+          message: body,
+          actionUrl: actionUrl || '/',
+          vibrate: true,
+          sound: true,
+          wakeScreen: true // Attempt to wake screen
+        }));
+        
+        // Also send generic notification message if localNotification is not supported
         bridge.nativebridge.postMessage(JSON.stringify({
           type: 'notification',
           title,

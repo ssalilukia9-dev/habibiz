@@ -15,29 +15,17 @@ import {
   Download,
   CheckCircle2,
   BookOpen,
-  Sparkles
+  Sparkles,
+  Star,
+  Quote
 } from 'lucide-react';
+import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 
 interface PrayerTime {
   name: string;
   time: string;
   id: string;
 }
-
-const JUMMAH_HADITHS = [
-  {
-    text: "The best day on which the sun has risen is Friday; on it Adam was created, on it he was made to enter Paradise, and on it he was expelled from it.",
-    source: "Sahih Muslim"
-  },
-  {
-    text: "Whoever takes a bath on Friday... then remains silent while the Imam is delivering the Khutba, his sins between that Friday and the previous one will be forgiven.",
-    source: "Sahih Bukhari"
-  },
-  {
-    text: "There is an hour on Friday and if a Muslim gets it while offering Salat and asks something from Allah, then Allah will definitely meet his demand.",
-    source: "Sahih Bukhari"
-  }
-];
 
 interface AdhanSound {
   id: string;
@@ -339,23 +327,28 @@ export default function PrayerTimesView() {
 
                  <div className="space-y-6">
                     <div className="flex items-center gap-3 text-white">
-                       <BookOpen size={24} className="text-brand-primary" />
-                       <h4 className="text-lg font-black uppercase tracking-widest">Friday Hadith</h4>
+                       <Star size={24} className="text-brand-primary" fill="currentColor" />
+                       <h4 className="text-lg font-black uppercase tracking-widest">Friday Virtues</h4>
                     </div>
                     
                     <div className="space-y-4">
-                       {JUMMAH_HADITHS.map((hadith, i) => (
+                       {JUMMAH_HADITHS.slice(0, 3).map((hadith: any, i: number) => (
                          <motion.div 
                            key={i}
                            initial={{ opacity: 0, x: 20 }}
                            whileInView={{ opacity: 1, x: 0 }}
                            transition={{ delay: i * 0.1 }}
-                           className="p-6 bg-white/5 border border-white/5 rounded-3xl space-y-3 hover:bg-white/10 transition-all border-l-4 border-l-brand-primary"
+                           className="group p-6 bg-white/5 border border-white/5 rounded-3xl space-y-3 hover:bg-white/10 transition-all border-l-4 border-l-brand-primary relative overflow-hidden"
                          >
-                            <p className="text-sm font-medium text-slate-300 italic leading-relaxed">"{hadith.text}"</p>
-                            <div className="flex items-center justify-between">
+                            <div className="absolute -right-2 -bottom-2 opacity-10 scale-150 rotate-12 group-hover:rotate-0 transition-transform">
+                               <Quote size={40} className="text-brand-primary" />
+                            </div>
+                            <p className="text-sm font-medium text-slate-300 italic leading-relaxed relative z-10">"{hadith.text}"</p>
+                            <div className="flex items-center justify-between relative z-10">
                                <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">— {hadith.source}</span>
-                               <Sparkles size={14} className="text-brand-primary/40" />
+                               <div className="px-2 py-0.5 bg-brand-primary/10 rounded-md text-[8px] font-black text-brand-primary uppercase tracking-widest">
+                                 {hadith.benefit}
+                               </div>
                             </div>
                          </motion.div>
                        ))}

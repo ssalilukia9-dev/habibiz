@@ -23,10 +23,12 @@ import {
   Flame,
   Heart,
   Target,
-  Crown
+  Crown,
+  Star
 } from 'lucide-react';
 import { getDailyHadith } from '../data/hadiths.ts';
 import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerService.ts';
+import JummahVirtues from './JummahVirtues.tsx';
 
 interface HomeViewProps {
   onNavigate: (tab: string, extra?: any) => void;
@@ -363,6 +365,9 @@ export default function HomeView({
            </div>
         </div>
       </div>
+
+      {/* Friday Virtues Section */}
+      <JummahVirtues />
 
       {/* 4. LEVEL PROGRESS & RANK CARD */}
       <div className="glass-panel-purple p-8 md:p-10 rounded-[3rem] border-brand-primary/20 relative overflow-hidden">

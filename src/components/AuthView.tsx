@@ -53,8 +53,13 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGoogle();
       onSuccess();
     } catch (err: any) {
+      console.error("Google Auth Error:", err);
       if (err.message?.includes('auth/unauthorized-domain')) {
         setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup blocked by browser. Please enable popups or try signing in with Email.');
+      } else if (err.code === 'auth/internal-error' || err.message?.includes('missing initial state')) {
+        setError('Authentication session error. This often happens on mobile in-app browsers. Please try opening the app in Chrome/Safari directly, or use Email sign-in.');
       } else {
         setError(err.message || 'Google authentication failed.');
       }
@@ -67,10 +72,15 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGithub();
       onSuccess();
     } catch (err: any) {
+      console.error("GitHub Auth Error:", err);
       if (err.message?.includes('auth/unauthorized-domain')) {
         setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup blocked by browser. Please enable popups or try signing in with Email.');
+      } else if (err.code === 'auth/internal-error' || err.message?.includes('missing initial state')) {
+        setError('Authentication session error. This often happens on mobile in-app browsers. Please try opening the app in Chrome/Safari directly, or use Email sign-in.');
       } else {
-        setError(err.message || 'GitHub authentication failed. Ensure it is enabled in your sanctuary records (Firebase Console).');
+        setError(err.message || 'GitHub authentication failed.');
       }
     }
   };

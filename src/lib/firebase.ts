@@ -5,7 +5,9 @@ import {
   GithubAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -39,6 +41,11 @@ if (!firebaseConfig.apiKey) {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Use local persistence to avoid 'missing initial state' on mobile redirects
+setPersistence(auth, browserLocalPersistence).catch(err => {
+  console.error("Persistence setting failed", err);
+});
 
 // Enable persistence for better offline experience
 export const db = initializeFirestore(app, {

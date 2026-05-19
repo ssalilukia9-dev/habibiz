@@ -11,7 +11,10 @@ import {
   MoreVertical,
   CheckCheck,
   ChevronRight,
-  Filter
+  Filter,
+  ShieldCheck,
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 import { notificationService, AppNotification } from '../services/notificationService';
 
@@ -19,10 +22,18 @@ export default function NotificationsView() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'chat'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   const refreshNotifications = () => {
     const list = notificationService.getNotifications();
     setNotifications([...list]);
+  };
+
+  const handleRequestPermission = async () => {
+    const granted = await notificationService.requestPermission();
+    setPermissionStatus(granted ? 'granted' : 'denied');
   };
 
   useEffect(() => {
@@ -57,6 +68,48 @@ export default function NotificationsView() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Native Setup Banner */}
+      {permissionStatus !== 'granted' && (
+        <div className="mx-4 bg-amber-500/10 border border-amber-500/20 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-amber-500/5">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500">
+               <AlertTriangle size={32} />
+            </div>
+            <div className="space-y-1">
+               <h3 className="text-lg font-black text-white uppercase tracking-tight italic">System Signals Disabled</h3>
+               <p className="text-sm text-amber-500/80 font-medium">Native push and lock-screen alerts require your permission to wake the device.</p>
+            </div>
+          </div>
+          <button 
+            onClick={handleRequestPermission}
+            className="w-full md:w-auto px-8 py-4 bg-amber-500 text-brand-depth font-black text-xs uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+          >
+            Enable Native Alerts
+          </button>
+        </div>
+      )}
+
+      {permissionStatus === 'granted' && (
+        <div className="mx-4 bg-emerald-500/10 border border-emerald-500/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-5 text-emerald-500 rotate-12 transition-transform group-hover:scale-110">
+            <ShieldCheck size={120} />
+          </div>
+          <div className="flex items-center gap-5 z-10">
+            <div className="w-14 h-14 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500">
+               <ShieldCheck size={32} />
+            </div>
+            <div className="space-y-1">
+               <h3 className="text-lg font-black text-white uppercase tracking-tight italic">High Priority Protected</h3>
+               <p className="text-sm text-emerald-500/80 font-medium">Sacred signals are authorized for lock-screen and background delivery.</p>
+            </div>
+          </div>
+          {((window as any).median || (window as any).gonative) && (
+            <div className="px-5 py-2 bg-emerald-500 border border-emerald-400 text-brand-depth font-black text-[9px] uppercase tracking-widest rounded-full shadow-lg shadow-emerald-500/30">
+              Native Bridge Optimized
+            </div>
+          )}
+        </div>
+      )}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4">
         <div>
           <h2 className="text-4xl font-black text-white tracking-tight flex items-center gap-4">
