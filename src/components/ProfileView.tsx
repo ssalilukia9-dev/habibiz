@@ -33,7 +33,8 @@ import {
   Zap,
   Volume2,
   Play,
-  Crown
+  Crown,
+  Leaf
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -95,6 +96,8 @@ function ProfileImage({ src, name, size = 'lg', isEditing = false }: ProfileImag
 }
 
 interface ProfileViewProps {
+  theme: string;
+  setTheme: (val: string) => void;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   onLogout: () => void;
@@ -103,7 +106,16 @@ interface ProfileViewProps {
   isHabibiKing?: boolean;
 }
 
-export default function ProfileView({ darkMode, setDarkMode, onLogout, language, setLanguage, isHabibiKing }: ProfileViewProps) {
+export default function ProfileView({ 
+  theme, 
+  setTheme, 
+  darkMode, 
+  setDarkMode, 
+  onLogout, 
+  language, 
+  setLanguage, 
+  isHabibiKing 
+}: ProfileViewProps) {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
   const [userData, setUserData] = useState<any>(null);
@@ -705,28 +717,40 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
         <section className="space-y-6">
           <div className="flex items-center gap-3">
              <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary">
-                <Sun size={16} />
+                <Sparkles size={16} />
              </div>
-             <h3 className="text-xs font-black text-white uppercase tracking-widest">Global Appearance</h3>
+             <h3 className="text-xs font-black text-white uppercase tracking-widest">Aura & Themes</h3>
           </div>
           
           <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-xl">
-             <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 bg-brand-sidebar rounded-xl text-brand-primary">
-                    {darkMode ? <Moon size={20} /> : <Sun size={20} />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-200">Dark Mode</p>
-                    <p className="text-[10px] text-slate-500">Night-time reflection mode</p>
-                  </div>
+             <div className="p-6 space-y-4 border-b border-white/5">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Select Your Sanctuary Essence</p>
+                <div className="grid grid-cols-2 gap-3">
+                   {[
+                     { id: 'light', label: 'Celestial Blue', desc: 'Light & Airy', icon: Sun, color: 'bg-blue-500' },
+                     { id: 'dark', label: 'Deep Soul', desc: 'Cosmic Reflection', icon: Moon, color: 'bg-slate-900' },
+                     { id: 'green', label: 'Eden Green', desc: 'Paradise Growth', icon: Leaf, color: 'bg-emerald-600' },
+                     { id: 'purple', label: 'Mystic Night', desc: 'Royal Spirit', icon: Zap, color: 'bg-purple-600' }
+                   ].map((t) => (
+                     <button
+                       key={t.id}
+                       onClick={() => setTheme(t.id)}
+                       className={`p-4 rounded-2xl border flex flex-col items-start gap-2 transition-all ${
+                         theme === t.id 
+                           ? 'bg-brand-primary/10 border-brand-primary/40 ring-1 ring-brand-primary/40' 
+                           : 'bg-black/20 border-white/5 hover:border-white/10'
+                       }`}
+                     >
+                       <div className={`w-8 h-8 rounded-lg ${t.color} flex items-center justify-center text-white ring-2 ring-white/10`}>
+                          <t.icon size={16} />
+                       </div>
+                       <div className="text-left">
+                          <p className="text-[11px] font-black text-white uppercase leading-none mb-1">{t.label}</p>
+                          <p className="text-[8px] font-bold text-slate-500 uppercase">{t.desc}</p>
+                       </div>
+                     </button>
+                   ))}
                 </div>
-                <button 
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`w-14 h-8 rounded-full transition-all relative ${darkMode ? 'bg-brand-primary' : 'bg-slate-800'}`}
-                >
-                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${darkMode ? 'left-7' : 'left-1'} shadow-lg`} />
-                </button>
              </div>
 
              <div className="p-6 flex items-center justify-between">
@@ -1052,6 +1076,47 @@ export default function ProfileView({ darkMode, setDarkMode, onLogout, language,
               </div>
             )}
          </div>
+      </section>
+
+      {/* SYSTEM ARCHITECTURE SETUP */}
+      <section className="space-y-6 pt-12 border-t border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+            <Sparkles size={16} />
+          </div>
+          <h3 className="text-xs font-black text-white uppercase tracking-widest">Divine Intelligence Setup</h3>
+        </div>
+
+        <div className="p-8 glass-panel rounded-[2.5rem] border-indigo-500/20 bg-indigo-500/5 space-y-6 transition-all hover:border-indigo-500/40">
+           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="space-y-2 text-center md:text-left">
+                <h4 className="text-xl font-black text-white italic">Gemini API Integration</h4>
+                <p className="text-sm text-slate-400 max-w-sm">Activate Aliyah, your AI Spiritual Companion, by adding your API key.</p>
+              </div>
+              <div className="flex gap-3 shrink-0">
+                 <a 
+                   href="https://aistudio.google.com/app/apikey" 
+                   target="_blank" 
+                   rel="noreferrer"
+                   className="px-8 py-3 bg-indigo-500 text-indigo-950 text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-lg shadow-indigo-500/20"
+                 >
+                   Get Free Key
+                 </a>
+              </div>
+           </div>
+           
+           <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-3">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">How to connect:</p>
+              <div className="flex gap-4 items-start">
+                 <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 shrink-0">1</div>
+                 <p className="text-[10px] text-slate-400 leading-relaxed font-medium">Head to <span className="text-white font-bold">Settings</span> menu in AI Studio (bottom left).</p>
+              </div>
+              <div className="flex gap-4 items-start">
+                 <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 shrink-0">2</div>
+                 <p className="text-[10px] text-slate-400 leading-relaxed font-medium">Find <span className="text-white font-bold">GEMINI_API_KEY</span> and paste your key there.</p>
+              </div>
+           </div>
+        </div>
       </section>
 
       {/* CROPPER MODAL */}

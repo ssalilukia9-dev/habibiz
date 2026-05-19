@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Library, 
   BookOpen,
@@ -42,7 +42,7 @@ import ZakatCalculator from './ZakatCalculator.tsx';
 import IslamicGuides from './IslamicGuides.tsx';
 import NamesOfAllahView from './NamesOfAllahView.tsx';
 import GamesView from './GamesView.tsx';
-import QiblaView from './QiblaView.tsx';
+import HajjUmrahHub from './HajjUmrahHub.tsx';
 import PrayerTimesView from './PrayerTimesView.tsx';
 import IslamicFinanceView from './IslamicFinanceView.tsx';
 import DownloadAppView from './DownloadAppView.tsx';
@@ -70,7 +70,7 @@ interface ResourcesViewProps {
   onShowPremium: () => void;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah';
 
 export default function ResourcesView({
   selectedSurah,
@@ -93,12 +93,15 @@ export default function ResourcesView({
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    if (initialResId && initialResId !== activeRes) {
+    if (initialResId) {
       setActiveRes(initialResId);
+    } else if (location.state?.activeRes) {
+      setActiveRes(location.state.activeRes);
     }
-  }, [initialResId]);
+  }, [initialResId, location.state]);
 
   const categories = [
     {
@@ -111,7 +114,6 @@ export default function ResourcesView({
         { id: 'adhkar', title: 'Duas & Adhkar', icon: Moon, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
         { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
         { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800' },
-        { id: 'guides', title: 'Islamic Wisdom', icon: GraduationCap, image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' },
         { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
         { id: 'memorise', title: 'Hifz Companion', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
         { id: 'market', title: 'Halal Market', icon: ShoppingBag, image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=800' },
@@ -119,6 +121,13 @@ export default function ResourcesView({
         { id: 'zakat', title: 'Zakat Calculator', icon: Calculator, image: 'https://images.unsplash.com/photo-1611974717482-aa389182069e?auto=format&fit=crop&q=80&w=800' },
         { id: 'babynames', title: 'Baby Names', icon: Baby, image: 'https://images.unsplash.com/photo-1519689683291-c1033ef378c5?auto=format&fit=crop&q=80&w=800' },
         { id: 'games', title: 'Ilm Games', icon: Gamepad2, image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800' },
+      ]
+    },
+    {
+      title: 'PILGRIMAGE',
+      cards: [
+        { id: 'hajj_umrah', title: 'Hajj & Umrah', icon: MapPin, image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800' },
+        { id: 'guides', title: 'Islamic Wisdom', icon: GraduationCap, image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' },
       ]
     },
     {
@@ -457,6 +466,7 @@ export default function ResourcesView({
                       onCollectionChange={onHadithCollectionChange}
                       searchQuery={searchQuery}
                       setSearchQuery={setSearchQuery}
+                      addHasanat={addHasanat}
                    />
                  )}
                  {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
@@ -467,6 +477,7 @@ export default function ResourcesView({
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView />}
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {activeRes === 'hajj_umrah' && <HajjUmrahHub onNavigate={(view) => setActiveRes(view as TabType)} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} />}

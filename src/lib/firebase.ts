@@ -4,10 +4,13 @@ import {
   GoogleAuthProvider, 
   GithubAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  indexedDBLocalPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -42,8 +45,8 @@ if (!firebaseConfig.apiKey) {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use local persistence to avoid 'missing initial state' on mobile redirects
-setPersistence(auth, browserLocalPersistence).catch(err => {
+// Use indexedDB persistence for the best balance of security and longevity in mobile webviews
+setPersistence(auth, indexedDBLocalPersistence).catch(err => {
   console.error("Persistence setting failed", err);
 });
 
@@ -54,6 +57,10 @@ export const db = initializeFirestore(app, {
 
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
+
+const isMobile = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
 
 export const testConnection = async () => {
   try {
@@ -69,20 +76,49 @@ export const testConnection = async () => {
 
 export const signInWithGoogle = async () => {
   try {
+    if (isMobile()) {
+      await signInWithRedirect(auth, googleProvider);
+      return null; // Redirecting, user will be handled by observer
+    }
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing in with Google", error);
+    // If popup is blocked, fails or is closed prematurely, try redirect as fallback
+    const fallbackCodes = ['auth/popup-blocked', 'auth/internal-error', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
+    if (fallbackCodes.includes(error.code)) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
     throw error;
   }
 };
 
 export const signInWithGithub = async () => {
   try {
+    if (isMobile()) {
+      await signInWithRedirect(auth, githubProvider);
+      return null;
+    }
     const result = await signInWithPopup(auth, githubProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing in with GitHub", error);
+    const fallbackCodes = ['auth/popup-blocked', 'auth/internal-error', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
+    if (fallbackCodes.includes(error.code)) {
+      await signInWithRedirect(auth, githubProvider);
+      return null;
+    }
+    throw error;
+  }
+};
+
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
+  } catch (error) {
+    console.error("Error handling redirect result", error);
     throw error;
   }
 };

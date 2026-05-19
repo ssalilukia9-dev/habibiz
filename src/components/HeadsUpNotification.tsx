@@ -49,62 +49,57 @@ export default function HeadsUpNotification() {
             initial={{ y: -100, opacity: 0, scale: 0.95 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -100, opacity: 0, scale: 0.95 }}
-            className="w-full max-w-md bg-white pointer-events-auto rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-black/5 overflow-hidden"
+            className="w-full max-w-md glass-panel pointer-events-auto rounded-[2.5rem] shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] border-white/10 overflow-hidden bg-brand-sidebar/80 backdrop-blur-3xl"
           >
-            <div className="p-4 bg-white">
+            <div className="p-5">
               {/* Native Android-style Header */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                   <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
+                   <div className="w-6 h-6 rounded-full bg-brand-secondary/10 flex items-center justify-center">
                      {getIcon(activeNotification.type)}
                    </div>
-                   <span className="text-[11px] font-medium text-slate-500 tracking-tight">
+                   <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">
                      {getAppLabel(activeNotification.type)} • Just now
                    </span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="text-[10px] font-bold">1</span>
-                  <ChevronDown size={14} />
                 </div>
               </div>
 
               {/* Notification Content */}
-              <div className="flex gap-4 items-start pb-2">
+              <div className="flex gap-4 items-start pb-4">
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-[13px] font-bold text-slate-900 leading-tight">
+                  <h4 className="text-sm font-black text-white leading-tight">
                     {activeNotification.title}
                   </h4>
-                  <p className="text-[12px] text-slate-600 line-clamp-2 mt-0.5 leading-snug">
+                  <p className="text-xs text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">
                     {activeNotification.body}
                   </p>
                 </div>
                 
-                {/* Visual indicator (DiceBear proxy for user avatar if it was a chat) */}
-                <div className="w-10 h-10 rounded-2xl bg-slate-100 shrink-0 overflow-hidden flex items-center justify-center">
-                   <Bell size={20} className="text-slate-300" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-primary flex items-center justify-center text-brand-depth shadow-xl shadow-brand-primary/20 shrink-0 overflow-hidden">
+                   <Bell size={24} />
                 </div>
               </div>
-            </div>
 
-            {/* In-app action bar */}
-            <div className="flex border-t border-slate-100 divide-x divide-slate-100">
-               <button 
-                 onClick={() => setActiveNotification(null)}
-                 className="flex-1 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-colors"
-               >
-                 Dismiss
-               </button>
-               <button 
-                 onClick={() => {
-                   if (activeNotification.actionUrl) {
-                     window.location.hash = activeNotification.actionUrl;
-                   }
-                   setActiveNotification(null);
-                 }}
-                 className="flex-1 py-3 text-[11px] font-black uppercase tracking-widest text-[#A855F7] hover:bg-purple-50 transition-colors"
-               >
-                 Review
-               </button>
+              {/* In-app action bar */}
+              <div className="flex gap-2">
+                 <button 
+                   onClick={() => setActiveNotification(null)}
+                   className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
+                 >
+                   Dismiss
+                 </button>
+                 <button 
+                   onClick={() => {
+                     if (activeNotification.actionUrl) {
+                       window.location.hash = activeNotification.actionUrl;
+                     }
+                     setActiveNotification(null);
+                   }}
+                   className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-brand-secondary rounded-xl hover:scale-105 transition-all shadow-lg shadow-brand-secondary/20"
+                 >
+                   View Sanctuary
+                 </button>
+              </div>
             </div>
           </motion.div>
         </div>

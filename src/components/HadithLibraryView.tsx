@@ -9,9 +9,12 @@ import {
   ArrowLeft,
   Bookmark,
   Share2,
-  X
+  X,
+  Volume2,
+  Pause
 } from 'lucide-react';
 import { HADITH_DATABASE } from '../data/hadiths.ts';
+import { VoiceService } from '../services/voiceService.ts';
 
 const COLLECTIONS = [
   { id: 'all', name: 'All Collections', color: 'bg-brand-primary' },
@@ -21,8 +24,47 @@ const COLLECTIONS = [
   { id: 'Al-Adab Al-Mufrad', name: 'Al-Adab Al-Mufrad', color: 'bg-purple-500' }
 ];
 
-export default function HadithLibraryView({ initialCollection, onCollectionChange, searchQuery, setSearchQuery }: { initialCollection?: string, onCollectionChange?: (id: string) => void, searchQuery: string, setSearchQuery: (q: string) => void }) {
+export default function HadithLibraryView({ 
+  initialCollection, 
+  onCollectionChange, 
+  searchQuery, 
+  setSearchQuery,
+  addHasanat
+}: { 
+  initialCollection?: string, 
+  onCollectionChange?: (id: string) => void, 
+  searchQuery: string, 
+  setSearchQuery: (q: string) => void,
+  addHasanat: (amount: number) => void
+}) {
   const [selectedCollection, _setSelectedCollection] = useState(initialCollection || 'all');
+  const [speakingId, setSpeakingId] = useState<number | null>(null);
+
+  const handleSelectHadith = (h: typeof HADITH_DATABASE[0]) => {
+    setSelectedHadith(h);
+    // Award Hasanat for exploring wisdom
+    const viewedKey = `viewed-hadith-${h.id}`;
+    if (!localStorage.getItem(viewedKey)) {
+      addHasanat(20);
+      localStorage.setItem(viewedKey, 'true');
+    }
+  };
+
+  const handleSpeak = (h: typeof HADITH_DATABASE[0]) => {
+    if (speakingId === h.id) {
+      VoiceService.stop();
+      setSpeakingId(null);
+    } else {
+      setSpeakingId(h.id);
+      VoiceService.speak(h.arabic, 'ar');
+      // After a certain time or end of speaking, we should reset.
+      // Since window.speechSynthesis doesn't always trigger robustly on all browsers, we'll use a timeout fallback or just rely on manual stop.
+    }
+  };
+
+  useEffect(() => {
+    return () => VoiceService.stop();
+  }, []);
 
   const setSelectedCollection = (id: string) => {
     _setSelectedCollection(id);
@@ -172,7 +214,7 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
                       bounce: 0,
                       delay: searchQuery ? 0 : i * 0.05 
                     }}
-                    onClick={() => setSelectedHadith(h)}
+                    onClick={() => handleSelectHadith(h)}
                     className="glass-panel p-6 rounded-3xl text-left border-white/5 hover:border-brand-primary/20 transition-all group overflow-hidden relative h-full flex flex-col"
                   >
                     <div className="absolute top-0 right-0 p-4 text-brand-primary/10 group-hover:scale-110 transition-transform">
@@ -183,6 +225,14 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
                         <HighlightText text={h.topic} highlight={searchQuery} />
                       </div>
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{h.collection}</span>
+                    </div>
+                    <div className="flex gap-2 mb-4">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleSpeak(h); }}
+                        className={`p-2 rounded-xl border transition-all ${speakingId === h.id ? 'bg-brand-primary border-brand-primary text-brand-depth' : 'border-white/10 text-slate-500 hover:text-brand-primary hover:border-brand-primary/30'}`}
+                      >
+                        {speakingId === h.id ? <Pause size={14} /> : <Volume2 size={14} />}
+                      </button>
                     </div>
                     <p className="text-slate-300 text-sm leading-relaxed line-clamp-3 mb-4 font-light italic flex-1">
                       "<HighlightText text={h.english} highlight={searchQuery} />"
@@ -237,6 +287,12 @@ export default function HadithLibraryView({ initialCollection, onCollectionChang
                     </div>
                   </div>
                   <div className="flex gap-2">
+                     <button 
+                        onClick={() => handleSpeak(selectedHadith)}
+                        className={`p-2 md:p-3 rounded-xl border transition-all ${speakingId === selectedHadith.id ? 'bg-brand-primary border-brand-primary text-brand-depth shadow-xl' : 'glass-panel text-slate-400 hover:text-brand-primary'}`}
+                      >
+                        {speakingId === selectedHadith.id ? <Pause size={18} /> : <Volume2 size={18} />}
+                     </button>
                      <button className="p-2 md:p-3 glass-panel rounded-xl text-slate-400 hover:text-brand-primary transition-all">
                         <Bookmark className="w-4 h-4 md:w-5 md:h-5" />
                      </button>

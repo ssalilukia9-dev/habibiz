@@ -14,9 +14,11 @@ import {
   Settings2,
   CheckCircle2,
   Speaker,
-  Bell
+  Bell,
+  Compass
 } from 'lucide-react';
 import { Coordinates } from 'adhan';
+import QiblaView from './QiblaView.tsx';
 import { getPrayerTimes, formatTime, CALCULATION_METHODS } from '../services/prayerService.ts';
 
 interface Mosque {
@@ -27,7 +29,7 @@ interface Mosque {
 }
 
 export default function ToolsView() {
-  const [activeTool, setActiveTool] = useState<'tasbih' | 'mosques' | 'calendar' | 'reminders'>('tasbih');
+  const [activeTool, setActiveTool] = useState<'tasbih' | 'mosques' | 'calendar' | 'reminders' | 'qibla'>('tasbih');
   
   // Notification State
   const [reminders, setReminders] = useState<{ [key: string]: boolean }>(() => {
@@ -331,6 +333,7 @@ export default function ToolsView() {
       <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
         {[
           { id: 'tasbih', label: 'Tasbih', icon: Hash },
+          { id: 'qibla', label: 'Qibla', icon: Compass },
           { id: 'reminders', label: 'Reminders', icon: Bell },
           { id: 'calendar', label: 'Calendar', icon: Calendar },
           { id: 'mosques', label: 'Nearby', icon: MapPin }
@@ -351,6 +354,17 @@ export default function ToolsView() {
 
       <div className="max-w-xl mx-auto">
         <AnimatePresence mode="wait">
+          {activeTool === 'qibla' && (
+            <motion.div
+              key="qibla"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <QiblaView />
+            </motion.div>
+          )}
+
           {activeTool === 'tasbih' && (
             <motion.div
               key="tasbih"

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
+import { notificationService } from '../services/notificationService';
 
 interface JuzDetailProps {
   juzIndex: number;
@@ -99,13 +100,25 @@ export default function JuzDetail({
   const isBookmarked = (ayahNumber: number) => bookmarks.some(b => b.number === ayahNumber);
 
   useEffect(() => {
+    if (juzIndex) {
+      localStorage.setItem('last-read-quran', JSON.stringify({
+        type: 'juz',
+        index: juzIndex,
+        title: `Juz ${juzIndex}`,
+        timestamp: Date.now()
+      }));
+    }
+  }, [juzIndex]);
+
+  useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       
       const reciter = RECITERS.find(r => r.id === selectedReciter);
-      
+      const isOfflineMode = localStorage.getItem('offline-mode') === 'true';
+
       try {
-        // Fetch Juz content from API
+        // Fetch Juz content
         const resArabic = await fetch(`https://api.alquran.cloud/v1/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`);
         const dataArabic = await resArabic.json();
         
@@ -113,19 +126,26 @@ export default function JuzDetail({
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {
-          const combined = dataArabic.data.ayahs.map((a: any, idx: number) => {
-            // Find surah info
+          const combined = await Promise.all(dataArabic.data.ayahs.map(async (a: any, idx: number) => {
             const surahInfo = SURAH_LIST.find(s => s.number === a.surah.number);
+            
+            // Check cache for this specific ayah
+            const cachedAyahsForSurah = await offlineService.getAyahs(a.surah.number, selectedReciter);
+            const cached = cachedAyahsForSurah?.find(ca => ca.number === a.number);
+
             return {
               ...a,
               surahName: surahInfo?.englishName || a.surah.englishName,
-              translation: dataTrans.data.ayahs[idx].text
+              translation: dataTrans.data.ayahs[idx].text,
+              audioBlob: cached?.audio === a.audio ? cached.audioBlob : undefined
             };
-          });
+          }));
           setAyahs(combined);
         }
       } catch (err) {
         console.error("Failed to fetch juz data", err);
+        // Fallback: If offline, we'd need to reconstruct the Juz from cached surahs
+        // This is complex, but for now we've added basic blob persistence
       } finally {
         setIsLoading(false);
       }
@@ -187,6 +207,7 @@ export default function JuzDetail({
       };
 
       audio.onended = () => {
+        handleRead(ayah.number);
         if (autoPlay) {
           const currentIndex = ayahs.findIndex(a => a.number === ayah.number);
           if (currentIndex < ayahs.length - 1) {
@@ -233,16 +254,14 @@ export default function JuzDetail({
       setAyahs(updatedAyahs);
       
       // Group by surah to save in offlineService
-      const surahsToUpdate = new Set(updatedAyahs.map(a => a.surah.number));
+      const surahsToUpdate = Array.from(new Set(updatedAyahs.map(a => a.surah.number)));
       for (const surahNum of surahsToUpdate) {
         const surahAyahs = updatedAyahs.filter(a => a.surah.number === surahNum);
-        // This is tricky because we might not have the FULL surah, just part of it in this Juz.
-        // For now, let's just use localstorage to mark Juz as offline-downloaded or similar
-        // or just let the blobs stay in state for this session.
-        // Ideally we'd merge with existing cached ayahs for those surahs.
+        await offlineService.mergeAyahs(surahNum, surahAyahs, selectedReciter);
       }
       
       localStorage.setItem('offline-mode', 'true');
+      notificationService.notify('Juz Downloaded', `Juz ${juzIndex} is now available offline.`, 'system');
     } catch (error) {
       console.error("Juz download failed", error);
     } finally {
@@ -353,7 +372,8 @@ export default function JuzDetail({
                 </div>
               )}
               <motion.div 
-                className={`p-6 rounded-[2rem] border transition-all ${playingAyah === ayah.number ? 'bg-brand-primary/10 border-brand-primary/30' : 'border-transparent hover:bg-white/5'}`}
+                onClick={() => handleRead(ayah.number)}
+                className={`p-6 rounded-[2rem] border transition-all cursor-pointer ${playingAyah === ayah.number ? 'bg-brand-primary/10 border-brand-primary/30' : 'border-transparent hover:bg-white/5'}`}
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="w-8 h-8 rounded-full border border-brand-primary/30 flex items-center justify-center text-[10px] font-bold text-brand-primary">

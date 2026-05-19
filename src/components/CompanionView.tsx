@@ -67,10 +67,12 @@ interface Conversation {
 
 export default function CompanionView({ 
   isPremium, 
-  onShowPremium 
+  onShowPremium,
+  addHasanat
 }: { 
   isPremium: boolean;
   onShowPremium: () => void;
+  addHasanat: (amount: number) => void;
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   
@@ -289,6 +291,8 @@ export default function CompanionView({
         content: assistantText,
         timestamp: serverTimestamp()
       });
+
+      addHasanat(30);
 
       if (voiceEnabled) {
         speak(assistantText);

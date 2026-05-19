@@ -69,6 +69,36 @@ class OfflineService {
     return await quranStore.getItem('download_metadata') || {};
   }
 
+  async mergeAyahs(surahNumber: number, newAyahs: Ayah[], reciterId?: number) {
+    const existing = await this.getAyahs(surahNumber, reciterId) || [];
+    const merged = [...existing];
+    
+    newAyahs.forEach(nA => {
+      const idx = merged.findIndex(eA => eA.number === nA.number);
+      if (idx >= 0) {
+        merged[idx] = { ...merged[idx], ...nA };
+      } else {
+        merged.push(nA);
+      }
+    });
+
+    // Sort by number to ensure order
+    merged.sort((a, b) => a.number - b.number);
+    
+    await this.saveAyahs(surahNumber, merged, reciterId);
+  }
+
+  async removeDownloadedSurah(surahNumber: number, reciterId?: number) {
+    const metaKey = `${surahNumber}_${reciterId || 'default'}`;
+    const key = reciterId ? `surah_${surahNumber}_reciter_${reciterId}_ayahs` : `surah_${surahNumber}_ayahs`;
+    
+    await quranStore.removeItem(key);
+    
+    const metadata: any = await quranStore.getItem('download_metadata') || {};
+    delete metadata[metaKey];
+    await quranStore.setItem('download_metadata', metadata);
+  }
+
   async clearCache() {
     await quranStore.clear();
   }

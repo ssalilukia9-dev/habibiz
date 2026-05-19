@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'react-router-dom';
 import { SURAH_LIST, JUZ_LIST, RECITERS } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
-import { BookOpen, Hash, ArrowRight, Volume2, Check, Crown, ChevronDown, Sparkles } from 'lucide-react';
+import { BookOpen, Hash, ArrowRight, Volume2, Check, Crown, ChevronDown, Sparkles, WifiOff } from 'lucide-react';
 import SurahDetail from './SurahDetail.tsx';
 import JuzDetail from './JuzDetail.tsx';
+import { offlineService } from '../services/offlineService.ts';
 
 interface QuranViewProps {
   selectedSurah: Surah | null;
@@ -33,9 +35,30 @@ export default function QuranView({
   isPremium,
   onShowPremium
 }: QuranViewProps & { isPremium: boolean; onShowPremium: () => void }) {
-  const [viewMode, setViewMode] = useState<'surah' | 'juz'>('surah');
+  const location = useLocation();
+  const [viewMode, setViewMode] = useState<'surah' | 'juz'>(() => {
+    if (location.state?.juzIndex) return 'juz';
+    return 'surah';
+  });
   const [showReciterList, setShowReciterList] = useState(false);
-  const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
+  const [selectedJuz, setSelectedJuz] = useState<number | null>(() => {
+    return location.state?.juzIndex || null;
+  });
+  const [downloadedSurahs, setDownloadedSurahs] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (location.state?.juzIndex) {
+      setSelectedJuz(location.state.juzIndex);
+      setViewMode('juz');
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    offlineService.getAllDownloadedSurahs().then(metadata => {
+      const nums = new Set(Object.keys(metadata).map(k => Number(k.split('_')[0])));
+      setDownloadedSurahs(nums);
+    });
+  }, [selectedSurah, selectedJuz]);
 
   const handleReciterSelect = (id: number) => {
     // First 2 reciters are free
@@ -174,7 +197,14 @@ export default function QuranView({
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-200 text-base md:text-lg group-hover:text-brand-primary transition-colors">{surah.englishName}</h3>
-                  <p className="text-[9px] md:text-[10px] text-brand-primary/60 uppercase font-bold tracking-widest">{surah.revelationType} • {surah.numberOfAyahs} Ayahs</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[9px] md:text-[10px] text-brand-primary/60 uppercase font-bold tracking-widest">{surah.revelationType} • {surah.numberOfAyahs} Ayahs</p>
+                    {downloadedSurahs.has(surah.number) && (
+                      <div className="flex items-center gap-1 text-[7px] text-emerald-500 font-black uppercase tracking-widest bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                        <WifiOff size={8} /> Offline
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-right">

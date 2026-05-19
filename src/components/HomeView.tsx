@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { getDailyHadith } from '../data/hadiths.ts';
 import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerService.ts';
-import JummahVirtues from './JummahVirtues.tsx';
+import DailyVirtues from './DailyVirtues.tsx';
 
 interface HomeViewProps {
   onNavigate: (tab: string, extra?: any) => void;
@@ -41,6 +41,8 @@ interface HomeViewProps {
   streak: number;
   topUserId?: string | null;
   currentUser?: any;
+  updateStreak?: () => void;
+  lastInteractionAt?: number;
 }
 
 export default function HomeView({ 
@@ -53,12 +55,45 @@ export default function HomeView({
   duaCount = 0,
   streak = 0,
   topUserId = null,
-  currentUser = null
+  currentUser = null,
+  updateStreak,
+  lastInteractionAt
 }: HomeViewProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [prayerData, setPrayerData] = useState<PrayerTimeData | null>(null);
   const [notifiedPrayers, setNotifiedPrayers] = useState<Set<string>>(new Set());
+  const [lastRead, setLastRead] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('last-read-quran');
+    if (saved) setLastRead(JSON.parse(saved));
+  }, []);
+
+  const handleContinue = () => {
+    if (lastRead) {
+      if (lastRead.type === 'surah') {
+        onNavigate('quran', { surahNumber: lastRead.number });
+      } else {
+        onNavigate('juz', { juzIndex: lastRead.index });
+      }
+    } else {
+      onNavigate('quran');
+    }
+  };
+
+  const handleHadithClick = () => {
+    // Navigate to shared hadith view
+    onNavigate('resources', { resId: 'hadith' });
+    
+    // Update streak if not updated today
+    const lastStreakUpdate = localStorage.getItem('last-hadith-streak-update');
+    const today = new Date().toDateString();
+    if (lastStreakUpdate !== today && updateStreak) {
+      updateStreak();
+      localStorage.setItem('last-hadith-streak-update', today);
+    }
+  };
 
   // Hijri Date Logic
   const hijriDate = moment(currentTime).format('iD iMMMM iYYYY');
@@ -109,335 +144,364 @@ export default function HomeView({
 
   const DAILY_VERSES = [
     {
+      type: 'quran',
       arabic: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
       translation: "For indeed, with hardship [will be] ease.",
-      reference: "Surah Al-Inshirah [94:6]"
+      reference: "Surah Al-Inshirah [94:6]",
+      link: { tab: 'quran', extra: { surahNumber: 94 } }
     },
     {
+      type: 'quran',
       arabic: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ",
       translation: "Our Lord, give us in this world [that which is] good and in the Hereafter [that which is] good and protect us from the punishment of the Fire.",
-      reference: "Surah Al-Baqarah [2:201]"
+      reference: "Surah Al-Baqarah [2:201]",
+      link: { tab: 'quran', extra: { surahNumber: 2 } }
     },
     {
+      type: 'quran',
       arabic: "اللَّهُ نُورُ السَّمَاوَاتِ وَالْأَرْضِ",
       translation: "Allah is the Light of the heavens and the earth.",
-      reference: "Surah An-Nur [24:35]"
-    },
-    {
-      arabic: "وَاصْبِرْ لِحُكْمِ رَبِّكَ فَإِنَّكَ بِأَعْيُنِنَا",
-      translation: "And be patient, [O Muhammad], for the decision of your Lord, for indeed, you are in Our eyes.",
-      reference: "Surah At-Tur [52:48]"
-    },
-    {
-      arabic: "فَاذْكُرُونِي أَذْكُرْكُمْ",
-      translation: "So remember Me; I will remember you.",
-      reference: "Surah Al-Baqarah [2:152]"
+      reference: "Surah An-Nur [24:35]",
+      link: { tab: 'quran', extra: { surahNumber: 24 } }
     }
   ];
 
-  const getDailyVerse = () => {
+  const getDailyRevelation = () => {
     const day = new Date().getUTCDate();
-    const index = day % DAILY_VERSES.length;
-    return DAILY_VERSES[index];
+    const useHadith = day % 2 === 0;
+
+    if (useHadith) {
+      return {
+        type: 'hadith',
+        arabic: dailyHadith.arabic,
+        translation: dailyHadith.english,
+        reference: `${dailyHadith.narrator} • ${dailyHadith.collection}`,
+        link: { tab: 'resources', extra: { resId: 'hadith' } }
+      };
+    }
+
+    const verseIndex = (day % (DAILY_VERSES.length * 2)) % DAILY_VERSES.length;
+    return DAILY_VERSES[verseIndex];
   };
 
-  const dailyVerse = getDailyVerse();
+  const dailyRevelation = getDailyRevelation();
 
   return (
-    <div className="space-y-6 md:space-y-10 pb-20">
-      {/* Sponsorship Banner */}
-      <div className="glass-panel border-brand-primary/20 p-6 md:p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-6 md:gap-8 overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <div className="flex items-center gap-4 md:gap-6 relative z-10 w-full md:w-auto">
-          <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[2.5rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20 shrink-0">
-            <Sparkles size={24} className="md:w-8 md:h-8" />
+    <div className="space-y-8 md:space-y-12 pb-24">
+      {/* Sponsorship Banner - Subtle & Integrated */}
+      <div className="glass-panel border-white/5 p-4 rounded-[2rem] flex flex-col md:flex-row items-center justify-between bg-white/[0.02] gap-4">
+        <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
+          <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/10 shrink-0">
+            <Sparkles size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] md:tracking-[0.5em] mb-1">Sponsored by Aloha Group</p>
-            <h4 className="text-lg md:text-xl font-black text-white px-1 uppercase tracking-tighter">Habibi x <span className="text-brand-primary">ISIS WRISTS</span></h4>
-            <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for the modern believer</p>
+            <p className="text-[8px] font-black text-brand-primary uppercase tracking-[0.4em] mb-0.5">Sanctuary Partners</p>
+            <h4 className="text-xs font-black text-white px-0.5 uppercase tracking-tighter italic">Habibi x ALOHA Precision</h4>
           </div>
         </div>
-        <button className="w-full md:w-auto px-8 py-3 md:py-4 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest">Explore Collection</button>
+        <button className="px-6 py-2 bg-white/5 text-white/40 text-[8px] font-black uppercase rounded-xl hover:bg-white/10 transition-all tracking-[0.2em]">Explore Collection</button>
       </div>
       
-      {/* 1. BENTO HEADER GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+      {/* 1. HERO BENTO GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* WELCOME BLOCK (LG:7) */}
-        <div className="lg:col-span-7 glass-panel-purple p-6 md:p-12 rounded-[2rem] md:rounded-[2.5rem] flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">
-            <Sparkles size={180} />
+        {/* WELCOME BLOCK */}
+        <div className="lg:col-span-8 glass-panel p-8 md:p-14 rounded-[3rem] flex flex-col justify-between relative overflow-hidden group border-white/5 bg-gradient-to-br from-brand-primary/10 to-transparent">
+          <div className="absolute top-0 right-0 p-12 opacity-[0.03] group-hover:rotate-12 transition-transform duration-1000 pointer-events-none scale-150 transform-gpu">
+            <Sparkles size={240} />
           </div>
-          <div className="relative z-10 space-y-4 md:space-y-6">
-            <div className="flex items-center gap-2 text-brand-primary text-[10px] font-black uppercase tracking-[0.3em]">
-              <Sparkles size={12} className="animate-pulse" />
-              <span>SANCTUARY</span>
+          
+          <div className="relative z-10 space-y-6">
+            <div className="flex items-center gap-3 text-brand-primary">
+              <div className="w-1 h-4 bg-brand-primary rounded-full" />
+              <span className="text-[10px] font-black uppercase tracking-[0.5em]">The Sanctuary</span>
             </div>
-            <h1 className="text-4xl md:text-7xl font-black text-slate-200 leading-[0.9] tracking-tighter flex items-center gap-4">
-              Salam,<br/><span className="text-brand-primary uppercase">Seeker</span>
-              {currentUser && topUserId === currentUser.uid && (
-                <motion.div 
-                  initial={{ scale: 0, rotate: -20 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  className="bg-amber-400 text-amber-900 p-2 rounded-xl shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-bounce shrink-0"
-                  title="Sanctuary Crown Holder"
-                >
-                  <Crown size={24} className="md:w-8 md:h-8" />
-                </motion.div>
-              )}
-            </h1>
-            <p className="text-slate-400 text-base md:text-lg max-w-md leading-relaxed">
-              Your spiritual journey is thriving. You've read 12 more verses than yesterday!
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-2 md:pt-4">
+            
+            <div className="space-y-2">
+              <h1 className="text-5xl md:text-8xl font-black text-white leading-none tracking-tighter">
+                Salam, <br/><span className="text-brand-primary italic">Soul</span>
+              </h1>
+              <p className="text-slate-400 text-lg md:text-xl font-medium max-w-md">
+                Your spiritual momentum is <span className="text-white">Thriving</span> today.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-6">
               <button 
-                onClick={() => onNavigate('quran')}
-                className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-brand-depth font-black rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs uppercase"
+                onClick={handleContinue}
+                className="group relative px-10 py-6 bg-brand-primary text-brand-depth font-black rounded-3xl overflow-hidden hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4 text-sm uppercase tracking-widest shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
               >
-                Continue Quran <ArrowRight size={16} />
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                <BookOpen size={20} />
+                {lastRead ? `Resume ${lastRead.title}` : 'Read Quran'}
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </button>
+              
               <button 
-                onClick={() => onNavigate('market')}
-                className="w-full sm:w-auto px-8 py-4 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all text-xs uppercase flex items-center justify-center gap-3"
+                onClick={() => onNavigate('resources', { resId: 'adhkar' })}
+                className="px-10 py-6 bg-white/5 text-white font-black rounded-3xl border border-white/10 hover:bg-white/10 transition-all text-sm uppercase flex items-center justify-center gap-4 hover:border-brand-primary/30"
               >
-                Marketplace <ShoppingBag size={16} />
+                Find Calm <Moon size={20} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* CLOCK & PRAYER QUICK VIEW (LG:5) */}
-        <div className="lg:col-span-5 glass-panel p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] flex flex-col justify-between border-white/5 relative overflow-hidden">
-          <div className="flex justify-between items-start">
-             <div className="space-y-1">
-                <div className="text-4xl md:text-5xl font-black text-slate-200 font-mono tracking-tighter">
+        {/* PRAYER CONSOLE */}
+        <div className="lg:col-span-4 glass-panel p-8 rounded-[3.5rem] border-white/5 bg-black/40 flex flex-col justify-between relative overflow-hidden backdrop-blur-3xl shadow-3xl">
+          <div className="absolute top-0 right-0 w-full h-1/2 bg-brand-primary/5 blur-[100px] -mt-20" />
+          
+          <div className="relative z-10 space-y-8">
+            <div className="flex justify-between items-center">
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Holy Makkah Time</p>
+                <h2 className="text-4xl font-black text-white font-mono tracking-tighter">
                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{hDay} {hMonth} {hYear}</div>
-             </div>
-             <button onClick={requestNotificationPermission} className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-brand-primary border border-white/10 transition-all">
-               <Bell size={18} className="md:w-5 md:h-5" />
-             </button>
-          </div>
-
-          <div className="space-y-3 mt-6 md:mt-8">
-             {prayerData ? (
-               <>
-                 <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl md:rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-3">
-                       <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-                          <Target size={18} className="md:w-5 md:h-5" />
-                       </div>
-                       <div>
-                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Next Prayer</p>
-                          <p className="text-xs md:text-sm font-black text-slate-200">{prayerData.nextPrayer}</p>
-                       </div>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-base md:text-lg font-black text-brand-primary leading-none">{formatTime(prayerData.nextTime)}</p>
-                    </div>
-                 </div>
-                 <div className="flex items-center gap-2 text-[9px] text-slate-600 justify-center font-bold">
-                    <MapPin size={10} /> Active: {prayerData.currentPrayer} • {location?.lat.toFixed(1)}°
-                 </div>
-               </>
-             ) : (
-               <div className="animate-pulse space-y-3">
-                  <div className="h-10 bg-white/5 rounded-2xl" />
-                  <div className="h-4 bg-white/5 rounded-full w-1/2 mx-auto" />
-               </div>
-             )}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. SPIRITUAL METRICS (3 COL) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        
-        {/* QURAN PROGRESS */}
-        <motion.div 
-          whileHover={{ y: -5 }} 
-          onClick={() => onNavigate('quran')}
-          className="glass-panel p-6 rounded-[2rem] border-white/5 flex items-center gap-5 group cursor-pointer"
-        >
-           <div className="w-16 h-16 rounded-3xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-all shadow-inner">
-              <BookOpen size={28} />
-           </div>
-           <div className="flex-1">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Quran Journey</p>
-              <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-slate-200">{versesRead}</span>
-                 <span className="text-[10px] text-slate-500 font-bold uppercase">Verses Read</span>
+                </h2>
               </div>
-              <div className="mt-2 h-1 bg-white/5 rounded-full overflow-hidden">
-                 <div 
-                   className="h-full bg-purple-500 transition-all duration-1000" 
-                   style={{ width: `${Math.min((versesRead / 6236) * 100, 100)}%` }}
-                 />
-              </div>
-           </div>
-        </motion.div>
-
-        {/* HADITH STREAK */}
-        <motion.div whileHover={{ y: -5 }} className="glass-panel p-6 rounded-[2rem] border-white/5 flex items-center gap-5 group">
-           <div className="w-16 h-16 rounded-3xl bg-teal-500/10 flex items-center justify-center text-teal-500 group-hover:bg-teal-500 group-hover:text-white transition-all shadow-inner">
-              <Flame size={28} className={streak > 0 ? 'animate-pulse' : ''} />
-           </div>
-           <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Hadith Streak</p>
-              <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-slate-200">{streak}</span>
-                 <span className="text-[10px] text-slate-500 font-bold uppercase">Days</span>
-              </div>
-           </div>
-        </motion.div>
-
-        {/* DUA COUNT */}
-        <motion.div whileHover={{ y: -5 }} className="glass-panel p-6 rounded-[2rem] border-white/5 flex items-center gap-5 group">
-           <div className="w-16 h-16 rounded-3xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-all shadow-inner">
-              <Heart size={28} />
-           </div>
-           <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Dua Reflections</p>
-              <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-black text-slate-200">{duaCount}</span>
-                 <span className="text-[10px] text-slate-500 font-bold uppercase">Saved</span>
-              </div>
-           </div>
-        </motion.div>
-      </div>
-
-      {/* 3. CENTERPIECE: DAILY REVELATION & SHORTCUTS */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        
-        {/* NAVIGATION SHORTCUTS (XL:3) */}
-        <div className="xl:col-span-3 space-y-4">
-           {[ 
-             { id: 'resources', sub: 'adhkar', label: 'Adhkar', icon: Zap, color: 'text-blue-400' },
-             { id: 'resources', sub: 'hadith', label: 'Hadith Library', icon: Library, color: 'text-teal-400' },
-             { id: 'companion', sub: '', label: 'AI Companion', icon: MessageCircle, color: 'text-purple-400' }
-           ].map((link, idx) => (
-             <motion.button
-               key={link.label}
-               initial={{ opacity: 0, x: -20 }}
-               animate={{ opacity: 1, x: 0 }}
-               transition={{ delay: idx * 0.1 }}
-               onClick={() => onNavigate(link.id, link.sub ? { resId: link.sub } : undefined)}
-               className="w-full p-5 glass-panel rounded-2xl border-white/5 flex items-center justify-between group hover:border-brand-primary/30 transition-all bg-white/2"
-             >
-               <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center ${link.color}`}>
-                     <link.icon size={20} />
-                  </div>
-                  <span className="text-sm font-extrabold text-slate-200 group-hover:text-white">{link.label}</span>
-               </div>
-               <ArrowRight size={14} className="opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-             </motion.button>
-           ))}
-        </div>
-
-        {/* DAILY AYAH (XL:9) */}
-        <div className="xl:col-span-9 glass-panel p-8 md:p-12 rounded-[3rem] border-brand-primary/10 relative overflow-hidden group">
-           <div className="absolute top-0 left-0 w-full h-full bg-brand-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-           <div className="absolute -right-20 -bottom-20 text-brand-primary/5 pointer-events-none group-hover:rotate-6 transition-transform duration-1000">
-              <Quote size={400} />
-           </div>
-           <div className="relative z-10 flex flex-col items-center text-center space-y-8">
-              <div className="px-4 py-1 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">
-                 Daily Revelation
-              </div>
-              <p className="arabic-text text-3xl md:text-5xl text-slate-200 leading-[2] md:leading-[1.8] drop-shadow-lg">
-                {dailyVerse.arabic}
-              </p>
-              <div className="max-w-2xl space-y-2">
-                 <p className="text-lg md:text-2xl text-slate-300 font-light italic leading-relaxed">
-                   "{dailyVerse.translation}"
-                 </p>
-                 <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em]">{dailyVerse.reference}</p>
-              </div>
-              <button 
-                onClick={() => onNavigate('quran')}
-                className="p-4 bg-brand-primary/5 hover:bg-brand-primary/10 rounded-full text-brand-primary transition-all scale-125"
-              >
-                 <ArrowRight size={24} />
+              <button onClick={requestNotificationPermission} className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-brand-primary transition-all border border-white/10">
+                <Bell size={24} />
               </button>
-           </div>
-        </div>
-      </div>
-
-      {/* Friday Virtues Section */}
-      <JummahVirtues />
-
-      {/* 4. LEVEL PROGRESS & RANK CARD */}
-      <div className="glass-panel-purple p-8 md:p-10 rounded-[3rem] border-brand-primary/20 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-10 relative z-10">
-           <div className="flex items-center gap-6">
-              <div className="w-20 h-20 rounded-[2rem] bg-brand-primary flex items-center justify-center text-brand-depth shadow-2xl relative">
-                  <span className="text-4xl font-black">{level}</span>
-                  <div className="absolute -top-2 -right-2 bg-brand-depth text-brand-primary p-2 rounded-full border border-brand-primary shadow-lg">
-                     {currentUser && topUserId === currentUser.uid ? <Crown size={16} className="text-yellow-500 animate-bounce" /> : <Sparkles size={16} />}
-                  </div>
-              </div>
-              <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-1">Spiritual Rank</p>
-                 <h3 className="text-3xl font-black text-slate-200">{rank}</h3>
-              </div>
-           </div>
-
-            <div className="flex-1 w-full max-w-xl space-y-4">
-              <div className="flex justify-between items-end">
-                 <div className="space-y-1">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Total Hasanat</p>
-                    <p className="text-3xl font-black text-slate-200 tracking-tighter">{hasanat.toLocaleString()}</p>
-                 </div>
-                 <div className="text-right space-y-1">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Next Level</p>
-                    <p className="text-sm font-black text-slate-200">
-                       {Math.round(levelProgress)}% Complete
-                    </p>
-                 </div>
-              </div>
-              <div className="w-full h-5 bg-brand-depth/10 rounded-full overflow-hidden p-1 shadow-inner border border-brand-depth/5">
-                 <motion.div 
-                   initial={{ width: 0 }}
-                   animate={{ width: `${levelProgress}%` }}
-                   className="h-full bg-gradient-to-r from-brand-primary to-brand-accent rounded-full shadow-[0_0_20px_rgba(168,85,247,0.5)] relative overflow-hidden"
-                 >
-                    <motion.div 
-                      animate={{ x: ['-100%', '100%'] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-full"
-                    />
-                 </motion.div>
-              </div>
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] text-center">
-                Keep striving for the sake of Allah to unlock Level {level + 1}
-              </p>
-           </div>
-        </div>
-      </div>
-
-      {/* 5. PRAYER LIST (6 COL) */}
-      <div className="glass-panel p-6 md:p-10 rounded-[3rem] border-white/5">
-         <div className="flex items-center justify-between mb-10">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Prayer Schedule</h3>
-            <div className="flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Updates</span>
             </div>
-         </div>
-         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-            {prayerTimes.map((prayer) => (
-              <div key={prayer.name} className={`p-6 rounded-[2rem] text-center border transition-all duration-500 ${prayer.active ? 'bg-brand-primary shadow-2xl shadow-brand-primary/20 border-brand-primary' : 'bg-white/2 border-white/5 hover:bg-white/5'}`}>
-                 <div className={`p-3 bg-white/5 rounded-2xl inline-block mb-4 ${prayer.active ? 'text-brand-depth' : 'text-brand-primary'}`}>
-                    <prayer.icon size={20} />
-                 </div>
-                 <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${prayer.active ? 'text-brand-depth/60' : 'text-slate-500'}`}>{prayer.name}</p>
-                 <p className={`text-lg font-black ${prayer.active ? 'text-brand-depth' : 'text-slate-200'}`}>{prayer.time}</p>
+
+            {prayerData ? (
+              <div className="space-y-6">
+                <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 text-center space-y-4">
+                  <div>
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] mb-1">Next Prayer</p>
+                    <h3 className="text-3xl font-black text-white uppercase tracking-tight">{prayerData.nextPrayer}</h3>
+                  </div>
+                  <div className="text-5xl font-black text-white font-mono">{formatTime(prayerData.nextTime)}</div>
+                </div>
+                
+                <div className="flex items-center justify-between px-2">
+                   <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                      <MapPin size={12} className="text-brand-primary" />
+                      {location?.lat.toFixed(1)}°N, {location?.lng.toFixed(1)}°E
+                   </div>
+                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      {hDay} {hMonth}
+                   </div>
+                </div>
               </div>
-            ))}
-         </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                 <div className="w-12 h-12 border-4 border-brand-primary/20 border-t-brand-primary rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. PROGRESS STRIP */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: 'Verses Read', val: versesRead, icon: BookOpen, color: 'text-purple-400', bg: 'bg-purple-400/10', total: 6236, action: () => onNavigate('quran') },
+          { label: 'Hadith Streak', val: streak, icon: Flame, color: 'text-orange-400', bg: 'bg-orange-400/10', unit: 'Days', action: handleHadithClick },
+          { label: 'Spiritual Rank', val: rank, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-400/10', sub: `Level ${level}`, action: () => onNavigate('profile') }
+        ].map((item) => (
+          <motion.div 
+            key={item.label}
+            whileHover={{ y: -4 }}
+            onClick={item.action}
+            className="glass-panel p-8 rounded-[2.5rem] border-white/5 bg-white/[0.02] flex items-center gap-6 group cursor-pointer transition-all hover:border-white/10"
+          >
+            <div className={`w-16 h-16 rounded-[1.5rem] ${item.bg} flex items-center justify-center ${item.color} group-hover:scale-110 transition-all shadow-inner`}>
+              <item.icon size={28} />
+            </div>
+            <div className="flex-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{item.label}</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-white">{item.val}</span>
+                {item.unit && <span className="text-[10px] font-bold text-slate-500 uppercase">{item.unit}</span>}
+                {item.sub && <span className="text-[10px] font-bold text-slate-500 uppercase">{item.sub}</span>}
+              </div>
+              {item.total && (
+                <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden p-[1px]">
+                  <div className={`h-full ${item.color.replace('text', 'bg')} rounded-full`} style={{ width: `${Math.min((versesRead/item.total)*100, 100)}%` }} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* 3. THE CENTERPIECE: SPIRITUAL REVELATION */}
+      <div className="relative">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          onClick={() => onNavigate(dailyRevelation.link.tab, dailyRevelation.link.extra)}
+          className="group relative p-12 md:p-24 rounded-[4rem] bg-gradient-to-b from-brand-primary/10 to-transparent border border-white/5 text-center space-y-12 cursor-pointer overflow-hidden shadow-4xl hover:border-brand-primary/20 transition-all"
+        >
+          {/* Spiritual Geometry (Subtle) */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none mix-blend-overlay">
+             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center space-y-8">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-3xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 animate-float">
+                {dailyRevelation.type === 'quran' ? <BookOpen size={32} /> : <Sparkles size={32} />}
+              </div>
+              <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.8em]">{dailyRevelation.type === 'quran' ? 'Daily Verse' : 'Daily Hadith'}</span>
+            </div>
+
+            <p className="arabic-text text-4xl md:text-7xl text-white leading-relaxed md:leading-relaxed max-w-5xl transition-all duration-700 hover:scale-[1.02] transform-gpu">
+              {dailyRevelation.arabic}
+            </p>
+
+            <div className="max-w-3xl space-y-6">
+              <p className="text-xl md:text-4xl text-slate-200 font-light italic leading-snug">
+                "{dailyRevelation.translation}"
+              </p>
+              <div className="h-0.5 w-24 bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent mx-auto" />
+              <p className="text-xs font-black text-slate-500 uppercase tracking-[0.5em]">
+                {dailyRevelation.reference}
+              </p>
+            </div>
+
+            <div className="pt-10">
+               <button className="px-12 py-5 bg-white text-black font-black rounded-full hover:scale-110 active:scale-95 transition-all text-xs uppercase tracking-widest shadow-white/20 shadow-2xl flex items-center gap-4">
+                  {dailyRevelation.type === 'quran' ? 'Open Quran' : 'Learn Wisdom'} <ArrowRight size={18} />
+               </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Shortcuts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+         {[
+           { id: 'resources', sub: 'adhkar', label: 'Adhkar', icon: Moon, desc: 'Supplications', color: 'text-blue-400' },
+           { id: 'leaderboard', sub: '', label: 'Rankings', icon: Crown, desc: 'Spiritual Community', color: 'text-amber-400' },
+           { id: 'companion', sub: '', label: 'Divine AI', icon: MessageCircle, desc: 'Chat with Aliyah', color: 'text-purple-400' },
+           { id: 'resources', sub: 'hajj_umrah', label: 'Pilgrimage', icon: MapPin, desc: 'Hajj & Umrah Hub', color: 'text-emerald-400' }
+         ].map((link) => (
+           <motion.button
+             key={link.label}
+             whileHover={{ y: -8, scale: 1.02 }}
+             onClick={() => onNavigate(link.id, link.sub ? { resId: link.sub } : undefined)}
+             className="p-10 glass-panel rounded-[3rem] border-white/5 flex flex-col items-center text-center space-y-6 group bg-white/[0.01]"
+           >
+              <div className={`w-16 h-16 rounded-[1.5rem] bg-white/5 flex items-center justify-center ${link.color} group-hover:scale-110 transition-transform shadow-inner`}>
+                 <link.icon size={32} />
+              </div>
+              <div className="space-y-1">
+                 <h4 className="text-lg font-black text-white">{link.label}</h4>
+                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">{link.desc}</p>
+              </div>
+           </motion.button>
+         ))}
+      </div>
+
+      {/* MOMENTUM & QIBLA SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Momentum */}
+        <div className="lg:col-span-8 glass-panel p-10 md:p-14 rounded-[4rem] border-white/5 bg-gradient-to-br from-brand-primary/5 to-transparent space-y-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="space-y-2 text-center md:text-left">
+              <h3 className="text-4xl font-black text-white italic tracking-tighter">Daily Vigor</h3>
+              <p className="text-slate-500 font-medium tracking-wide">Sync your soul with the divine rhythm</p>
+            </div>
+            <div className="flex gap-4">
+               {[
+                 { label: 'Prayers', val: '5/5', color: 'text-emerald-400' },
+                 { label: 'Dhikr', val: '330', color: 'text-blue-400' }
+               ].map(stat => (
+                 <div key={stat.label} className="text-center px-6 py-4 bg-white/5 rounded-3xl border border-white/5">
+                    <p className={`text-2xl font-black ${stat.color}`}>{stat.val}</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">{stat.label}</p>
+                 </div>
+               ))}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 space-y-6 group hover:border-orange-500/30 transition-all">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+                  <Flame size={24} />
+                </div>
+                <h4 className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Growth Task</h4>
+              </div>
+              <p className="text-base text-slate-200 font-bold leading-relaxed">Consider fasting tomorrow for the sake of Allah (Sunnah).</p>
+              <button className="w-full py-4 bg-orange-500 text-orange-950 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-orange-500/20">Challenge Myself</button>
+            </div>
+            
+            <div className="p-8 bg-indigo-500/5 rounded-[2.5rem] border border-indigo-500/10 space-y-6 group hover:border-indigo-500/40 transition-all">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform text-pink-300">
+                  <Sparkles size={24} />
+                </div>
+                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">AI Reflection</h4>
+              </div>
+              <p className="text-base text-slate-200 font-bold leading-relaxed">Seek deeper understanding from your Spiritual AI Companion.</p>
+              <button 
+                onClick={() => onNavigate('companion')} 
+                className="w-full py-4 bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/20"
+              >
+                Spark Discussion
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Qibla Card */}
+        <div className="lg:col-span-4 glass-panel p-10 rounded-[4rem] border-white/5 bg-black/40 flex flex-col items-center justify-center text-center space-y-8 relative group overflow-hidden">
+           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02),transparent)] pointer-events-none" />
+           <div className="w-32 h-32 rounded-full border-4 border-brand-primary/10 flex items-center justify-center relative transition-transform duration-1000 group-hover:rotate-45">
+              <div className="absolute inset-2 rounded-full border-2 border-brand-primary/30 border-t-transparent animate-spin duration-3000" />
+              <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-[0_0_40px_rgba(2,132,199,0.2)]">
+                 <Compass size={40} />
+              </div>
+           </div>
+           <div className="space-y-3 relative z-10">
+              <h4 className="text-2xl font-black text-white italic">Qibla Path</h4>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">Align yourself perfectly <br/>towards the Kaaba.</p>
+           </div>
+           <button 
+             onClick={() => onNavigate('resources', { resId: 'qibla' })}
+             className="px-10 py-5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10"
+           >
+             Open Finder
+           </button>
+        </div>
+      </div>
+
+      <DailyVirtues />
+
+      {/* PRAYER SCHEDULE BOTTOM */}
+      <div className="p-1 glass-panel rounded-[4rem] border-white/5 bg-white/[0.01]">
+        <div className="p-10 md:p-14 space-y-12">
+           <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em]">Cosmic Alignment</h3>
+                <p className="text-3xl font-black text-white italic tracking-tighter">Prayer Schedule</p>
+              </div>
+              <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                 <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Live Frequency</span>
+              </div>
+           </div>
+           
+           <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
+              {prayerTimes.map((prayer) => (
+                <div key={prayer.name} className={`p-8 rounded-[3.5rem] text-center border transition-all duration-700 relative overflow-hidden group ${prayer.active ? 'bg-brand-primary border-brand-primary shadow-4xl shadow-brand-primary/20' : 'bg-white/[0.02] border-white/5 hover:border-brand-primary/30'}`}>
+                   {prayer.active && (
+                     <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
+                   )}
+                   <div className={`w-14 h-14 rounded-2xl mx-auto mb-6 flex items-center justify-center transition-all duration-500 ${prayer.active ? 'bg-brand-depth text-brand-primary scale-110' : 'bg-white/5 text-slate-500 group-hover:text-brand-primary group-hover:scale-110'}`}>
+                      <prayer.icon size={28} />
+                   </div>
+                   <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${prayer.active ? 'text-brand-depth/40' : 'text-slate-600'}`}>{prayer.name}</p>
+                   <p className={`text-2xl font-black font-mono tracking-tighter ${prayer.active ? 'text-brand-depth' : 'text-white'}`}>{prayer.time}</p>
+                </div>
+              ))}
+           </div>
+        </div>
       </div>
 
     </div>

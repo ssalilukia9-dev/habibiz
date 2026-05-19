@@ -24,31 +24,93 @@
 }
 
 @layer base {
-  :root.dark {
-    --color-brand-depth: #150B25;
-    --color-brand-sidebar: #0F071B;
-    --color-app-text: #F3F4F6;
-    --color-app-text-muted: #CBD5E1;
-    --color-app-text-dim: #94A3B8;
+  :root:not([data-theme]), :root[data-theme="light"] {
+    --color-brand-primary: #ffffff;
+    --color-brand-secondary: #bae6fd;
+    --color-brand-depth: #0369a1; /* Sky 700 background */
+    --color-brand-sidebar: #075985;
+    --color-brand-border: rgba(255, 255, 255, 0.1);
+    --color-app-text: #f0f9ff;
+    --color-app-text-muted: #bae6fd;
+    --color-app-text-dim: #7dd3fc;
   }
 
-  :root:not(.dark) {
-    --color-brand-depth: #F9FAFB;
-    --color-brand-sidebar: #FFFFFF;
-    --color-app-text: #1F2937;
+  :root[data-theme="blue"] {
+    --color-brand-primary: #0284c7; /* Sky 600 primary */
+    --color-brand-secondary: #0ea5e9;
+    --color-brand-depth: #ffffff; /* White background */
+    --color-brand-sidebar: #f8fafc;
+    --color-brand-border: rgba(2, 132, 199, 0.1);
+    --color-app-text: #0f172a;
     --color-app-text-muted: #475569;
-    --color-app-text-dim: #64748B;
+    --color-app-text-dim: #94a3b8;
+  }
+
+  :root[data-theme="green"] {
+    --color-brand-primary: #059669; /* Emerald 600 primary */
+    --color-brand-secondary: #10b981;
+    --color-brand-depth: #ffffff; /* White background */
+    --color-brand-sidebar: #f0fdf4;
+    --color-brand-border: rgba(5, 150, 105, 0.1);
+    --color-app-text: #064e3b;
+    --color-app-text-muted: #065f46;
+    --color-app-text-dim: #059669;
+  }
+
+  :root[data-theme="purple"] {
+    --color-brand-primary: #a855f7; /* Purple 500 */
+    --color-brand-secondary: #f472b6; /* Pink 400 */
+    --color-brand-depth: #05010a; /* Black-purple */
+    --color-brand-sidebar: #0c0218;
+    --color-brand-border: rgba(168, 85, 247, 0.15);
+    --color-app-text: #faf5ff;
+    --color-app-text-muted: #d8b4fe;
+    --color-app-text-dim: #a855f7;
+  }
+
+  :root[data-theme="dark"] {
+    --color-brand-primary: #ffffff;
+    --color-brand-secondary: #cbd5e1;
+    --color-brand-depth: #020617;
+    --color-brand-sidebar: #0f172a;
+    --color-app-text: #f8fafc;
+    --color-app-text-muted: #94a3b8;
+    --color-app-text-dim: #475569;
   }
 
   body {
     @apply bg-brand-depth text-app-text font-sans antialiased transition-colors duration-300;
-    background-image: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+    background-image: radial-gradient(circle at 50% 0%, var(--color-brand-primary), transparent 50%);
+    background-size: 100% 100vh;
+    background-attachment: fixed;
+    background-blend-mode: soft-light;
+  }
+  
+  :root[data-theme="dark"] body {
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+      url("https://www.transparenttextures.com/patterns/stardust.png");
+  }
+
+  :root[data-theme="purple"] body {
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
+      url("https://www.transparenttextures.com/patterns/cubes.png");
+  }
+
+  :root:not([data-theme]) body, :root[data-theme="light"] body {
+    background-image: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
   }
 }
 
 .text-slate-200 { color: var(--color-app-text); }
 .text-slate-400 { color: var(--color-app-text-muted); }
 .text-slate-500 { color: var(--color-app-text-dim); }
+
+.bg-white\/5 { background-color: rgba(255, 255, 255, 0.07); }
+.bg-white\/10 { background-color: rgba(255, 255, 255, 0.12); }
+.border-white\/5 { border-color: rgba(255, 255, 255, 0.07); }
+.border-white\/10 { border-color: rgba(255, 255, 255, 0.12); }
 
 
 .arabic-text {

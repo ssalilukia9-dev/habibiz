@@ -254,36 +254,49 @@ export default function OfflineManagerView({ selectedReciter }: OfflineManagerVi
              </div>
            ) : (
              Object.entries(downloadedSurahs).map(([key, meta]: [string, any]) => {
-               const [surahNum, reciterId] = key.split('_');
-               const reciter = RECITERS.find(r => r.id === Number(reciterId));
-               
-               return (
-                 <div key={key} className="bg-white/5 border border-white/5 p-5 rounded-2xl hover:border-brand-primary/20 transition-all group">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center text-brand-depth text-[10px] font-black">
-                          {surahNum}
-                       </div>
-                       {meta.isFullyCached ? (
-                         <div className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-full">
-                            <ShieldCheck size={10} /> Fully Offline
-                         </div>
-                       ) : (
-                         <div className="flex items-center gap-1 text-[8px] font-black text-amber-500 uppercase tracking-widest bg-amber-500/10 px-2 py-1 rounded-full">
-                            <AlertCircle size={10} /> Partial
-                         </div>
-                       )}
-                    </div>
-                    <div className="space-y-1">
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Reciter</p>
-                       <p className="text-sm font-bold text-white truncate">{reciter?.name || 'Text only'}</p>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase tracking-widest">
-                       <span>{new Date(meta.timestamp).toLocaleDateString()}</span>
-                       <span>{meta.ayahCount} Ayahs</span>
-                    </div>
-                 </div>
-               );
-             })
+              const [surahNum, reciterId] = key.split('_');
+              const reciter = RECITERS.find(r => r.id === Number(reciterId));
+              
+              return (
+                <div key={key} className="bg-white/5 border border-white/5 p-5 rounded-2xl hover:border-brand-primary/20 transition-all group relative">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center text-brand-depth text-[10px] font-black">
+                         {surahNum}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {meta.isFullyCached ? (
+                          <div className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-full">
+                             <ShieldCheck size={10} /> Fully Offline
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[8px] font-black text-amber-500 uppercase tracking-widest bg-amber-500/10 px-2 py-1 rounded-full">
+                             <AlertCircle size={10} /> Partial
+                          </div>
+                        )}
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Remove offline data for Surah ${surahNum}?`)) {
+                              await offlineService.removeDownloadedSurah(Number(surahNum), reciterId === 'default' ? undefined : Number(reciterId));
+                              loadStatus();
+                            }
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors border border-white/5"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                   </div>
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Reciter</p>
+                      <p className="text-sm font-bold text-white truncate">{reciter?.name || 'Text only'}</p>
+                   </div>
+                   <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                      <span>{new Date(meta.timestamp).toLocaleDateString()}</span>
+                      <span>{meta.ayahCount} Ayahs</span>
+                   </div>
+                </div>
+              );
+            })
            )}
         </div>
       </section>

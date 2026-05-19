@@ -33,10 +33,24 @@ interface LeaderboardUser {
   isPremium?: boolean;
 }
 
-export default function LeaderboardView({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) {
+export default function LeaderboardView({ 
+  searchQuery, 
+  setSearchQuery, 
+  currentUser, 
+  currentHasanat 
+}: { 
+  searchQuery: string, 
+  setSearchQuery: (q: string) => void,
+  currentUser?: any,
+  currentHasanat?: number
+}) {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'kings'>('all');
+
+  // Find current user's rank in the fetched list
+  const currentUserRank = users.findIndex(u => u.uid === currentUser?.uid) + 1;
+  const isUserInTopList = currentUserRank > 0;
 
   useEffect(() => {
     setIsLoading(true);
@@ -263,6 +277,42 @@ export default function LeaderboardView({ searchQuery, setSearchQuery }: { searc
             Learn More About Hasanat
          </button>
       </div>
+
+      {/* Sticky User Rank Footer */}
+      {!isLoading && (
+        <div className="fixed bottom-24 left-0 right-0 px-6 z-40 pointer-events-none">
+          <motion.div 
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            className="max-w-4xl mx-auto glass-panel p-4 md:p-6 rounded-[2rem] border-brand-primary/30 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pointer-events-auto bg-brand-sidebar/90 backdrop-blur-2xl flex items-center justify-between"
+          >
+             <div className="flex items-center gap-4">
+                <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-brand-primary flex items-center justify-center text-brand-depth font-black text-xs md:text-base border-2 border-brand-primary/50">
+                   {isUserInTopList ? currentUserRank : '?'}
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Your Standing</p>
+                   <p className="text-sm md:text-lg font-black text-white truncate max-w-[150px] md:max-w-none">{currentUser?.displayName || 'Seeking Soul'}</p>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-6 md:gap-10">
+                <div className="text-right">
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Total Points</p>
+                   <p className="text-sm md:text-lg font-black text-brand-primary font-mono leading-none">{(currentHasanat || 0).toLocaleString()}</p>
+                </div>
+                <div className="hidden sm:block w-px h-10 bg-white/10" />
+                <div className="hidden sm:block">
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Next Badge</p>
+                   <div className="flex items-center gap-1 text-yellow-400">
+                     <Star size={14} fill="currentColor" />
+                     <span className="text-[10px] font-black uppercase">Guardian</span>
+                   </div>
+                </div>
+             </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -318,19 +318,24 @@ export default function App() {
   }, []);
   
   // App State
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('dark-mode');
-    return saved !== null ? JSON.parse(saved) : true;
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('app-theme') || 'dark';
   });
 
   useEffect(() => {
-    localStorage.setItem('dark-mode', JSON.stringify(darkMode));
-    if (darkMode) {
+    localStorage.setItem('app-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    // Backward compatibility for .dark class
+    if (theme === 'dark' || theme === 'purple') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [darkMode]);
+  }, [theme]);
+
+  // Derived for components that still expect boolean
+  const darkMode = theme === 'dark' || theme === 'purple';
+  const setDarkMode = (isDark: boolean) => setTheme(isDark ? 'dark' : 'light');
 
   const lastInteractionRef = useRef<Record<string, any>>({});
   const initialLoadDone = useRef(false);
@@ -530,6 +535,16 @@ export default function App() {
     addHasanat(15);
   };
 
+  const updateStreak = () => {
+    setStreak(prev => prev + 1);
+    addHasanat(100);
+    if (currentUser) {
+       updateDoc(doc(db, 'users', currentUser.uid), {
+         streak: increment(1)
+       }).catch(() => {});
+    }
+  };
+
   const incrementVerse = () => {
     setVersesRead(prev => prev + 1);
     addHasanat(10);
@@ -537,6 +552,19 @@ export default function App() {
 
   const level = Math.floor(hasanat / 500) + 1;
   const levelProgress = ((hasanat % 500) / 500) * 100;
+  const prevLevel = useRef(level);
+
+  useEffect(() => {
+    if (level > prevLevel.current) {
+      notificationService.notify(
+        'Spiritual Ascension',
+        `SubhanAllah! You have ascended to Level ${level}. Your aura glows brighter!`,
+        'system',
+        '/profile'
+      );
+      prevLevel.current = level;
+    }
+  }, [level]);
 
   useEffect(() => {
     // Update rank based on level
@@ -577,6 +605,9 @@ export default function App() {
               displayName: user.displayName || (user.email ? user.email.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`),
               photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
               hasanat: 0,
+              streak: 0,
+              versesRead: 0,
+              duaCount: 0,
               isPremium: false,
               createdAt: serverTimestamp(),
               lastSeen: serverTimestamp(),
@@ -693,19 +724,36 @@ export default function App() {
         const surah = SURAH_LIST.find(s => s.number === extra.surahNumber);
         if (surah) setSelectedSurah(surah);
       }
+    } else if (tab === 'quran') {
+      setInitialResId('quran');
+      if (extra?.surahNumber) {
+        const surah = SURAH_LIST.find(s => s.number === extra.surahNumber);
+        if (surah) setSelectedSurah(surah);
+      } else {
+        setSelectedSurah(null);
+      }
+      navigate('/resources');
+      return;
+    } else if (tab === 'juz') {
+      setInitialResId('quran');
+      navigate('/resources', { state: { activeRes: 'quran', juzIndex: extra?.juzIndex } });
+      return;
     } else {
       setInitialResId(null);
     }
     
-    if (tab === 'quran' && extra?.surahNumber) {
-      const surah = SURAH_LIST.find(s => s.number === extra.surahNumber);
-      if (surah) setSelectedSurah(surah);
-      navigate('/resources');
-    } else {
-      navigate(`/${tab}`);
-      if (tab !== 'resources') setSelectedSurah(null);
-    }
+    navigate(`/${tab}`);
+    if (tab !== 'resources') setSelectedSurah(null);
   };
+
+  useEffect(() => {
+    const handleAppNavigate = (e: any) => {
+      const { tab, extra } = e.detail;
+      handleNavigate(tab, extra);
+    };
+    window.addEventListener('app_navigate', handleAppNavigate);
+    return () => window.removeEventListener('app_navigate', handleAppNavigate);
+  }, [handleNavigate]);
 
   const toggleBookmark = async (ayah: Ayah | any) => {
     if (!currentUser) {
@@ -1032,6 +1080,10 @@ export default function App() {
              >
                 {darkMode ? <Sun size={18} className="text-brand-primary" /> : <Moon size={18} className="text-brand-primary" />}
              </button>
+             <div className="flex items-baseline gap-1.5 px-3 py-1.5 bg-brand-primary/10 rounded-full border border-brand-primary/20">
+                <span className="text-[10px] font-black text-brand-primary uppercase">Hasanat</span>
+                <span className="text-sm font-black text-white font-mono">{hasanat.toLocaleString()}</span>
+             </div>
              <div className="w-10 h-10 rounded-full border border-brand-border bg-white/5 flex items-center justify-center text-xs font-bold text-brand-primary shadow-lg shadow-brand-primary/5">
                 {level}
              </div>
@@ -1068,6 +1120,7 @@ export default function App() {
                         streak={streak}
                         topUserId={topUserId}
                         currentUser={currentUser}
+                        updateStreak={updateStreak}
                       />
                     } />
                     <Route path="/resources" element={
@@ -1094,9 +1147,11 @@ export default function App() {
                     <Route path="/market" element={<MarketView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
                     <Route path="/market/:productId" element={<MarketView detailMode searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
                     <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
-                    <Route path="/leaderboard" element={<LeaderboardView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+                    <Route path="/leaderboard" element={<LeaderboardView searchQuery={searchQuery} setSearchQuery={setSearchQuery} currentUser={currentUser} currentHasanat={hasanat} />} />
                     <Route path="/profile" element={
                       <ProfileView 
+                        theme={theme}
+                        setTheme={setTheme}
                         darkMode={darkMode} 
                         setDarkMode={setDarkMode} 
                         onLogout={handleLogout} 
@@ -1105,7 +1160,7 @@ export default function App() {
                         isHabibiKing={currentUser && topUserId === currentUser.uid}
                       />
                     } />
-                    <Route path="/settings" element={<SettingsView darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
+                    <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
                     <Route path="/premium" element={<PremiumView />} />

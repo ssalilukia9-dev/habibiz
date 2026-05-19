@@ -115,6 +115,17 @@ export default function SurahDetail({
   }, [playingAyah, autoPlay]);
 
   useEffect(() => {
+    if (surah.number) {
+      localStorage.setItem('last-read-quran', JSON.stringify({
+        type: 'surah',
+        number: surah.number,
+        title: surah.englishName,
+        timestamp: Date.now()
+      }));
+    }
+  }, [surah]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     const fetchData = async () => {
@@ -252,6 +263,7 @@ export default function SurahDetail({
       };
 
       audio.onended = () => {
+        handleRead(ayah.number);
         if (autoPlay) {
           const currentIndex = ayahs.findIndex(a => a.number === ayah.number);
           if (currentIndex < ayahs.length - 1) {

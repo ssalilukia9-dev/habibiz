@@ -10,7 +10,12 @@ import {
   Globe,
   Wallet,
   Zap,
-  Info
+  Info,
+  Ban,
+  Dices,
+  EyeOff,
+  Leaf,
+  Coins
 } from 'lucide-react';
 import ZakatCalculator from './ZakatCalculator';
 
@@ -72,6 +77,25 @@ export default function IslamicFinanceView() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-2">
+        {[
+          { label: 'Halal (Permissible)', icon: ShieldCheck, color: 'text-emerald-400', desc: 'Ethical assets only' },
+          { label: 'Riba-Free', icon: Ban, color: 'text-red-400', desc: 'No interest exploitation' },
+          { label: 'Asset-Backed', icon: Coins, color: 'text-amber-400', desc: 'Real tangible value' },
+          { label: 'Social Justice', icon: Scale, color: 'text-blue-400', desc: 'Circulation of wealth' }
+        ].map((p, i) => (
+          <div key={i} className="glass-panel p-5 rounded-3xl border-white/5 flex flex-col items-center gap-3 text-center group hover:bg-white/10 transition-all">
+            <div className={`w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center ${p.color} group-hover:rotate-12 transition-all`}>
+              <p.icon size={24} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-white group-hover:text-brand-primary transition-colors">{p.label}</span>
+              <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">{p.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <AnimatePresence mode="wait">
         {activeSection === 'overview' ? (
           <motion.div 
@@ -130,28 +154,91 @@ export default function IslamicFinanceView() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
           >
-            <ZakatCalculator />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <ZakatCalculator />
+              </div>
+              <div className="space-y-6">
+                <div className="glass-panel p-8 rounded-[2.5rem] border-emerald-500/10 bg-emerald-500/5">
+                  <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 mb-6">
+                    <Leaf size={24} />
+                  </div>
+                  <h4 className="text-lg font-black text-white uppercase tracking-tight mb-2">Wealth Purification</h4>
+                  <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                    Zakat is not just a tax—it is an act of worship that purifies your wealth and distributes grace to those in need.
+                  </p>
+                </div>
+                <div className="glass-panel p-8 rounded-[2.5rem] border-white/5">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Eligible Assets</h4>
+                  <ul className="space-y-3">
+                    {[
+                      { label: 'Gold & Silver', icon: Coins },
+                      { label: 'Cash & Savings', icon: Wallet },
+                      { label: 'Business Goods', icon: Globe },
+                      { label: 'Stocks/Shares', icon: BarChart3 }
+                    ].map((item, id) => (
+                      <li key={id} className="flex items-center gap-3 text-sm font-bold text-white">
+                        <item.icon size={14} className="text-brand-primary" />
+                        {item.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
           </motion.div>
         ) : (
           <motion.div
              key="coming-soon"
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
-             className="py-20 text-center space-y-6"
+             className="py-10 space-y-12"
           >
-             <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary mx-auto animate-pulse">
-                <Zap size={32} />
+             <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-brand-primary/20 rounded-xl flex items-center justify-center text-brand-primary italic font-black">؟</div>
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">Core Financial Ethics</h3>
+                   </div>
+                   <div className="grid grid-cols-1 gap-4">
+                      {[
+                        { title: 'No Riba', desc: 'Prohibition of usury and interest-based lending.', icon: Ban, color: 'text-red-400' },
+                        { title: 'No Gharar', desc: 'Elimination of deceptive schemes and excessive risk.', icon: EyeOff, color: 'text-amber-400' },
+                        { title: 'No Maysir', desc: 'Total rejection of gambling and game-of-chance profiting.', icon: Dices, color: 'text-purple-400' },
+                        { title: 'Wealth Sharing', desc: 'Mandatory circulation of capital through social contracts.', icon: Scale, color: 'text-emerald-400' }
+                      ].map((item, idx) => (
+                        <div key={idx} className="flex items-start gap-4 p-5 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors group">
+                           <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform`}>
+                              <item.icon size={20} />
+                           </div>
+                           <div className="space-y-1">
+                              <h4 className="text-sm font-black text-white uppercase tracking-tight">{item.title}</h4>
+                              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{item.desc}</p>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center text-center space-y-6 p-10 bg-brand-primary/5 rounded-[3rem] border border-brand-primary/10">
+                   <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
+                      <Zap size={32} />
+                   </div>
+                   <div className="space-y-2">
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tight tracking-[-0.02em]">Financial Expansion</h3>
+                      <p className="text-slate-500 font-medium text-sm leading-relaxed">
+                        We are currently building deep-dive guides for <b>{activeSection.replace('-', ' ')}</b>. 
+                        Our experts are ensuring all datasets reflect classical Fiqh and modern economic realities.
+                      </p>
+                   </div>
+                   <button 
+                     onClick={() => setActiveSection('overview')}
+                     className="bg-brand-primary text-brand-depth px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20"
+                   >
+                      Back to Sanctuary
+                   </button>
+                </div>
              </div>
-             <div className="space-y-2">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Wisdom Expansion In Progress</h3>
-                <p className="text-slate-500 font-medium max-w-sm mx-auto">This financial module is being audited to ensure strict Shariah compliance. Check back for detailed insights.</p>
-             </div>
-             <button 
-               onClick={() => setActiveSection('overview')}
-               className="bg-white/5 border border-white/10 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-primary/10 transition-all"
-             >
-                Return to Overview
-             </button>
           </motion.div>
         )}
       </AnimatePresence>

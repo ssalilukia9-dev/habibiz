@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SettingsViewProps {
+  theme: string;
+  setTheme: (val: string) => void;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   onLogout: () => void;
@@ -13,7 +15,7 @@ interface SettingsViewProps {
   setLanguage: (val: string) => void;
 }
 
-export default function SettingsView({ darkMode, setDarkMode, onLogout, language, setLanguage }: SettingsViewProps) {
+export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, onLogout, language, setLanguage }: SettingsViewProps) {
   // Offline Mode Setting
   const [offlineMode, setOfflineMode] = useState(() => {
     return localStorage.getItem('offline-mode') === 'true';
@@ -171,22 +173,39 @@ export default function SettingsView({ darkMode, setDarkMode, onLogout, language
           <Moon size={14} /> Global Appearance
         </h3>
         <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
-          <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
-            <div className="flex items-center gap-5">
-              <div className="p-3 bg-white/5 rounded-2xl text-brand-primary border border-white/5">
-                {darkMode ? <Moon size={22} /> : <Sun size={22} />}
-              </div>
-              <div>
-                <p className="font-bold text-slate-200">Dark Sanctuary Mode</p>
-                <p className="text-xs text-slate-500">Optimized for night-time reflection</p>
-              </div>
+          <div className="p-8 border-b border-white/5 space-y-6">
+            <div className="flex items-center gap-4 mb-2">
+               <div className="w-1 h-4 bg-brand-primary rounded-full" />
+               <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Sanctuary Essence</p>
             </div>
-            <button 
-              onClick={() => setDarkMode(!darkMode)}
-              className={`w-16 h-9 rounded-full transition-all relative ${darkMode ? 'bg-brand-primary' : 'bg-slate-800'}`}
-            >
-              <div className={`absolute top-1.5 w-6 h-6 bg-white rounded-full transition-all ${darkMode ? 'left-8' : 'left-1.5'} shadow-lg`} />
-            </button>
+            
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { id: 'light', label: 'Blue & White', desc: 'Oceanic Calm', icon: Waves, color: 'bg-blue-800' },
+                { id: 'blue', label: 'White & Blue', desc: 'Daylight Clarity', icon: Sun, color: 'bg-sky-500' },
+                { id: 'green', label: 'White & Green', desc: 'Morning Dew', icon: Tent, color: 'bg-emerald-500' },
+                { id: 'purple', label: 'Purple & Black', desc: 'Ethereal Deep', icon: Moon, color: 'bg-purple-900' }
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`p-6 rounded-[2rem] border transition-all flex flex-col items-center text-center gap-3 relative overflow-hidden group ${theme === t.id ? 'bg-brand-primary/10 border-brand-primary shadow-lg' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
+                >
+                  <div className={`w-12 h-12 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-xl group-hover:scale-110 transition-transform`}>
+                    <t.icon size={24} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-200 text-sm whitespace-nowrap">{t.label}</p>
+                    <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">{t.desc}</p>
+                  </div>
+                  {theme === t.id && (
+                    <motion.div layoutId="active-theme" className="absolute top-4 right-4 text-brand-primary">
+                       <CheckCircle2 size={16} />
+                    </motion.div>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
           
           <div className="p-6 flex items-center justify-between">

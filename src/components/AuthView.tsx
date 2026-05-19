@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, 
@@ -14,7 +14,8 @@ import {
   signInWithGoogle, 
   signInWithGithub,
   signInWithEmail, 
-  signUpWithEmail 
+  signUpWithEmail,
+  handleRedirectResult
 } from '../lib/firebase';
 
 interface AuthViewProps {
@@ -27,6 +28,18 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check for redirect result on mount
+    handleRedirectResult().then(user => {
+      if (user) {
+        onSuccess();
+      }
+    }).catch(err => {
+      console.error("Redirect handler error:", err);
+      // We don't necessarily show an error here as it might just be the initial page load
+    });
+  }, [onSuccess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,17 +62,22 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
 
   const handleGoogleAuth = async () => {
     setError(null);
+    setLoading(true);
     try {
-      await signInWithGoogle();
-      onSuccess();
+      const user = await signInWithGoogle();
+      if (user) {
+        onSuccess();
+      } else {
+        setError('Compatibility mode: Redirecting to Google...');
+        // The page will redirect shortly handled by firebase.ts
+      }
     } catch (err: any) {
       console.error("Google Auth Error:", err);
+      setLoading(false);
       if (err.message?.includes('auth/unauthorized-domain')) {
-        setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
+        setError('Unauthorized domain. Please add this domain to Firebase Console > Auth > Settings > Authorized domains.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup blocked by browser. Please enable popups or try signing in with Email.');
-      } else if (err.code === 'auth/internal-error' || err.message?.includes('missing initial state')) {
-        setError('Authentication session error. This often happens on mobile in-app browsers. Please try opening the app in Chrome/Safari directly, or use Email sign-in.');
+        setError('Popup blocked. We are attempting to redirect you instead...');
       } else {
         setError(err.message || 'Google authentication failed.');
       }
@@ -68,17 +86,19 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
 
   const handleGithubAuth = async () => {
     setError(null);
+    setLoading(true);
     try {
-      await signInWithGithub();
-      onSuccess();
+      const user = await signInWithGithub();
+      if (user) {
+        onSuccess();
+      } else {
+        setError('Compatibility mode: Redirecting to GitHub...');
+      }
     } catch (err: any) {
       console.error("GitHub Auth Error:", err);
+      setLoading(false);
       if (err.message?.includes('auth/unauthorized-domain')) {
-        setError('Unauthorized domain. If you are using Netlify, ensure you added your domain to Firebase Console > Auth > Settings > Authorized domains.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup blocked by browser. Please enable popups or try signing in with Email.');
-      } else if (err.code === 'auth/internal-error' || err.message?.includes('missing initial state')) {
-        setError('Authentication session error. This often happens on mobile in-app browsers. Please try opening the app in Chrome/Safari directly, or use Email sign-in.');
+        setError('Unauthorized domain. Please add this domain to Firebase Console > Auth > Settings > Authorized domains.');
       } else {
         setError(err.message || 'GitHub authentication failed.');
       }
@@ -110,10 +130,23 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 text-sm font-medium"
+              className="p-5 bg-red-500/10 border border-red-500/20 rounded-[2rem] space-y-3"
             >
-              <AlertCircle size={18} />
-              {error}
+              <div className="flex items-start gap-3">
+                 <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                 <p className="text-red-400 text-xs font-medium leading-relaxed">{error}</p>
+              </div>
+              
+              {(error.includes('missing initial state') || error.includes('Redirect') || error.includes('failed')) && (
+                 <div className="pt-2 border-t border-red-500/10 space-y-2">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Median App Solution:</p>
+                    <ul className="text-[10px] text-slate-400 space-y-1 list-disc pl-4 font-medium">
+                       <li>Add <code className="text-brand-primary">median.co</code> to your Firebase Authorized Domains.</li>
+                       <li>Disable "Block All Cookies" in mobile browser settings.</li>
+                       <li>Use the **Email & Password** login below for 100% stability.</li>
+                    </ul>
+                 </div>
+              )}
             </motion.div>
           )}
 

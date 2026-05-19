@@ -11,11 +11,14 @@ import {
   Star, 
   Sparkles,
   MapPin,
-  Clock
+  Clock,
+  ArrowLeft
 } from 'lucide-react';
 import HajjMap from './HajjMap';
+import HajjUmrahHub from './HajjUmrahHub';
 
 const BABY_NAMES = {
+// ... existing code
   boys: [
     { name: "Muhammad", meaning: "Praiseworthy" },
     { name: "Ahmed", meaning: "Much praised" },
@@ -243,6 +246,7 @@ export default function IslamicGuides({
   const [activeTab, setActiveTab] = useState<'hajj' | 'names'>(initialTab);
   const [nameGender, setNameGender] = useState<'boys' | 'girls'>('boys');
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const [hajjView, setHajjView] = useState<'hub' | 'guide' | 'map'>('hub');
 
   const filteredHajjSteps = HAJJ_STEPS.filter(step => 
     step.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -279,92 +283,106 @@ export default function IslamicGuides({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="max-w-4xl mx-auto space-y-12"
+            className="w-full"
           >
-             <div className="text-center space-y-4 px-4">
-                <h3 className="text-2xl md:text-4xl font-black text-white px-6 md:px-0">The Journey of a Lifetime</h3>
-                <p className="text-sm md:text-lg text-slate-500 font-medium max-w-xl mx-auto">A step-by-step spiritual guide to performing Umrah and Hajj correctly according to the Sunnah.</p>
-             </div>
+            {hajjView === 'hub' && (
+              <HajjUmrahHub onNavigate={(view) => {
+                if (view === 'hajj') setHajjView('guide');
+                else if (view === 'maps') setHajjView('map');
+                else setHajjView('guide'); // Fallback for others
+              }} />
+            )}
 
-             <div className="grid grid-cols-1 gap-6 px-4 md:px-0">
-                {filteredHajjSteps.map((step, idx) => (
-                  <div 
-                    key={idx} 
-                    className="glass-panel p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-white/5 flex flex-col gap-6 hover:border-brand-primary/20 transition-all cursor-pointer group"
-                    onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
-                  >
-                     <div className="flex gap-4 md:gap-6 items-start">
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-brand-primary/10 rounded-2xl md:rounded-3xl flex items-center justify-center text-brand-primary font-black text-xl md:text-2xl shrink-0 group-hover:scale-110 transition-transform">
-                           {idx + 1}
-                        </div>
-                        <div className="flex-1">
-                           <div className="flex items-center justify-between mb-1 md:mb-2 gap-2">
-                              <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-tight">{step.title}</h4>
-                              <div className="flex flex-col items-end shrink-0">
-                                <span className="text-[8px] md:text-[10px] font-black text-brand-primary uppercase tracking-widest">{step.day}</span>
-                                <span className="text-[7px] md:text-[9px] font-bold text-slate-500 uppercase tracking-widest">{step.date}</span>
-                              </div>
-                           </div>
-                           <p className="text-slate-400 text-xs md:text-sm leading-relaxed font-bold opacity-80">{step.desc}</p>
-                        </div>
-                     </div>
+            {hajjView === 'map' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <button onClick={() => setHajjView('hub')} className="flex items-center gap-2 text-slate-500 hover:text-white transition-colors mb-4 ml-4 md:ml-0">
+                  <ArrowLeft size={16} /> Back to Hub
+                </button>
+                <HajjMap isPremium={isPremium} onShowPremium={onShowPremium} />
+              </div>
+            )}
 
-                     <AnimatePresence>
-                        {expandedStep === idx && (
-                          <motion.div 
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden space-y-6 pt-4 border-t border-white/5"
-                          >
-                             {/* Rituals List */}
-                             <div className="space-y-3">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Rituals & Actions</p>
-                                <div className="flex flex-wrap gap-2">
-                                   {step.rituals.map((r, i) => (
-                                     <span key={i} className="px-3 py-1.5 bg-white/5 rounded-lg text-[10px] md:text-xs text-white font-bold border border-white/5">
-                                        • {r}
-                                     </span>
-                                   ))}
+            {hajjView === 'guide' && (
+              <div className="max-w-4xl mx-auto space-y-12">
+                <button onClick={() => setHajjView('hub')} className="flex items-center gap-2 text-slate-500 hover:text-white transition-colors mb-4 ml-4 md:ml-0">
+                  <ArrowLeft size={16} /> Back to Hub
+                </button>
+                <div className="text-center space-y-4 px-4">
+                  <h3 className="text-2xl md:text-4xl font-black text-white italic tracking-tighter">The Journey of a Lifetime</h3>
+                  <p className="text-sm md:text-lg text-slate-500 font-medium max-w-xl mx-auto">A step-by-step spiritual guide to performing Umrah and Hajj correctly.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 px-4 md:px-0">
+                  {filteredHajjSteps.map((step, idx) => (
+                    <div 
+                      key={idx} 
+                      className="glass-panel p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-white/5 flex flex-col gap-6 hover:border-brand-primary/20 transition-all cursor-pointer group"
+                      onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
+                    >
+                       <div className="flex gap-4 md:gap-6 items-start">
+                          <div className="w-12 h-12 md:w-16 md:h-16 bg-brand-primary/10 rounded-2xl md:rounded-3xl flex items-center justify-center text-brand-primary font-black text-xl md:text-2xl shrink-0 group-hover:scale-110 transition-transform">
+                             {idx + 1}
+                          </div>
+                          <div className="flex-1">
+                             <div className="flex items-center justify-between mb-1 md:mb-2 gap-2">
+                                <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-tight">{step.title}</h4>
+                                <div className="flex flex-col items-end shrink-0">
+                                  <span className="text-[8px] md:text-[10px] font-black text-brand-primary uppercase tracking-widest">{step.day}</span>
+                                  <span className="text-[7px] md:text-[9px] font-bold text-slate-500 uppercase tracking-widest">{step.date}</span>
                                 </div>
                              </div>
+                             <p className="text-slate-400 text-xs md:text-sm leading-relaxed font-bold opacity-80">{step.desc}</p>
+                          </div>
+                       </div>
 
-                             {/* Supplication */}
-                             <div className="p-6 bg-brand-primary/5 rounded-3xl border border-brand-primary/10 space-y-4">
-                                <div className="flex items-center justify-between">
-                                   <div className="flex items-center gap-2">
-                                      <div className="w-1.5 h-4 bg-brand-primary rounded-full" />
-                                      <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Key Supplication</p>
-                                   </div>
-                                </div>
-                                <div className="space-y-3">
-                                   <p className="text-sm md:text-lg text-white font-serif leading-relaxed italic">"{step.supplication}"</p>
-                                   <div className="h-[1px] bg-brand-primary/10 w-full" />
-                                   <p className="text-[10px] md:text-xs text-brand-primary/60 font-bold uppercase tracking-wide leading-relaxed">
-                                      {step.meaning}
-                                   </p>
-                                </div>
-                             </div>
-                          </motion.div>
-                        )}
-                     </AnimatePresence>
+                       <AnimatePresence>
+                          {expandedStep === idx && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-6 pt-4 border-t border-white/5"
+                            >
+                               <div className="space-y-3">
+                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Rituals & Actions</p>
+                                  <div className="flex flex-wrap gap-2">
+                                     {step.rituals.map((r, i) => (
+                                       <span key={i} className="px-3 py-1.5 bg-white/5 rounded-lg text-[10px] md:text-xs text-white font-bold border border-white/5">
+                                          • {r}
+                                       </span>
+                                     ))}
+                                  </div>
+                               </div>
 
-                     <div className="flex justify-center pt-2">
-                        <div className={`p-2 rounded-full transition-all ${expandedStep === idx ? 'bg-brand-primary/10 text-brand-primary rotate-180' : 'text-slate-600'}`}>
-                           <ChevronRight size={16} />
-                        </div>
-                     </div>
-                  </div>
-                ))}
-             </div>
+                               <div className="p-6 bg-brand-primary/5 rounded-3xl border border-brand-primary/10 space-y-4">
+                                  <div className="flex items-center justify-between">
+                                     <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-4 bg-brand-primary rounded-full" />
+                                        <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Key Supplication</p>
+                                     </div>
+                                  </div>
+                                  <div className="space-y-3">
+                                     <p className="text-sm md:text-lg text-white font-serif leading-relaxed italic">"{step.supplication}"</p>
+                                     <div className="h-[1px] bg-brand-primary/10 w-full" />
+                                     <p className="text-[10px] md:text-xs text-brand-primary/60 font-bold uppercase tracking-wide leading-relaxed">
+                                        {step.meaning}
+                                     </p>
+                                  </div>
+                               </div>
+                            </motion.div>
+                          )}
+                       </AnimatePresence>
 
-            <div className="space-y-8">
-               <div className="text-center">
-                  <h4 className="text-xl md:text-2xl font-black text-white mb-2">Interactive Hajj Map</h4>
-                  <p className="text-xs md:text-sm text-slate-400 font-medium">Explore the holy sites and track your journey in real-time.</p>
-               </div>
-               <HajjMap isPremium={isPremium} onShowPremium={onShowPremium} />
-            </div>
+                       <div className="flex justify-center pt-2">
+                          <div className={`p-2 rounded-full transition-all ${expandedStep === idx ? 'bg-brand-primary/10 text-brand-primary rotate-180' : 'text-slate-600'}`}>
+                             <ChevronRight size={16} />
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div 
