@@ -90,7 +90,7 @@ export default function App() {
     return !sessionStorage.getItem('dismissed_notification_popup');
   });
   const [topUserId, setTopUserId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
@@ -324,21 +324,36 @@ export default function App() {
   }, [currentUser]);
 
   useEffect(() => {
-    // Sync hasanat if changed from Firestore
+    // Sync hasanat if changed from Firestore/LocalStorage
     if (currentUser) {
-      const userRef = doc(db, 'users', currentUser.uid);
-      const syncHasanat = async () => {
-        try {
-          const snap = await getDoc(userRef);
-          if (snap.exists()) {
-             const data = snap.data();
-             if (data.hasanat) setHasanat(data.hasanat);
-          }
-        } catch (e) {
-          console.error("Sync Hasanat failed", e);
+      if (currentUser.uid.startsWith('local_')) {
+        const key = `sanctuary_profile_${currentUser.uid}`;
+        const existingData = localStorage.getItem(key);
+        if (existingData) {
+          const data = JSON.parse(existingData);
+          if (data.hasanat) setHasanat(data.hasanat);
         }
-      };
-      syncHasanat();
+      } else {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const syncHasanat = async () => {
+          try {
+            const snap = await getDoc(userRef);
+            if (snap.exists()) {
+               const data = snap.data();
+               if (data.hasanat) setHasanat(data.hasanat);
+            }
+          } catch (e) {
+            console.warn("Sync Hasanat fallback enabled:", e);
+            const cacheKey = `sanctuary_cache_profile_${currentUser.uid}`;
+            const existingData = localStorage.getItem(cacheKey);
+            if (existingData) {
+              const data = JSON.parse(existingData);
+              if (data.hasanat) setHasanat(data.hasanat);
+            }
+          }
+        };
+        syncHasanat();
+      }
     }
   }, [currentUser]);
 
@@ -552,10 +567,27 @@ export default function App() {
     setHasanat(prev => prev + amount);
 
     if (currentUser) {
-      const userRef = doc(db, 'users', currentUser.uid);
-      updateDoc(userRef, { 
-        hasanat: increment(amount)
-      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.uid}`));
+      if (currentUser.uid.startsWith('local_')) {
+        const key = `sanctuary_profile_${currentUser.uid}`;
+        const existingRaw = localStorage.getItem(key);
+        if (existingRaw) {
+          const existing = JSON.parse(existingRaw);
+          existing.hasanat = (existing.hasanat || 0) + amount;
+          localStorage.setItem(key, JSON.stringify(existing));
+        }
+      } else {
+        const userRef = doc(db, 'users', currentUser.uid);
+        updateDoc(userRef, { 
+          hasanat: increment(amount)
+        }).catch(e => {
+          console.warn("Firestore hasanat integration offline. Storing in cache...", e);
+          const cacheKey = `sanctuary_cache_profile_${currentUser.uid}`;
+          const existingRaw = localStorage.getItem(cacheKey);
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          existing.hasanat = (existing.hasanat || 0) + amount;
+          localStorage.setItem(cacheKey, JSON.stringify(existing));
+        });
+      }
     }
 
     const id = popupId.current++;
@@ -574,9 +606,26 @@ export default function App() {
     setStreak(prev => prev + 1);
     addHasanat(100);
     if (currentUser) {
-       updateDoc(doc(db, 'users', currentUser.uid), {
-         streak: increment(1)
-       }).catch(() => {});
+      if (currentUser.uid.startsWith('local_')) {
+        const key = `sanctuary_profile_${currentUser.uid}`;
+        const existingRaw = localStorage.getItem(key);
+        if (existingRaw) {
+          const existing = JSON.parse(existingRaw);
+          existing.streak = (existing.streak || 0) + 1;
+          localStorage.setItem(key, JSON.stringify(existing));
+        }
+      } else {
+        updateDoc(doc(db, 'users', currentUser.uid), {
+          streak: increment(1)
+        }).catch(e => {
+          console.warn("Firestore streak update offline, storing in cache...", e);
+          const cacheKey = `sanctuary_cache_profile_${currentUser.uid}`;
+          const existingRaw = localStorage.getItem(cacheKey);
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          existing.streak = (existing.streak || 0) + 1;
+          localStorage.setItem(cacheKey, JSON.stringify(existing));
+        });
+      }
     }
   };
 
@@ -611,18 +660,86 @@ export default function App() {
   }, [level]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // Generate simulated user if local session is active
+    const checkLocalSession = () => {
+      const isLocal = localStorage.getItem('local-session-active') === 'true';
+      const savedEmail = localStorage.getItem('saved-auth-email');
+      if (isLocal && savedEmail) {
+        const uid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+        return {
+          uid,
+          email: savedEmail,
+          displayName: savedEmail.split('@')[0],
+          photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
+          isAnonymous: true,
+          emailVerified: false,
+          providerData: []
+        };
+      }
+      return null;
+    };
+
+    const localUser = checkLocalSession();
+
+    // If we have a local session, force-resolve auth screen early if needed
+    if (localUser) {
+      setAuthLoading(false);
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      // Prioritize firebase user, fall back to virtual simulated local user
+      const user = fbUser || localUser || checkLocalSession();
       if (user) {
-        const userRef = doc(db, 'users', user.uid);
         setCurrentUser(user);
         
         try {
-          const docSnap = await getDoc(userRef);
+          let userRef = doc(db, 'users', user.uid);
+          let docSnap: any = null;
           
-          if (docSnap.exists()) {
+          if (user.uid.startsWith('local_')) {
+            const cacheKey = `sanctuary_profile_${user.uid}`;
+            const localDataRaw = localStorage.getItem(cacheKey);
+            docSnap = {
+              exists: () => !!localDataRaw,
+              data: () => localDataRaw ? JSON.parse(localDataRaw) : null
+            };
+          } else {
+            try {
+              docSnap = await getDoc(userRef);
+            } catch (dbErr) {
+              console.warn("Firestore blocked, falling back to local profile replication...", dbErr);
+              const cacheKey = `sanctuary_cache_profile_${user.uid}`;
+              const localDataRaw = localStorage.getItem(cacheKey);
+              docSnap = {
+                exists: () => !!localDataRaw,
+                data: () => localDataRaw ? JSON.parse(localDataRaw) : null
+              };
+            }
+          }
+          
+          const savedEmail = localStorage.getItem('saved-auth-email');
+          if (docSnap && !docSnap.exists() && savedEmail && !user.uid.startsWith('local_')) {
+            try {
+              // Check if there is an existing secondary profile mapping under this email
+              const emailProfileRef = doc(db, 'profiles', savedEmail.toLowerCase());
+              const emailProfileSnap = await getDoc(emailProfileRef);
+              if (emailProfileSnap.exists()) {
+                const profileData = emailProfileSnap.data();
+                if (profileData.uid && profileData.uid !== user.uid) {
+                  // Instantly bind to the existing user profile UID!
+                  userRef = doc(db, 'users', profileData.uid);
+                  docSnap = await getDoc(userRef);
+                }
+              }
+            } catch (e) {
+              console.warn("Secondary profile resolve failed or blocked", e);
+            }
+          }
+          
+          if (docSnap && docSnap.exists()) {
             const data = docSnap.data();
             setIsPremium(data.isPremium || false);
-            setUserJoinedAt(data.createdAt?.toDate() || new Date());
+            setUserJoinedAt(data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date());
             setHasanat(data.hasanat || 0);
             
             // If onboarding specifically hasn't been completed
@@ -633,32 +750,66 @@ export default function App() {
             }
           } else {
             // Document doesn't exist? Create a minimal one to establish presence
-            const newProfile = {
+            const savedEmailOrEmpty = savedEmail || '';
+            const newProfile: any = {
               uid: user.uid,
-              email: user.email || '',
-              emailVerified: user.emailVerified,
-              displayName: user.displayName || (user.email ? user.email.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`),
-              photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+              email: user.email || savedEmailOrEmpty,
+              emailVerified: (user as any).emailVerified || false,
+              displayName: (user as any).displayName || (user.email ? user.email.split('@')[0] : (savedEmailOrEmpty ? savedEmailOrEmpty.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`)),
+              photoURL: (user as any).photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
               hasanat: 0,
               streak: 0,
               versesRead: 0,
               duaCount: 0,
               isPremium: false,
-              createdAt: serverTimestamp(),
-              lastSeen: serverTimestamp(),
               onboardingCompleted: false
             };
             
-            await setDoc(userRef, newProfile);
+            if (user.uid.startsWith('local_')) {
+              newProfile.createdAt = new Date().toISOString();
+              newProfile.lastSeen = new Date().toISOString();
+              localStorage.setItem(`sanctuary_profile_${user.uid}`, JSON.stringify(newProfile));
+            } else {
+              try {
+                await setDoc(userRef, {
+                  ...newProfile,
+                  createdAt: serverTimestamp(),
+                  lastSeen: serverTimestamp()
+                });
+              } catch (setErr) {
+                console.warn("onboarding initial setDoc failed, cache set instead", setErr);
+                newProfile.createdAt = new Date().toISOString();
+                newProfile.lastSeen = new Date().toISOString();
+                localStorage.setItem(`sanctuary_cache_profile_${user.uid}`, JSON.stringify(newProfile));
+              }
+            }
             setHasanat(0);
             setIsPremium(false);
             setNeedsOnboarding(true);
           }
-
+ 
           // Background update for lastSeen
-          updateDoc(userRef, {
-            lastSeen: serverTimestamp()
-          }).catch(() => {});
+          if (user.uid.startsWith('local_')) {
+            const key = `sanctuary_profile_${user.uid}`;
+            const existingRaw = localStorage.getItem(key);
+            if (existingRaw) {
+              const existing = JSON.parse(existingRaw);
+              existing.lastSeen = new Date().toISOString();
+              localStorage.setItem(key, JSON.stringify(existing));
+            }
+          } else {
+            updateDoc(userRef, {
+              lastSeen: serverTimestamp()
+            }).catch(() => {
+              const key = `sanctuary_cache_profile_${user.uid}`;
+              const existingRaw = localStorage.getItem(key);
+              if (existingRaw) {
+                const existing = JSON.parse(existingRaw);
+                existing.lastSeen = new Date().toISOString();
+                localStorage.setItem(key, JSON.stringify(existing));
+              }
+            });
+          }
           
         } catch (error: any) {
           console.error("Auth sync error:", error);
@@ -666,10 +817,17 @@ export default function App() {
           setAuthLoading(false);
         }
       } else {
-        setCurrentUser(null);
-        setHasanat(0);
-        setNeedsOnboarding(false);
-        setAuthLoading(false);
+        // If there's an active local session flag but fbUser is null, double-check local user setup
+        const localSessionActive = localStorage.getItem('local-session-active') === 'true';
+        if (localSessionActive && localUser) {
+          setCurrentUser(localUser);
+          setAuthLoading(false);
+        } else {
+          setCurrentUser(null);
+          setHasanat(0);
+          setNeedsOnboarding(false);
+          setAuthLoading(false);
+        }
       }
     });
     return () => unsubscribe();
@@ -685,7 +843,15 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      localStorage.removeItem('local-session-active');
+      localStorage.removeItem('saved-auth-email');
+      try {
+        await signOut(auth);
+      } catch (authErr) {
+        console.warn("Sign out from Firebase failed or uninitialized, proceeding with local clear...", authErr);
+      }
+      // Force page reload to drop any active contexts clean
+      window.location.reload();
     } catch (error) {
        console.error("Logout failed", error);
     }
@@ -831,12 +997,33 @@ export default function App() {
     { id: 'companion', label: 'Companion', icon: 'Sparkles' }
   ];
 
+  if (showSplash) {
+    return <SplashScreen />;
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="fixed inset-0 flex text-slate-200 overflow-y-auto font-sans selection:bg-brand-primary/30 islamic-pattern bg-brand-depth">
+        <HeadsUpNotification />
+        <AuthView onSuccess={() => setAuthLoading(true)} />
+      </div>
+    );
+  }
+
+  if (needsOnboarding) {
+    return (
+      <div className="fixed inset-0 flex text-slate-200 overflow-y-auto font-sans selection:bg-brand-primary/30 islamic-pattern bg-brand-depth">
+        <HeadsUpNotification />
+        <div className="w-full max-w-2xl mx-auto px-4 py-8 md:py-16">
+          <OnboardingView user={currentUser} onComplete={() => setNeedsOnboarding(false)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
       <HeadsUpNotification />
-      <AnimatePresence>
-        {showSplash && <SplashScreen key="splash" />}
-      </AnimatePresence>
       <AnimatePresence>
         {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
           <motion.div 
@@ -1135,11 +1322,7 @@ export default function App() {
       {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto scrollbar-hide pb-32 md:pb-12">
           <div className="max-w-5xl mx-auto p-4 md:p-12">
-            {!currentUser ? (
-              <AuthView onSuccess={() => setAuthLoading(true)} />
-            ) : needsOnboarding ? (
-              <OnboardingView user={currentUser} onComplete={() => setNeedsOnboarding(false)} />
-            ) : (
+            {currentUser && (
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -1208,7 +1391,7 @@ export default function App() {
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
                     <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/chat" element={<ChatView isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>

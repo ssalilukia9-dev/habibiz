@@ -127,11 +127,34 @@ export default function HajjMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {HAJJ_LOCATIONS.map((loc) => (
-            <Marker key={loc.id} position={[loc.lat, loc.lng]}>
+            <Marker 
+              key={loc.id} 
+              position={[loc.lat, loc.lng]}
+              eventHandlers={{
+                click: () => {
+                  setSelectedLocation(loc);
+                  setMapCenter([loc.lat, loc.lng]);
+                }
+              }}
+            >
               <Popup>
-                <div className="p-2 space-y-1">
-                  <h4 className="font-bold text-brand-depth">{loc.name}</h4>
-                  <p className="text-xs text-slate-600">{loc.desc}</p>
+                <div className="p-3 space-y-2 max-w-[200px]">
+                  <h4 className="font-bold text-slate-900 border-b border-slate-100 pb-1 flex items-center gap-1.5">
+                    <MapPin size={14} className="text-amber-600 shrink-0" />
+                    <span>{loc.name}</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium">{loc.desc}</p>
+                  <div className="pt-2">
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-slate-900 text-amber-400 font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 text-[9px] uppercase tracking-wider hover:bg-slate-800 transition-colors pointer-events-auto"
+                    >
+                      <Navigation size={10} className="fill-amber-400" />
+                      Navigate To
+                    </a>
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -142,16 +165,26 @@ export default function HajjMap({
 
         {/* Legend/Info Overlay */}
         <div className="absolute bottom-6 left-6 right-6 z-20 pointer-events-none">
-            <div className="glass-panel p-6 rounded-3xl border-brand-primary/20 max-w-sm ml-auto pointer-events-auto">
+            <div className="glass-panel p-6 rounded-3xl border border-brand-primary/20 max-w-sm ml-auto pointer-events-auto bg-slate-950/90 backdrop-blur-md">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-brand-primary/10 rounded-xl text-brand-primary">
                         <MapPin size={20} />
                     </div>
-                    <h4 className="font-black text-white">{selectedLocation.name}</h4>
+                    <h4 className="font-black text-white text-base">{selectedLocation.name}</h4>
                 </div>
                 <p className="text-xs text-slate-400 font-medium leading-relaxed">
                     {selectedLocation.desc}
                 </p>
+
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${selectedLocation.lat},${selectedLocation.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 w-full bg-brand-primary text-brand-depth font-black py-3 rounded-2xl flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest hover:scale-[1.02] transition-transform duration-150 pointer-events-auto shadow-xl shadow-brand-primary/10 cursor-pointer"
+                >
+                  <Navigation size={12} className="fill-current" />
+                  Navigate to {selectedLocation.name}
+                </a>
             </div>
         </div>
       </div>

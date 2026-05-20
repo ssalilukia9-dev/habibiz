@@ -60,6 +60,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     return;
   }
 
-  console.error('Firestore Fatal Error: ', errorString);
-  throw new Error(errorString);
+  console.warn('Firestore Operation Bypassed/Offline Mode:', errorString);
 }

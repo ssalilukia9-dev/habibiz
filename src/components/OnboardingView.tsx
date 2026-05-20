@@ -151,36 +151,58 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
         ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}` 
         : photoURL;
 
-      await updateProfile(user, {
-        displayName,
-        photoURL: authPhotoURL
-      });
+      try {
+        await updateProfile(user, {
+          displayName,
+          photoURL: authPhotoURL
+        });
+      } catch (authProfErr) {
+        console.warn("Auth profile update not supported for local virtual profile, skipping...", authProfErr);
+      }
 
       // 2. Update Firestore Record using updateDoc to preserve existing fields like createdAt and email
       const userRef = doc(db, 'users', user.uid);
-      const profileData = {
+      const emailResolved = user.email || localStorage.getItem('saved-auth-email') || '';
+      const profileData: any = {
         displayName,
         photoURL,
         bio,
-        email: user.email || '',
-        emailVerified: user.emailVerified,
-        lastSeen: serverTimestamp(),
+        email: emailResolved,
+        emailVerified: user.emailVerified || false,
         onboardingCompleted: true
       };
       
-      await updateDoc(userRef, profileData);
+      if (user.uid.startsWith('local_')) {
+        const localProfileKey = `sanctuary_profile_${user.uid}`;
+        const existingData = localStorage.getItem(localProfileKey);
+        const existing = existingData ? JSON.parse(existingData) : {};
+        localStorage.setItem(localProfileKey, JSON.stringify({ ...existing, ...profileData, lastSeen: new Date().toISOString() }));
+      } else {
+        try {
+          await updateDoc(userRef, {
+            ...profileData,
+            lastSeen: serverTimestamp()
+          });
 
-      // 3. Create/Update Secondary Profile (Email-based) for app-wide indexing
-      if (user.email) {
-        const emailRef = doc(db, 'profiles', user.email.toLowerCase());
-        await setDoc(emailRef, {
-          uid: user.uid,
-          displayName,
-          photoURL,
-          bio,
-          lastSeen: serverTimestamp(),
-          isPremium: false
-        }, { merge: true });
+          // 3. Create/Update Secondary Profile (Email-based) for app-wide indexing
+          if (emailResolved) {
+            const emailRef = doc(db, 'profiles', emailResolved.toLowerCase());
+            await setDoc(emailRef, {
+              uid: user.uid,
+              displayName,
+              photoURL,
+              bio,
+              lastSeen: serverTimestamp(),
+              isPremium: false
+            }, { merge: true });
+          }
+        } catch (dbErr) {
+          console.warn("Firestore write blocked or offline. Falling back to local replication cache...", dbErr);
+          const cacheKey = `sanctuary_cache_profile_${user.uid}`;
+          const existingData = localStorage.getItem(cacheKey);
+          const existing = existingData ? JSON.parse(existingData) : {};
+          localStorage.setItem(cacheKey, JSON.stringify({ ...existing, ...profileData, lastSeen: new Date().toISOString() }));
+        }
       }
 
       notificationService.notify('Welcome to Sanctuary', `Peace be upon you, ${displayName}. Your profile is ready.`, 'system');

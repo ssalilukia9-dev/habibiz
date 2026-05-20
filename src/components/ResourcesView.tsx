@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -33,7 +33,8 @@ import {
   Bell,
   WifiOff,
   Mic,
-  Search
+  Search,
+  ArrowRight
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
