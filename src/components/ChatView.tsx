@@ -96,6 +96,41 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Auto-provision default public starter rooms in Firestore for authenticated seekers
+  useEffect(() => {
+    const ensureDefaultRoomsInFirestore = async () => {
+      if (!myUser || myUser.uid.startsWith('local_')) return;
+      
+      const defaultStarterRooms = [
+        { id: 'group_general_circle', name: 'General Sanctuary Circle', lastMessage: 'Reflections and community unity' },
+        { id: 'group_quran_study', name: 'Quran Study & Reflections', lastMessage: 'Sharing deep insights and ayah ponderings' },
+        { id: 'group_daily_dua', name: 'Daily Adhkar & Dua Circle', lastMessage: 'Keep up with your daily dhikr progress' }
+      ];
+
+      for (const room of defaultStarterRooms) {
+        try {
+          const roomRef = doc(db, 'rooms', room.id);
+          const roomSnap = await getDoc(roomRef);
+          if (!roomSnap.exists()) {
+            await setDoc(roomRef, {
+              name: room.name,
+              type: 'group',
+              participants: [],
+              updatedAt: serverTimestamp(),
+              lastMessage: room.lastMessage,
+              createdBy: 'system'
+            });
+            console.log(`Starter group ${room.id} provisioned in Firestore.`);
+          }
+        } catch (err) {
+          console.warn(`Error ensuring starter group ${room.id} exists in Firestore:`, err);
+        }
+      }
+    };
+    
+    ensureDefaultRoomsInFirestore();
+  }, [myUser]);
+
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -227,7 +262,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   useEffect(() => {
     if (!activeRoom || !myUser) return;
 
-    const isStarterOrLocal = activeRoom.id.startsWith('group_') || myUser.uid.startsWith('local_') || activeRoom.createdBy === 'system';
+    const isStarterOrLocal = myUser.uid.startsWith('local_') || activeRoom.id.startsWith('seeker_');
 
     if (isStarterOrLocal) {
       const msgsKey = `sanctuary_msgs_${activeRoom.id}`;
@@ -360,7 +395,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
     e.preventDefault();
     if ((!newMessage.trim() && !attachment) || !activeRoom || !myUser) return;
 
-    const isStarterOrLocal = activeRoom.id.startsWith('group_') || myUser.uid.startsWith('local_') || activeRoom.createdBy === 'system';
+    const isStarterOrLocal = myUser.uid.startsWith('local_') || activeRoom.id.startsWith('seeker_');
 
     const msgData: any = {
       id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),

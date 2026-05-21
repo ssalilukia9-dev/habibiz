@@ -60,6 +60,42 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Aladhan Prayer Times Proxy
+  app.get("/api/proxy/aladhan/*", async (req, res) => {
+    try {
+      const subPath = req.originalUrl.replace(/^\/api\/proxy\/aladhan\//, '');
+      const targetUrl = `https://api.aladhan.com/v1/${subPath}`;
+      console.log(`Proxying Aladhan request to: ${targetUrl}`);
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        throw new Error(`Upstream returned status ${response.status}`);
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("Aladhan proxy error:", err);
+      res.status(502).json({ error: "Failed to fetch from prayer times service", details: err?.message });
+    }
+  });
+
+  // Alquran Cloud Proxy
+  app.get("/api/proxy/alquran/*", async (req, res) => {
+    try {
+      const subPath = req.originalUrl.replace(/^\/api\/proxy\/alquran\//, '');
+      const targetUrl = `https://api.alquran.cloud/v1/${subPath}`;
+      console.log(`Proxying Alquran request to: ${targetUrl}`);
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        throw new Error(`Upstream returned status ${response.status}`);
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("Alquran proxy error:", err);
+      res.status(502).json({ error: "Failed to fetch from Quran service", details: err?.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

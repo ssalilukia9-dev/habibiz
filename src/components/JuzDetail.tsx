@@ -119,10 +119,10 @@ export default function JuzDetail({
 
       try {
         // Fetch Juz content
-        const resArabic = await fetch(`https://api.alquran.cloud/v1/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`);
+        const resArabic = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`);
         const dataArabic = await resArabic.json();
         
-        const resTrans = await fetch(`https://api.alquran.cloud/v1/juz/${juzIndex}/${selectedTranslation}`);
+        const resTrans = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${selectedTranslation}`);
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {

@@ -128,13 +128,13 @@ class OfflineService {
       if (onProgress) onProgress({ total: 114, current: 0, status: 'syncing' });
 
       // 1. Fetch and save Surah list
-      const surahRes = await fetch('https://api.alquran.cloud/v1/surah');
+      const surahRes = await fetch('/api/proxy/alquran/surah');
       const surahData = await surahRes.json();
       await this.saveSurahs(surahData.data);
 
       // 2. Fetch all Ayahs (This can be a heavy operation, so we do it surah by surah)
       for (let i = 1; i <= 114; i++) {
-        const ayahRes = await fetch(`https://api.alquran.cloud/v1/surah/${i}/editions/quran-uthmani,en.sahih,ar.alafasy`);
+        const ayahRes = await fetch(`/api/proxy/alquran/surah/${i}/editions/quran-uthmani,en.sahih,ar.alafasy`);
         const ayahData = await ayahRes.json();
         
         // Structure the data to match expected APP types
@@ -179,7 +179,7 @@ class OfflineService {
         
         if (!ayahs) {
           // Fetch if missing
-          const ayahRes = await fetch(`https://api.alquran.cloud/v1/surah/${i}/editions/quran-uthmani,en.sahih,${reciter.slug}`);
+          const ayahRes = await fetch(`/api/proxy/alquran/surah/${i}/editions/quran-uthmani,en.sahih,${reciter.slug}`);
           const ayahData = await ayahRes.json();
           
           const uthmani = ayahData.data[0].ayahs;

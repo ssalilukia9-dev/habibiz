@@ -143,11 +143,11 @@ export default function SurahDetail({
 
       try {
         // Fetch Arabic text + Audio
-        const resArabic = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
+        const resArabic = await fetch(`/api/proxy/alquran/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
         const dataArabic = await resArabic.json();
         
         // Fetch English translation
-        const resTrans = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}/${selectedTranslation}`, { signal: controller.signal });
+        const resTrans = await fetch(`/api/proxy/alquran/surah/${surah.number}/${selectedTranslation}`, { signal: controller.signal });
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {

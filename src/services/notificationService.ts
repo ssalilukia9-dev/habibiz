@@ -82,26 +82,40 @@ class NotificationService {
     if ((window as any).median || (window as any).gonative) {
       const bridge = (window as any).median || (window as any).gonative;
       try {
-        // Native local notification (works without internet if app is in background)
-        bridge.nativebridge.postMessage(JSON.stringify({
-          type: 'localNotification',
-          title,
-          message: body,
-          actionUrl: actionUrl || '/',
-          vibrate: true,
-          sound: true,
-          wakeScreen: true // Attempt to wake screen
-        }));
+        // Bypass pattern A: Try the high-level Local Notifications API Namespace directly if registered
+        if (bridge.localNotifications && typeof bridge.localNotifications.create === 'function') {
+          bridge.localNotifications.create({
+            title: title,
+            message: body,
+            actionUrl: actionUrl || '/',
+            vibrate: true,
+            sound: true
+          });
+        }
         
-        // Also send generic notification message if localNotification is not supported
-        bridge.nativebridge.postMessage(JSON.stringify({
-          type: 'notification',
-          title,
-          message: body,
-          actionUrl: actionUrl || '/'
-        }));
+        // Bypass pattern B: Try standard postMessage commands
+        if (bridge.nativebridge && typeof bridge.nativebridge.postMessage === 'function') {
+          // Native local notification (works without internet if app is in background)
+          bridge.nativebridge.postMessage(JSON.stringify({
+            type: 'localNotification',
+            title,
+            message: body,
+            actionUrl: actionUrl || '/',
+            vibrate: true,
+            sound: true,
+            wakeScreen: true // Attempt to wake screen
+          }));
+          
+          // Also send generic notification message if localNotification is not supported
+          bridge.nativebridge.postMessage(JSON.stringify({
+            type: 'notification',
+            title,
+            message: body,
+            actionUrl: actionUrl || '/'
+          }));
+        }
       } catch (e) {
-        console.warn("Median bridge call failed", e);
+        console.warn("Median bridge call failed, falling back to Web API...", e);
       }
     }
 

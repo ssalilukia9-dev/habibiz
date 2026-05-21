@@ -147,8 +147,8 @@ export default function PrayerTimesView() {
       
       // Let's use the lat/lng endpoint if we have them
       const endpoint = (lat !== 51.5074 || lng !== -0.1278)
-        ? `https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=2`
-        : `https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2`;
+        ? `/api/proxy/aladhan/timings?latitude=${lat}&longitude=${lng}&method=2`
+        : `/api/proxy/aladhan/timingsByCity?city=London&country=UK&method=2`;
 
       const res = await fetch(endpoint);
       const data = await res.json();

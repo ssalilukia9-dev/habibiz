@@ -11,7 +11,9 @@ import {
   UserCheck
 } from 'lucide-react';
 import { 
-  signInAnon
+  signInAnon,
+  signInWithGoogle,
+  signInWithGithub
 } from '../lib/firebase';
 
 interface AuthViewProps {
@@ -25,11 +27,25 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
   const [isSavedEmail, setIsSavedEmail] = useState(false);
 
   useEffect(() => {
-    // See if we have a saved email in local storage to greet or prefill
-    const saved = localStorage.getItem('saved-auth-email');
-    if (saved) {
-      setEmail(saved);
-      setIsSavedEmail(true);
+    // Check URL parameters for potential preloaded invitation data
+    const params = new URLSearchParams(window.location.search);
+    const inviteEmail = params.get('invite_email') || params.get('email');
+    const inviteName = params.get('invite_name') || params.get('name');
+    
+    if (inviteEmail) {
+      setEmail(inviteEmail.trim().toLowerCase());
+      setIsSavedEmail(false);
+      localStorage.setItem('saved-auth-email', inviteEmail.trim().toLowerCase());
+      if (inviteName) {
+        localStorage.setItem('temp_onboarding_name', inviteName);
+      }
+    } else {
+      // See if we have a saved email in local storage to greet or prefill
+      const saved = localStorage.getItem('saved-auth-email');
+      if (saved) {
+        setEmail(saved);
+        setIsSavedEmail(true);
+      }
     }
   }, []);
 
@@ -122,17 +138,65 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
             <div className="space-y-2">
               <h3 className="text-xs font-black text-brand-primary uppercase tracking-wider">Option A: Secure Firebase Account</h3>
               <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                If you prefer logging in with Google, GitHub, or saving persistent cloud accounts, click below to open the application in a direct standalone browser tab. This bypasses cookie or iframe blockers in the preview environment.
+                Log in securely to save your persistent cloud account, backup your progress, streaks, bookmarks, and settings.
+              </p>
+              <p className="text-[10px] text-amber-400/80 font-semibold leading-normal">
+                ⚠️ Note: If you are in the preview iframe, click "Unlock in Browser" first to allow Google/GitHub authentication popups to load.
               </p>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setError(null);
+                    setLoading(true);
+                    await signInWithGoogle();
+                    onSuccess();
+                  } catch (err: any) {
+                    console.error("Google Auth failed:", err);
+                    setError(err.message || "Google authentication failed. Please make sure you are in a standalone browser tab.");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="bg-white text-brand-depth font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all text-[11px] uppercase tracking-wider disabled:opacity-50"
+              >
+                <span>Google Login</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setError(null);
+                    setLoading(true);
+                    await signInWithGithub();
+                    onSuccess();
+                  } catch (err: any) {
+                    console.error("GitHub Auth failed:", err);
+                    setError(err.message || "GitHub authentication failed. Please make sure you are in a standalone browser tab.");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="bg-slate-800 hover:bg-slate-700 text-white font-black py-3 px-4 rounded-xl border border-white/10 flex items-center justify-center gap-2 active:scale-[0.98] transition-all text-[11px] uppercase tracking-wider disabled:opacity-50"
+              >
+                <span>GitHub Login</span>
+              </button>
+            </div>
+
             <a 
               href={window.location.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full bg-white/5 border border-white/15 text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 active:scale-[0.98] transition-all group text-center block text-xs"
+              className="w-full bg-white/5 border border-white/10 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/15 active:scale-[0.98] transition-all group text-center block text-xs"
             >
               <span>Unlock in Browser Window</span>
-              <ExternalLink size={16} className="text-brand-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
+              <ExternalLink size={14} className="text-brand-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
             </a>
           </div>
 

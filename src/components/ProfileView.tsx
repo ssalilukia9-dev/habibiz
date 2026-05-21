@@ -36,7 +36,7 @@ import {
   Crown,
   Leaf
 } from 'lucide-react';
-import { db, auth } from '../lib/firebase.ts';
+import { db, auth, signInWithGoogle, signInWithGithub } from '../lib/firebase.ts';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { updateProfile, deleteUser } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
@@ -600,12 +600,77 @@ export default function ProfileView({
             </div>
 
             {!isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 rounded-2xl text-[10px] font-black text-brand-primary uppercase tracking-widest transition-all"
-              >
-                <Edit2 size={12} /> Edit Sacred Profile
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 rounded-2xl text-[10px] font-black text-brand-primary uppercase tracking-widest transition-all"
+                >
+                  <Edit2 size={12} /> Edit Sacred Profile
+                </button>
+
+                {currentUser?.uid?.startsWith('local_') && (
+                  <a
+                    href={window.location.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest transition-all"
+                  >
+                    Open Standalone Browser
+                  </a>
+                )}
+              </div>
+            )}
+
+            {currentUser?.uid?.startsWith('local_') && (
+              <div className="mt-4 p-5 bg-gradient-to-r from-amber-500/10 to-brand-primary/10 border border-brand-primary/20 rounded-2xl space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl mt-0.5">
+                    <Shield size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider">Unsecured Offline-Only Profile</h4>
+                    <p className="text-[11px] text-slate-300 leading-relaxed font-semibold">
+                      Secure your spiritual records. Link your account to Firebase to save your progress, streaks, bookmarks, and settings permanently in the Cloud.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1.5">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const fbUser = await signInWithGoogle();
+                        if (fbUser) {
+                          window.location.reload();
+                        }
+                      } catch (err: any) {
+                        console.error("Secure with Google failed:", err);
+                        alert("Secure with Google failed. If you are inside the preview iframe, open a standalone browser window first using the button above.");
+                      }
+                    }}
+                    className="text-[10px] font-black text-brand-depth bg-brand-primary px-4 py-2.5 rounded-xl uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Link Google Account
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const fbUser = await signInWithGithub();
+                        if (fbUser) {
+                          window.location.reload();
+                        }
+                      } catch (err: any) {
+                        console.error("Secure with GitHub failed:", err);
+                        alert("Secure with GitHub failed. If you are inside the preview iframe, open a standalone browser window first using the button above.");
+                      }
+                    }}
+                    className="text-[10px] font-black text-white bg-slate-800 border border-white/10 px-4 py-2.5 rounded-xl uppercase tracking-wider hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Link GitHub Account
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

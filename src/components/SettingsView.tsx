@@ -260,7 +260,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
       {/* Notifications Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-primary/60 flex items-center gap-3">
-          <Bell size={14} /> Notification Sanctuary
+          <Bell size={14} /> Notification Preferences
         </h3>
         <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl space-y-px">
            {/* Permission Grant Block - CRITICAL FOR MOBILE */}

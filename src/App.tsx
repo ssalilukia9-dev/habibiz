@@ -40,6 +40,7 @@ import {
   setDoc, 
   serverTimestamp, 
   getDoc, 
+  getDocs,
   updateDoc,
   collection,
   query,
@@ -149,7 +150,7 @@ export default function App() {
   useEffect(() => {
     const fetchTimings = async () => {
       try {
-        const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=London&country=UK&method=2');
+        const res = await fetch('/api/proxy/aladhan/timingsByCity?city=London&country=UK&method=2');
         const data = await res.json();
         if (data.data) {
           setPrayerTimes(data.data.timings);
@@ -660,6 +661,21 @@ export default function App() {
   }, [level]);
 
   useEffect(() => {
+    // Force a one-time clean logout to let user see and test the authentication flow again
+    const forceLogoutKey = 'sanctuary_dynamic_reauth_check_may-20';
+    if (!localStorage.getItem(forceLogoutKey)) {
+      localStorage.setItem(forceLogoutKey, 'triggered');
+      localStorage.removeItem('local-session-active');
+      localStorage.removeItem('saved-auth-email');
+      signOut(auth).then(() => {
+        window.location.reload();
+      }).catch(() => {
+        window.location.reload();
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     // Generate simulated user if local session is active
     const checkLocalSession = () => {
       const isLocal = localStorage.getItem('local-session-active') === 'true';
@@ -696,6 +712,23 @@ export default function App() {
           let userRef = doc(db, 'users', user.uid);
           let docSnap: any = null;
           
+          const savedEmail = localStorage.getItem('saved-auth-email');
+          let migratedLocalData: any = null;
+          const isTransitioning = !user.uid.startsWith('local_') && localStorage.getItem('local-session-active') === 'true';
+          
+          if (isTransitioning && savedEmail) {
+            const localUid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+            const localProfileKey = `sanctuary_profile_${localUid}`;
+            const localProfileRaw = localStorage.getItem(localProfileKey);
+            if (localProfileRaw) {
+              try {
+                migratedLocalData = JSON.parse(localProfileRaw);
+              } catch (e) {
+                console.warn("Failed to parse local profile for migrating payload", e);
+              }
+            }
+          }
+          
           if (user.uid.startsWith('local_')) {
             const cacheKey = `sanctuary_profile_${user.uid}`;
             const localDataRaw = localStorage.getItem(cacheKey);
@@ -717,7 +750,41 @@ export default function App() {
             }
           }
           
-          const savedEmail = localStorage.getItem('saved-auth-email');
+          if (docSnap && !docSnap.exists() && !user.uid.startsWith('local_')) {
+            const targetEmail = (user.email || savedEmail || '').toLowerCase();
+            if (targetEmail) {
+              try {
+                const usersColl = collection(db, 'users');
+                const qEmail = query(usersColl, where('email', '==', targetEmail));
+                const qEmailSnap = await getDocs(qEmail);
+                if (!qEmailSnap.empty) {
+                  // Direct pre-provisioned template exists in users collection!
+                  const existingDoc = qEmailSnap.docs[0];
+                  const existingData = existingDoc.data();
+                  
+                  // Re-provision at the authentic authenticated UID
+                  userRef = doc(db, 'users', user.uid);
+                  await setDoc(userRef, {
+                    ...existingData,
+                    uid: user.uid,
+                    lastSeen: serverTimestamp(),
+                    onboardingCompleted: true // preloaded profiles ready to engage
+                  });
+                  
+                  // Delete the placeholder if it was different
+                  if (existingDoc.id !== user.uid) {
+                    await deleteDoc(doc(db, 'users', existingDoc.id));
+                  }
+                  
+                  docSnap = await getDoc(userRef);
+                  console.log("Adopted pre-provisioned profile successfully!");
+                }
+              } catch (e) {
+                console.warn("Pre-provisioned adoption error:", e);
+              }
+            }
+          }
+
           if (docSnap && !docSnap.exists() && savedEmail && !user.uid.startsWith('local_')) {
             try {
               // Check if there is an existing secondary profile mapping under this email
@@ -738,12 +805,50 @@ export default function App() {
           
           if (docSnap && docSnap.exists()) {
             const data = docSnap.data();
-            setIsPremium(data.isPremium || false);
+            
+            let updatedHasanat = data.hasanat || 0;
+            let updatedStreak = data.streak || 0;
+            let updatedVersesRead = data.versesRead || 0;
+            let updatedDuaCount = data.duaCount || 0;
+            let updatedBio = data.bio || '';
+            let updatedDisplayName = data.displayName || user.displayName || '';
+
+            if (migratedLocalData) {
+              updatedHasanat += (migratedLocalData.hasanat || 0);
+              updatedStreak = Math.max(updatedStreak, migratedLocalData.streak || 0);
+              updatedVersesRead += (migratedLocalData.versesRead || 0);
+              updatedDuaCount += (migratedLocalData.duaCount || 0);
+              if (!updatedBio && migratedLocalData.bio) updatedBio = migratedLocalData.bio;
+              if ((!updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) && migratedLocalData.displayName) {
+                updatedDisplayName = migratedLocalData.displayName;
+              }
+              
+              try {
+                await updateDoc(userRef, {
+                  hasanat: updatedHasanat,
+                  streak: updatedStreak,
+                  versesRead: updatedVersesRead,
+                  duaCount: updatedDuaCount,
+                  bio: updatedBio,
+                  displayName: updatedDisplayName,
+                  lastSeen: serverTimestamp()
+                });
+              } catch (uErr) {
+                console.warn("Failed to write migrated local data directly to firestore:", uErr);
+              }
+              
+              localStorage.removeItem('local-session-active');
+              setTimeout(() => {
+                notificationService.notify('Progress Secured', `Masha'Allah! Your local guest profile content (${migratedLocalData.hasanat || 0} Hasanat) has been merged and secured in the cloud.`, 'system');
+              }, 1000);
+            }
+
+            setIsPremium(data.isPremium || migratedLocalData?.isPremium || false);
             setUserJoinedAt(data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date());
-            setHasanat(data.hasanat || 0);
+            setHasanat(updatedHasanat);
             
             // If onboarding specifically hasn't been completed
-            if (data.onboardingCompleted === false || !data.displayName || data.displayName.startsWith('Seeker_')) {
+            if (data.onboardingCompleted === false || !updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) {
               setNeedsOnboarding(true);
             } else {
               setNeedsOnboarding(false);
@@ -751,18 +856,26 @@ export default function App() {
           } else {
             // Document doesn't exist? Create a minimal one to establish presence
             const savedEmailOrEmpty = savedEmail || '';
+            const tempOnboardingName = localStorage.getItem('temp_onboarding_name');
+            const defaultDisplayName = tempOnboardingName || migratedLocalData?.displayName || (user as any).displayName || (user.email ? user.email.split('@')[0] : (savedEmailOrEmpty ? savedEmailOrEmpty.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`));
+            
+            if (tempOnboardingName) {
+              localStorage.removeItem('temp_onboarding_name');
+            }
+
             const newProfile: any = {
               uid: user.uid,
               email: user.email || savedEmailOrEmpty,
               emailVerified: (user as any).emailVerified || false,
-              displayName: (user as any).displayName || (user.email ? user.email.split('@')[0] : (savedEmailOrEmpty ? savedEmailOrEmpty.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`)),
-              photoURL: (user as any).photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-              hasanat: 0,
-              streak: 0,
-              versesRead: 0,
-              duaCount: 0,
-              isPremium: false,
-              onboardingCompleted: false
+              displayName: defaultDisplayName,
+              photoURL: migratedLocalData?.photoURL || (user as any).photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+              hasanat: migratedLocalData?.hasanat || 0,
+              streak: migratedLocalData?.streak || 0,
+              versesRead: migratedLocalData?.versesRead || 0,
+              duaCount: migratedLocalData?.duaCount || 0,
+              bio: migratedLocalData?.bio || '',
+              isPremium: migratedLocalData?.isPremium || false,
+              onboardingCompleted: migratedLocalData?.onboardingCompleted || false
             };
             
             if (user.uid.startsWith('local_')) {
@@ -782,10 +895,17 @@ export default function App() {
                 newProfile.lastSeen = new Date().toISOString();
                 localStorage.setItem(`sanctuary_cache_profile_${user.uid}`, JSON.stringify(newProfile));
               }
+
+              if (migratedLocalData) {
+                localStorage.removeItem('local-session-active');
+                setTimeout(() => {
+                  notificationService.notify('Profile Secured', `Masha'Allah! Your temporary profile has been secured. Welcome to the Cloud Sanctuary!`, 'system');
+                }, 1000);
+              }
             }
-            setHasanat(0);
-            setIsPremium(false);
-            setNeedsOnboarding(true);
+            setHasanat(newProfile.hasanat || 0);
+            setIsPremium(newProfile.isPremium || false);
+            setNeedsOnboarding(newProfile.onboardingCompleted === false);
           }
  
           // Background update for lastSeen
