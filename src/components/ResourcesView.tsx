@@ -34,7 +34,10 @@ import {
   WifiOff,
   Mic,
   Search,
-  ArrowRight
+  ArrowRight,
+  Copy,
+  Check,
+  Award
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
@@ -73,7 +76,7 @@ interface ResourcesViewProps {
   onShowPremium: () => void;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'anatomy' | 'system';
 
 export default function ResourcesView({
   selectedSurah,
@@ -96,6 +99,8 @@ export default function ResourcesView({
 }: ResourcesViewProps) {
   const [activeRes, setActiveRes] = useState<TabType | null>(initialResId || null);
   const [isListening, setIsListening] = useState(false);
+  const [selectedAnatomyTab, setSelectedAnatomyTab] = useState<'map' | 'navigation' | 'conservatory' | 'rewards' | 'market' | 'auth'>('map');
+  const [copyStatus, setCopyStatus] = useState<string>('Copy Developer Prompt');
   const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -178,6 +183,13 @@ export default function ResourcesView({
         { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300', premium: false },
         { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300', premium: false },
         { id: 'offline', title: 'Offline Sanctuary', icon: WifiOff, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300', premium: false }
+      ]
+    },
+    {
+      title: 'SYSTEM ARCHITECTURE',
+      cards: [
+        { id: 'anatomy', title: 'Grand Architect Map', icon: Terminal, image: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&q=80&w=800', premium: false },
+        { id: 'system', title: 'Sanctuary OS Core', icon: Activity, image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=800', premium: false }
       ]
     }
   ];
@@ -522,7 +534,263 @@ export default function ResourcesView({
                       addHasanat={addHasanat}
                    />
                  )}
-                 {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {(activeRes as any) === 'anatomy' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                       <div className="glass-panel p-6 md:p-10 rounded-[3rem] border-white/5 bg-brand-sidebar/40">
+                          <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10 pb-6 border-b border-white/5">
+                             <div className="flex flex-col md:flex-row items-center gap-6">
+                                <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary shadow-2xl">
+                                   <Terminal size={32} />
+                                </div>
+                                <div className="text-center md:text-left">
+                                   <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Grand Architect Map</h2>
+                                   <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest font-sans">Sanctuary Application Layout & Specs</p>
+                                </div>
+                             </div>
+
+                             <button 
+                               onClick={() => {
+                                 const ARCH_PROMPT = `=== THE SANCTUARY APP SYSTEM BLUEPRINT ===\n\n1. APP EMBEDDED SHELL & INTERACTION LAYERS\n- Bottom Menu Bar: Navigates persistent hubs featuring high-contrast active icons and premium haptic visual indicators:\n  * Library / Conservatory (Sacred knowledge hubs, Quran, Prayer Times, Ilm widgets)\n  * Faith Feed (Social dynamic feed, posts, reflection notes, likes)\n  * Chat sanctuary (User channels, automated messaging limits to real people, search directory)\n  * Aliyah Companion (Advanced GPT/Gemini-fueled personal counselor)\n  * Halal Market (Artifact list, peer-to-peer item exchange with Hasanat badge purchases)\n  * Profiles Profile (Onboarding gateway, stats, achievements, historical streaks)\n- Header Shell: UTC realtime indicator, Aura indicator, dynamic notification alert centers, and smart search integrations.\n\n2. SACRED RESOURCES HUB (CONSERVATORY)\n- Logical categorisation:\n  * DEEN: Quran Audio/text reader, prayer counters, digital tasbih string, offline tools.\n  * PILGRIMAGE: Hajj & Umrah Interactive Compass planner.\n  * PREMIUM: Islamic Finance monitors, Hadith comprehensive databases.\n  * COMMUNITY: Global chat networks, real-time feedback systems.\n  * SYSTEMS: Realtime background notification logs, event engines.\n\n3. HALAL BAZAAR & MERCHANTS\n- Custom peer listings utilizing secure local transactional models and virtual hasanat tokens.\n- Dynamic profile listings displaying seller trust, verification tags, and artifact properties.\n\n4. USER PROFILE & AUTHENTICATION PROTOCOLS\n- Real-time pre-onboarding adopting placeholder emails during organic guest navigation.\n- Safe local profile migrations executing one-way cryptographic transfer of user Hasanat & statistics.\n\n5. DATABASE SCHEMA (FIREBASE FIRESTORE)\n- users: { uid, email, displayName, photoURL, hasanat, streak, onboardingCompleted }\n- chat rooms: { id, title, createdBy, timestamp }\n- Fully validated secure firestore.rules guarding personal directories against foreign modifications.\n\n6. LEADERBOARDS & HARMONIC POINTS\n- Hall of Fame stream loading current user tallies.\n- Rewards calculated per-action (Verses read, Duas said, Prayers checked, Marketplace purchases).`;
+                                 navigator.clipboard.writeText(ARCH_PROMPT);
+                                 setCopyStatus('Copied Spec Prompt!');
+                                 setTimeout(() => setCopyStatus('Copy Developer Prompt'), 2000);
+                               }}
+                               className="flex items-center gap-3 bg-brand-primary text-brand-text-dark px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all w-full md:w-auto justify-center font-sans"
+                             >
+                               {copyStatus === 'Copied Spec Prompt!' ? <Check size={14} /> : <Copy size={16} />}
+                               {copyStatus}
+                             </button>
+                          </div>
+
+                          {/* Anatomy Nav Segments */}
+                          <div className="flex flex-wrap gap-2 mb-8 bg-white/5 p-2 rounded-2xl font-sans">
+                             {[
+                               { id: 'map', label: 'Grand Blueprint' },
+                               { id: 'navigation', label: 'Menu & Shell' },
+                               { id: 'conservatory', label: 'Spiritual Hub' },
+                               { id: 'rewards', label: 'Hasanat Engine' },
+                               { id: 'market', label: 'Halal Bazaar' },
+                               { id: 'auth', label: 'Auth & Database' }
+                             ].map((tab) => (
+                               <button
+                                 key={tab.id}
+                                 onClick={() => setSelectedAnatomyTab(tab.id as any)}
+                                 className={`flex-grow px-4 py-2.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${selectedAnatomyTab === tab.id ? 'bg-brand-primary text-brand-text-dark' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                               >
+                                 {tab.label}
+                               </button>
+                             ))}
+                          </div>
+
+                          {/* Selected Segment Spec Details */}
+                          <div className="bg-brand-depth/40 border border-white/5 p-6 md:p-8 rounded-[2rem] space-y-6 text-slate-200">
+                             {selectedAnatomyTab === 'map' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <Sparkles size={20} className="text-brand-primary" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic font-sans animate-pulse">Sanctuary Application Topology</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed font-sans">
+                                    The architectural schema is built with persistent modular containers inside a high-contrast dark visual design framework. Below is the workflow pipeline mapping:
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4">
+                                     {[
+                                       { step: '01', title: 'Interactive Shell', desc: 'Secure state trackers holding user authentication status and real-time offline synchronization buffers.' },
+                                       { step: '02', title: 'Global Context', desc: 'Dynamic React Context managing user streaks, reward points, active rooms, and UI tab selectors.' },
+                                       { step: '03', title: 'Core Engines', desc: 'Islamic calculators, Quranic recitation loaders, Local system alerts dispatchers, and Gemini API proxy.' },
+                                       { step: '04', title: 'Persistent Ledger', desc: 'Authenticated Firestore pathways synchronizing user progress, active chat boards, and leaderboard records.' }
+                                     ].map((item, id) => (
+                                       <div key={id} className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl font-sans">
+                                          <div className="text-[10px] font-black text-brand-primary mb-2">STEP {item.step}</div>
+                                          <h4 className="text-white font-black text-xs uppercase tracking-wider mb-2">{item.title}</h4>
+                                          <p className="text-slate-500 text-[11px] leading-relaxed">{item.desc}</p>
+                                       </div>
+                                     ))}
+                                  </div>
+                               </div>
+                             )}
+
+                             {selectedAnatomyTab === 'navigation' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <Clock size={20} className="text-brand-primary" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic font-sans">Global Menu Bar & Shell Layout</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed font-sans">
+                                     The navigation layout ensures direct accessibility across complex interactive views while retaining a minimal header:
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 font-sans">
+                                     <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
+                                        <h4 className="text-white font-black text-xs uppercase tracking-wider mb-3">Top Header Control Panel</h4>
+                                        <ul className="space-y-2 text-[11px] text-slate-400 list-disc list-inside col-span-1">
+                                           <li>Real-time UTC digital clock.</li>
+                                           <li>Aura level score computed from total Hasanat.</li>
+                                           <li>Hasanat counters (Global reward indicators).</li>
+                                           <li>Dynamic notification indicators.</li>
+                                        </ul>
+                                     </div>
+                                     <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
+                                        <h4 className="text-white font-black text-xs uppercase tracking-wider mb-3">Bottom Persistent Navigation</h4>
+                                        <ul className="space-y-2 text-[11px] text-slate-400 list-disc list-inside">
+                                           <li>Library: The main Conservatory.</li>
+                                           <li>Faith Feed: User reflection boards.</li>
+                                           <li>Chat: Multi-user instant chatting room.</li>
+                                           <li>Companion: Personal smart AI counselor.</li>
+                                           <li>Bazaar: Halal commercial listings.</li>
+                                        </ul>
+                                     </div>
+                                     <div className="p-5 bg-white/5 rounded-2xl border border-white/5 font-sans">
+                                        <h4 className="text-white font-black text-xs uppercase tracking-wider mb-3 font-sans font-sans">Unified Voice Search Control</h4>
+                                        <ul className="space-y-2 text-[11px] text-slate-400 list-disc list-inside">
+                                           <li>Clickable Microphone activating native Web Speech API.</li>
+                                           <li>Search criteria matching across cards, guides, surahs, or baby names.</li>
+                                        </ul>
+                                     </div>
+                                  </div>
+                               </div>
+                             )}
+
+                             {selectedAnatomyTab === 'conservatory' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <BookOpen size={20} className="text-brand-primary" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic">The Spiritual Resources Library</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed font-sans">
+                                     The main entry point of the app, dividing resources into high-fidelity interaction groups:
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                        <span className="text-[9px] font-black text-brand-primary uppercase tracking-widest font-sans">DEEN CATEGORY</span>
+                                        <p className="text-slate-200 font-bold uppercase text-[11px] mt-2 mb-3 font-sans">Foundational Instruments</p>
+                                        <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                                          Quran audio player with translations, Khatam goal tracking, daily tracker with beautiful micro-vibrations, compass calculations, digital daily tasbih, halal baby names, and islamic games.
+                                        </p>
+                                     </div>
+                                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-sans">PREMIUM AND PILGRIMAGE</span>
+                                        <p className="text-slate-200 font-bold uppercase text-[11px] mt-2 mb-3">Specialist Knowledge Layers</p>
+                                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                                          Islamic wisdom guidelines, comprehensive Hadith libraries with authentic search filtering, Halal personal finance portfolios, and Hajj interactive step-planners.
+                                        </p>
+                                     </div>
+                                  </div>
+                               </div>
+                             )}
+
+                             {selectedAnatomyTab === 'rewards' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <Award size={20} className="text-brand-primary" fill="currentColor" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic">Hasanat Points Engine & Leaderboard</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed">
+                                     Hasanat rewards act as the spiritual gas powering user advancement and leveling:
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                                     {[
+                                       { title: 'The Hasanat Economy', points: '+10 to +100', text: 'Earn points dynamically by reading Quranic Surahs, completing daily tasbih cycles, finishing Dua sessions, or correctly answering islamic trivia.' },
+                                       { title: 'Streak Integration', points: '1.5x Multiplier', text: 'Consecutive daily check-ins trigger streak calculations, updating global status levels (Novice, Devoted, Steadfast, Radiant, Luminary).' },
+                                       { title: 'Hall of Fame', points: 'Global Ranking', text: 'Display rankings in the scoreboard. Seekers compete in real-time based on verified database accumulation profiles.' }
+                                     ].map((box, idx) => (
+                                       <div key={idx} className="p-5 bg-white/5 rounded-2xl border border-white/5">
+                                          <div className="flex items-center justify-between gap-2 mb-2">
+                                             <h4 className="text-white font-black text-xs uppercase tracking-wider">{box.title}</h4>
+                                             <span className="text-[9px] font-black text-brand-primary uppercase tracking-widest">{box.points}</span>
+                                          </div>
+                                          <p className="text-slate-400 text-[11px] leading-relaxed">{box.text}</p>
+                                       </div>
+                                     ))}
+                                  </div>
+                               </div>
+                             )}
+
+                             {selectedAnatomyTab === 'market' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <ShoppingBag size={20} className="text-brand-primary" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic">Halal Marketplace & Exchange</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed">
+                                     An interactive exchange board connecting buyers and sellers for peer-to-peer halal transactions and coin shops.
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                        <h4 className="text-white font-black text-xs uppercase tracking-wider mb-2">Peer Listings</h4>
+                                        <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                                           Users can list Islamic instruments (e.g. leather mats, handcrafted oud, premium dates, custom prayer robes) stating terms, price, and location coordinates safely.
+                                        </p>
+                                        <span className="px-3 py-1 bg-white/5 rounded-lg text-[9px] font-black text-brand-primary uppercase tracking-widest">Buyer Protection Enabled</span>
+                                     </div>
+                                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                        <h4 className="text-white font-black text-xs uppercase tracking-wider mb-2">Hasanat Coin Shop</h4>
+                                        <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                                           A reward catalog where users trade earned Hasanat points for aesthetic app design layouts, customized Quran reciter audio files, and exclusive profile badges.
+                                        </p>
+                                        <span className="px-3 py-1 bg-white/5 rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-widest">Virtual Economy</span>
+                                     </div>
+                                  </div>
+                               </div>
+                             )}
+
+                             {selectedAnatomyTab === 'auth' && (
+                               <div className="space-y-6">
+                                  <div className="flex items-center gap-3">
+                                     <Users size={20} className="text-brand-primary" />
+                                     <h3 className="text-lg font-black text-white uppercase tracking-tight italic font-sans animate-pulse">Profile Gateway & Firebase Schemas</h3>
+                                  </div>
+                                  <p className="text-slate-400 text-xs leading-relaxed font-sans">
+                                     Secure onboarding mappings bind temporal local cache properties into permanent cloud directories:
+                                  </p>
+                                  <div className="p-6 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                                     <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 bg-brand-primary rounded-full" />
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ONBOARDING PATHWAY</span>
+                                     </div>
+                                     <p className="text-[11px] text-slate-400 leading-relaxed">
+                                        Unauthenticated guests participate organically, with scores accumulating locally under a <code className="text-brand-primary font-mono">local_*</code> placeholder UID index. Upon authentic logging (Google Sign-In/Email), the system triggers profile migration, adopting preloaded data, transferring local credentials, deleting ghost profile references, and validating user data against firestore configurations.
+                                     </p>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
+                                     <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
+                                        <h4 className="text-xs font-black text-brand-primary uppercase mb-2 font-sans">Users Collection</h4>
+                                        <pre className="text-[10px] text-slate-400 leading-relaxed mt-2 bg-black/40 p-4 rounded-xl overflow-x-auto">
+{`{
+  uid: string,
+  email: string,
+  displayName: string,
+  photoURL: string,
+  hasanat: number,
+  streak: number,
+  onboardingCompleted: boolean,
+  lastSeen: Timestamp
+}`}
+                                        </pre>
+                                     </div>
+                                     <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
+                                        <h4 className="text-xs font-black text-brand-primary uppercase mb-2 font-sans">Chat Sub-collections</h4>
+                                        <pre className="text-[10px] text-slate-400 leading-relaxed mt-2 bg-black/40 p-4 rounded-xl overflow-x-auto">
+{`{
+  id: string,
+  title: string,
+  createdBy: string,
+  description: string,
+  messages: SubCollection[{
+    senderId: string,
+    text: string,
+    timestamp: Timestamp
+  }]
+}`}
+                                        </pre>
+                                     </div>
+                                  </div>
+                               </div>
+                             )}
+                          </div>
+                       </div>
+                    </div>
+                  )}
+                  {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}

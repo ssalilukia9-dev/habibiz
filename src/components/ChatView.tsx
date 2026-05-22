@@ -353,38 +353,10 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
           .map(doc => doc.data() as ChatUserInfo)
           .filter(u => u.uid !== myUser?.uid);
         
-        if (onlineUsers.length === 0) {
-          const fallbackVirtualSeekers: ChatUserInfo[] = [
-            { uid: 'seeker_tariq', displayName: 'Tariq ibn Ziyad', email: 'tariq@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tariq' },
-            { uid: 'seeker_yasmin', displayName: 'Yasmin al-Farsi', email: 'yasmin@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=yasmin' },
-            { uid: 'seeker_imam', displayName: 'Imam Ahmed', email: 'imam@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=imam' },
-            { uid: 'seeker_aisha', displayName: 'Aisha Siddiqa', email: 'aisha@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=aisha' },
-            { uid: 'seeker_bilal', displayName: 'Bilal Al-Habashi', email: 'bilal@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=bilal' },
-            { uid: 'seeker_fatima', displayName: 'Fatima Al-Zahra', email: 'fatima@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fatima' }
-          ];
-          const filtered = searchQuery.trim() 
-            ? fallbackVirtualSeekers.filter(u => u.displayName.toLowerCase().includes(searchQuery.toLowerCase())) 
-            : fallbackVirtualSeekers;
-          setSearchResults(filtered);
-        } else {
-          setSearchResults(onlineUsers);
-        }
+        setSearchResults(onlineUsers);
       } catch (error) {
-        console.warn("Search error, loading offline virtual seekers fallback", error);
-        const fallbackVirtualSeekers: ChatUserInfo[] = [
-          { uid: 'seeker_tariq', displayName: 'Tariq ibn Ziyad', email: 'tariq@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tariq' },
-          { uid: 'seeker_yasmin', displayName: 'Yasmin al-Farsi', email: 'yasmin@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=yasmin' },
-          { uid: 'seeker_imam', displayName: 'Imam Ahmed', email: 'imam@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=imam' },
-          { uid: 'seeker_aisha', displayName: 'Aisha Siddiqa', email: 'aisha@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=aisha' },
-          { uid: 'seeker_bilal', displayName: 'Bilal Al-Habashi', email: 'bilal@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=bilal' },
-          { uid: 'seeker_fatima', displayName: 'Fatima Al-Zahra', email: 'fatima@sanctuary.org', photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fatima' }
-        ];
-
-        const filtered = searchQuery.trim() 
-          ? fallbackVirtualSeekers.filter(u => u.displayName.toLowerCase().includes(searchQuery.toLowerCase())) 
-          : fallbackVirtualSeekers;
-        
-        setSearchResults(filtered);
+        console.warn("Search error, no seekers found", error);
+        setSearchResults([]);
       }
     };
     const timer = setTimeout(searchUsers, 400);

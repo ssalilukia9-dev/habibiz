@@ -111,6 +111,8 @@ export default function JuzDetail({
   }, [juzIndex]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchData = async () => {
       setIsLoading(true);
       
@@ -119,10 +121,10 @@ export default function JuzDetail({
 
       try {
         // Fetch Juz content
-        const resArabic = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`);
+        const resArabic = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
         const dataArabic = await resArabic.json();
         
-        const resTrans = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${selectedTranslation}`);
+        const resTrans = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${selectedTranslation}`, { signal: controller.signal });
         const dataTrans = await resTrans.json();
 
         if (dataArabic.data && dataTrans.data) {
@@ -142,16 +144,23 @@ export default function JuzDetail({
           }));
           setAyahs(combined);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError' || controller.signal.aborted) {
+          // Ignore expected cleanup abort
+          return;
+        }
         console.error("Failed to fetch juz data", err);
         // Fallback: If offline, we'd need to reconstruct the Juz from cached surahs
         // This is complex, but for now we've added basic blob persistence
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
+    return () => controller.abort();
   }, [juzIndex, selectedReciter, selectedTranslation]);
 
   const togglePlay = (ayah: any) => {
@@ -188,7 +197,14 @@ export default function JuzDetail({
     setBufferingProgress(0);
     
     try {
-      const audio = new Audio(audioUrl);
+      let localUrl;
+      if (ayah.audioBlob) {
+        localUrl = URL.createObjectURL(ayah.audioBlob);
+      } else {
+        localUrl = audioUrl;
+      }
+
+      const audio = new Audio(localUrl);
       audioRef.current = audio;
 
       audio.onprogress = () => {

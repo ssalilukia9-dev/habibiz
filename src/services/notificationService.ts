@@ -1,4 +1,7 @@
 
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
+
 export interface AppNotification {
   id: string;
   title: string;
@@ -15,6 +18,7 @@ class NotificationService {
 
   private constructor() {
     this.loadFromStorage();
+    this.setupCapacitorListeners();
   }
 
   static getInstance() {
@@ -38,7 +42,35 @@ class NotificationService {
     localStorage.setItem('app_notifications', JSON.stringify(this.notifications));
   }
 
+  private setupCapacitorListeners() {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+          const actionUrl = notification.notification.extra?.actionUrl;
+          if (actionUrl) {
+            if (actionUrl.startsWith('#')) {
+              window.location.hash = actionUrl;
+            } else {
+              window.location.pathname = actionUrl;
+            }
+          }
+        });
+      } catch (e) {
+        console.warn("Failed to register localNotificationActionPerformed listener", e);
+      }
+    }
+  }
+
   async requestPermission(): Promise<boolean> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permResult = await LocalNotifications.requestPermissions();
+        return permResult.display === 'granted';
+      } catch (e) {
+        console.warn("Capacitor requestPermissions failed, falling back...", e);
+      }
+    }
+
     if (!('Notification' in window)) return false;
     
     // Some mobile browsers require serviceWorker registration before permission
@@ -76,6 +108,26 @@ class NotificationService {
       read: false,
       actionUrl
     };
+
+    // Native Capacitor support
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              title,
+              body,
+              id: Math.floor(Math.random() * 1000000),
+              extra: {
+                actionUrl
+              }
+            }
+          ]
+        });
+      } catch (e) {
+        console.warn("Capacitor local notification schedule failed, falling back to other layers...", e);
+      }
+    }
 
     // Median.co / GoNative Bridge support
     // This triggers native device-level alerts that can wake the screen

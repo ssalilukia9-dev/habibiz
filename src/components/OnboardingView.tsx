@@ -179,10 +179,10 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
         localStorage.setItem(localProfileKey, JSON.stringify({ ...existing, ...profileData, lastSeen: new Date().toISOString() }));
       } else {
         try {
-          await updateDoc(userRef, {
+          await setDoc(userRef, {
             ...profileData,
             lastSeen: serverTimestamp()
-          });
+          }, { merge: true });
 
           // 3. Create/Update Secondary Profile (Email-based) for app-wide indexing
           if (emailResolved) {

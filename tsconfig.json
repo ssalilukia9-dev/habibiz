@@ -23,5 +23,11 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["vite/client"]
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "android",
+    "capacitor"
+  ]
 }

@@ -1,0 +1,23 @@
+{
+  "name": "Sanctuary AI",
+  "short_name": "Sanctuary",
+  "description": "Your Heart's Spiritual Companion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05070A",
+  "theme_color": "#A855F7",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -162,14 +162,20 @@ export default function SurahDetail({
           });
           setAyahs(combined);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError' || controller.signal.aborted) {
+          // Igore expected cleanup abort
+          return;
+        }
         console.error("Failed to fetch surah data", err);
         // Fallback to cache if fetch fails even if not in strict offline mode
         if (cachedAyahs) {
           setAyahs(cachedAyahs);
         }
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -216,24 +222,13 @@ export default function SurahDetail({
     
     try {
       let localUrl;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s
 
       if (ayah.audioBlob) {
         localUrl = URL.createObjectURL(ayah.audioBlob);
       } else {
-        try {
-          const response = await fetch(audioUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (!response.ok) throw new Error("Fetch failed");
-          const blob = await response.blob();
-          localUrl = URL.createObjectURL(blob);
-        } catch (fetchErr) {
-          clearTimeout(timeoutId);
-          console.warn("Pre-download failed, falling back to streaming", fetchErr);
-          // If fetch fails (CORS/Network), fall back to direct URL
-          localUrl = audioUrl;
-        }
+        // Direct stream the online URL to support all browsers and wrappers (like iOS Median.co)
+        // and avoid CORS blocks or lag on slow connections.
+        localUrl = audioUrl;
       }
       
       const audio = new Audio();
