@@ -12,7 +12,7 @@ testConnection();
 // Register Service Worker for Notifications
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(registration => {
+    navigator.serviceWorker.register('./sw.js').then(registration => {
       console.log('SW registered: ', registration);
       
       // Auto-register Median push if permission already exists
