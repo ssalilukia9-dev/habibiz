@@ -24,7 +24,8 @@ import {
   FileText,
   Paperclip,
   Play,
-  StopCircle
+  StopCircle,
+  Loader2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -122,6 +123,15 @@ export default function CompanionView({
   }
 
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'chat' | 'reflections'>('chat');
+  const [reflections, setReflections] = useState<any[]>([]);
+  const [isReflectionsLoading, setIsReflectionsLoading] = useState(false);
+  const [reflectionInput, setReflectionInput] = useState('');
+  const [isRecordingReflection, setIsRecordingReflection] = useState(false);
+  const [reflectionVerses, setReflectionVerses] = useState<any[]>([]);
+  const [isAnalyzingReflection, setIsAnalyzingReflection] = useState(false);
+  const reflectionRecognitionRef = useRef<any>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -148,20 +158,32 @@ export default function CompanionView({
   useEffect(() => {
     if (!currentUser) return;
 
-    const q = query(
-      collection(db, 'ai_conversations'),
-      where('userId', '==', currentUser.uid),
-      orderBy('updatedAt', 'desc')
-    );
+    if (currentUser.uid.startsWith('local_')) {
+      const key = `sanctuary_ai_convs_${currentUser.uid}`;
+      const loadLocal = () => {
+        const raw = localStorage.getItem(key);
+        setConversations(raw ? JSON.parse(raw) : []);
+      };
+      loadLocal();
+      // Listen to storage event in case of updates
+      window.addEventListener('storage', loadLocal);
+      return () => window.removeEventListener('storage', loadLocal);
+    } else {
+      const q = query(
+        collection(db, 'ai_conversations'),
+        where('userId', '==', currentUser.uid),
+        orderBy('updatedAt', 'desc')
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Conversation));
-      setConversations(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'ai_conversations');
-    });
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Conversation));
+        setConversations(list);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'ai_conversations');
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    }
   }, [currentUser]);
 
   // Fetch Messages for active conversation
@@ -171,20 +193,162 @@ export default function CompanionView({
       return;
     }
 
-    const q = query(
-      collection(db, `ai_conversations/${activeConvId}/messages`),
-      orderBy('timestamp', 'asc')
-    );
+    if (currentUser && currentUser.uid.startsWith('local_')) {
+      const loadLocalMsgs = () => {
+        const key = `sanctuary_ai_msgs_${activeConvId}`;
+        const raw = localStorage.getItem(key);
+        setMessages(raw ? JSON.parse(raw) : []);
+      };
+      loadLocalMsgs();
+      return;
+    } else {
+      const q = query(
+        collection(db, `ai_conversations/${activeConvId}/messages`),
+        orderBy('timestamp', 'asc')
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      setMessages(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `ai_conversations/${activeConvId}/messages`);
-    });
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+        setMessages(list);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, `ai_conversations/${activeConvId}/messages`);
+      });
 
-    return () => unsubscribe();
-  }, [activeConvId]);
+      return () => unsubscribe();
+    }
+  }, [activeConvId, currentUser]);
+
+  // Fetch Reflections from Firestore or LocalStorage
+  useEffect(() => {
+    if (!currentUser || activeView !== 'reflections') return;
+
+    if (currentUser.uid.startsWith('local_')) {
+      const key = `sanctuary_voice_reflections_${currentUser.uid}`;
+      const loadLocal = () => {
+        const raw = localStorage.getItem(key);
+        setReflections(raw ? JSON.parse(raw) : []);
+      };
+      loadLocal();
+      window.addEventListener('storage', loadLocal);
+      return () => window.removeEventListener('storage', loadLocal);
+    } else {
+      setIsReflectionsLoading(true);
+      const q = query(
+        collection(db, 'users', currentUser.uid, 'voiceReflections'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setReflections(list);
+        setIsReflectionsLoading(false);
+      }, (error) => {
+        console.error("Error loading voice reflections:", error);
+        setIsReflectionsLoading(false);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [currentUser, activeView]);
+
+  // Continuous speech recognition for structured reflections
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
+          }
+        }
+        if (finalTranscript) {
+          setReflectionInput(prev => prev + finalTranscript);
+        }
+      };
+
+      rec.onerror = (err: any) => {
+        console.error("Speech recognition error:", err);
+        setIsRecordingReflection(false);
+      };
+      rec.onend = () => {
+        setIsRecordingReflection(false);
+      };
+
+      reflectionRecognitionRef.current = rec;
+    }
+  }, []);
+
+  const toggleRecordingReflection = () => {
+    if (isRecordingReflection) {
+      reflectionRecognitionRef.current?.stop();
+      setIsRecordingReflection(false);
+    } else {
+      setReflectionInput('');
+      setReflectionVerses([]);
+      try {
+        reflectionRecognitionRef.current?.start();
+        setIsRecordingReflection(true);
+      } catch (e) {
+        console.error("Failed to start speech recognition:", e);
+      }
+    }
+  };
+
+  const analyzeReflection = async () => {
+    if (!reflectionInput.trim() || isAnalyzingReflection) return;
+    setIsAnalyzingReflection(true);
+    try {
+      const res = await apiFetch('/api/ai/reflection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: reflectionInput })
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to get verse suggestions");
+      }
+
+      const data = await res.json();
+      const suggestedVerses = data.verses || [];
+      setReflectionVerses(suggestedVerses);
+
+      // Save to database
+      if (currentUser) {
+        const isLocalUser = currentUser.uid.startsWith('local_');
+        const newReflection = {
+          text: reflectionInput,
+          createdAt: new Date().toISOString(),
+          verses: suggestedVerses
+        };
+
+        if (isLocalUser) {
+          const key = `sanctuary_voice_reflections_${currentUser.uid}`;
+          const raw = localStorage.getItem(key);
+          const list = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(key, JSON.stringify([newReflection, ...list]));
+          setReflections([newReflection, ...list]);
+        } else {
+          await addDoc(collection(db, 'users', currentUser.uid, 'voiceReflections'), {
+            text: reflectionInput,
+            createdAt: serverTimestamp(),
+            verses: suggestedVerses
+          });
+        }
+        addHasanat(50);
+      }
+    } catch (e: any) {
+      console.error("Reflection analysis failed:", e);
+      alert("Spiritual analysis failed: " + e.message);
+    } finally {
+      setIsAnalyzingReflection(false);
+    }
+  };
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -236,13 +400,25 @@ export default function CompanionView({
     try {
       if (activeConvId === id) setActiveConvId(null);
       
-      // Delete messages subcollection first (though firestore rules might prevent batch delete easily, 
-      // in production we'd do a recursive delete or function)
-      const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
-      for (const m of msgs.docs) {
-        await deleteDoc(m.ref);
+      if (currentUser && currentUser.uid.startsWith('local_')) {
+        const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
+        const existingConvs = localStorage.getItem(keyConvs);
+        if (existingConvs) {
+          const parsed = JSON.parse(existingConvs);
+          const updated = parsed.filter((c: any) => c.id !== id);
+          localStorage.setItem(keyConvs, JSON.stringify(updated));
+          setConversations(updated);
+        }
+        localStorage.removeItem(`sanctuary_ai_msgs_${id}`);
+      } else {
+        // Delete messages subcollection first (though firestore rules might prevent batch delete easily, 
+        // in production we'd do a recursive delete or function)
+        const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
+        for (const m of msgs.docs) {
+          await deleteDoc(m.ref);
+        }
+        await deleteDoc(doc(db, 'ai_conversations', id));
       }
-      await deleteDoc(doc(db, 'ai_conversations', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `ai_conversations/${id}`);
     }
@@ -257,39 +433,91 @@ export default function CompanionView({
     setAttachments([]);
     setIsLoading(true);
 
+    const isLocalUser = currentUser.uid.startsWith('local_');
+
     try {
       let currentConvId = activeConvId;
 
       // 1. Create conversation if it doesn't exist
       if (!currentConvId) {
         const titleText = userText || (currentAttachments.length > 0 ? `Shared ${currentAttachments[0].type}` : 'New Consult');
-        const convRef = await addDoc(collection(db, 'ai_conversations'), {
-          userId: currentUser.uid,
-          title: titleText.slice(0, 40) + (titleText.length > 40 ? '...' : ''),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        currentConvId = convRef.id;
-        setActiveConvId(currentConvId);
+        const shortTitle = titleText.slice(0, 40) + (titleText.length > 40 ? '...' : '');
+
+        if (isLocalUser) {
+          currentConvId = `local_conv_${Date.now()}`;
+          const newConv = {
+            id: currentConvId,
+            title: shortTitle,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
+          const raw = localStorage.getItem(keyConvs);
+          const list = raw ? JSON.parse(raw) : [];
+          const updatedList = [newConv, ...list];
+          localStorage.setItem(keyConvs, JSON.stringify(updatedList));
+          setConversations(updatedList);
+          setActiveConvId(currentConvId);
+        } else {
+          const convRef = await addDoc(collection(db, 'ai_conversations'), {
+            userId: currentUser.uid,
+            title: shortTitle,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          currentConvId = convRef.id;
+          setActiveConvId(currentConvId);
+        }
       } else {
         // Update updatedAt
-        await updateDoc(doc(db, 'ai_conversations', currentConvId), {
-          updatedAt: serverTimestamp()
-        });
+        if (isLocalUser) {
+          const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
+          const raw = localStorage.getItem(keyConvs);
+          if (raw) {
+            const list = JSON.parse(raw);
+            const found = list.find((c: any) => c.id === currentConvId);
+            if (found) {
+              found.updatedAt = new Date().toISOString();
+              list.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+              localStorage.setItem(keyConvs, JSON.stringify(list));
+              setConversations(list);
+            }
+          }
+        } else {
+          await updateDoc(doc(db, 'ai_conversations', currentConvId), {
+            updatedAt: serverTimestamp()
+          });
+        }
       }
 
-      // 2. Add user message to Firestore
-      const msgRef = collection(db, `ai_conversations/${currentConvId}/messages`);
-      await addDoc(msgRef, {
+      // 2. Add user message
+      const userMsg: Message = {
+        id: `msg_user_${Date.now()}`,
         role: 'user',
         content: userText,
         attachments: currentAttachments,
-        timestamp: serverTimestamp()
-      });
+        timestamp: new Date().toISOString()
+      };
 
-      // 3. Call AI Proxy
-      // Structure contents for Gemini multimodal
-      const contents = messages.map(m => ({
+      if (isLocalUser) {
+        const keyMsgs = `sanctuary_ai_msgs_${currentConvId}`;
+        const rawMsgs = localStorage.getItem(keyMsgs);
+        const existingMsgs = rawMsgs ? JSON.parse(rawMsgs) : [];
+        const updatedMsgs = [...existingMsgs, userMsg];
+        localStorage.setItem(keyMsgs, JSON.stringify(updatedMsgs));
+        setMessages(updatedMsgs);
+      } else {
+        const msgRef = collection(db, `ai_conversations/${currentConvId}/messages`);
+        await addDoc(msgRef, {
+          role: 'user',
+          content: userText,
+          attachments: currentAttachments,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      // 3. Call AI Proxy / Google Gemini API client-side fallback
+      const contents = messages.concat(userMsg).map(m => ({
         role: m.role,
         parts: [
           { text: m.content },
@@ -300,18 +528,7 @@ export default function CompanionView({
             }
           }))
         ]
-      })).concat({
-        role: 'user',
-        parts: [
-          { text: userText },
-          ...currentAttachments.map(a => ({
-            inlineData: {
-              data: a.base64?.split(',')[1],
-              mimeType: a.mimeType
-            }
-          }))
-        ]
-      });
+      }));
 
       const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
@@ -330,12 +547,29 @@ export default function CompanionView({
       const data = await response.json();
       const assistantText = data.text || "I apologize, I couldn't process that. Please try again.";
 
-      // 4. Add assistant message to Firestore
-      await addDoc(msgRef, {
+      // 4. Add assistant message
+      const assistantMsg: Message = {
+        id: `msg_model_${Date.now()}`,
         role: 'model',
         content: assistantText,
-        timestamp: serverTimestamp()
-      });
+        timestamp: new Date().toISOString()
+      };
+
+      if (isLocalUser) {
+        const keyMsgs = `sanctuary_ai_msgs_${currentConvId}`;
+        const rawMsgs = localStorage.getItem(keyMsgs);
+        const existingMsgs = rawMsgs ? JSON.parse(rawMsgs) : [];
+        const updatedMsgs = [...existingMsgs, assistantMsg];
+        localStorage.setItem(keyMsgs, JSON.stringify(updatedMsgs));
+        setMessages(updatedMsgs);
+      } else {
+        const msgRef = collection(db, `ai_conversations/${currentConvId}/messages`);
+        await addDoc(msgRef, {
+          role: 'model',
+          content: assistantText,
+          timestamp: serverTimestamp()
+        });
+      }
 
       addHasanat(30);
 
@@ -346,16 +580,31 @@ export default function CompanionView({
     } catch (error: any) {
       console.error("AI Error:", error);
       
-      // Temporary system message to inform the user
-      const msgRef = collection(db, `ai_conversations/${activeConvId || 'error'}/messages`);
-      if (activeConvId) {
-        await addDoc(msgRef, {
-          role: 'model',
-          content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
-          timestamp: serverTimestamp()
-        });
+      const assistantMsg: Message = {
+        id: `msg_error_${Date.now()}`,
+        role: 'model',
+        content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
+        timestamp: new Date().toISOString()
+      };
+
+      if (isLocalUser) {
+        const keyMsgs = `sanctuary_ai_msgs_${activeConvId || 'error'}`;
+        const rawMsgs = localStorage.getItem(keyMsgs);
+        const existingMsgs = rawMsgs ? JSON.parse(rawMsgs) : [];
+        const updatedMsgs = [...existingMsgs, assistantMsg];
+        localStorage.setItem(keyMsgs, JSON.stringify(updatedMsgs));
+        setMessages(updatedMsgs);
       } else {
-        alert(`AI Error: ${error.message}`);
+        const msgRef = collection(db, `ai_conversations/${activeConvId || 'error'}/messages`);
+        if (activeConvId) {
+          await addDoc(msgRef, {
+            role: 'model',
+            content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
+            timestamp: serverTimestamp()
+          });
+        } else {
+          alert(`AI Error: ${error.message}`);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -569,6 +818,21 @@ export default function CompanionView({
               </h2>
               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Nur Companion</p>
             </div>
+
+            <div className="flex items-center bg-white/5 rounded-xl p-0.5 border border-white/10 sm:ml-4">
+              <button 
+                onClick={() => setActiveView('chat')}
+                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${activeView === 'chat' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                Consult
+              </button>
+              <button 
+                onClick={() => setActiveView('reflections')}
+                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${activeView === 'reflections' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                Reflection Journal
+              </button>
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
@@ -584,207 +848,370 @@ export default function CompanionView({
           </div>
         </div>
 
-        {/* Messages */}
-        <div 
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide"
-        >
-          {activeConvId === null && messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-6">
-              <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shadow-2xl relative">
-                <Sparkles size={40} className="text-brand-primary" />
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center">
-                  <BookOpen size={12} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white mb-2">Speak with the Wisdom of Quran</h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                  "Invite to the way of your Lord with wisdom and good instruction." (16:125)
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-3 w-full">
-                {["Prophet's character", "Importance of patience", "How to pray better"].map((query) => (
-                  <button 
-                    key={query}
-                    onClick={() => { setInput(query); }}
-                    className="p-4 glass-panel border-white/5 text-xs text-slate-300 hover:border-brand-primary/30 hover:text-brand-primary transition-all text-left flex items-center justify-between"
-                  >
-                    {query}
-                    <ChevronRight size={14} className="opacity-30" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <AnimatePresence initial={false}>
-            {messages.map((m, idx) => (
-              <motion.div
-                key={m.id || idx}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`flex gap-4 max-w-[90%] md:max-w-[75%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg ${
-                    m.role === 'user' ? 'bg-slate-700 text-slate-300' : 'bg-brand-primary text-brand-depth'
-                  }`}>
-                    {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+        {activeView === 'chat' ? (
+          <>
+            {/* Messages */}
+            <div 
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide"
+            >
+              {activeConvId === null && messages.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-6">
+                  <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shadow-2xl relative">
+                    <Sparkles size={40} className="text-brand-primary" />
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center">
+                      <BookOpen size={12} />
+                    </div>
                   </div>
-                  <div className={`relative group ${m.role === 'user' ? 'order-1' : ''}`}>
-                    <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl ${
-                      m.role === 'user' 
-                        ? 'bg-brand-primary text-brand-depth font-semibold' 
-                        : 'glass-panel text-slate-200 border-white/10'
-                    }`}>
-                      {m.attachments && m.attachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {m.attachments.map(a => (
-                            <div key={a.id} className="relative group/att">
-                              {a.type === 'image' ? (
-                                <img src={a.url} alt={a.name} className="w-40 h-40 object-cover rounded-lg border border-white/10" />
-                              ) : a.type === 'voice' ? (
-                                <div className="bg-brand-depth/40 p-3 rounded-xl flex items-center gap-3 border border-white/5">
-                                   <div className="w-8 h-8 bg-brand-primary/20 rounded-full flex items-center justify-center text-brand-primary">
-                                      <Mic size={14} />
-                                   </div>
-                                   <audio src={a.url} controls className="h-8 w-48 opacity-60" />
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">Speak with the Wisdom of Quran</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                      "Invite to the way of your Lord with wisdom and good instruction." (16:125)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 w-full">
+                    {["Prophet's character", "Importance of patience", "How to pray better"].map((query) => (
+                      <button 
+                        key={query}
+                        onClick={() => { setInput(query); }}
+                        className="p-4 glass-panel border-white/5 text-xs text-slate-300 hover:border-brand-primary/30 hover:text-brand-primary transition-all text-left flex items-center justify-between"
+                      >
+                        {query}
+                        <ChevronRight size={14} className="opacity-30" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <AnimatePresence initial={false}>
+                {messages.map((m, idx) => (
+                  <motion.div
+                    key={m.id || idx}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`flex gap-4 max-w-[90%] md:max-w-[75%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg ${
+                        m.role === 'user' ? 'bg-slate-700 text-slate-300' : 'bg-brand-primary text-brand-depth'
+                      }`}>
+                        {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                      </div>
+                      <div className={`relative group ${m.role === 'user' ? 'order-1' : ''}`}>
+                        <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl ${
+                          m.role === 'user' 
+                            ? 'bg-brand-primary text-brand-depth font-semibold' 
+                            : 'glass-panel text-slate-200 border-white/10'
+                        }`}>
+                          {m.attachments && m.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {m.attachments.map(a => (
+                                <div key={a.id} className="relative group/att">
+                                  {a.type === 'image' ? (
+                                    <img src={a.url} alt={a.name} className="w-40 h-40 object-cover rounded-lg border border-white/10" />
+                                  ) : a.type === 'voice' ? (
+                                    <div className="bg-brand-depth/40 p-3 rounded-xl flex items-center gap-3 border border-white/5">
+                                       <div className="w-8 h-8 bg-brand-primary/20 rounded-full flex items-center justify-center text-brand-primary">
+                                          <Mic size={14} />
+                                       </div>
+                                       <audio src={a.url} controls className="h-8 w-48 opacity-60" />
+                                    </div>
+                                  ) : (
+                                    <div className="bg-white/5 p-3 rounded-lg flex items-center gap-2 border border-white/5 min-w-[120px]">
+                                      <FileText size={16} className="text-brand-primary" />
+                                      <span className="text-[10px] font-bold truncate max-w-[100px]">{a.name}</span>
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="bg-white/5 p-3 rounded-lg flex items-center gap-2 border border-white/5 min-w-[120px]">
-                                  <FileText size={16} className="text-brand-primary" />
-                                  <span className="text-[10px] font-bold truncate max-w-[100px]">{a.name}</span>
-                                </div>
-                              )}
+                              ))}
                             </div>
-                          ))}
+                          )}
+                          <div className="markdown-body prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-brand-primary">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {m.content}
+                            </ReactMarkdown>
+                          </div>
                         </div>
-                      )}
-                      <div className="markdown-body prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-brand-primary">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {m.content}
-                        </ReactMarkdown>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          
-          {isLoading && (
-            <div className="flex justify-start">
-               <div className="bg-white/5 border border-white/10 p-5 rounded-2xl rounded-tl-none flex gap-2 shadow-inner">
-                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" />
-               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Input */}
-        <div className="p-4 md:p-8 bg-gradient-to-t from-brand-sidebar/80 to-transparent">
-          <div className="max-w-3xl mx-auto relative group">
-            {/* Attachment Preview */}
-            <AnimatePresence>
-              {attachments.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="mb-4 flex flex-wrap gap-3 p-4 glass-panel border-white/10 rounded-2xl"
-                >
-                  {attachments.map(a => (
-                    <div key={a.id} className="relative group/preview">
-                      {a.type === 'image' ? (
-                        <div className="w-16 h-16 rounded-xl overflow-hidden border border-white/10">
-                           <img src={a.url} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="h-16 px-4 bg-white/5 rounded-xl flex items-center gap-2 border border-white/10">
-                           {a.type === 'voice' ? <Mic size={16} className="text-brand-primary" /> : <FileText size={16} className="text-brand-primary" />}
-                           <span className="text-[10px] font-bold max-w-[80px] truncate">{a.name}</span>
-                        </div>
-                      )}
-                      <button 
-                        onClick={() => removeAttachment(a.id)}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-brand-depth group-hover/preview:scale-110 transition-transform shadow-lg"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="absolute inset-0 bg-brand-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
-            <div className="relative glass-panel p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-2xl">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileSelect} 
-                className="hidden" 
-                multiple 
-                accept="image/*,application/pdf,text/plain"
-              />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
               
-              <div className="flex items-center gap-1">
-                <button 
-                   onClick={() => fileInputRef.current?.click()}
-                   className="p-3 text-slate-500 hover:text-brand-primary hover:bg-white/5 rounded-xl transition-all"
-                   title="Attach media"
-                >
-                  <Paperclip size={20} />
-                </button>
-                <button 
-                  onClick={toggleListening}
-                  className={`p-3 rounded-xl transition-all ${isListening ? 'bg-brand-primary/20 text-brand-primary animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
-                  title="Voice Type (Speech back)"
-                >
-                  <Mic size={20} />
-                </button>
-                <button 
-                  onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-                  className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
-                  title={isRecording ? "Stop recording" : "Send Voice Message"}
-                >
-                  {isRecording ? <StopCircle size={20} /> : <Play size={20} />}
-                </button>
+              {isLoading && (
+                <div className="flex justify-start">
+                   <div className="bg-white/5 border border-white/10 p-5 rounded-2xl rounded-tl-none flex gap-2 shadow-inner">
+                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" />
+                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div className="p-4 md:p-8 bg-gradient-to-t from-brand-sidebar/80 to-transparent">
+              <div className="max-w-3xl mx-auto relative group">
+                {/* Attachment Preview */}
+                <AnimatePresence>
+                  {attachments.length > 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="mb-4 flex flex-wrap gap-3 p-4 glass-panel border-white/10 rounded-2xl"
+                    >
+                      {attachments.map(a => (
+                        <div key={a.id} className="relative group/preview">
+                          {a.type === 'image' ? (
+                            <div className="w-16 h-16 rounded-xl overflow-hidden border border-white/10">
+                               <img src={a.url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="h-16 px-4 bg-white/5 rounded-xl flex items-center gap-2 border border-white/10">
+                               {a.type === 'voice' ? <Mic size={16} className="text-brand-primary" /> : <FileText size={16} className="text-brand-primary" />}
+                               <span className="text-[10px] font-bold max-w-[80px] truncate">{a.name}</span>
+                            </div>
+                          )}
+                          <button 
+                            onClick={() => removeAttachment(a.id)}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-brand-depth group-hover/preview:scale-110 transition-transform shadow-lg"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="absolute inset-0 bg-brand-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                <div className="relative glass-panel p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-2xl">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileSelect} 
+                    className="hidden" 
+                    multiple 
+                    accept="image/*,application/pdf,text/plain"
+                  />
+                  
+                  <div className="flex items-center gap-1">
+                    <button 
+                       onClick={() => fileInputRef.current?.click()}
+                       className="p-3 text-slate-500 hover:text-brand-primary hover:bg-white/5 rounded-xl transition-all"
+                       title="Attach media"
+                    >
+                      <Paperclip size={20} />
+                    </button>
+                    <button 
+                      onClick={toggleListening}
+                      className={`p-3 rounded-xl transition-all ${isListening ? 'bg-brand-primary/20 text-brand-primary animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
+                      title="Voice Type (Speech back)"
+                    >
+                      <Mic size={20} />
+                    </button>
+                    <button 
+                      onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+                      className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
+                      title={isRecording ? "Stop recording" : "Send Voice Message"}
+                    >
+                      {isRecording ? <StopCircle size={20} /> : <Play size={20} />}
+                    </button>
+                  </div>
+
+                  <input 
+                    type="text" 
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="Ask Sanctuary for wisdom..." 
+                    className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-100 placeholder:text-slate-600 text-sm md:text-base selection:bg-brand-primary/30"
+                  />
+                  <button 
+                    onClick={handleSend}
+                    disabled={isLoading || (!input.trim() && attachments.length === 0)}
+                    className="bg-brand-primary text-brand-depth w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 disabled:shadow-none font-bold"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+                <div className="flex justify-between items-center px-4 mt-3">
+                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Sparkles size={10} className="text-brand-primary" /> 
+                    Holy Quran Chat • {activeConvId ? 'Deep Memory' : 'Active Heart'}
+                  </p>
+                  <button 
+                    onClick={() => setVoiceEnabled(!voiceEnabled)}
+                    className="text-[9px] font-bold text-slate-600 hover:text-brand-primary transition-colors flex items-center gap-1.5 uppercase tracking-widest"
+                  >
+                    <Volume2 size={10} /> {voiceEnabled ? 'Audio On' : 'Audio Off'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide">
+            {/* Daily Reflection Journal UI */}
+            <div className="max-w-3xl mx-auto space-y-8">
+              
+              {/* Introduction / Card */}
+              <div className="glass-panel p-6 rounded-[2rem] border-white/5 space-y-3 relative overflow-hidden bg-brand-sidebar/20">
+                <div className="absolute top-0 right-0 p-6 opacity-5 text-brand-primary pointer-events-none">
+                  <Mic size={64} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Spiritual Accounting</p>
+                  <h3 className="text-xl font-bold text-white">Daily Voice Reflections</h3>
+                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                    Speak freely about your day, your struggles, feelings, or things you are grateful for. We will convert your voice reflection to text and suggest comforting Quranic verses.
+                  </p>
+                </div>
               </div>
 
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Ask Sanctuary for wisdom..." 
-                className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-100 placeholder:text-slate-600 text-sm md:text-base selection:bg-brand-primary/30"
-              />
-              <button 
-                onClick={handleSend}
-                disabled={isLoading || (!input.trim() && attachments.length === 0)}
-                className="bg-brand-primary text-brand-depth w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 disabled:shadow-none font-bold"
-              >
-                <Send size={18} />
-              </button>
-            </div>
-            <div className="flex justify-between items-center px-4 mt-3">
-              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                <Sparkles size={10} className="text-brand-primary" /> 
-                Holy Quran Chat • {activeConvId ? 'Deep Memory' : 'Active Heart'}
-              </p>
-              <button 
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                className="text-[9px] font-bold text-slate-600 hover:text-brand-primary transition-colors flex items-center gap-1.5 uppercase tracking-widest"
-              >
-                <Volume2 size={10} /> {voiceEnabled ? 'Audio On' : 'Audio Off'}
-              </button>
+              {/* Recording Interface Card */}
+              <div className="glass-panel p-8 rounded-[2.5rem] border-white/5 space-y-6 flex flex-col items-center justify-center relative overflow-hidden">
+                <div className="flex flex-col items-center gap-4 text-center">
+                  <button 
+                    onClick={toggleRecordingReflection}
+                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-2xl relative ${
+                      isRecordingReflection 
+                        ? 'bg-rose-500 text-white animate-pulse shadow-rose-500/20 ring-8 ring-rose-500/15' 
+                        : 'bg-brand-primary text-brand-depth hover:scale-105 active:scale-95 shadow-brand-primary/25'
+                    }`}
+                  >
+                    {isRecordingReflection ? <StopCircle size={32} /> : <Mic size={32} />}
+                    {isRecordingReflection && (
+                      <span className="absolute -inset-2 rounded-full border border-rose-500 animate-ping opacity-30" />
+                    )}
+                  </button>
+                  <div className="space-y-1">
+                    <p className="text-xs font-black uppercase tracking-widest text-white">
+                      {isRecordingReflection ? 'Recording your voice...' : 'Tap to start reflecting'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      Uses the browser's high-fidelity SpeechRecognition API
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transcript Display */}
+                {(reflectionInput || isRecordingReflection) && (
+                  <div className="w-full space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Live Transcript Preview</p>
+                    <textarea 
+                      value={reflectionInput}
+                      onChange={(e) => setReflectionInput(e.target.value)}
+                      placeholder={isRecordingReflection ? "Please speak clearly, your voice is being transcribed..." : "Type or edit your reflection here..."}
+                      className="w-full h-32 p-4 bg-brand-depth/40 border border-white/5 rounded-2xl text-slate-200 placeholder:text-slate-600 text-xs md:text-sm focus:outline-none focus:border-brand-primary/30 resize-none font-medium leading-relaxed"
+                    />
+                  </div>
+                )}
+
+                {reflectionInput && !isRecordingReflection && (
+                  <button 
+                    onClick={analyzeReflection}
+                    disabled={isAnalyzingReflection || !reflectionInput.trim()}
+                    className="w-full py-4 bg-brand-primary text-brand-depth font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-brand-primary/25 flex items-center justify-center gap-2"
+                  >
+                    {isAnalyzingReflection ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Analyzing Spiritual Resonance...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={16} />
+                        Analyze & Suggest Verses
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Currently suggested verses display */}
+              {reflectionVerses.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary flex items-center gap-2">
+                    <Sparkles size={14} /> Divine Suggestions for Your Day
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {reflectionVerses.map((verse, idx) => (
+                      <div key={idx} className="glass-panel p-6 rounded-3xl border-white/5 space-y-4 relative overflow-hidden bg-brand-sidebar/10">
+                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          <span>Surah {verse.surahName} • {verse.surah}:{verse.ayah}</span>
+                        </div>
+                        <p className="text-right text-lg md:text-xl font-arabic text-white leading-loose font-bold tracking-wide">
+                          {verse.text}
+                        </p>
+                        <div className="space-y-1">
+                          <p className="text-xs text-brand-primary italic leading-relaxed font-semibold">
+                            "{verse.translation}"
+                          </p>
+                          <p className="text-[11px] text-slate-300 leading-relaxed font-medium pt-2 border-t border-white/5">
+                            {verse.relevance}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Past Reflections Section */}
+              <div className="space-y-4 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Past Spiritual Milestones</h4>
+                {isReflectionsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="animate-spin text-brand-primary" size={24} />
+                  </div>
+                ) : reflections.length === 0 ? (
+                  <div className="text-center py-10 opacity-30 glass-panel rounded-3xl border-white/5">
+                    <History size={32} className="mx-auto mb-3" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Your journal is empty</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {reflections.map((ref, idx) => (
+                      <div key={ref.id || idx} className="glass-panel p-6 rounded-3xl border-white/5 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {ref.createdAt ? new Date(ref.createdAt.seconds ? ref.createdAt.seconds * 1000 : ref.createdAt).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Spiritual Moment'}
+                          </span>
+                          <span className="text-[8px] bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded-full border border-brand-primary/20 uppercase">Reflection Journal</span>
+                        </div>
+                        <p className="text-xs md:text-sm text-slate-200 leading-relaxed italic font-medium">
+                          "{ref.text}"
+                        </p>
+                        
+                        {ref.verses && ref.verses.length > 0 && (
+                          <div className="border-t border-white/5 pt-4 space-y-4">
+                            <p className="text-[9px] font-black uppercase tracking-wider text-brand-primary">Suggested Verses:</p>
+                            <div className="space-y-3">
+                              {ref.verses.map((v: any, vIdx: number) => (
+                                <div key={vIdx} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                                  <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 uppercase">
+                                    <span>{v.surahName} ({v.surah}:{v.ayah})</span>
+                                  </div>
+                                  <p className="text-right text-sm font-arabic text-white font-bold leading-relaxed">{v.text}</p>
+                                  <p className="text-[11px] text-brand-primary italic font-medium">"{v.translation}"</p>
+                                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed pt-1">{v.relevance}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
-        </div>
+        )}
 
         {isSpeaking && (
           <motion.div 

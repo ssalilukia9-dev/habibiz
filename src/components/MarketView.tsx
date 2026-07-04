@@ -776,7 +776,7 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
               animate={{ opacity: 1, y: 0 }}
               whileHover={{ y: -8 }}
               className="group glass-panel rounded-[2rem] border-white/5 overflow-hidden flex flex-col h-full bg-brand-sidebar/30 cursor-pointer"
-              onClick={() => setActiveProduct(p)}
+              onClick={() => navigate(`/market/${p.id}`)}
             >
               <div className="relative aspect-[4/3] overflow-hidden">
                 {p.imageUrl ? (
@@ -1101,7 +1101,7 @@ export default function MarketView({ detailMode, searchQuery, setSearchQuery }: 
 
       {/* Product Detail Modal */}
       <AnimatePresence>
-        {activeProduct && (
+        {false && activeProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
             <motion.div 
               initial={{ opacity: 0 }}
