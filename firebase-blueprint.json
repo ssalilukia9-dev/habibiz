@@ -145,6 +145,42 @@
         "lastCompletedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["adhkarId", "completed", "lastCompletedAt"]
+    },
+    "VoiceReflection": {
+      "title": "VoiceReflection",
+      "description": "A user's voice recorded reflection and suggested verses",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "verses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "surah": { "type": "number" },
+              "ayah": { "type": "number" },
+              "surahName": { "type": "string" },
+              "text": { "type": "string" },
+              "translation": { "type": "string" },
+              "relevance": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["text", "createdAt"]
+    },
+    "DownloadedSurah": {
+      "title": "DownloadedSurah",
+      "description": "A surah downloaded by the user",
+      "type": "object",
+      "properties": {
+        "surahNumber": { "type": "number" },
+        "surahName": { "type": "string" },
+        "reciterId": { "type": "string" },
+        "syncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["surahNumber", "syncedAt"]
     }
   },
   "firestore": {
@@ -159,6 +195,14 @@
     "/users/{userId}/ayahBookmarks/{bookmarkId}": {
       "schema": "AyahBookmark",
       "description": "User saved ayahs"
+    },
+    "/users/{userId}/voiceReflections/{reflectionId}": {
+      "schema": "VoiceReflection",
+      "description": "User recorded voice reflections"
+    },
+    "/users/{userId}/downloadedSurahs/{surahId}": {
+      "schema": "DownloadedSurah",
+      "description": "User offline-downloaded surahs"
     },
     "/rooms/{roomId}": {
       "schema": "ChatRoom",

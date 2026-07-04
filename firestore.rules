@@ -31,6 +31,16 @@ service cloud.firestore {
       match /adhkarProgress/{progressId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
+
+      // Voice Reflections
+      match /voiceReflections/{reflectionId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Downloaded Surahs
+      match /downloadedSurahs/{surahId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     // Secondary Profiles (Searchable index by email)
