@@ -19,13 +19,11 @@ import {
   WifiOff,
   Languages,
   ArrowRight,
-  Download,
-  Share2
+  Download
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
-import VerseShareModal from './VerseShareModal.tsx';
 
 interface JuzDetailProps {
   juzIndex: number;
@@ -57,7 +55,6 @@ export default function JuzDetail({
   const [autoPlay, setAutoPlay] = useState(true);
   const [showReciters, setShowReciters] = useState(false);
   const [showTranslations, setShowTranslations] = useState(false);
-  const [shareAyah, setShareAyah] = useState<any | null>(null);
   
   const getTranslationForLang = (lang: string) => {
     switch(lang) {
@@ -133,7 +130,6 @@ export default function JuzDetail({
         if (dataArabic.data && dataTrans.data) {
           const combined = await Promise.all(dataArabic.data.ayahs.map(async (a: any, idx: number) => {
             const surahInfo = SURAH_LIST.find(s => s.number === a.surah.number);
-            const secureAudio = a.audio ? a.audio.replace(/^http:/, 'https:') : undefined;
             
             // Check cache for this specific ayah
             const cachedAyahsForSurah = await offlineService.getAyahs(a.surah.number, selectedReciter);
@@ -141,10 +137,9 @@ export default function JuzDetail({
 
             return {
               ...a,
-              audio: secureAudio,
               surahName: surahInfo?.englishName || a.surah.englishName,
               translation: dataTrans.data.ayahs[idx].text,
-              audioBlob: cached?.audio === secureAudio ? cached.audioBlob : undefined
+              audioBlob: cached?.audio === a.audio ? cached.audioBlob : undefined
             };
           }));
           setAyahs(combined);
@@ -182,7 +177,7 @@ export default function JuzDetail({
       audioRef.current.pause();
     }
     
-    const audioUrl = ayah.audio ? ayah.audio.replace(/^http:/, 'https:') : undefined;
+    const audioUrl = ayah.audio;
     if (!audioUrl) {
       console.warn(`No audio URL found for juz ayah ${ayah.number}. Skipping.`);
       if (autoPlay) {
@@ -410,22 +405,6 @@ export default function JuzDetail({
                     >
                       {downloadingAyah === ayah.number ? <span className="text-[8px]">{downloadingAyahProgress}%</span> : ayah.audioBlob ? <Check size={16} /> : <Download size={16} />}
                     </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShareAyah({
-                          number: ayah.number,
-                          numberInSurah: ayah.numberInSurah,
-                          text: ayah.text,
-                          translation: ayah.translation,
-                          surahName: ayah.surahName || "Al-Fatihah"
-                        });
-                      }}
-                      className="p-2 text-slate-500 hover:text-brand-primary"
-                      title="Share Verse"
-                    >
-                      <Share2 size={16} />
-                    </button>
                     <button onClick={() => onToggleBookmark(ayah)} className={`p-2 ${isBookmarked(ayah.number) ? 'text-brand-primary' : 'text-slate-500'}`}>
                       <Bookmark size={16} fill={isBookmarked(ayah.number) ? "currentColor" : "none"} />
                     </button>
@@ -438,15 +417,6 @@ export default function JuzDetail({
           );
         })}
       </div>
-
-      <AnimatePresence>
-        {shareAyah && (
-          <VerseShareModal 
-            ayah={shareAyah} 
-            onClose={() => setShareAyah(null)} 
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -17,10 +17,8 @@ import {
   Globe,
   Tent,
   Waves,
-  Moon,
-  Gamepad2
+  Moon
 } from 'lucide-react';
-import HajjGame3D from './HajjGame3D.tsx';
 
 interface HajjUmrahHubProps {
   onNavigate: (view: string, subView?: string) => void;
@@ -52,7 +50,6 @@ const SITES = [
 
 export default function HajjUmrahHub({ onNavigate, addHasanat, incrementDua }: HajjUmrahHubProps) {
   const [currentView, setCurrentView] = useState<'hub' | 'duas' | 'umrah' | 'checklist' | 'sites'>('hub');
-  const [showGame, setShowGame] = useState(false);
 
   const handleCompleteDua = (id: string) => {
     const key = `hajj-dua-${id}`;
@@ -236,29 +233,6 @@ export default function HajjUmrahHub({ onNavigate, addHasanat, incrementDua }: H
         </h2>
         <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.8em] text-center">Protocol & Wisdom Hub</p>
       </div>
-
-      {showGame && (
-        <HajjGame3D onClose={() => setShowGame(false)} addHasanat={addHasanat} />
-      )}
-
-      {/* 3D Pilgrimage Game Banner */}
-      <motion.button
-        whileHover={{ scale: 1.01, y: -4 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => setShowGame(true)}
-        className="w-full relative py-12 px-6 md:px-12 glass-panel rounded-[3rem] border-brand-primary/30 overflow-hidden group shadow-4xl bg-gradient-to-r from-brand-primary/20 via-transparent to-brand-primary/5 text-left flex flex-col md:flex-row items-center justify-between gap-8 mb-8"
-      >
-        <div className="space-y-4 max-w-xl">
-          <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em] px-3 py-1 bg-brand-primary/15 border border-brand-primary/25 rounded-full inline-block">New Feature • Interactive</span>
-          <h3 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter leading-tight">3D Hajj & Umrah Guide Game</h3>
-          <p className="text-slate-300 text-xs md:text-sm font-medium leading-relaxed">
-            Embark on an immersive, interactive 3D virtual pilgrimage. Perform Tawaf around the Kaaba, retrace Sa'i between Safa and Marwa, collect pebbles at Muzdalifah, and throw them at Jamarat!
-          </p>
-        </div>
-        <div className="px-10 py-5 bg-brand-primary text-brand-depth font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all flex items-center gap-4 cursor-pointer shrink-0">
-           Start Quest Now <Gamepad2 size={18} />
-        </div>
-      </motion.button>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Featured Map / Location Action */}

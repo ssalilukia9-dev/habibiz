@@ -161,12 +161,13 @@ export default function DownloadAppView() {
                 <div className="p-5 bg-black/40 rounded-2xl space-y-3 font-mono text-[10px]">
                   <p className="text-brand-primary font-black uppercase tracking-widest mb-1">Phase 2: Local Commands</p>
                   <div className="bg-black/60 p-3 rounded-lg text-slate-300 space-y-1">
-                    <p># Install Project Dependencies</p>
+                    <p># Install Dependencies</p>
                     <p className="text-white">npm install</p>
-                    <p className="mt-2"># Build & Sync for Android in 1-Click</p>
-                    <p className="text-white">npm run cap:build</p>
-                    <p className="mt-2"># Launch Project in Android Studio</p>
-                    <p className="text-white">npm run cap:open</p>
+                    <p className="mt-2"># Build the Web Application</p>
+                    <p className="text-white">npm run build</p>
+                    <p className="mt-2"># Sync with Android Studio</p>
+                    <p className="text-white">npx cap add android</p>
+                    <p className="text-white">npx cap open android</p>
                   </div>
                 </div>
 

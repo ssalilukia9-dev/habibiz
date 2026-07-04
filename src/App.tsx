@@ -1608,7 +1608,6 @@ export default function App() {
                         language={language}
                         isPremium={isPremium || isTrialActive}
                         onShowPremium={() => setShowPremiumGateway(true)}
-                        currentUser={currentUser}
                       />
                     } />
                     <Route path="/market" element={<MarketView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
