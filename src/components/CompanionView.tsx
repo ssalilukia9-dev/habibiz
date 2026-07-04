@@ -81,10 +81,12 @@ interface Conversation {
 }
 
 export default function CompanionView({ 
+  currentUser,
   isPremium, 
   onShowPremium,
   addHasanat
 }: { 
+  currentUser: any;
   isPremium: boolean;
   onShowPremium: () => void;
   addHasanat: (amount: number) => void;
@@ -94,7 +96,7 @@ export default function CompanionView({
   // Return Gateway if not premium
   if (!isPremium) {
     return (
-      <div className="h-[80vh] flex flex-col items-center justify-center space-y-8 glass-panel rounded-[2.5rem] border-white/10 relative overflow-hidden bg-brand-sidebar/20">
+      <div className="h-[calc(100vh-140px)] min-h-[480px] md:h-[650px] flex flex-col items-center justify-center space-y-8 glass-panel rounded-[2rem] md:rounded-[2.5rem] border-white/10 relative overflow-hidden bg-brand-sidebar/20">
         <div className="absolute inset-0 islamic-pattern opacity-5 pointer-events-none" />
         <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl animate-pulse">
            <Sparkles size={48} />
@@ -144,11 +146,11 @@ export default function CompanionView({
 
   // Fetch Conversation History
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!currentUser) return;
 
     const q = query(
       collection(db, 'ai_conversations'),
-      where('userId', '==', auth.currentUser.uid),
+      where('userId', '==', currentUser.uid),
       orderBy('updatedAt', 'desc')
     );
 
@@ -160,7 +162,7 @@ export default function CompanionView({
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   // Fetch Messages for active conversation
   useEffect(() => {
@@ -247,7 +249,7 @@ export default function CompanionView({
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0) || isLoading || !auth.currentUser) return;
+    if ((!input.trim() && attachments.length === 0) || isLoading || !currentUser) return;
 
     const userText = input.trim();
     const currentAttachments = [...attachments];
@@ -262,7 +264,7 @@ export default function CompanionView({
       if (!currentConvId) {
         const titleText = userText || (currentAttachments.length > 0 ? `Shared ${currentAttachments[0].type}` : 'New Consult');
         const convRef = await addDoc(collection(db, 'ai_conversations'), {
-          userId: auth.currentUser.uid,
+          userId: currentUser.uid,
           title: titleText.slice(0, 40) + (titleText.length > 40 ? '...' : ''),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -455,7 +457,7 @@ export default function CompanionView({
   };
 
   return (
-    <div className="flex h-[80vh] max-w-6xl mx-auto glass-panel rounded-[2.5rem] overflow-hidden border-white/10 shadow-2xl relative">
+    <div className="flex h-[calc(100vh-140px)] min-h-[480px] md:h-[650px] max-w-6xl mx-auto glass-panel rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-white/10 shadow-2xl relative">
       {/* Sidebar - Mobile Drawer / Desktop Static */}
       <AnimatePresence mode="wait">
         {showSidebar && (

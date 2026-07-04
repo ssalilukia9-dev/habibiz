@@ -95,6 +95,7 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
+  const [premiumActivatedAt, setPremiumActivatedAt] = useState<Date | null>(null);
   const [showPremiumGateway, setShowPremiumGateway] = useState(false);
   const [userJoinedAt, setUserJoinedAt] = useState<Date | null>(null);
   const [hasanat, setHasanat] = useState(0);
@@ -278,7 +279,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     // Leaderboard listener to find top user (Habibi Crown)
     const q = query(
@@ -393,7 +394,7 @@ export default function App() {
 
   // Global Chat Listener for Notifications
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     const q = query(
       collection(db, 'rooms'),
@@ -427,8 +428,19 @@ export default function App() {
 
           // If message is newer AND not from me
           if (newTime > lastTime && room.lastSenderId !== currentUser.uid) {
+            const getRoomNotifName = (r: any) => {
+              if (r.type === 'group') return r.name;
+              if (r.participantNames && currentUser) {
+                const otherId = r.participants?.find((uid: string) => uid !== currentUser.uid);
+                if (otherId && r.participantNames[otherId]) {
+                  return r.participantNames[otherId];
+                }
+              }
+              return r.name;
+            };
+
             notificationService.notify(
-              room.name,
+              getRoomNotifName(room),
               room.lastMessage || 'New message received',
               'community',
               '#chat'
@@ -452,7 +464,7 @@ export default function App() {
   // Friend Request Listener for Notifications
   const lastRequestTimeRef = useRef<number>(Date.now());
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     const q = query(
       collection(db, 'friend_requests'),
@@ -494,7 +506,7 @@ export default function App() {
   // Friend Request Accepted Listener for Notifications
   const lastAcceptedTimeRef = useRef<number>(Date.now());
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     const q = query(
       collection(db, 'friend_requests'),
@@ -538,7 +550,7 @@ export default function App() {
 
   // Bookmarks Listener
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || currentUser.uid.startsWith('local_')) {
       setBookmarks([]);
       return;
     }
@@ -843,7 +855,56 @@ export default function App() {
               }, 1000);
             }
 
-            setIsPremium(data.isPremium || migratedLocalData?.isPremium || false);
+            const rawPremium = data.isPremium || migratedLocalData?.isPremium || false;
+            let rawActivatedAt = data.premiumActivatedAt 
+              ? (data.premiumActivatedAt.toDate ? data.premiumActivatedAt.toDate() : new Date(data.premiumActivatedAt)) 
+              : (migratedLocalData?.premiumActivatedAt ? new Date(migratedLocalData.premiumActivatedAt) : null);
+            
+            if (rawPremium && !rawActivatedAt) {
+              rawActivatedAt = new Date();
+              if (!user.uid.startsWith('local_')) {
+                try {
+                  updateDoc(userRef, { premiumActivatedAt: serverTimestamp() });
+                } catch (err) {
+                  console.warn("Failed to set default premiumActivatedAt", err);
+                }
+              } else {
+                const key = `sanctuary_profile_${user.uid}`;
+                const localDataRaw = localStorage.getItem(key);
+                if (localDataRaw) {
+                  const localData = JSON.parse(localDataRaw);
+                  localData.premiumActivatedAt = rawActivatedAt.toISOString();
+                  localStorage.setItem(key, JSON.stringify(localData));
+                }
+              }
+            }
+
+            let finalPremium = rawPremium;
+            if (rawPremium && rawActivatedAt) {
+              const elapsed = Date.now() - rawActivatedAt.getTime();
+              const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+              if (elapsed >= thirtyDays) {
+                finalPremium = false;
+                if (!user.uid.startsWith('local_')) {
+                  try {
+                    updateDoc(userRef, { isPremium: false });
+                  } catch (err) {
+                    console.warn("Failed to auto-expire premium on Firestore", err);
+                  }
+                } else {
+                  const key = `sanctuary_profile_${user.uid}`;
+                  const localDataRaw = localStorage.getItem(key);
+                  if (localDataRaw) {
+                    const localData = JSON.parse(localDataRaw);
+                    localData.isPremium = false;
+                    localStorage.setItem(key, JSON.stringify(localData));
+                  }
+                }
+              }
+            }
+
+            setIsPremium(finalPremium);
+            setPremiumActivatedAt(finalPremium ? rawActivatedAt : null);
             setUserJoinedAt(data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date());
             setHasanat(updatedHasanat);
             
@@ -905,6 +966,7 @@ export default function App() {
             }
             setHasanat(newProfile.hasanat || 0);
             setIsPremium(newProfile.isPremium || false);
+            setPremiumActivatedAt(newProfile.premiumActivatedAt ? new Date(newProfile.premiumActivatedAt) : null);
             setNeedsOnboarding(newProfile.onboardingCompleted === false);
           }
  
@@ -1213,34 +1275,93 @@ export default function App() {
            </div>
   </motion.div>
 )}
+{currentUser && isPremium && premiumActivatedAt && showTrial && (
+  <motion.div 
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, scale: 0.9 }}
+    className="bg-brand-sidebar/90 md:bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/30 px-4 md:px-6 py-3 md:py-2 rounded-[2rem] md:rounded-full shadow-2xl flex items-center gap-3"
+  >
+           <div className="w-8 h-8 md:w-6 md:h-6 bg-emerald-500/20 rounded-xl md:rounded-lg flex items-center justify-center text-emerald-500 shrink-0">
+             <Crown size={14} className="animate-pulse text-emerald-400" />
+           </div>
+           <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-3 leading-none">
+             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 md:mb-0">Premium Active</p>
+             <div className="hidden md:block w-[1px] h-3 bg-emerald-500/30" />
+             <p className="text-[9px] font-bold text-white/70">
+                {(() => {
+                  const elapsed = Date.now() - premiumActivatedAt.getTime();
+                  const remainingMs = 30 * 24 * 60 * 60 * 1000 - elapsed;
+                  const daysLeft = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+                  const hoursLeft = Math.ceil(remainingMs / (1000 * 60 * 60));
+                  if (daysLeft > 1) {
+                    return `${daysLeft} Days Left`;
+                  } else {
+                    return `${hoursLeft > 0 ? hoursLeft : 0} Hours Left`;
+                  }
+                })()}
+             </p>
+           </div>
+  </motion.div>
+)}
 </AnimatePresence>
 </div>
 
       {((currentUser && !isPremium && trialExpired) || showPremiumGateway) && (
         <PremiumGateway onActivate={async () => {
           if (currentUser) {
-             const userRef = doc(db, 'users', currentUser.uid);
-             await updateDoc(userRef, { isPremium: true });
+             const now = new Date();
+             if (currentUser.uid.startsWith('local_')) {
+                const key = `sanctuary_profile_${currentUser.uid}`;
+                const localDataRaw = localStorage.getItem(key);
+                if (localDataRaw) {
+                   const localData = JSON.parse(localDataRaw);
+                   localData.isPremium = true;
+                   localData.premiumActivatedAt = now.toISOString();
+                   localStorage.setItem(key, JSON.stringify(localData));
+                }
+             } else {
+                const userRef = doc(db, 'users', currentUser.uid);
+                await updateDoc(userRef, { 
+                  isPremium: true,
+                  premiumActivatedAt: serverTimestamp()
+                });
+             }
              setIsPremium(true);
+             setPremiumActivatedAt(now);
              setShowPremiumGateway(false);
+             notificationService.notify('Sanctuary Unlocked', 'Masha\'Allah! Your 30-day Premium Sanctuary access is now active.', 'system');
           }
         }} />
       )}
 
       {/* Mobile Top Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 bg-brand-sidebar/80 backdrop-blur-xl border-b border-brand-border z-40">
-        <div className="flex items-center gap-3">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-4 bg-brand-sidebar/85 backdrop-blur-xl border-b border-brand-border z-40">
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center shadow-lg shadow-brand-primary/20">
             <BookOpen size={16} className="text-brand-depth" />
           </div>
-          <span className="text-sm font-black text-white tracking-widest uppercase text-nowrap">HABIBI</span>
+          <span className="text-xs font-black text-white tracking-widest uppercase text-nowrap">HABIBI</span>
         </div>
-        <button 
-          onClick={() => setIsSidebarOpen(true)}
-          className="p-2 text-slate-400 hover:text-white transition-colors"
-        >
-          <LayoutGrid size={24} />
-        </button>
+        <div className="flex items-center gap-2">
+           <div className="flex items-baseline gap-1 px-2.5 py-1 bg-brand-primary/10 rounded-full border border-brand-primary/20">
+              <span className="text-[8px] font-black text-brand-primary uppercase">Hasanat</span>
+              <span className="text-xs font-black text-white font-mono">{hasanat.toLocaleString()}</span>
+           </div>
+           <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="w-8 h-8 rounded-full border border-brand-border bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+           >
+              {darkMode ? <Sun size={14} className="text-brand-primary" /> : <Moon size={14} className="text-brand-primary" />}
+           </button>
+           <button 
+             onClick={() => setIsSidebarOpen(true)}
+             className="p-1 text-slate-400 hover:text-white transition-colors"
+             title="Open Navigation"
+           >
+             <LayoutGrid size={20} />
+           </button>
+        </div>
       </div>
 
       {/* Desktop/Tablet Navigation Rail (Narrow Sidebar) */}
@@ -1393,7 +1514,7 @@ export default function App() {
         </div>
 
         {/* Header */}
-        <header className="h-20 flex items-center justify-between px-6 md:px-10 border-b border-brand-border bg-brand-depth/80 backdrop-blur-md">
+        <header className="hidden md:flex h-20 items-center justify-between px-6 md:px-10 border-b border-brand-border bg-brand-depth/80 backdrop-blur-md">
           <div className="flex items-center gap-6 flex-1">
              <div className="lg:hidden p-2 text-brand-primary" onClick={() => setIsSidebarOpen(true)}>
                <Menu size={24} />
@@ -1419,9 +1540,9 @@ export default function App() {
           
           <div className="flex items-center gap-3">
              {currentUser && topUserId === currentUser.uid && (
-               <div className="w-10 h-10 rounded-full border border-yellow-500 bg-yellow-500/10 flex items-center justify-center text-yellow-500 shadow-lg shadow-yellow-500/20" title="Habibi King">
-                  <Crown size={18} />
-               </div>
+                <div className="w-10 h-10 rounded-full border border-yellow-500 bg-yellow-500/10 flex items-center justify-center text-yellow-500 shadow-lg shadow-yellow-500/20" title="Habibi King">
+                   <Crown size={18} />
+                </div>
              )}
              <button 
                 onClick={() => setDarkMode(!darkMode)}
@@ -1440,7 +1561,7 @@ export default function App() {
         </header>
 
       {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide pb-32 md:pb-12">
+        <div className="flex-1 overflow-y-auto scrollbar-hide pt-16 md:pt-0 pb-32 md:pb-12">
           <div className="max-w-5xl mx-auto p-4 md:p-12">
             {currentUser && (
               <AnimatePresence mode="wait">
@@ -1485,7 +1606,7 @@ export default function App() {
                         incrementDua={incrementDua}
                         incrementVerse={incrementVerse}
                         language={language}
-                        isPremium={isPremium}
+                        isPremium={isPremium || isTrialActive}
                         onShowPremium={() => setShowPremiumGateway(true)}
                       />
                     } />
@@ -1507,11 +1628,11 @@ export default function App() {
                     } />
                     <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
-                    <Route path="/companion" element={<CompanionView isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
+                    <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
-                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium || isTrialActive} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>

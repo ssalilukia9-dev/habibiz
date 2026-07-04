@@ -97,7 +97,7 @@ export default function UmmahHubView({
   const currentUser = auth.currentUser;
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     // Listen to sent/received requests to show status
     const q = query(
@@ -125,6 +125,10 @@ export default function UmmahHubView({
   }, [currentUser]);
 
   useEffect(() => {
+    if (!currentUser || currentUser.uid.startsWith('local_')) {
+      setLoading(false);
+      return;
+    }
     const fetchUsers = async () => {
       try {
         setLoading(true);

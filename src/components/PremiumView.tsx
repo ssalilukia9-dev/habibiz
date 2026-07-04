@@ -1,5 +1,5 @@
 import { auth, db } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { motion } from 'motion/react';
 import { 
@@ -28,7 +28,8 @@ export default function PremiumView() {
     try {
       const userRef = doc(db, 'users', auth.currentUser.uid);
       await updateDoc(userRef, {
-        isPremium: true
+        isPremium: true,
+        premiumActivatedAt: serverTimestamp()
       });
       alert('Welcome to Sanctuary Elite! Your status has been elevated.');
     } catch (error) {

@@ -414,7 +414,7 @@ export default function AdhkarView({ addHasanat, incrementDua, searchQuery }: { 
   );
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     const q = query(collection(db, `users/${currentUser.uid}/adhkarProgress`));
     const unsubscribe = onSnapshot(q, (snapshot) => {

@@ -230,7 +230,10 @@ export default function ProfileView({
   const [customAdhanUrl, setCustomAdhanUrl] = useState(() => localStorage.getItem('preferred-adhan-custom-url') || '');
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) {
+      setLoading(false);
+      return;
+    }
 
     const userRef = doc(db, 'users', currentUser.uid);
     const unsubscribe = onSnapshot(userRef, (doc) => {
@@ -480,7 +483,7 @@ export default function ProfileView({
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.uid.startsWith('local_')) return;
 
     const q = query(
       collection(db, 'friend_requests'),

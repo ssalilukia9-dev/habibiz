@@ -242,7 +242,7 @@ export default function HadithLibraryView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <AnimatePresence mode="popLayout">
                 {filteredHadith.map((h, i) => (
-                  <motion.button
+                  <motion.div
                     layout
                     key={h.id}
                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -255,7 +255,15 @@ export default function HadithLibraryView({
                       delay: searchQuery ? 0 : i * 0.05 
                     }}
                     onClick={() => handleSelectHadith(h)}
-                    className="glass-panel p-6 rounded-3xl text-left border-white/5 hover:border-brand-primary/20 transition-all group overflow-hidden relative h-full flex flex-col"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelectHadith(h);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="glass-panel p-6 rounded-3xl text-left border-white/5 hover:border-brand-primary/20 transition-all group overflow-hidden relative h-full flex flex-col cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-primary/50"
                   >
                     <div className="absolute top-0 right-0 p-4 text-brand-primary/10 group-hover:scale-110 transition-transform">
                       <Quote size={40} />
@@ -283,7 +291,7 @@ export default function HadithLibraryView({
                       </span>
                       <ChevronRight size={16} className="text-brand-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                  </motion.button>
+                  </motion.div>
                 ))}
               </AnimatePresence>
             </div>

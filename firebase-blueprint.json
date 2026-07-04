@@ -76,11 +76,20 @@
         "price": { "type": "number" },
         "category": { "type": "string" },
         "imageUrl": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "brand": { "type": "string" },
+        "condition": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "contactInfo": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "specifications": { "type": "string" },
+        "shippingEstimate": { "type": "string" },
         "sellerId": { "type": "string" },
         "sellerName": { "type": "string" },
         "sellerPhoto": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "sold", "deleted"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "rating": { "type": "number" }
       },
       "required": ["title", "price", "sellerId", "status", "createdAt"]
     },

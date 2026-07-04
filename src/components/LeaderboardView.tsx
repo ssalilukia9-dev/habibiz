@@ -63,6 +63,10 @@ export default function LeaderboardView({
   const isUserInTopList = currentUserRank > 0;
 
   useEffect(() => {
+    if (!currentUser || currentUser.uid.startsWith('local_')) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     const q = query(
       collection(db, 'users'),

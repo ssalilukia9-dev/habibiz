@@ -20,7 +20,8 @@ import {
   Inbox,
   Globe,
   Paperclip,
-  Image as ImageIcon
+  Image as ImageIcon,
+  CornerUpLeft
 } from 'lucide-react';
 import { 
   collection, 
@@ -50,6 +51,11 @@ interface Message {
   text: string;
   timestamp: any;
   imageUrl?: string;
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
 }
 
 interface Room {
@@ -57,6 +63,8 @@ interface Room {
   name: string;
   type: 'group' | 'private';
   participants?: string[];
+  participantNames?: { [uid: string]: string };
+  participantPhotos?: { [uid: string]: string };
   lastMessage?: string;
   updatedAt?: any;
   createdBy?: string;
@@ -87,6 +95,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState<ChatUserInfo[]>([]);
   const [pendingRequests, setPendingRequests] = useState<ChatRequest[]>([]);
@@ -95,6 +104,28 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const getRoomName = (room: Room) => {
+    if (room.type === 'group') return room.name;
+    if (room.participantNames && myUser) {
+      const otherId = room.participants?.find(uid => uid !== myUser.uid);
+      if (otherId && room.participantNames[otherId]) {
+        return room.participantNames[otherId];
+      }
+    }
+    return room.name;
+  };
+
+  const getRoomPhoto = (room: Room) => {
+    if (room.type === 'group') return null;
+    if (room.participantPhotos && myUser) {
+      const otherId = room.participants?.find(uid => uid !== myUser.uid);
+      if (otherId && room.participantPhotos[otherId]) {
+        return room.participantPhotos[otherId];
+      }
+    }
+    return null;
+  };
 
   // Auto-provision default public starter rooms in Firestore for authenticated seekers
   useEffect(() => {
@@ -164,7 +195,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   };
 
   const filteredRooms = rooms.filter(room => 
-    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    getRoomName(room).toLowerCase().includes(searchQuery.toLowerCase()) ||
     (room.lastMessage && room.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -243,7 +274,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
 
   // Fetch pending requests
   useEffect(() => {
-    if (!myUser) return;
+    if (!myUser || myUser.uid.startsWith('local_')) return;
     const q = query(
       collection(db, 'friend_requests'),
       where('toId', '==', myUser.uid),
@@ -287,7 +318,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
           );
         } else {
           initialMessages.push(
-             { id: 'init_1', senderId: 'system', senderName: 'Sanctuary Keeper', text: `Welcome to the private sanctuary with ${activeRoom.name}. Share kind words and walk along the straight path together.`, timestamp: new Date().toISOString() }
+             { id: 'init_1', senderId: 'system', senderName: 'Sanctuary Keeper', text: `Welcome to the private sanctuary with ${getRoomName(activeRoom)}. Share kind words and walk along the straight path together.`, timestamp: new Date().toISOString() }
           );
         }
         localStorage.setItem(msgsKey, JSON.stringify(initialMessages));
@@ -380,6 +411,13 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
     if (attachment) {
       msgData.imageUrl = attachment;
     }
+    if (replyingTo) {
+      msgData.replyTo = {
+        id: replyingTo.id,
+        senderName: replyingTo.senderName,
+        text: replyingTo.text
+      };
+    }
 
     if (isStarterOrLocal) {
       const msgsKey = `sanctuary_msgs_${activeRoom.id}`;
@@ -390,6 +428,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
       setMessages(updated);
       setNewMessage('');
       setAttachment(null);
+      setReplyingTo(null);
       
       const localRoomsKey = `sanctuary_rooms_${myUser.uid}`;
       const prevRoomsRaw = localStorage.getItem(localRoomsKey);
@@ -464,7 +503,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
           const replyMsg = {
             id: 'sim_reply_' + Date.now(),
             senderId: activeRoom.id,
-            senderName: activeRoom.name,
+            senderName: getRoomName(activeRoom),
             text: replyText,
             timestamp: new Date().toISOString()
           };
@@ -480,13 +519,21 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
     try {
       setNewMessage('');
       setAttachment(null);
-      await addDoc(collection(db, `rooms/${activeRoom.id}/messages`), {
+      setReplyingTo(null);
+      const firestorePayload: any = {
         senderId: msgData.senderId,
         senderName: msgData.senderName,
         senderPhoto: msgData.senderPhoto,
         text: msgData.text,
         timestamp: serverTimestamp()
-      });
+      };
+      if (msgData.imageUrl) {
+        firestorePayload.imageUrl = msgData.imageUrl;
+      }
+      if (msgData.replyTo) {
+        firestorePayload.replyTo = msgData.replyTo;
+      }
+      await addDoc(collection(db, `rooms/${activeRoom.id}/messages`), firestorePayload);
       if (addHasanat) addHasanat(5);
       await updateDoc(doc(db, 'rooms', activeRoom.id), {
         lastMessage: attachment ? '📷 Photo' : newMessage,
@@ -530,6 +577,14 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
           name: user.displayName,
           type: 'private',
           participants: [myUser.uid, user.uid],
+          participantNames: {
+            [myUser.uid]: myUser.displayName || 'Anonymous Seeker',
+            [user.uid]: user.displayName || 'Anonymous Seeker'
+          },
+          participantPhotos: {
+            [myUser.uid]: myUser.photoURL || '',
+            [user.uid]: user.photoURL || ''
+          },
           lastMessage: 'Reflections and companionship',
           updatedAt: new Date().toISOString()
         };
@@ -569,6 +624,14 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
         name: user.displayName,
         type: 'private',
         participants: [myUser.uid, user.uid],
+        participantNames: {
+          [myUser.uid]: myUser.displayName || 'Anonymous Seeker',
+          [user.uid]: user.displayName || 'Anonymous Seeker'
+        },
+        participantPhotos: {
+          [myUser.uid]: myUser.photoURL || '',
+          [user.uid]: user.photoURL || ''
+        },
         lastMessage: 'Online channel standby',
         updatedAt: new Date().toISOString()
       };
@@ -600,6 +663,14 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
         name: request.fromName,
         type: 'private',
         participants: [myUser.uid, request.fromId],
+        participantNames: {
+          [myUser.uid]: myUser.displayName || 'Anonymous Seeker',
+          [request.fromId]: request.fromName || 'Anonymous Seeker'
+        },
+        participantPhotos: {
+          [myUser.uid]: myUser.photoURL || '',
+          [request.fromId]: request.fromPhoto || ''
+        },
         updatedAt: serverTimestamp(),
         lastMessage: 'Chat started'
       });
@@ -655,7 +726,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
   if (!myUser) return null;
 
   return (
-    <div className="flex h-[calc(100vh-80px)] md:h-[650px] bg-brand-sidebar/20 rounded-[2rem] md:rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-xl relative">
+    <div className="flex h-[calc(100vh-140px)] min-h-[480px] md:h-[650px] bg-brand-sidebar/20 rounded-[2rem] md:rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-xl relative">
       
       {/* 1. Sidebar Panel (List of Chats/Search/Requests) */}
       <div className={`w-full md:w-80 border-r border-white/5 flex flex-col transition-all duration-300 ${mobileViewState === 'chat' ? 'hidden md:flex' : 'flex'}`}>
@@ -723,15 +794,19 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                   onClick={() => setActiveRoom(room)}
                   className={`w-full text-left p-4 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-xl' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
                     {room.type === 'group' ? <Hash size={18} /> : (
-                      <div className="relative">
-                        <MessageCircle size={18} />
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        {getRoomPhoto(room) ? (
+                          <img src={getRoomPhoto(room)} alt={getRoomName(room)} className="w-full h-full object-cover" />
+                        ) : (
+                          <MessageCircle size={18} />
+                        )}
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-black text-sm truncate">{room.name}</p>
+                    <p className="font-black text-sm truncate">{getRoomName(room)}</p>
                     <p className="text-[10px] opacity-60 truncate font-medium">{room.lastMessage || 'No messages yet'}</p>
                   </div>
                 </button>
@@ -862,11 +937,17 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                 <button onClick={() => setActiveRoom(null)} className="md:hidden p-2 text-brand-primary hover:bg-brand-primary/10 rounded-xl -ml-2">
                   <ArrowLeft size={24} />
                 </button>
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary shadow-xl shadow-brand-primary/10">
-                  {activeRoom.type === 'group' ? <Hash size={24} /> : <MessageCircle size={24} />}
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary shadow-xl shadow-brand-primary/10 overflow-hidden shrink-0">
+                  {activeRoom.type === 'group' ? <Hash size={24} /> : (
+                    getRoomPhoto(activeRoom) ? (
+                      <img src={getRoomPhoto(activeRoom)} alt={getRoomName(activeRoom)} className="w-full h-full object-cover" />
+                    ) : (
+                      <MessageCircle size={24} />
+                    )
+                  )}
                 </div>
                 <div>
-                  <h3 className="text-sm md:text-lg font-black text-white leading-tight">{activeRoom.name}</h3>
+                  <h3 className="text-sm md:text-lg font-black text-white leading-tight">{getRoomName(activeRoom)}</h3>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-pulse shadow-[0_0_5px_var(--brand-primary)]"></div>
                     <p className="text-[9px] md:text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">Sanctuary Channel</p>
@@ -896,10 +977,33 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                     key={msg.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative w-full overflow-hidden py-1 px-2 group/swipe`}
                   >
-                    <div className={`flex gap-3 max-w-[85%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <img src={msg.senderPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}`} className="w-8 h-8 rounded-lg shrink-0" alt="" />
+                    {/* Background swipe action indicator (revealed on swipe) */}
+                    <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-6 pointer-events-none opacity-0 group-hover/swipe:opacity-20 transition-opacity">
+                      <div className="flex items-center gap-2 text-brand-primary">
+                        <CornerUpLeft size={16} className="animate-pulse" />
+                        <span className="text-[9px] font-black tracking-wider uppercase">Swipe to Reply</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-brand-primary">
+                        <span className="text-[9px] font-black tracking-wider uppercase">Swipe to Reply</span>
+                        <CornerUpLeft size={16} className="animate-pulse" />
+                      </div>
+                    </div>
+
+                    <motion.div 
+                      drag="x"
+                      dragDirectionLock
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={{ left: 0.6, right: 0.6 }}
+                      onDragEnd={(event, info) => {
+                        if (Math.abs(info.offset.x) > 60) {
+                          setReplyingTo(msg);
+                        }
+                      }}
+                      className={`flex gap-3 max-w-[85%] md:max-w-[70%] select-none cursor-grab active:cursor-grabbing ${isMe ? 'flex-row-reverse self-end' : 'flex-row self-start'}`}
+                    >
+                      <img src={msg.senderPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}`} className="w-8 h-8 rounded-lg shrink-0 pointer-events-none" alt="" />
                       <div className={`space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
                         <div className={`flex items-center gap-2 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{msg.senderName}</p>
@@ -922,11 +1026,26 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                             ? 'bg-brand-primary text-brand-depth rounded-tr-none' 
                             : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'
                         }`}>
+                          {msg.replyTo && (
+                            <div className={`mb-2 p-2.5 px-3 rounded-[1.2rem] border-l-4 text-xs flex flex-col gap-0.5 select-none ${
+                              isMe 
+                                ? 'bg-brand-depth/10 border-brand-depth text-brand-depth/80' 
+                                : 'bg-white/5 border-brand-primary text-slate-400'
+                            }`}>
+                              <span className="font-black uppercase tracking-wider text-[8px] flex items-center gap-1">
+                                <CornerUpLeft size={10} />
+                                Reply to {msg.replyTo.senderName}
+                              </span>
+                              <span className="truncate max-w-[180px] md:max-w-[300px] italic">
+                                {msg.replyTo.text}
+                              </span>
+                            </div>
+                          )}
                           {msg.imageUrl && (
                             <img 
                               src={msg.imageUrl} 
                               alt="attachment" 
-                              className="max-w-full rounded-2xl mb-2 border border-white/10"
+                              className="max-w-full rounded-2xl mb-2 border border-white/10 pointer-events-none"
                               onLoad={() => {
                                 if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                               }}
@@ -941,7 +1060,7 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                           )}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )
               })}
@@ -950,6 +1069,32 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
             {/* Input Form */}
             <form onSubmit={handleSendMessage} className="p-5 md:p-8 bg-brand-sidebar/40 border-t border-white/5">
               <AnimatePresence>
+                {replyingTo && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 bg-brand-depth/40 rounded-2xl border border-brand-primary/20 p-3.5 flex items-center justify-between relative overflow-hidden"
+                  >
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-primary" />
+                    <div className="flex flex-col gap-0.5 pl-2 text-left">
+                      <span className="text-[9px] font-black text-brand-primary uppercase tracking-wider flex items-center gap-1.5">
+                        <CornerUpLeft size={10} />
+                        Replying to {replyingTo.senderName}
+                      </span>
+                      <p className="text-xs text-slate-400 truncate max-w-[250px] md:max-w-[450px] italic">
+                        "{replyingTo.text}"
+                      </p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </motion.div>
+                )}
                 {attachment && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}

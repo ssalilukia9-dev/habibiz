@@ -2,32 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ---------------------------------------------------------
-    // Phase 3: Primitives & Global Helpers
-    // ---------------------------------------------------------
-    
+    // Global Helper
     function isSignedIn() {
       return request.auth != null;
-    }
-    
-    function isEmailVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true);
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     // Default Deny
@@ -35,264 +12,74 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // ---------------------------------------------------------
-    // User Profiles
-    // ---------------------------------------------------------
-    
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'emailVerified', 'lastSeen', 'hasanat', 'isPremium', 'createdAt']) &&
-             data.uid is string && data.uid == request.auth.uid &&
-             (data.get('displayName', '') == null || (data.displayName is string && data.displayName.size() <= 200)) &&
-             data.email is string && data.email.size() <= 100 &&
-             data.emailVerified is bool &&
-             (data.get('photoURL', '') == null || (data.photoURL is string && data.photoURL.size() <= 1000000)) &&
-             data.hasanat is number &&
-             data.isPremium is bool &&
-             data.lastSeen == request.time &&
-             data.createdAt <= request.time;
+    // Diagnostic / Test Connection
+    match /test/connection {
+      allow read: if true;
     }
 
+    // User Profiles
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId);
-      allow list: if isSignedIn(); 
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && (
-        incoming().diff(existing()).affectedKeys().hasOnly([
-          'displayName', 'photoURL', 'bio', 'lastSeen', 'hasanat', 
-          'isPremium', 'emailVerified', 'onboardingCompleted', 
-          'streak', 'versesRead', 'duaCount', 'isHabibiKing', 'habibiKingAwardedAt'
-        ]) &&
-        (!incoming().diff(existing()).affectedKeys().hasAny(['lastSeen']) || incoming().lastSeen == request.time)
-      );
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && request.auth.uid == userId;
 
       // Bookmarked Ayahs
-      function isValidAyahBookmark(data) {
-        return data.keys().hasAll(['number', 'surahNumber', 'numberInSurah', 'text', 'createdAt']) &&
-               data.number is number &&
-               data.surahNumber is number &&
-               data.numberInSurah is number &&
-               data.text is string && data.text.size() <= 2000 &&
-               data.createdAt == request.time;
-      }
-
       match /ayahBookmarks/{bookmarkId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidAyahBookmark(incoming());
-        allow delete: if isOwner(userId);
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
       // Adhkar Progress
-      function isValidAdhkarProgress(data) {
-        return data.keys().hasAll(['adhkarId', 'completed', 'lastCompletedAt']) &&
-               data.adhkarId is string && data.adhkarId.size() <= 64 &&
-               data.completed is bool &&
-               (data.lastCompletedAt == request.time || data.lastCompletedAt == null); 
-      }
-
       match /adhkarProgress/{progressId} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId) && isValidAdhkarProgress(incoming()); 
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
     }
 
-    // ---------------------------------------------------------
     // Secondary Profiles (Searchable index by email)
-    // ---------------------------------------------------------
-    
     match /profiles/{email} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && (
-        (incoming().uid == request.auth.uid) || 
+        (request.resource != null && request.resource.data.uid == request.auth.uid) || 
         (resource != null && resource.data.uid == request.auth.uid)
       );
     }
 
-    // ---------------------------------------------------------
     // NoorTalk Feed Posts
-    // ---------------------------------------------------------
-    
-    function isValidPost(data) {
-      return data.keys().hasAll(['userId', 'user', 'content', 'time', 'category', 'isFlagged', 'approved']) &&
-             data.userId == request.auth.uid &&
-             data.content is string && data.content.size() <= 10000 &&
-             data.time == request.time;
-    }
-
     match /posts/{postId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidPost(incoming());
-      allow update: if isSignedIn() && (
-        // Owner can edit content or delete (sets to flagged or deleted)
-        (isOwner(existing().userId) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['content', 'category', 'isFlagged', 'approved', 'image', 'poll'])) ||
-        // Anyone can vote or add comment metadata
-        (incoming().diff(existing()).affectedKeys().hasOnly(['supportCount', 'reconsiderCount', 'userVotes', 'comments', 'poll']))
-      );
-      allow delete: if isOwner(existing().userId);
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // ---------------------------------------------------------
-    // Chat Rooms
-    // ---------------------------------------------------------
-    
-    function isValidRoom(data) {
-      return data.keys().hasAll(['name', 'type', 'updatedAt', 'participants']) &&
-             data.name is string && data.name.size() <= 100 &&
-             data.type in ['group', 'private'] &&
-             data.updatedAt == request.time &&
-             data.participants is list && data.participants.size() <= 1000;
-    }
-
-    function isParticipant(roomId) {
-      return isSignedIn() && (
-        resource == null || 
-        resource.data.type == 'group' || 
-        (request.auth.uid in resource.data.participants)
-      );
-    }
-
+    // Chat Rooms and Messages
     match /rooms/{roomId} {
-      allow get: if isParticipant(roomId) && isValidId(roomId);
-      allow list: if isSignedIn() && (
-        resource.data.type == 'group' || 
-        (request.auth.uid in resource.data.participants)
-      );
-
-      allow create: if isSignedIn() && isValidRoom(incoming());
-      
-      allow update: if isSignedIn() && (
-        isValidId(roomId) && (
-          // Action: Post Message (Update room metadata)
-          (incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt']) && 
-           incoming().updatedAt == request.time &&
-           (existing().type == 'group' || (request.auth.uid in existing().participants)))
-        )
-      );
-
-      // ---------------------------------------------------------
-      // Messages
-      // ---------------------------------------------------------
-      
-      function isValidMessage(data) {
-        return data.keys().hasAll(['senderId', 'senderName', 'senderPhoto', 'text', 'timestamp']) &&
-               data.senderId == request.auth.uid &&
-               data.text is string && data.text.size() <= 2000 &&
-               data.timestamp == request.time;
-      }
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSignedIn();
 
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (
-          get(/databases/$(database)/documents/rooms/$(roomId)).data.get('type', 'private') == 'group' ||
-          (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.get('participants', []))
-        );
-        
-        allow create: if isSignedIn() && 
-                      isValidMessage(incoming()) && (
-                        get(/databases/$(database)/documents/rooms/$(roomId)).data.get('type', 'private') == 'group' ||
-                        (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.get('participants', []))
-                      );
+        allow read, write: if isSignedIn();
       }
     }
 
-    // ---------------------------------------------------------
     // AI Conversations
-    // ---------------------------------------------------------
-
-    function isValidAIConversation(data) {
-      return data.keys().hasAll(['userId', 'title', 'updatedAt', 'createdAt']) &&
-             data.userId == request.auth.uid &&
-             data.title is string && data.title.size() <= 200 &&
-             data.updatedAt == request.time &&
-             data.createdAt <= request.time;
-    }
-
     match /ai_conversations/{convId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidAIConversation(incoming());
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'updatedAt']) &&
-                    incoming().updatedAt == request.time;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-
-      function isValidAIMessage(data) {
-        return data.keys().hasAll(['role', 'content', 'timestamp']) &&
-               data.role in ['user', 'model'] &&
-               data.content is string && data.content.size() <= 10000 &&
-               data.timestamp == request.time;
-      }
+      allow write: if isSignedIn() && (
+        (request.resource != null && request.resource.data.userId == request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
 
       match /messages/{msgId} {
-        allow read: if isSignedIn() && get(/databases/$(database)/documents/ai_conversations/$(convId)).data.userId == request.auth.uid;
-        allow create: if isSignedIn() && get(/databases/$(database)/documents/ai_conversations/$(convId)).data.userId == request.auth.uid &&
-                      isValidAIMessage(incoming());
+        allow read, write: if isSignedIn();
       }
     }
 
-    // ---------------------------------------------------------
     // Marketplace Listings
-    // ---------------------------------------------------------
-    
-    function isValidListing(data) {
-      return data.keys().hasAll(['title', 'description', 'price', 'category', 'sellerId', 'sellerName', 'status', 'createdAt']) &&
-             data.title is string && data.title.size() <= 200 &&
-             data.description is string && data.description.size() <= 2000 &&
-             data.price is number && data.price >= 0 &&
-             data.sellerId == request.auth.uid &&
-             data.status in ['active', 'sold', 'deleted'] &&
-             data.createdAt == request.time;
-    }
-
     match /listings/{listingId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidListing(incoming());
-      allow update: if isOwner(existing().sellerId) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'category', 'imageUrl', 'status'])
-      );
-      allow delete: if isOwner(existing().sellerId);
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
     }
 
-    // ---------------------------------------------------------
-    // Chat Requests
-    // ---------------------------------------------------------
-
-    function isValidChatRequest(data) {
-      return data.keys().hasAll(['fromId', 'fromName', 'fromPhoto', 'toId', 'status', 'createdAt']) &&
-             data.fromId == request.auth.uid &&
-             data.status in ['pending', 'accepted', 'rejected'] &&
-             data.createdAt == request.time;
-    }
-
-    match /chat_requests/{requestId} {
-      allow get: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow list: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow create: if isSignedIn() && isValidChatRequest(incoming());
-      allow update: if isSignedIn() && (
-        (isOwner(existing().toId) && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
-        (isOwner(existing().fromId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
-      );
-      allow delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-    }
-
-    // ---------------------------------------------------------
     // Friend Requests
-    // ---------------------------------------------------------
-
-    function isValidFriendRequest(data) {
-      return data.keys().hasAll(['fromId', 'fromName', 'fromPhoto', 'toId', 'status', 'createdAt']) &&
-             data.fromId == request.auth.uid &&
-             data.status in ['pending', 'accepted', 'rejected'] &&
-             data.createdAt == request.time;
-    }
-
     match /friend_requests/{requestId} {
-      allow get: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow list: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow create: if isSignedIn() && isValidFriendRequest(incoming());
-      allow update: if isSignedIn() && (
-        (isOwner(existing().toId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt'])) ||
-        (isOwner(existing().fromId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
-      );
-      allow delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow read, write: if isSignedIn();
     }
   }
 }

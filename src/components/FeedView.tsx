@@ -118,6 +118,10 @@ export default function FeedView({
 
   // Fetch Posts from Firestore
   useEffect(() => {
+    if (!auth.currentUser || auth.currentUser.uid.startsWith('local_')) {
+      setLoading(false);
+      return;
+    }
     const q = query(
       collection(db, 'posts'),
       orderBy('time', 'desc')
