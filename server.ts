@@ -3,14 +3,455 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { initializeApp, getApps, getApp } from "firebase-admin/app";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import fs from "fs";
+import crypto from "crypto";
 
 dotenv.config();
+
+// Initialize Firebase Admin SDK for Server-Side Database Proxy
+const firebaseConfigRaw = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "firebase-applet-config.json"), "utf-8")
+);
+
+let app;
+if (getApps().length === 0) {
+  app = initializeApp({
+    projectId: firebaseConfigRaw.projectId
+  });
+} else {
+  app = getApp();
+}
+
+const fdb = getFirestore(app, firebaseConfigRaw.firestoreDatabaseId || "(default)");
+
+// Password hashing helper (uses secure native crypto to avoid native bcrypt compile issues on some devices)
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // ==================== REST DATABASE & AUTH PROXY ====================
+  
+  // Helper to validate REST session tokens
+  async function validateSession(req: express.Request) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return null;
+    }
+    const token = authHeader.split("Bearer ")[1];
+    const sessionDoc = await fdb.collection("user_sessions").doc(token).get();
+    if (!sessionDoc.exists) {
+      return null;
+    }
+    const session = sessionDoc.data()!;
+    if (session.expiresAt < Date.now()) {
+      await fdb.collection("user_sessions").doc(token).delete();
+      return null;
+    }
+    return session;
+  }
+
+  // 1. Custom Remote Register
+  app.post("/api/db/auth/register", async (req, res) => {
+    try {
+      const { email, password, displayName } = req.body;
+      if (!email || !password || !displayName) {
+        return res.status(400).json({ error: "Email, password, and display name are required" });
+      }
+
+      const emailKey = email.trim().toLowerCase();
+      const userRef = fdb.collection("app_users").doc(emailKey);
+      const userDoc = await userRef.get();
+
+      if (userDoc.exists) {
+        return res.status(400).json({ error: "User already exists with this email" });
+      }
+
+      const uid = "rest_" + crypto.createHash("md5").update(emailKey).digest("hex").substring(0, 12);
+      const passwordHash = hashPassword(password);
+
+      const newUser = {
+        uid,
+        email: emailKey,
+        passwordHash,
+        displayName: displayName.trim(),
+        hasanat: 0,
+        streak: 1,
+        createdAt: FieldValue.serverTimestamp(),
+        lastSeen: FieldValue.serverTimestamp(),
+        onboardingCompleted: true,
+        bookmarks: []
+      };
+
+      await userRef.set(newUser);
+
+      const token = "session_" + crypto.randomBytes(24).toString("hex");
+      await fdb.collection("user_sessions").doc(token).set({
+        uid,
+        email: emailKey,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Date.now() + 30 * 24 * 3600 * 1000 // 30 days
+      });
+
+      const { passwordHash: _, ...userResponse } = newUser;
+      res.json({ token, user: userResponse });
+    } catch (err: any) {
+      console.error("Register Error:", err);
+      res.status(500).json({ error: "Failed to register user", details: err?.message });
+    }
+  });
+
+  // 2. Custom Remote Login
+  app.post("/api/db/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      const emailKey = email.trim().toLowerCase();
+      const userRef = fdb.collection("app_users").doc(emailKey);
+      const userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        return res.status(400).json({ error: "Invalid email or password" });
+      }
+
+      const userData = userDoc.data()!;
+      const passwordHash = hashPassword(password);
+
+      if (userData.passwordHash !== passwordHash) {
+        return res.status(400).json({ error: "Invalid email or password" });
+      }
+
+      const token = "session_" + crypto.randomBytes(24).toString("hex");
+      await fdb.collection("user_sessions").doc(token).set({
+        uid: userData.uid,
+        email: emailKey,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Date.now() + 30 * 24 * 3600 * 1000 // 30 days
+      });
+
+      const { passwordHash: _, ...userResponse } = userData;
+      res.json({ token, user: userResponse });
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      res.status(500).json({ error: "Failed to login user", details: err?.message });
+    }
+  });
+
+  // 3. Sync Profile Data
+  app.post("/api/db/user/sync", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or expired session" });
+      }
+
+      const emailKey = session.email;
+      const { hasanat, streak, bookmarks, bio, displayName } = req.body;
+
+      const updateFields: any = {
+        lastSeen: FieldValue.serverTimestamp()
+      };
+      if (typeof hasanat === "number") updateFields.hasanat = hasanat;
+      if (typeof streak === "number") updateFields.streak = streak;
+      if (Array.isArray(bookmarks)) updateFields.bookmarks = bookmarks;
+      if (typeof bio === "string") updateFields.bio = bio;
+      if (typeof displayName === "string") updateFields.displayName = displayName;
+
+      await fdb.collection("app_users").doc(emailKey).update(updateFields);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Sync Error:", err);
+      res.status(500).json({ error: "Failed to sync user data", details: err?.message });
+    }
+  });
+
+  // 4. Get Synced Profile
+  app.get("/api/db/user/profile", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or expired session" });
+      }
+
+      const emailKey = session.email;
+      const userDoc = await fdb.collection("app_users").doc(emailKey).get();
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User profile not found" });
+      }
+
+      const userData = userDoc.data()!;
+      const { passwordHash: _, ...userResponse } = userData;
+      res.json({ user: userResponse });
+    } catch (err: any) {
+      console.error("Profile Fetch Error:", err);
+      res.status(500).json({ error: "Failed to retrieve profile", details: err?.message });
+    }
+  });
+
+  // 5. Add Feed Post via REST
+  app.post("/api/db/feed/posts", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { content, category, image, poll } = req.body;
+      const userDoc = await fdb.collection("app_users").doc(session.email).get();
+      const userDisplayName = userDoc.exists ? userDoc.data()!.displayName : "Spiritual Soul";
+
+      const postData = {
+        userId: session.uid,
+        user: userDisplayName,
+        content,
+        category: category || "Reminders",
+        time: Timestamp.now(),
+        supportCount: 0,
+        reconsiderCount: 0,
+        userVotes: {},
+        comments: [],
+        isFlagged: false,
+        approved: true,
+        image: image || null,
+        poll: poll || null
+      };
+
+      const docRef = await fdb.collection("posts").add(postData);
+      res.json({ id: docRef.id, ...postData });
+    } catch (err: any) {
+      console.error("Feed Post Add Error:", err);
+      res.status(500).json({ error: "Failed to add feed post" });
+    }
+  });
+
+  // 6. List Feed Posts via REST
+  app.get("/api/db/feed/posts", async (req, res) => {
+    try {
+      const snapshot = await fdb.collection("posts").orderBy("time", "desc").limit(50).get();
+      const list = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timeDisplay: data.time ? new Date(data.time.seconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"
+        };
+      });
+      res.json(list);
+    } catch (err: any) {
+      console.error("Feed Posts Fetch Error:", err);
+      res.status(500).json({ error: "Failed to fetch feed posts" });
+    }
+  });
+
+  // 7. Vote on Feed Post via REST
+  app.post("/api/db/feed/vote", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { postId, type } = req.body;
+      if (!postId || !type) {
+        return res.status(400).json({ error: "postId and type are required" });
+      }
+
+      const postRef = fdb.collection("posts").doc(postId);
+      const postDoc = await postRef.get();
+      if (!postDoc.exists) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      const postData = postDoc.data()!;
+      const userVotes = postData.userVotes || {};
+      const currentVote = userVotes[session.uid];
+
+      let supportChange = 0;
+      let reconsiderChange = 0;
+
+      if (currentVote === type) {
+        delete userVotes[session.uid];
+        if (type === "support") supportChange = -1;
+        else reconsiderChange = -1;
+      } else {
+        if (currentVote) {
+          if (currentVote === "support") supportChange = -1;
+          else reconsiderChange = -1;
+        }
+        userVotes[session.uid] = type;
+        if (type === "support") supportChange = 1;
+        else reconsiderChange = 1;
+      }
+
+      const updates = {
+        userVotes,
+        supportCount: FieldValue.increment(supportChange),
+        reconsiderCount: FieldValue.increment(reconsiderChange)
+      };
+
+      await postRef.update(updates);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Feed Vote Error:", err);
+      res.status(500).json({ error: "Failed to submit vote" });
+    }
+  });
+
+  // 8. Get Chat Rooms via REST
+  app.get("/api/db/chat/rooms", async (req, res) => {
+    try {
+      const snapshot = await fdb.collection("rooms").orderBy("timestamp", "desc").get();
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      res.json(list);
+    } catch (err: any) {
+      console.error("Chat Rooms Fetch Error:", err);
+      res.status(500).json({ error: "Failed to fetch chat rooms" });
+    }
+  });
+
+  // 8b. Create Chat Room via REST
+  app.post("/api/db/chat/rooms", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { title } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: "Room title is required" });
+      }
+
+      const roomData = {
+        title,
+        createdBy: session.uid,
+        timestamp: Timestamp.now()
+      };
+
+      const docRef = await fdb.collection("rooms").add(roomData);
+      res.json({ id: docRef.id, ...roomData });
+    } catch (err: any) {
+      console.error("Create Chat Room Error:", err);
+      res.status(500).json({ error: "Failed to create room" });
+    }
+  });
+
+  // 7b. Comment on Feed Post via REST
+  app.post("/api/db/feed/posts/:postId/comments", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { postId } = req.params;
+      const { text } = req.body;
+      if (!postId || !text) {
+        return res.status(400).json({ error: "postId and text are required" });
+      }
+
+      const postRef = fdb.collection("posts").doc(postId);
+      const postDoc = await postRef.get();
+      if (!postDoc.exists) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      const userDoc = await fdb.collection("app_users").doc(session.email).get();
+      const userDisplayName = userDoc.exists ? userDoc.data()!.displayName : "Spiritual Soul";
+
+      const newComment = {
+        id: `c-${Date.now()}`,
+        userId: session.uid,
+        user: userDisplayName,
+        text,
+        time: new Date().toISOString(),
+        replies: []
+      };
+
+      const postData = postDoc.data()!;
+      const comments = postData.comments || [];
+      comments.push(newComment);
+
+      await postRef.update({ comments });
+      res.json({ success: true, comment: newComment });
+    } catch (err: any) {
+      console.error("Feed Comment Error:", err);
+      res.status(500).json({ error: "Failed to submit comment" });
+    }
+  });
+
+  // 9. Send Chat Message via REST
+  app.post("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { roomId } = req.params;
+      const { text, type } = req.body;
+
+      const userDoc = await fdb.collection("app_users").doc(session.email).get();
+      const userDisplayName = userDoc.exists ? userDoc.data()!.displayName : "Spiritual Soul";
+
+      const messageData = {
+        userId: session.uid,
+        user: userDisplayName,
+        text: text || "",
+        type: type || "text",
+        timestamp: Timestamp.now()
+      };
+
+      await fdb.collection("rooms").doc(roomId).collection("messages").add(messageData);
+      res.json({ success: true, message: messageData });
+    } catch (err: any) {
+      console.error("Send Chat Message Error:", err);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // 10. Get Chat Messages for Room via REST
+  app.get("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const snapshot = await fdb
+        .collection("rooms")
+        .doc(roomId)
+        .collection("messages")
+        .orderBy("timestamp", "asc")
+        .limit(100)
+        .get();
+
+      const list = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp ? { seconds: data.timestamp.seconds, nanoseconds: data.timestamp.nanoseconds } : null
+        };
+      });
+      res.json(list);
+    } catch (err: any) {
+      console.error("Chat Messages Fetch Error:", err);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  // ==================== END REST DATABASE & AUTH PROXY ====================
 
   // Gemini API Proxy
   app.post("/api/ai/chat", async (req, res) => {
