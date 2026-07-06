@@ -611,6 +611,43 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     }
   });
 
+  // Audio CDN Proxy (Bypasses browser CORS / Mixed-Content restrictions in sandbox/iframes)
+  app.get("/api/proxy/audio", async (req, res) => {
+    try {
+      const audioUrl = req.query.url as string;
+      if (!audioUrl) {
+        return res.status(400).json({ error: "Missing url parameter" });
+      }
+      
+      const secureUrl = audioUrl.replace(/^http:/, 'https:');
+      if (!secureUrl.startsWith("https://cdn.alquran.cloud/") && !secureUrl.startsWith("https://everyayah.com/")) {
+        return res.status(403).json({ error: "Forbidden URL domain" });
+      }
+
+      console.log(`Proxying audio request to: ${secureUrl}`);
+      const response = await fetch(secureUrl);
+      if (!response.ok) {
+        throw new Error(`Upstream returned status ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (contentType) {
+        res.setHeader("Content-Type", contentType);
+      }
+      const contentLength = response.headers.get("content-length");
+      if (contentLength) {
+        res.setHeader("Content-Length", contentLength);
+      }
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      const arrayBuffer = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (err: any) {
+      console.error("Audio proxy error:", err);
+      res.status(502).json({ error: "Failed to proxy audio file", details: err?.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
