@@ -46,8 +46,8 @@ if (!firebaseConfig.apiKey) {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use indexedDB persistence for the best balance of security and longevity in mobile webviews
-setPersistence(auth, indexedDBLocalPersistence).catch(err => {
+// Use browser local persistence as requested to ensure session survival across tabs and reloads
+setPersistence(auth, browserLocalPersistence).catch(err => {
   console.error("Persistence setting failed", err);
 });
 
@@ -76,27 +76,11 @@ export const testConnection = async () => {
 };
 
 export const signInWithGoogle = async () => {
-  try {
-    // We prefer popup even on mobile for AI Studio environment to prevent losing iframe state
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error: any) {
-    console.error("Error signing in with Google", error);
-    // If popup is blocked, fails or is closed prematurely, we re-throw to AuthView
-    // which advises the user on how to proceed.
-    throw error;
-  }
+  await signInWithRedirect(auth, googleProvider);
 };
 
 export const signInWithGithub = async () => {
-  try {
-    // We prefer popup even on mobile for AI Studio environment to prevent losing iframe state
-    const result = await signInWithPopup(auth, githubProvider);
-    return result.user;
-  } catch (error: any) {
-    console.error("Error signing in with GitHub", error);
-    throw error;
-  }
+  await signInWithRedirect(auth, githubProvider);
 };
 
 export const handleRedirectResult = async () => {

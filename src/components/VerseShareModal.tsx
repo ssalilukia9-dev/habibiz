@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Download, Share2, Copy, Check, Type, Sparkles, Image as ImageIcon, Eye, FileText, Smartphone } from 'lucide-react';
+import { X, Download, Share2, Copy, Check, Type, Sparkles, Image as ImageIcon, Eye, FileText, Smartphone, Send, MessageSquare } from 'lucide-react';
 import { notificationService } from '../services/notificationService';
 
 interface AyahToShare {
@@ -431,6 +431,30 @@ export default function VerseShareModal({ ayah, onClose }: VerseShareModalProps)
     setTimeout(() => setCopiedType(null), 2500);
   };
 
+  const shareToPlatform = (platform: 'whatsapp' | 'twitter' | 'telegram' | 'facebook') => {
+    const textToShare = `"${getCleanText(ayah.text)}"\n\n"${getCleanText(ayah.translation)}"\n\n— Surah ${ayah.surahName}, Ayah ${ayah.numberInSurah} (Shared via Habibi Sanctuary)`;
+    const appUrl = window.location.origin;
+    let url = '';
+
+    switch (platform) {
+      case 'whatsapp':
+        url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textToShare)}`;
+        break;
+      case 'twitter':
+        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(textToShare)}`;
+        break;
+      case 'telegram':
+        url = `https://t.me/share/url?url=${encodeURIComponent(appUrl)}&text=${encodeURIComponent(textToShare)}`;
+        break;
+      case 'facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(appUrl)}&quote=${encodeURIComponent(textToShare)}`;
+        break;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+    notificationService.notify('Redirecting...', `Opening ${platform.toUpperCase()} to share!`, 'system');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
       <motion.div 
@@ -652,6 +676,45 @@ export default function VerseShareModal({ ayah, onClose }: VerseShareModalProps)
               >
                 {showWatermark ? 'Hide Watermark' : 'Show Watermark'}
               </button>
+            </div>
+
+            {/* Direct Social Media Platform Sharing */}
+            <div className="space-y-2 p-4 bg-white/5 rounded-2xl border border-white/5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Direct Platform Share</label>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  onClick={() => shareToPlatform('whatsapp')}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer active:scale-95"
+                  title="Share on WhatsApp"
+                >
+                  <MessageSquare size={18} />
+                  <span className="text-[9px] font-bold mt-1 uppercase tracking-wider">WhatsApp</span>
+                </button>
+                <button
+                  onClick={() => shareToPlatform('twitter')}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 text-sky-400 hover:text-sky-300 transition-all cursor-pointer active:scale-95"
+                  title="Share on Twitter / X"
+                >
+                  <Share2 size={18} />
+                  <span className="text-[9px] font-bold mt-1 uppercase tracking-wider">Twitter/X</span>
+                </button>
+                <button
+                  onClick={() => shareToPlatform('telegram')}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 hover:text-blue-300 transition-all cursor-pointer active:scale-95"
+                  title="Share on Telegram"
+                >
+                  <Send size={18} />
+                  <span className="text-[9px] font-bold mt-1 uppercase tracking-wider">Telegram</span>
+                </button>
+                <button
+                  onClick={() => shareToPlatform('facebook')}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-all cursor-pointer active:scale-95"
+                  title="Share on Facebook"
+                >
+                  <Smartphone size={18} />
+                  <span className="text-[9px] font-bold mt-1 uppercase tracking-wider">Facebook</span>
+                </button>
+              </div>
             </div>
 
           </div>

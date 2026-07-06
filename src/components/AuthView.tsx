@@ -16,7 +16,8 @@ import {
 import { 
   signInAnon,
   signInWithGoogle,
-  signInWithGithub
+  signInWithGithub,
+  handleRedirectResult
 } from '../lib/firebase';
 import { restDbClient } from '../lib/restDbClient';
 
@@ -56,6 +57,25 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       }
     }
   }, []);
+
+  useEffect(() => {
+    // Check if we are returning from a redirect auth flow
+    const checkRedirect = async () => {
+      try {
+        setLoading(true);
+        const user = await handleRedirectResult();
+        if (user) {
+          onSuccess();
+        }
+      } catch (err: any) {
+        console.error("Redirect authentication error:", err);
+        setError(err.message || "Redirect authentication failed. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkRedirect();
+  }, [onSuccess]);
 
   const handleInstantJoin = async (e: React.FormEvent) => {
     e.preventDefault();

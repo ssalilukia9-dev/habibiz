@@ -29,11 +29,12 @@ import {
   Crown,
   Terminal,
   Volume2,
-  Clock
+  Clock,
+  HelpCircle
 } from 'lucide-react';
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
 import { Surah, Ayah } from './types.ts';
-import { auth, signInWithGoogle, db } from './lib/firebase.ts';
+import { auth, signInWithGoogle, db, handleRedirectResult } from './lib/firebase.ts';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { restDbClient } from './lib/restDbClient.ts';
 import { 
@@ -77,6 +78,7 @@ import SplashScreen from './components/SplashScreen.tsx';
 import UmmahHubView from './components/UmmahHubView.tsx';
 import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
+import WalkthroughTour from './components/WalkthroughTour.tsx';
 
 export default function App() {
   const navigate = useNavigate();
@@ -94,6 +96,7 @@ export default function App() {
   const [topUserId, setTopUserId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumActivatedAt, setPremiumActivatedAt] = useState<Date | null>(null);
@@ -135,6 +138,20 @@ export default function App() {
       recognitionRef.current.onend = () => setIsListening(false);
     }
   }, []);
+
+  // Auto-trigger tour on first-time login
+  useEffect(() => {
+    if (currentUser && !needsOnboarding && !authLoading) {
+      const tourCompleted = localStorage.getItem('sanctuary_tour_completed');
+      if (!tourCompleted) {
+        const timer = setTimeout(() => {
+          setShowTour(true);
+          localStorage.setItem('sanctuary_tour_completed', 'true');
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentUser, needsOnboarding, authLoading]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -763,6 +780,21 @@ export default function App() {
         window.location.reload();
       });
     }
+  }, []);
+
+  useEffect(() => {
+    // Complete the redirect-based authentication sign-in flow
+    const completeRedirectAuth = async () => {
+      try {
+        const user = await handleRedirectResult();
+        if (user) {
+          console.log("Logged in:", user);
+        }
+      } catch (err) {
+        console.error("Firebase redirect auth failed to resolve:", err);
+      }
+    };
+    completeRedirectAuth();
   }, []);
 
   useEffect(() => {
@@ -1478,6 +1510,13 @@ export default function App() {
               {darkMode ? <Sun size={14} className="text-brand-primary" /> : <Moon size={14} className="text-brand-primary" />}
            </button>
            <button 
+              onClick={() => setShowTour(true)}
+              className="w-8 h-8 rounded-full border border-brand-border bg-white/5 flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-brand-primary transition-colors"
+              title="Spiritual Tour & Guide"
+           >
+              <HelpCircle size={14} />
+           </button>
+           <button 
              onClick={() => setIsSidebarOpen(true)}
              className="p-1 text-slate-400 hover:text-white transition-colors"
              title="Open Navigation"
@@ -1672,6 +1711,13 @@ export default function App() {
                 className="w-10 h-10 rounded-full border border-brand-border bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors shadow-lg shadow-brand-primary/5"
              >
                 {darkMode ? <Sun size={18} className="text-brand-primary" /> : <Moon size={18} className="text-brand-primary" />}
+             </button>
+             <button 
+                onClick={() => setShowTour(true)}
+                className="w-10 h-10 rounded-full border border-brand-border bg-white/5 flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-brand-primary transition-colors shadow-lg shadow-brand-primary/5"
+                title="Spiritual Tour & Guide"
+             >
+                <HelpCircle size={18} />
              </button>
              <div className="flex items-baseline gap-1.5 px-3 py-1.5 bg-brand-primary/10 rounded-full border border-brand-primary/20">
                 <span className="text-[10px] font-black text-brand-primary uppercase">Hasanat</span>
@@ -1901,6 +1947,13 @@ export default function App() {
         </>
       )}
       </AnimatePresence>
+
+      <WalkthroughTour 
+        isOpen={showTour} 
+        onClose={() => setShowTour(false)} 
+        onNavigate={handleNavigate} 
+        addHasanat={addHasanat} 
+      />
     </div>
   );
 }

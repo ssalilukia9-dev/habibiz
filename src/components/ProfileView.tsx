@@ -696,10 +696,7 @@ export default function ProfileView({
                   <button
                     onClick={async () => {
                       try {
-                        const fbUser = await signInWithGoogle();
-                        if (fbUser) {
-                          window.location.reload();
-                        }
+                        await signInWithGoogle();
                       } catch (err: any) {
                         console.error("Secure with Google failed:", err);
                         alert("Secure with Google failed. If you are inside the preview iframe, open a standalone browser window first using the button above.");
@@ -713,10 +710,7 @@ export default function ProfileView({
                   <button
                     onClick={async () => {
                       try {
-                        const fbUser = await signInWithGithub();
-                        if (fbUser) {
-                          window.location.reload();
-                        }
+                        await signInWithGithub();
                       } catch (err: any) {
                         console.error("Secure with GitHub failed:", err);
                         alert("Secure with GitHub failed. If you are inside the preview iframe, open a standalone browser window first using the button above.");
