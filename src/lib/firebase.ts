@@ -11,7 +11,8 @@ import {
   signInAnonymously,
   setPersistence,
   browserLocalPersistence,
-  indexedDBLocalPersistence
+  indexedDBLocalPersistence,
+  User
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -75,6 +76,8 @@ export const testConnection = async () => {
   }
 };
 
+let redirectPromise: Promise<User | null> | null = null;
+
 export const signInWithGoogle = async () => {
   await signInWithRedirect(auth, googleProvider);
 };
@@ -84,13 +87,18 @@ export const signInWithGithub = async () => {
 };
 
 export const handleRedirectResult = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    return result?.user || null;
-  } catch (error) {
-    console.error("Error handling redirect result", error);
-    throw error;
+  if (!redirectPromise) {
+    redirectPromise = (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        return result?.user || null;
+      } catch (error) {
+        console.error("Error handling redirect result", error);
+        throw error;
+      }
+    })();
   }
+  return redirectPromise;
 };
 
 export const signInWithEmail = async (email: string, pass: string) => {

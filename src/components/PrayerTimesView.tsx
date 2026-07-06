@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 import { notificationService } from '../services/notificationService.ts';
+import WaveformVisualizer from './WaveformVisualizer.tsx';
 
 interface PrayerTime {
   name: string;
@@ -641,9 +642,19 @@ export default function PrayerTimesView() {
                    </div>
                 </div>
                 
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">{adhan.location}</p>
                   <h4 className="text-2xl font-black text-white tracking-tight">{adhan.title}</h4>
+                  {playingAdhan === adhan.id && (
+                    <div className="pt-2">
+                      <WaveformVisualizer 
+                        audioElement={audioRef.current} 
+                        isPlaying={playingAdhan === adhan.id && !audioRef.current?.paused} 
+                        theme="adhan" 
+                        height={24} 
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -803,6 +814,17 @@ export default function PrayerTimesView() {
                   </>
                 )}
               </button>
+              
+              {testingAdhan && (
+                <div className="py-2 px-4 bg-white/5 rounded-2xl border border-white/10">
+                  <WaveformVisualizer 
+                    audioElement={audioRef.current} 
+                    isPlaying={testingAdhan && !audioRef.current?.paused} 
+                    theme="adhan" 
+                    height={30} 
+                  />
+                </div>
+              )}
               
               <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 pl-1">
                 <span>Reminders Status:</span>

@@ -27,6 +27,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
 import VerseShareModal from './VerseShareModal.tsx';
+import WaveformVisualizer from './WaveformVisualizer.tsx';
 
 interface SurahDetailProps {
   surah: Surah;
@@ -118,6 +119,57 @@ export default function SurahDetail({
   const [downloadingAyah, setDownloadingAyah] = useState<number | null>(null);
   const [downloadingAyahProgress, setDownloadingAyahProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prefetchedAyahsRef = useRef<Set<number>>(new Set());
+
+  const prefetchSingleAyah = async (nextAyah: any) => {
+    if (nextAyah.audioBlob || prefetchedAyahsRef.current.has(nextAyah.number)) return;
+    
+    prefetchedAyahsRef.current.add(nextAyah.number);
+    console.log(`Silently prefetching Ayah ${nextAyah.numberInSurah} in the background...`);
+    
+    try {
+      const secureAudioUrl = nextAyah.audio ? nextAyah.audio.replace(/^http:/, 'https:') : undefined;
+      if (!secureAudioUrl) return;
+
+      const res = await fetch(secureAudioUrl, { mode: 'cors' });
+      if (!res.ok) throw new Error("Audio prefetch failed");
+      
+      const blob = await res.blob();
+      
+      setAyahs(currentAyahs => {
+        const updated = currentAyahs.map(a => 
+          a.number === nextAyah.number ? { ...a, audioBlob: blob } : a
+        );
+        // Persist offline
+        offlineService.saveAyahs(surah.number, updated, selectedReciter).catch(err => {
+          console.warn("Failed to persist prefetched ayah offline:", err);
+        });
+        return updated;
+      });
+      
+      console.log(`Successfully prefetched Ayah ${nextAyah.numberInSurah} and cached it offline.`);
+    } catch (e) {
+      console.warn(`Failed to prefetch audio for ayah ${nextAyah.numberInSurah}:`, e);
+      prefetchedAyahsRef.current.delete(nextAyah.number);
+    }
+  };
+
+  const prefetchNextAyahs = async (currentAyahNumber: number) => {
+    const currentIndex = ayahs.findIndex(a => a.number === currentAyahNumber);
+    if (currentIndex === -1) return;
+
+    // Prefetch up to 3 verses ahead
+    const nextIndices = [currentIndex + 1, currentIndex + 2, currentIndex + 3];
+    
+    for (const idx of nextIndices) {
+      if (idx < ayahs.length) {
+        const nextAyah = ayahs[idx];
+        if (nextAyah.audio && !nextAyah.audioBlob && downloadingAyah !== nextAyah.number) {
+          prefetchSingleAyah(nextAyah);
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -260,6 +312,9 @@ export default function SurahDetail({
     
     setIsAudioLoading(ayah.number);
     setBufferingProgress(0);
+    
+    // Start prefetching the next 3 verses in the background to avoid stopping when reciting
+    prefetchNextAyahs(ayah.number);
     
     try {
       let localUrl;
@@ -781,9 +836,20 @@ export default function SurahDetail({
          <motion.div 
            initial={{ y: 100, opacity: 0 }}
            animate={{ y: 0, opacity: 1 }}
-           className="glass-panel-purple border-brand-primary/30 p-3 md:p-4 rounded-[2.5rem] shadow-2xl backdrop-blur-3xl flex items-center gap-3 md:gap-6"
+           className="glass-panel-purple border-brand-primary/30 p-3 md:p-4 rounded-[2rem] shadow-2xl backdrop-blur-3xl flex flex-col gap-2 md:gap-3"
          >
-           {/* Current Ayah / Status */}
+           {/* Real-time D3 Waveform Visualizer */}
+           <div className="px-4 pt-1 pb-1">
+             <WaveformVisualizer 
+               audioElement={audioRef.current} 
+               isPlaying={!!playingAyah && !audioRef.current?.paused} 
+               theme="quran" 
+               height={32} 
+             />
+           </div>
+
+           <div className="flex items-center justify-between w-full">
+             {/* Current Ayah / Status */}
             <div className="flex items-center gap-3 px-2 md:px-4 border-r border-white/10">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth relative overflow-hidden">
                  {isAudioLoading ? (
@@ -879,6 +945,7 @@ export default function SurahDetail({
                 <span className="text-[7px] font-black uppercase tracking-tighter">Focus</span>
               </button>
            </div>
+          </div>
          </motion.div>
       </div>
     </div>
