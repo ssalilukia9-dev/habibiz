@@ -35,6 +35,7 @@ import {
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
 import { Surah, Ayah } from './types.ts';
 import { auth, signInWithGoogle, db, handleRedirectResult } from './lib/firebase.ts';
+import { authStatePersistence } from './lib/authStatePersistence.ts';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { restDbClient } from './lib/restDbClient.ts';
 import { 
@@ -783,376 +784,398 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Complete the redirect-based authentication sign-in flow
-    const completeRedirectAuth = async () => {
+    let unsubscribe: (() => void) | null = null;
+    let isCancelled = false;
+
+    const initializeAuth = async () => {
+      setAuthLoading(true);
+
+      // 1. Complete the redirect-based authentication sign-in flow first to prevent race conditions
       try {
         const user = await handleRedirectResult();
         if (user) {
-          console.log("Logged in:", user);
+          console.log("Logged in via robust redirect result:", user);
         }
       } catch (err) {
         console.error("Firebase redirect auth failed to resolve:", err);
+      } finally {
+        // Confirm the redirect result is fully processed in the dedicated persistence layer
+        authStatePersistence.markAsProcessed();
       }
-    };
-    completeRedirectAuth();
-  }, []);
 
-  useEffect(() => {
-    // Intercept with secure custom REST Cloud Sync Account (highly optimized for Capacitor / Android APKs)
-    if (restDbClient.isLoggedIn()) {
-      const u = restDbClient.getUser();
-      if (u) {
-        const simulatedUser = {
-          uid: u.uid,
-          email: u.email,
-          displayName: u.displayName,
-          photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.uid}`
-        };
-        setCurrentUser(simulatedUser);
+      if (isCancelled) return;
+
+      // 2. Intercept with secure custom REST Cloud Sync Account (highly optimized for Capacitor / Android APKs)
+      if (restDbClient.isLoggedIn()) {
+        const u = restDbClient.getUser();
+        if (u) {
+          const simulatedUser = {
+            uid: u.uid,
+            email: u.email,
+            displayName: u.displayName,
+            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.uid}`
+          };
+          setCurrentUser(simulatedUser);
+          setAuthLoading(false);
+          setHasanat(u.hasanat || 0);
+          setStreak(u.streak || 0);
+          setNeedsOnboarding(false);
+          
+          // Fetch fresh copy from server in the background
+          restDbClient.getProfile().then(latestUser => {
+            if (isCancelled) return;
+            setHasanat(latestUser.hasanat || 0);
+            setStreak(latestUser.streak || 0);
+            if (Array.isArray(latestUser.bookmarks)) {
+              setBookmarks(latestUser.bookmarks);
+            }
+          }).catch(e => {
+            console.warn("Initial REST profile fetch failed, using local cached profile details", e);
+          });
+          return;
+        }
+      }
+
+      // Generate simulated user if local session is active
+      const checkLocalSession = () => {
+        const isLocal = localStorage.getItem('local-session-active') === 'true';
+        const savedEmail = localStorage.getItem('saved-auth-email');
+        if (isLocal && savedEmail) {
+          const uid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+          return {
+            uid,
+            email: savedEmail,
+            displayName: savedEmail.split('@')[0],
+            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
+            isAnonymous: true,
+            emailVerified: false,
+            providerData: []
+          };
+        }
+        return null;
+      };
+
+      const localUser = checkLocalSession();
+
+      // If we have a local session, force-resolve auth screen early if needed (only if redirect is already fully processed)
+      if (localUser && authStatePersistence.isRedirectProcessed()) {
         setAuthLoading(false);
-        setHasanat(u.hasanat || 0);
-        setStreak(u.streak || 0);
-        setNeedsOnboarding(false);
-        
-        // Fetch fresh copy from server in the background
-        restDbClient.getProfile().then(latestUser => {
-          setHasanat(latestUser.hasanat || 0);
-          setStreak(latestUser.streak || 0);
-          if (Array.isArray(latestUser.bookmarks)) {
-            setBookmarks(latestUser.bookmarks);
-          }
-        }).catch(e => {
-          console.warn("Initial REST profile fetch failed, using local cached profile details", e);
-        });
-        return;
       }
-    }
 
-    // Generate simulated user if local session is active
-    const checkLocalSession = () => {
-      const isLocal = localStorage.getItem('local-session-active') === 'true';
-      const savedEmail = localStorage.getItem('saved-auth-email');
-      if (isLocal && savedEmail) {
-        const uid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
-        return {
-          uid,
-          email: savedEmail,
-          displayName: savedEmail.split('@')[0],
-          photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
-          isAnonymous: true,
-          emailVerified: false,
-          providerData: []
-        };
-      }
-      return null;
-    };
-
-    const localUser = checkLocalSession();
-
-    // If we have a local session, force-resolve auth screen early if needed
-    if (localUser) {
-      setAuthLoading(false);
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      // Prioritize firebase user, fall back to virtual simulated local user
-      const user = fbUser || localUser || checkLocalSession();
-      if (user) {
-        setCurrentUser(user);
+      // 3. Register standard Firebase Auth state observer only after handling redirect result
+      unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (isCancelled) return;
         
-        try {
-          let userRef = doc(db, 'users', user.uid);
-          let docSnap: any = null;
+        // Ensure redirect result is fully processed and confirmed in the persistence layer before allowing UI boot
+        await authStatePersistence.waitForRedirect();
+        if (isCancelled) return;
+
+        // Prioritize firebase user, fall back to virtual simulated local user
+        const user = fbUser || localUser || checkLocalSession();
+        if (user) {
+          setCurrentUser(user);
+          notificationService.setOneSignalUser(user.uid, user.email || undefined);
           
-          const savedEmail = localStorage.getItem('saved-auth-email');
-          let migratedLocalData: any = null;
-          const isTransitioning = !user.uid.startsWith('local_') && localStorage.getItem('local-session-active') === 'true';
-          
-          if (isTransitioning && savedEmail) {
-            const localUid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
-            const localProfileKey = `sanctuary_profile_${localUid}`;
-            const localProfileRaw = localStorage.getItem(localProfileKey);
-            if (localProfileRaw) {
-              try {
-                migratedLocalData = JSON.parse(localProfileRaw);
-              } catch (e) {
-                console.warn("Failed to parse local profile for migrating payload", e);
+          try {
+            let userRef = doc(db, 'users', user.uid);
+            let docSnap: any = null;
+            
+            const savedEmail = localStorage.getItem('saved-auth-email');
+            let migratedLocalData: any = null;
+            const isTransitioning = !user.uid.startsWith('local_') && localStorage.getItem('local-session-active') === 'true';
+            
+            if (isTransitioning && savedEmail) {
+              const localUid = 'local_' + btoa(savedEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+              const localProfileKey = `sanctuary_profile_${localUid}`;
+              const localProfileRaw = localStorage.getItem(localProfileKey);
+              if (localProfileRaw) {
+                try {
+                  migratedLocalData = JSON.parse(localProfileRaw);
+                } catch (e) {
+                  console.warn("Failed to parse local profile for migrating payload", e);
+                }
               }
             }
-          }
-          
-          if (user.uid.startsWith('local_')) {
-            const cacheKey = `sanctuary_profile_${user.uid}`;
-            const localDataRaw = localStorage.getItem(cacheKey);
-            docSnap = {
-              exists: () => !!localDataRaw,
-              data: () => localDataRaw ? JSON.parse(localDataRaw) : null
-            };
-          } else {
-            try {
-              docSnap = await getDoc(userRef);
-            } catch (dbErr) {
-              console.warn("Firestore blocked, falling back to local profile replication...", dbErr);
-              const cacheKey = `sanctuary_cache_profile_${user.uid}`;
+            
+            if (user.uid.startsWith('local_')) {
+              const cacheKey = `sanctuary_profile_${user.uid}`;
               const localDataRaw = localStorage.getItem(cacheKey);
               docSnap = {
                 exists: () => !!localDataRaw,
                 data: () => localDataRaw ? JSON.parse(localDataRaw) : null
               };
-            }
-          }
-          
-          if (docSnap && !docSnap.exists() && !user.uid.startsWith('local_')) {
-            const targetEmail = (user.email || savedEmail || '').toLowerCase();
-            if (targetEmail) {
+            } else {
               try {
-                const usersColl = collection(db, 'users');
-                const qEmail = query(usersColl, where('email', '==', targetEmail));
-                const qEmailSnap = await getDocs(qEmail);
-                if (!qEmailSnap.empty) {
-                  // Direct pre-provisioned template exists in users collection!
-                  const existingDoc = qEmailSnap.docs[0];
-                  const existingData = existingDoc.data();
-                  
-                  // Re-provision at the authentic authenticated UID
-                  userRef = doc(db, 'users', user.uid);
-                  await setDoc(userRef, {
-                    ...existingData,
-                    uid: user.uid,
-                    lastSeen: serverTimestamp(),
-                    onboardingCompleted: true // preloaded profiles ready to engage
-                  });
-                  
-                  // Delete the placeholder if it was different
-                  if (existingDoc.id !== user.uid) {
-                    await deleteDoc(doc(db, 'users', existingDoc.id));
+                docSnap = await getDoc(userRef);
+              } catch (dbErr) {
+                console.warn("Firestore blocked, falling back to local profile replication...", dbErr);
+                const cacheKey = `sanctuary_cache_profile_${user.uid}`;
+                const localDataRaw = localStorage.getItem(cacheKey);
+                docSnap = {
+                  exists: () => !!localDataRaw,
+                  data: () => localDataRaw ? JSON.parse(localDataRaw) : null
+                };
+              }
+            }
+            
+            if (docSnap && !docSnap.exists() && !user.uid.startsWith('local_')) {
+              const targetEmail = (user.email || savedEmail || '').toLowerCase();
+              if (targetEmail) {
+                try {
+                  const usersColl = collection(db, 'users');
+                  const qEmail = query(usersColl, where('email', '==', targetEmail));
+                  const qEmailSnap = await getDocs(qEmail);
+                  if (!qEmailSnap.empty) {
+                    // Direct pre-provisioned template exists in users collection!
+                    const existingDoc = qEmailSnap.docs[0];
+                    const existingData = existingDoc.data();
+                    
+                    // Re-provision at the authentic authenticated UID
+                    userRef = doc(db, 'users', user.uid);
+                    await setDoc(userRef, {
+                      ...existingData,
+                      uid: user.uid,
+                      lastSeen: serverTimestamp(),
+                      onboardingCompleted: true // preloaded profiles ready to engage
+                    });
+                    
+                    // Delete the placeholder if it was different
+                    if (existingDoc.id !== user.uid) {
+                      await deleteDoc(doc(db, 'users', existingDoc.id));
+                    }
+                    
+                    docSnap = await getDoc(userRef);
+                    console.log("Adopted pre-provisioned profile successfully!");
                   }
-                  
-                  docSnap = await getDoc(userRef);
-                  console.log("Adopted pre-provisioned profile successfully!");
+                } catch (e) {
+                  console.warn("Pre-provisioned adoption error:", e);
+                }
+              }
+            }
+
+            if (docSnap && !docSnap.exists() && savedEmail && !user.uid.startsWith('local_')) {
+              try {
+                // Check if there is an existing secondary profile mapping under this email
+                const emailProfileRef = doc(db, 'profiles', savedEmail.toLowerCase());
+                const emailProfileSnap = await getDoc(emailProfileRef);
+                if (emailProfileSnap.exists()) {
+                  const profileData = emailProfileSnap.data();
+                  if (profileData.uid && profileData.uid !== user.uid) {
+                    // Instantly bind to the existing user profile UID!
+                    userRef = doc(db, 'users', profileData.uid);
+                    docSnap = await getDoc(userRef);
+                  }
                 }
               } catch (e) {
-                console.warn("Pre-provisioned adoption error:", e);
+                console.warn("Secondary profile resolve failed or blocked", e);
               }
             }
-          }
+            
+            if (docSnap && docSnap.exists()) {
+              const data = docSnap.data();
+              
+              let updatedHasanat = data.hasanat || 0;
+              let updatedStreak = data.streak || 0;
+              let updatedVersesRead = data.versesRead || 0;
+              let updatedDuaCount = data.duaCount || 0;
+              let updatedBio = data.bio || '';
+              let updatedDisplayName = data.displayName || user.displayName || '';
 
-          if (docSnap && !docSnap.exists() && savedEmail && !user.uid.startsWith('local_')) {
-            try {
-              // Check if there is an existing secondary profile mapping under this email
-              const emailProfileRef = doc(db, 'profiles', savedEmail.toLowerCase());
-              const emailProfileSnap = await getDoc(emailProfileRef);
-              if (emailProfileSnap.exists()) {
-                const profileData = emailProfileSnap.data();
-                if (profileData.uid && profileData.uid !== user.uid) {
-                  // Instantly bind to the existing user profile UID!
-                  userRef = doc(db, 'users', profileData.uid);
-                  docSnap = await getDoc(userRef);
+              if (migratedLocalData) {
+                updatedHasanat += (migratedLocalData.hasanat || 0);
+                updatedStreak = Math.max(updatedStreak, migratedLocalData.streak || 0);
+                updatedVersesRead += (migratedLocalData.versesRead || 0);
+                updatedDuaCount += (migratedLocalData.duaCount || 0);
+                if (!updatedBio && migratedLocalData.bio) updatedBio = migratedLocalData.bio;
+                if ((!updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) && migratedLocalData.displayName) {
+                  updatedDisplayName = migratedLocalData.displayName;
                 }
-              }
-            } catch (e) {
-              console.warn("Secondary profile resolve failed or blocked", e);
-            }
-          }
-          
-          if (docSnap && docSnap.exists()) {
-            const data = docSnap.data();
-            
-            let updatedHasanat = data.hasanat || 0;
-            let updatedStreak = data.streak || 0;
-            let updatedVersesRead = data.versesRead || 0;
-            let updatedDuaCount = data.duaCount || 0;
-            let updatedBio = data.bio || '';
-            let updatedDisplayName = data.displayName || user.displayName || '';
-
-            if (migratedLocalData) {
-              updatedHasanat += (migratedLocalData.hasanat || 0);
-              updatedStreak = Math.max(updatedStreak, migratedLocalData.streak || 0);
-              updatedVersesRead += (migratedLocalData.versesRead || 0);
-              updatedDuaCount += (migratedLocalData.duaCount || 0);
-              if (!updatedBio && migratedLocalData.bio) updatedBio = migratedLocalData.bio;
-              if ((!updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) && migratedLocalData.displayName) {
-                updatedDisplayName = migratedLocalData.displayName;
-              }
-              
-              try {
-                await updateDoc(userRef, {
-                  hasanat: updatedHasanat,
-                  streak: updatedStreak,
-                  versesRead: updatedVersesRead,
-                  duaCount: updatedDuaCount,
-                  bio: updatedBio,
-                  displayName: updatedDisplayName,
-                  lastSeen: serverTimestamp()
-                });
-              } catch (uErr) {
-                console.warn("Failed to write migrated local data directly to firestore:", uErr);
-              }
-              
-              localStorage.removeItem('local-session-active');
-              setTimeout(() => {
-                notificationService.notify('Progress Secured', `Masha'Allah! Your local guest profile content (${migratedLocalData.hasanat || 0} Hasanat) has been merged and secured in the cloud.`, 'system');
-              }, 1000);
-            }
-
-            const rawPremium = data.isPremium || migratedLocalData?.isPremium || false;
-            let rawActivatedAt = data.premiumActivatedAt 
-              ? (data.premiumActivatedAt.toDate ? data.premiumActivatedAt.toDate() : new Date(data.premiumActivatedAt)) 
-              : (migratedLocalData?.premiumActivatedAt ? new Date(migratedLocalData.premiumActivatedAt) : null);
-            
-            if (rawPremium && !rawActivatedAt) {
-              rawActivatedAt = new Date();
-              if (!user.uid.startsWith('local_')) {
+                
                 try {
-                  updateDoc(userRef, { premiumActivatedAt: serverTimestamp() });
-                } catch (err) {
-                  console.warn("Failed to set default premiumActivatedAt", err);
+                  await updateDoc(userRef, {
+                    hasanat: updatedHasanat,
+                    streak: updatedStreak,
+                    versesRead: updatedVersesRead,
+                    duaCount: updatedDuaCount,
+                    bio: updatedBio,
+                    displayName: updatedDisplayName,
+                    lastSeen: serverTimestamp()
+                  });
+                } catch (uErr) {
+                  console.warn("Failed to write migrated local data directly to firestore:", uErr);
                 }
-              } else {
-                const key = `sanctuary_profile_${user.uid}`;
-                const localDataRaw = localStorage.getItem(key);
-                if (localDataRaw) {
-                  const localData = JSON.parse(localDataRaw);
-                  localData.premiumActivatedAt = rawActivatedAt.toISOString();
-                  localStorage.setItem(key, JSON.stringify(localData));
-                }
+                
+                localStorage.removeItem('local-session-active');
+                setTimeout(() => {
+                  notificationService.notify('Progress Secured', `Masha'Allah! Your local guest profile content (${migratedLocalData.hasanat || 0} Hasanat) has been merged and secured in the cloud.`, 'system');
+                }, 1000);
               }
-            }
 
-            let finalPremium = rawPremium;
-            if (rawPremium && rawActivatedAt) {
-              const elapsed = Date.now() - rawActivatedAt.getTime();
-              const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-              if (elapsed >= thirtyDays) {
-                finalPremium = false;
+              const rawPremium = data.isPremium || migratedLocalData?.isPremium || false;
+              let rawActivatedAt = data.premiumActivatedAt 
+                ? (data.premiumActivatedAt.toDate ? data.premiumActivatedAt.toDate() : new Date(data.premiumActivatedAt)) 
+                : (migratedLocalData?.premiumActivatedAt ? new Date(migratedLocalData.premiumActivatedAt) : null);
+              
+              if (rawPremium && !rawActivatedAt) {
+                rawActivatedAt = new Date();
                 if (!user.uid.startsWith('local_')) {
                   try {
-                    updateDoc(userRef, { isPremium: false });
+                    updateDoc(userRef, { premiumActivatedAt: serverTimestamp() });
                   } catch (err) {
-                    console.warn("Failed to auto-expire premium on Firestore", err);
+                    console.warn("Failed to set default premiumActivatedAt", err);
                   }
                 } else {
                   const key = `sanctuary_profile_${user.uid}`;
                   const localDataRaw = localStorage.getItem(key);
                   if (localDataRaw) {
                     const localData = JSON.parse(localDataRaw);
-                    localData.isPremium = false;
+                    localData.premiumActivatedAt = rawActivatedAt.toISOString();
                     localStorage.setItem(key, JSON.stringify(localData));
                   }
                 }
               }
-            }
 
-            setIsPremium(finalPremium);
-            setPremiumActivatedAt(finalPremium ? rawActivatedAt : null);
-            setUserJoinedAt(data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date());
-            setHasanat(updatedHasanat);
-            
-            // If onboarding specifically hasn't been completed
-            if (data.onboardingCompleted === false || !updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) {
-              setNeedsOnboarding(true);
-            } else {
-              setNeedsOnboarding(false);
-            }
-          } else {
-            // Document doesn't exist? Create a minimal one to establish presence
-            const savedEmailOrEmpty = savedEmail || '';
-            const tempOnboardingName = localStorage.getItem('temp_onboarding_name');
-            const defaultDisplayName = tempOnboardingName || migratedLocalData?.displayName || (user as any).displayName || (user.email ? user.email.split('@')[0] : (savedEmailOrEmpty ? savedEmailOrEmpty.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`));
-            
-            if (tempOnboardingName) {
-              localStorage.removeItem('temp_onboarding_name');
-            }
+              let finalPremium = rawPremium;
+              if (rawPremium && rawActivatedAt) {
+                const elapsed = Date.now() - rawActivatedAt.getTime();
+                const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+                if (elapsed >= thirtyDays) {
+                  finalPremium = false;
+                  if (!user.uid.startsWith('local_')) {
+                    try {
+                      updateDoc(userRef, { isPremium: false });
+                    } catch (err) {
+                      console.warn("Failed to auto-expire premium on Firestore", err);
+                    }
+                  } else {
+                    const key = `sanctuary_profile_${user.uid}`;
+                    const localDataRaw = localStorage.getItem(key);
+                    if (localDataRaw) {
+                      const localData = JSON.parse(localDataRaw);
+                      localData.isPremium = false;
+                      localStorage.setItem(key, JSON.stringify(localData));
+                    }
+                  }
+                }
+              }
 
-            const newProfile: any = {
-              uid: user.uid,
-              email: user.email || savedEmailOrEmpty,
-              emailVerified: (user as any).emailVerified || false,
-              displayName: defaultDisplayName,
-              photoURL: migratedLocalData?.photoURL || (user as any).photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-              hasanat: migratedLocalData?.hasanat || 0,
-              streak: migratedLocalData?.streak || 0,
-              versesRead: migratedLocalData?.versesRead || 0,
-              duaCount: migratedLocalData?.duaCount || 0,
-              bio: migratedLocalData?.bio || '',
-              isPremium: migratedLocalData?.isPremium || false,
-              onboardingCompleted: migratedLocalData?.onboardingCompleted || false
-            };
-            
-            if (user.uid.startsWith('local_')) {
-              newProfile.createdAt = new Date().toISOString();
-              newProfile.lastSeen = new Date().toISOString();
-              localStorage.setItem(`sanctuary_profile_${user.uid}`, JSON.stringify(newProfile));
+              setIsPremium(finalPremium);
+              setPremiumActivatedAt(finalPremium ? rawActivatedAt : null);
+              setUserJoinedAt(data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date());
+              setHasanat(updatedHasanat);
+              
+              // If onboarding specifically hasn't been completed
+              if (data.onboardingCompleted === false || !updatedDisplayName || updatedDisplayName.startsWith('Seeker_')) {
+                setNeedsOnboarding(true);
+              } else {
+                setNeedsOnboarding(false);
+              }
             } else {
-              try {
-                await setDoc(userRef, {
-                  ...newProfile,
-                  createdAt: serverTimestamp(),
-                  lastSeen: serverTimestamp()
-                });
-              } catch (setErr) {
-                console.warn("onboarding initial setDoc failed, cache set instead", setErr);
+              // Document doesn't exist? Create a minimal one to establish presence
+              const savedEmailOrEmpty = savedEmail || '';
+              const tempOnboardingName = localStorage.getItem('temp_onboarding_name');
+              const defaultDisplayName = tempOnboardingName || migratedLocalData?.displayName || (user as any).displayName || (user.email ? user.email.split('@')[0] : (savedEmailOrEmpty ? savedEmailOrEmpty.split('@')[0] : `Seeker_${user.uid.substring(0, 5)}`));
+              
+              if (tempOnboardingName) {
+                localStorage.removeItem('temp_onboarding_name');
+              }
+
+              const newProfile: any = {
+                uid: user.uid,
+                email: user.email || savedEmailOrEmpty,
+                emailVerified: (user as any).emailVerified || false,
+                displayName: defaultDisplayName,
+                photoURL: migratedLocalData?.photoURL || (user as any).photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                hasanat: migratedLocalData?.hasanat || 0,
+                streak: migratedLocalData?.streak || 0,
+                versesRead: migratedLocalData?.versesRead || 0,
+                duaCount: migratedLocalData?.duaCount || 0,
+                bio: migratedLocalData?.bio || '',
+                isPremium: migratedLocalData?.isPremium || false,
+                onboardingCompleted: migratedLocalData?.onboardingCompleted || false
+              };
+              
+              if (user.uid.startsWith('local_')) {
                 newProfile.createdAt = new Date().toISOString();
                 newProfile.lastSeen = new Date().toISOString();
-                localStorage.setItem(`sanctuary_cache_profile_${user.uid}`, JSON.stringify(newProfile));
-              }
+                localStorage.setItem(`sanctuary_profile_${user.uid}`, JSON.stringify(newProfile));
+              } else {
+                try {
+                  await setDoc(userRef, {
+                    ...newProfile,
+                    createdAt: serverTimestamp(),
+                    lastSeen: serverTimestamp()
+                  });
+                } catch (setErr) {
+                  console.warn("onboarding initial setDoc failed, cache set instead", setErr);
+                  newProfile.createdAt = new Date().toISOString();
+                  newProfile.lastSeen = new Date().toISOString();
+                  localStorage.setItem(`sanctuary_cache_profile_${user.uid}`, JSON.stringify(newProfile));
+                }
 
-              if (migratedLocalData) {
-                localStorage.removeItem('local-session-active');
-                setTimeout(() => {
-                  notificationService.notify('Profile Secured', `Masha'Allah! Your temporary profile has been secured. Welcome to the Cloud Sanctuary!`, 'system');
-                }, 1000);
+                if (migratedLocalData) {
+                  localStorage.removeItem('local-session-active');
+                  setTimeout(() => {
+                    notificationService.notify('Profile Secured', `Masha'Allah! Your temporary profile has been secured. Welcome to the Cloud Sanctuary!`, 'system');
+                  }, 1000);
+                }
               }
+              setHasanat(newProfile.hasanat || 0);
+              setIsPremium(newProfile.isPremium || false);
+              setPremiumActivatedAt(newProfile.premiumActivatedAt ? new Date(newProfile.premiumActivatedAt) : null);
+              setNeedsOnboarding(newProfile.onboardingCompleted === false);
             }
-            setHasanat(newProfile.hasanat || 0);
-            setIsPremium(newProfile.isPremium || false);
-            setPremiumActivatedAt(newProfile.premiumActivatedAt ? new Date(newProfile.premiumActivatedAt) : null);
-            setNeedsOnboarding(newProfile.onboardingCompleted === false);
-          }
- 
-          // Background update for lastSeen
-          if (user.uid.startsWith('local_')) {
-            const key = `sanctuary_profile_${user.uid}`;
-            const existingRaw = localStorage.getItem(key);
-            if (existingRaw) {
-              const existing = JSON.parse(existingRaw);
-              existing.lastSeen = new Date().toISOString();
-              localStorage.setItem(key, JSON.stringify(existing));
-            }
-          } else {
-            updateDoc(userRef, {
-              lastSeen: serverTimestamp()
-            }).catch(() => {
-              const key = `sanctuary_cache_profile_${user.uid}`;
+     
+            // Background update for lastSeen
+            if (user.uid.startsWith('local_')) {
+              const key = `sanctuary_profile_${user.uid}`;
               const existingRaw = localStorage.getItem(key);
               if (existingRaw) {
                 const existing = JSON.parse(existingRaw);
                 existing.lastSeen = new Date().toISOString();
                 localStorage.setItem(key, JSON.stringify(existing));
               }
-            });
+            } else {
+              updateDoc(userRef, {
+                lastSeen: serverTimestamp()
+              }).catch(() => {
+                const key = `sanctuary_cache_profile_${user.uid}`;
+                const existingRaw = localStorage.getItem(key);
+                if (existingRaw) {
+                  const existing = JSON.parse(existingRaw);
+                  existing.lastSeen = new Date().toISOString();
+                  localStorage.setItem(key, JSON.stringify(existing));
+                }
+              });
+            }
+            
+          } catch (error: any) {
+            console.error("Auth sync error:", error);
+          } finally {
+            if (!isCancelled) setAuthLoading(false);
           }
-          
-        } catch (error: any) {
-          console.error("Auth sync error:", error);
-        } finally {
-          setAuthLoading(false);
-        }
-      } else {
-        // If there's an active local session flag but fbUser is null, double-check local user setup
-        const localSessionActive = localStorage.getItem('local-session-active') === 'true';
-        if (localSessionActive && localUser) {
-          setCurrentUser(localUser);
-          setAuthLoading(false);
         } else {
-          setCurrentUser(null);
-          setHasanat(0);
-          setNeedsOnboarding(false);
-          setAuthLoading(false);
+          // If there's an active local session flag but fbUser is null, double-check local user setup
+          const localSessionActive = localStorage.getItem('local-session-active') === 'true';
+          if (localSessionActive && localUser) {
+            setCurrentUser(localUser);
+            if (!isCancelled) setAuthLoading(false);
+          } else {
+            setCurrentUser(null);
+            setHasanat(0);
+            setNeedsOnboarding(false);
+            if (!isCancelled) setAuthLoading(false);
+          }
         }
-      }
-    });
-    return () => unsubscribe();
+      });
+    };
+
+    initializeAuth();
+
+    return () => {
+      isCancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Auto-sync REST user data with server database (Android-compatible Cloud Database)
@@ -1179,6 +1202,8 @@ export default function App() {
     try {
       localStorage.removeItem('local-session-active');
       localStorage.removeItem('saved-auth-email');
+      authStatePersistence.clear();
+      notificationService.clearOneSignalUser();
       if (restDbClient.isLoggedIn()) {
         restDbClient.logout();
       }
@@ -1197,7 +1222,7 @@ export default function App() {
   useEffect(() => {
     // Request notification permission on mount
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      notificationService.requestPermission();
     }
 
     // Initial welcome or daily hadith

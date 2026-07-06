@@ -1,6 +1,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import OneSignal from 'react-onesignal';
 
 export interface AppNotification {
   id: string;
@@ -20,6 +21,59 @@ class NotificationService {
     this.loadFromStorage();
     this.setupCapacitorListeners();
     this.initChannels();
+    this.initOneSignal();
+  }
+
+  async initOneSignal() {
+    const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
+    if (!appId) {
+      console.warn("OneSignal VITE_ONESIGNAL_APP_ID is not configured in environment variables. Web Push is inactive.");
+      return;
+    }
+
+    try {
+      console.log("Initializing OneSignal Web Push with App ID:", appId);
+      await OneSignal.init({
+        appId: appId,
+        allowLocalhostAsSecureOrigin: true,
+        notifyButton: {
+          enable: false, // Custom UI will handle prompting
+        } as any,
+      });
+      console.log("OneSignal initialized successfully!");
+    } catch (err) {
+      console.error("OneSignal initialization failed gracefully:", err);
+    }
+  }
+
+  async setOneSignalUser(userId: string, email?: string) {
+    const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
+    if (!appId) return;
+
+    try {
+      // Modern Web SDK V16 syntax support
+      if (OneSignal.login) {
+        await OneSignal.login(userId);
+      }
+      if (email && OneSignal.User?.addTag) {
+        await OneSignal.User.addTag("email", email);
+      }
+    } catch (e) {
+      console.warn("Setting OneSignal user info failed gracefully:", e);
+    }
+  }
+
+  async clearOneSignalUser() {
+    const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
+    if (!appId) return;
+
+    try {
+      if (OneSignal.logout) {
+        await OneSignal.logout();
+      }
+    } catch (e) {
+      console.warn("Clearing OneSignal user failed gracefully:", e);
+    }
   }
 
   async initChannels() {
@@ -156,6 +210,21 @@ class NotificationService {
     }
 
     const permission = await Notification.requestPermission();
+    
+    // OneSignal subscription request if appId is configured
+    const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
+    if (appId && permission === 'granted') {
+      try {
+        if (OneSignal.Notifications?.requestPermission) {
+          await OneSignal.Notifications.requestPermission();
+          console.log("OneSignal push permission request processed.");
+        } else if ((OneSignal as any).registerForPushNotifications) {
+          await (OneSignal as any).registerForPushNotifications();
+        }
+      } catch (e) {
+        console.warn("OneSignal permission request failed gracefully:", e);
+      }
+    }
     
     // Median bridge specific push registration
     if (permission === 'granted' && ((window as any).median || (window as any).gonative)) {

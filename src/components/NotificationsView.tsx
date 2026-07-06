@@ -110,6 +110,47 @@ export default function NotificationsView() {
           )}
         </div>
       )}
+
+      {/* OneSignal Status Banner */}
+      <div className="mx-4 bg-purple-500/10 border border-purple-500/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group shadow-xl shadow-purple-500/5">
+        <div className="flex items-center gap-5">
+          <div className="w-14 h-14 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400">
+            <Zap size={32} />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-lg font-black text-white uppercase tracking-tight italic flex items-center gap-3">
+              OneSignal Web Push
+              {import.meta.env.VITE_ONESIGNAL_APP_ID ? (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase animate-pulse">
+                  Active
+                </span>
+              ) : (
+                <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase">
+                  Simulated
+                </span>
+              )}
+            </h3>
+            <p className="text-sm text-purple-300/80 font-medium">
+              {import.meta.env.VITE_ONESIGNAL_APP_ID 
+                ? "Your browser is successfully integrated with our cloud-to-device push gateway."
+                : "Add VITE_ONESIGNAL_APP_ID in your env config to enable deep browser background alerts."}
+            </p>
+          </div>
+        </div>
+        {import.meta.env.VITE_ONESIGNAL_APP_ID ? (
+          <button 
+            onClick={handleRequestPermission}
+            className="w-full md:w-auto px-6 py-3 bg-purple-500 hover:bg-purple-600 text-brand-depth font-black text-[10px] uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-500/20 cursor-pointer"
+          >
+            Link / Subscribe
+          </button>
+        ) : (
+          <div className="px-4 py-2 bg-white/5 border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl">
+            Local Push Active
+          </div>
+        )}
+      </div>
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4">
         <div>
           <h2 className="text-4xl font-black text-white tracking-tight flex items-center gap-4">
