@@ -30,6 +30,20 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
     }
   };
 
+  // Custom API Server URL State
+  const [customApiUrl, setCustomApiUrl] = useState(() => {
+    return localStorage.getItem('custom_api_base_url') || '';
+  });
+
+  const saveApiUrl = (url: string) => {
+    setCustomApiUrl(url);
+    if (url.trim()) {
+      localStorage.setItem('custom_api_base_url', url.trim());
+    } else {
+      localStorage.removeItem('custom_api_base_url');
+    }
+  };
+
   // Offline Mode Setting
   const [offlineMode, setOfflineMode] = useState(() => {
     return localStorage.getItem('offline-mode') === 'true';
@@ -615,47 +629,88 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
         </div>
       </section>
 
-      {/* AI Configuration Section */}
+      {/* AI & Gateway Configuration Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-400/60 flex items-center gap-3">
-          <Sparkles size={14} /> AI Configuration
+          <Sparkles size={14} /> AI & Gateway Configuration
         </h3>
-        <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl p-8 space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="w-1 h-4 bg-indigo-400 rounded-full" />
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Aliyah Companion Key</p>
-          </div>
-          
-          <p className="text-xs text-slate-400 leading-relaxed">
-            If you are running Sanctuary on a custom deployment (such as Netlify) or as an APK on mobile, the built-in server-side AI proxy is unavailable. Paste your free Google Gemini API Key here to run Aliyah completely client-side.
-          </p>
+        <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl p-8 space-y-8">
+          {/* Companion Key */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-1 h-4 bg-indigo-400 rounded-full" />
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Aliyah Companion Key</p>
+            </div>
+            
+            <p className="text-xs text-slate-400 leading-relaxed">
+              If you are running Sanctuary on a custom deployment (such as Netlify) or as an APK on mobile, the built-in server-side AI proxy is unavailable. Paste your free Google Gemini API Key here to run Aliyah completely client-side.
+            </p>
 
-          <div className="space-y-2">
-            <input
-              type="password"
-              placeholder="AIzaSy..."
-              value={customGeminiKey}
-              onChange={(e) => saveGeminiKey(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-indigo-400/50 focus:outline-none transition-all selection:bg-indigo-500/30 font-mono"
-            />
-            <div className="flex justify-between items-center px-1">
-              <a 
-                href="https://aistudio.google.com/app/apikey" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="text-[10px] font-black text-indigo-400 hover:text-white uppercase tracking-wider transition-colors flex items-center gap-1"
-              >
-                Get Free API Key <ChevronRight size={10} />
-              </a>
-              {customGeminiKey.trim() ? (
-                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
-                  <CheckCircle2 size={10} /> Saved locally
+            <div className="space-y-2">
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={customGeminiKey}
+                onChange={(e) => saveGeminiKey(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-indigo-400/50 focus:outline-none transition-all selection:bg-indigo-500/30 font-mono"
+              />
+              <div className="flex justify-between items-center px-1">
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-[10px] font-black text-indigo-400 hover:text-white uppercase tracking-wider transition-colors flex items-center gap-1"
+                >
+                  Get Free API Key <ChevronRight size={10} />
+                </a>
+                {customGeminiKey.trim() ? (
+                  <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Saved locally
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-black uppercase text-amber-500/60 tracking-wider">
+                    Using hosted server by default
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-white/5" />
+
+          {/* Custom API Base URL */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-1 h-4 bg-purple-400 rounded-full" />
+              <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em]">Sync API Gateway URL</p>
+            </div>
+            
+            <p className="text-xs text-slate-400 leading-relaxed">
+              For native mobile apps (APK/iOS) or offline sync testing, specify the absolute URL of the hosted Sanctuary backend server.
+            </p>
+
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="https://your-deployment.run.app"
+                value={customApiUrl}
+                onChange={(e) => saveApiUrl(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-purple-400/50 focus:outline-none transition-all selection:bg-purple-500/30 font-mono"
+              />
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[9px] text-slate-500 font-bold">
+                  Leave blank to use default auto-detection.
                 </span>
-              ) : (
-                <span className="text-[9px] font-black uppercase text-amber-500/60 tracking-wider">
-                  Using hosted server by default
-                </span>
-              )}
+                {customApiUrl.trim() ? (
+                  <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Custom Gateway Active
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-black uppercase text-purple-400/80 tracking-wider animate-pulse">
+                    Auto-Detect Fallback Active
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -168,16 +168,16 @@ class OfflineService {
         const ayahData = await ayahRes.json();
         
         // Structure the data to match expected APP types
-        const uthmani = ayahData.data[0].ayahs;
-        const translation = ayahData.data[1].ayahs;
-        const audio = ayahData.data[2].ayahs;
+        const uthmani = ayahData.data?.[0]?.ayahs || [];
+        const translation = ayahData.data?.[1]?.ayahs || [];
+        const audio = ayahData.data?.[2]?.ayahs || [];
 
         const combinedAyahs: Ayah[] = uthmani.map((a: any, idx: number) => ({
           number: a.number,
           text: a.text,
           numberInSurah: a.numberInSurah,
-          translation: translation[idx].text,
-          audio: audio[idx].audio ? audio[idx].audio.replace(/^http:/, 'https:') : undefined
+          translation: translation[idx]?.text || "",
+          audio: audio[idx]?.audio ? audio[idx].audio.replace(/^http:/, 'https:') : undefined
         }));
 
         await this.saveAyahs(i, combinedAyahs);
@@ -212,16 +212,16 @@ class OfflineService {
           const ayahRes = await fetch(`/api/proxy/alquran/surah/${i}/editions/quran-uthmani,en.sahih,${reciter.slug}`);
           const ayahData = await ayahRes.json();
           
-          const uthmani = ayahData.data[0].ayahs;
-          const translation = ayahData.data[1].ayahs;
-          const audio = ayahData.data[2].ayahs;
+          const uthmani = ayahData.data?.[0]?.ayahs || [];
+          const translation = ayahData.data?.[1]?.ayahs || [];
+          const audio = ayahData.data?.[2]?.ayahs || [];
 
           ayahs = uthmani.map((a: any, idx: number) => ({
             number: a.number,
             text: a.text,
             numberInSurah: a.numberInSurah,
-            translation: translation[idx].text,
-            audio: audio[idx].audio ? audio[idx].audio.replace(/^http:/, 'https:') : undefined
+            translation: translation[idx]?.text || "",
+            audio: audio[idx]?.audio ? audio[idx].audio.replace(/^http:/, 'https:') : undefined
           }));
         }
 

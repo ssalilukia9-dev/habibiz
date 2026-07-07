@@ -143,7 +143,7 @@ export default function JuzDetail({
               ...a,
               audio: secureAudio,
               surahName: surahInfo?.englishName || a.surah.englishName,
-              translation: dataTrans.data.ayahs[idx].text,
+              translation: dataTrans.data?.ayahs?.[idx]?.text || "",
               audioBlob: cached?.audio === secureAudio ? cached.audioBlob : undefined
             };
           }));

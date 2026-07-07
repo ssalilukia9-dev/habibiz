@@ -9,24 +9,35 @@ const getRawFetch = () => {
 };
 
 export const getApiBaseUrl = () => {
-  // Check if we're running as a native app (Capacitor)
-  // Native apps typically run on capacitor://localhost or http://localhost
-  const isWeb = typeof window !== 'undefined' && 
-    !window.location.href.startsWith('capacitor://') && 
-    !window.location.href.startsWith('http://localhost') &&
-    !window.location.href.startsWith('https://localhost');
+  if (typeof window === 'undefined') return '';
 
-  if (isWeb) {
+  // In Capacitor, the app runs on capacitor://localhost (iOS) or http://localhost (Android, with NO port or standard port)
+  // In regular browsers, local development always has a port (e.g., 3000, 5173).
+  const isCapacitor = 
+    window.location.href.startsWith('capacitor://') ||
+    (window.location.hostname === 'localhost' && !window.location.port) ||
+    (window.location.hostname === '127.0.0.1' && !window.location.port);
+
+  if (!isCapacitor) {
     // On web, relative paths work perfectly as the backend and frontend share the same origin
     return '';
   }
   
+  // Check localStorage for a custom configured API URL (useful for troubleshooting/testing)
+  const customUrl = localStorage.getItem('custom_api_base_url');
+  if (customUrl) {
+    return customUrl.endsWith('/') ? customUrl.slice(0, -1) : customUrl;
+  }
+
   // For Native (iOS/Android), we need an absolute production URL to reach the hosted backend
   // The user should set VITE_PRODUCTION_API_URL in their hosted environment (e.g., Netlify/Vercel)
   const productionUrl = import.meta.env.VITE_PRODUCTION_API_URL || '';
+  if (productionUrl) {
+    return productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
+  }
   
-  // Ensure we don't have a trailing slash for consistency
-  return productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
+  // Fallback to the active Cloud Run development server for seamless out-of-the-box Capacitor support
+  return 'https://ais-dev-p6nimnue2dep6nfjkp4jd6-520387765455.europe-west2.run.app';
 };
 
 /**
@@ -39,8 +50,12 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
   // 1. Detect if we are on a client-only static hosting like Netlify, Vercel, or a native app (Capacitor/Cordova)
   const isContainerEnvironment = isWeb && (
     window.location.hostname.endsWith('.run.app') || 
-    (window.location.hostname === 'localhost' && window.location.port === '3000') ||
-    (window.location.hostname === '127.0.0.1' && window.location.port === '3000')
+    window.location.hostname.includes('run.app') ||
+    window.location.hostname.includes('googleusercontent.com') ||
+    window.location.hostname.includes('aistudio.google.com') ||
+    window.location.hostname === '' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
   );
 
   // If we are NOT in a container environment, we should immediately fallback to direct upstream URLs for proxies
@@ -51,12 +66,8 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
     const subPath = path.replace(/^\/api\/proxy\/alquran\//, '');
     const upstreamUrl = `https://api.alquran.cloud/v1/${subPath}`;
     
-    if (shouldBypassProxy) {
-      console.log(`Bypassing proxy. Fetching Alquran Cloud directly: ${upstreamUrl}`);
-      return originalFetch(upstreamUrl, options);
-    }
-    
-    // Otherwise try local proxy but fallback to upstream if local fails
+    // We always attempt the local proxy first because CORS/Mixed-Content restricts direct upstream fetches inside the iframe.
+    // If it returns 404 or fails, we fall back to direct fetch.
     try {
       const baseUrl = getApiBaseUrl();
       const localUrl = `${baseUrl}${path}`;
@@ -76,11 +87,6 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
   if (path.startsWith('/api/proxy/aladhan/')) {
     const subPath = path.replace(/^\/api\/proxy\/aladhan\//, '');
     const upstreamUrl = `https://api.aladhan.com/v1/${subPath}`;
-
-    if (shouldBypassProxy) {
-      console.log(`Bypassing proxy. Fetching Aladhan directly: ${upstreamUrl}`);
-      return originalFetch(upstreamUrl, options);
-    }
 
     try {
       const baseUrl = getApiBaseUrl();

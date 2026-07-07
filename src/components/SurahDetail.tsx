@@ -272,7 +272,7 @@ export default function SurahDetail({
             return {
               ...a,
               audio: secureAudio,
-              translation: dataTrans.data.ayahs[idx].text,
+              translation: dataTrans.data?.ayahs?.[idx]?.text || "",
               // Persist audio blob if URLs match
               audioBlob: cached?.audio === secureAudio ? cached.audioBlob : undefined
             };
