@@ -581,7 +581,12 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/aladhan\//, '');
       const targetUrl = `https://api.aladhan.com/v1/${subPath}`;
       console.log(`Proxying Aladhan request to: ${targetUrl}`);
-      const response = await fetch(targetUrl);
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
       if (!response.ok) {
         throw new Error(`Upstream returned status ${response.status}`);
       }
@@ -599,7 +604,12 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/alquran\//, '');
       const targetUrl = `https://api.alquran.cloud/v1/${subPath}`;
       console.log(`Proxying Alquran request to: ${targetUrl}`);
-      const response = await fetch(targetUrl);
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
       if (!response.ok) {
         throw new Error(`Upstream returned status ${response.status}`);
       }
@@ -620,28 +630,105 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       }
       
       const secureUrl = audioUrl.replace(/^http:/, 'https:');
-      if (!secureUrl.startsWith("https://cdn.alquran.cloud/") && !secureUrl.startsWith("https://everyayah.com/")) {
+      let isAllowed = false;
+      let host = "";
+      try {
+        const parsed = new URL(secureUrl);
+        host = parsed.hostname.toLowerCase();
+        const allowedHosts = [
+          "cdn.alquran.cloud",
+          "everyayah.com",
+          "cdn.everyayah.com",
+          "audio.qurancdn.com",
+          "verses.quran.com",
+          "download.quranicaudio.com",
+          "mirrors.quranicaudio.com",
+          "quranicaudio.com",
+          "quran.com",
+          "cdn.alhamdulillah.com",
+          "audio.alhamdulillah.com",
+          "alhamdulillah.com",
+          "cdn.islamic.network",
+          "islamic.network",
+          "mp3quran.net",
+          "assets.mixkit.co",
+          "islamcan.com",
+          "www.islamcan.com",
+          "archive.org",
+          "www.archive.org",
+          "translate.google.com",
+          "translate.google.co.uk",
+          "islamicfinder.org",
+          "www.islamicfinder.org"
+        ];
+        isAllowed = allowedHosts.some(h => host === h || host.endsWith("." + h));
+      } catch (e) {
+        isAllowed = false;
+      }
+
+      if (!isAllowed) {
+        console.warn(`Audio proxy blocked request for forbidden host: ${host} (URL: ${secureUrl})`);
         return res.status(403).json({ error: "Forbidden URL domain" });
       }
 
-      console.log(`Proxying audio request to: ${secureUrl}`);
-      const response = await fetch(secureUrl);
-      if (!response.ok) {
+      console.log(`Proxying audio request with ranges support to: ${secureUrl}`);
+      
+      const headers: Record<string, string> = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*"
+      };
+
+      // Forward Range header if requested by browser's HTML5 player
+      if (req.headers.range) {
+        headers["Range"] = req.headers.range;
+      }
+
+      const response = await fetch(secureUrl, { headers });
+      
+      if (!response.ok && response.status !== 206) {
         throw new Error(`Upstream returned status ${response.status}`);
       }
 
-      const contentType = response.headers.get("content-type");
-      if (contentType) {
-        res.setHeader("Content-Type", contentType);
-      }
-      const contentLength = response.headers.get("content-length");
-      if (contentLength) {
-        res.setHeader("Content-Length", contentLength);
-      }
+      // Propagate original response status (e.g. 206 Partial Content or 200 OK)
+      res.status(response.status);
+      
+      const headersToForward = [
+        "content-type",
+        "content-length",
+        "content-range",
+        "accept-ranges"
+      ];
+
+      headersToForward.forEach(h => {
+        const val = response.headers.get(h);
+        if (val) {
+          res.setHeader(h, val);
+        }
+      });
+
       res.setHeader("Access-Control-Allow-Origin", "*");
 
-      const arrayBuffer = await response.arrayBuffer();
-      res.send(Buffer.from(arrayBuffer));
+      if (response.body) {
+        const { Readable } = await import("stream");
+        const nodeReadable = Readable.from(
+          (async function* () {
+            const reader = response.body!.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) return;
+                yield value;
+              }
+            } finally {
+              reader.releaseLock();
+            }
+          })()
+        );
+        nodeReadable.pipe(res);
+      } else {
+        const arrayBuffer = await response.arrayBuffer();
+        res.send(Buffer.from(arrayBuffer));
+      }
     } catch (err: any) {
       console.error("Audio proxy error:", err);
       res.status(502).json({ error: "Failed to proxy audio file", details: err?.message });
