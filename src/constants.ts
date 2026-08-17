@@ -164,3 +164,138 @@ export const RECITERS = [
   { id: 12, name: 'Hani ar-Rifai', slug: 'ar.hanirifai', sub: 'Emotional delivery' },
   { id: 11, name: 'Abdul Bari Ath-Thubaity', slug: 'ar.thubaity', sub: 'Steady and powerful' }
 ];
+
+export const GLOBAL_ADHAN_LIST = [
+  {
+    id: 'makkah',
+    title: 'Masjid Al-Haram',
+    name: 'Makkah Adhan (Sheikh Ali Ahmad Mala)',
+    location: 'Makkah Al-Mukarramah, Saudi Arabia',
+    maqam: 'Maqam Hijaz',
+    duration: '3:45',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Ali_Ibn_Ahmad_Mala_6_-_Al_Haram_Al_Maki_(%D8%B9%D9%84%D9%8A_%D8%A8%D9%86_%D8%A3%D8%AD%D9%85%D8%AF_%D9%85%D9%84%D8%A7_-_%D8%A7%D9%84%D8%AD%D8%B1%D9%85_%D8%A7%D9%84%D9%85%D9%83%D9%8A).mp3',
+    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=1200',
+    description: 'The iconic, timeless call from the Kaaba in Makkah by Chief Muezzin Sheikh Ali Mala.'
+  },
+  {
+    id: 'madinah',
+    title: 'Masjid An-Nabawi',
+    name: 'Madinah Adhan (Haram Al-Madani)',
+    location: 'Al-Madinah Al-Munawwarah, Saudi Arabia',
+    maqam: 'Maqam Bayati',
+    duration: '3:58',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Adhan_Al_Haram_Al_Madani_-_Al_Madinah_1_(%D8%A3%D8%B0%D8%A7%D9%86_%D8%A7%D9%84%D8%AD%D8%B1%D9%85_%D8%A7%D9%84%D9%85%D8%AF%D9%86%D9%8A_-_%D8%A7%D9%84%D9%85%D8%AF%D9%8A%D9%86%D8%A9_%D8%A7%D9%84%D9%85%D9%86%D9%88%D8%B1%D8%A9).mp3',
+    image: 'https://images.unsplash.com/photo-1597401411513-41c37f7a771a?auto=format&fit=crop&q=80&w=1200',
+    description: 'Soothing and profound call reverberating through the green dome of the Prophet’s Mosque.'
+  },
+  {
+    id: 'mishary',
+    title: 'Grand Mosque of Kuwait',
+    name: 'Kuwait Adhan (Sheikh Mishary Rashid Alafasy)',
+    location: 'Kuwait City, Kuwait',
+    maqam: 'Maqam Kurd & Rast',
+    duration: '3:30',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Mishary_Rashid_Alafasy_2_-_Kuwait_(%D9%85%D8%B4%D8%A7%D8%B1%D9%8A_%D8%B1%D8%A7%D8%B4%D8%AF_%D8%A7%D9%84%D8%B9%D9%81%D8%A7%D8%B3%D9%8A_-_%D8%A7%D9%84%D9%83%D9%88%D9%8A%D8%AA).mp3',
+    image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=1200',
+    description: 'Deeply emotive and resonant recitation beloved by millions across the globe.'
+  },
+  {
+    id: 'fajr',
+    title: 'Makkah Dawn Adhan',
+    name: 'Fajr Adhan (Al-Haram Al-Maki Special)',
+    location: 'Makkah Al-Mukarramah',
+    maqam: 'Maqam Saba (Dawn)',
+    duration: '4:15',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Adhan_Fajr_Al_Haram_Al_Maki_(%D8%A3%D8%B0%D8%A7%D9%86_%D8%A7%D9%84%D9%81%D8%AC%D8%B1_%D8%A7%D9%84%D8%AD%D8%B1%D9%85_%D8%A7%D9%84%D9%85%D9%83%D9%8A).mp3',
+    image: 'https://images.unsplash.com/photo-1542385151-efd9000785a0?auto=format&fit=crop&q=80&w=1200',
+    description: 'Includes the sacred dawn phrase: "الصَّلَاةُ خَيْرٌ مِنَ النَّوْمِ" (Prayer is better than sleep).'
+  },
+  {
+    id: 'aqsa',
+    title: 'Masjid Al-Aqsa',
+    name: 'Al-Aqsa Adhan (Sheikh NurDin Hamza Al-Maghriby)',
+    location: 'Al-Quds / Jerusalem, Palestine',
+    maqam: 'Maqam Sikah & Hijaz',
+    duration: '3:40',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/NurDin_Hamza_Al_Maghriby_-_Al_Aqsa_Jerusalem_(%D9%86%D9%88%D8%B1_%D8%A7%D9%84%D8%AF%D9%8A%D9%86_%D8%AD%D9%85%D8%B2%D8%A9_%D8%A7%D9%84%D9%85%D8%BA%D8%B1%D8%A8%D9%8A_-_%D8%A7%D9%84%D9%85%D8%B3%D8%AC%D8%AF_%D8%A7%D9%84%D8%A3%D9%82%D8%B5%D9%89_%D8%A7%D9%84%D9%82%D8%AF%D8%B3).mp3',
+    image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1200',
+    description: 'Soulful call from the third holiest sanctuary in Islam, echoing over the golden dome.'
+  },
+  {
+    id: 'egypt',
+    title: 'Al-Azhar & Cairo Heritage',
+    name: 'Cairo Adhan (Sheikh Mohamed Siddiq El-Minshawi)',
+    location: 'Cairo, Egypt',
+    maqam: 'Maqam Nahawand',
+    duration: '3:50',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Mohamed_Siddiq_El-Minshawi_-_Egypt_1_(%D9%85%D8%AD%D9%85%D8%AF_%D8%B5%D8%AF%D9%8A%D9%82_%D8%A7%D9%84%D9%85%D9%86%D8%B4%D8%A7%D9%88%D9%8A_-_%D9%85%D8%B5%D8%B1).mp3',
+    image: 'https://images.unsplash.com/photo-1572252009286-268acec5ca0a?auto=format&fit=crop&q=80&w=1200',
+    description: 'The golden age of Egyptian recitation, rendered with incomparable humility and poise.'
+  },
+  {
+    id: 'abdulbasit',
+    title: 'Golden Era Heritage',
+    name: 'Cairo Adhan (Sheikh Abdulbasit Abdusamad)',
+    location: 'Cairo, Egypt',
+    maqam: 'Maqam Rast',
+    duration: '4:02',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Abdulbasit_Abdusamad_1_-_Egypt_(%D8%B9%D8%A8%D8%AF_%D8%A7%D9%84%D8%A8%D8%A7%D8%B3%D8%B7_%D8%B9%D8%A8%D8%AF_%D8%A7%D9%84%D8%B5%D9%85%D8%AF_-_%D9%85%D8%B5%D8%B1).mp3',
+    image: 'https://images.unsplash.com/photo-1519817650390-64a934479f67?auto=format&fit=crop&q=80&w=1200',
+    description: 'World-famous breath control and majestic power from the voice of the Quranic century.'
+  },
+  {
+    id: 'dubai',
+    title: 'Sheikh Zayed & Dubai',
+    name: 'UAE Adhan (Grand Mosque Resonance)',
+    location: 'Dubai & Abu Dhabi, UAE',
+    maqam: 'Maqam Ajam',
+    duration: '3:25',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Adhan_Dubai_UAE_(%D8%A3%D8%B0%D8%A7%D9%86_%D8%AF%D8%A8%D9%8A_%D8%A7%D9%84%D8%A5%D9%85%D8%A7%D8%B1%D8%A7%D8%AA).mp3',
+    image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&q=80&w=1200',
+    description: 'Pure, crisp, modern acoustics capturing the grace of Arabian architecture.'
+  },
+  {
+    id: 'lebanon',
+    title: 'Mohammad Al-Amin Mosque',
+    name: 'Levant Adhan (Sheikh Abd Alrazaq Saleh)',
+    location: 'Beirut, Lebanon',
+    maqam: 'Maqam Bayati',
+    duration: '3:15',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Abd_Alrazaq_Saleh_-_Lebanon_(%D8%B9%D8%A8%D8%AF_%D8%A7%D9%84%D8%B1%D8%B2%D8%A7%D9%82_%D8%B5%D8%A7%D9%84%D8%AD_-_%D9%84%D8%A8%D9%86%D8%A7%D9%86).mp3',
+    image: 'https://images.unsplash.com/photo-1563914442296-e2652b123689?auto=format&fit=crop&q=80&w=1200',
+    description: 'Gentle, melodious Levantine style inspiring stillness and contemplation.'
+  },
+  {
+    id: 'fajr_toubar',
+    title: 'Fajr Spiritual Ibtihal',
+    name: 'Fajr Adhan (Sheikh Nasreddine Toubar)',
+    location: 'Cairo, Egypt',
+    maqam: 'Maqam Saba',
+    duration: '4:30',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Fajr_Adhan_by_Nasreddine_Toubar_(%D8%A7%D8%B0%D8%A7%D9%86_%D8%A7%D9%84%D9%81%D8%AC%D8%B1_%D8%A8%D8%B5%D9%88%D8%AA_%D9%86%D8%B5%D8%B1_%D8%A7%D9%84%D8%AF%D9%8A%D9%86_%D8%B7%D9%88%D8%A8%D8%A7%D8%B1).mp3',
+    image: 'https://images.unsplash.com/photo-1518684079-3c830dcef090?auto=format&fit=crop&q=80&w=1200',
+    description: 'One of the most touching and spiritual Fajr recitations in Islamic history.'
+  },
+  {
+    id: 'arkani',
+    title: 'Rawdah Sanctuary',
+    name: 'Makkah Melodic Adhan (Sheikh Abdul Wali Al-Arkani)',
+    location: 'Makkah Al-Mukarramah',
+    maqam: 'Maqam Hijaz Kar',
+    duration: '3:35',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Abdul_Wali_Al_Arkani_(%D8%B9%D8%A8%D8%AF%D8%A7%D9%84%D9%88%D9%84%D9%8A_%D8%A7%D9%84%D8%A3%D8%B1%D9%83%D8%A7%D9%86%D9%8A).mp3',
+    image: 'https://images.unsplash.com/photo-1570535608479-2a993a466d12?auto=format&fit=crop&q=80&w=1200',
+    description: 'Crystal-clear high notes with heartfelt devotion from the Holy Sanctuary.'
+  },
+  {
+    id: 'brunei',
+    title: 'Sultan Omar Ali Saifuddien',
+    name: 'Brunei Adhan (Sultanate Harmony)',
+    location: 'Bandar Seri Begawan, Brunei',
+    maqam: 'Maqam Nahawand',
+    duration: '3:20',
+    audioUrl: 'https://raw.githubusercontent.com/Kiwifu/adhan-mp3/main/Adhan_Brunei_1_(%D8%A3%D8%B0%D8%A7%D9%86_%D8%A8%D8%B1%D9%88%D9%86%D8%A7%D9%8A).mp3',
+    image: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&q=80&w=1200',
+    description: 'Peaceful Southeast Asian recitation over emerald lagoons and minarets.'
+  }
+];

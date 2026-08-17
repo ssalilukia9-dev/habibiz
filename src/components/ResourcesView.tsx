@@ -230,10 +230,10 @@ export default function ResourcesView({
               )}
               <div className="space-y-1">
                 <h1 className="text-4xl font-black text-white tracking-tight text-nowrap">
-                  {activeRes === 'feed' ? 'NoorTalk Feed' : (activeRes ? activeRes.charAt(0).toUpperCase() + activeRes.slice(1).replace('_', ' ') : 'The Conservatory')}
+                  {activeRes === 'feed' ? 'NoorTalk Community Feed' : (activeRes ? activeRes.charAt(0).toUpperCase() + activeRes.slice(1).replace('_', ' ') : 'The Conservatory')}
                 </h1>
                 <p className="text-slate-500 font-medium text-sm tracking-wide">
-                  {activeRes ? 'Exploring sacred knowledge' : 'Curated spiritual instruments & knowledge'}
+                  {activeRes === 'feed' ? 'Share how you feel, life stories, reflections & connect with the Ummah' : (activeRes ? 'Exploring sacred knowledge' : 'Curated spiritual instruments & knowledge')}
                 </p>
               </div>
             </div>

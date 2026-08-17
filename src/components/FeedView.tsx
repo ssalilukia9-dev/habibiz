@@ -28,7 +28,11 @@ import {
   Filter,
   Flag,
   Copy,
-  Check
+  Check,
+  Smile,
+  SmilePlus,
+  Flame,
+  SunMedium
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
@@ -37,17 +41,20 @@ import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import PremiumGateway from './PremiumGateway';
 
 const SIDEBAR_TOPICS = [
+  { name: 'General & Life', icon: SmilePlus, count: '3.8k' },
+  { name: 'How I Feel', icon: Heart, count: '2.9k' },
+  { name: 'Spiritual Reminders', icon: Sparkles, count: '2.4k' },
   { name: 'Quran & Tafsir', icon: BookOpen, count: '1.2k' },
   { name: 'Hadith Studies', icon: ShieldCheck, count: '850' },
-  { name: 'Spiritual Reminders', icon: Sparkles, count: '2.4k' },
   { name: 'Halal Lifestyle', icon: Users, count: '3.1k' },
+  { name: 'Gratitude & Joy', icon: SunMedium, count: '1.9k' },
   { name: 'Charity & Relief', icon: HandHeart, count: '500' }
 ];
 
 const TRENDING_DUAS = [
-  { title: 'Dua for Knowledge', text: 'Rabbi Zidni Ilma' },
-  { title: 'Dua for Parents', text: 'Rabbir hamhuma kama...' },
-  { title: 'Dua for Relief', text: 'Ya Hayyu Ya Qayyum...' }
+  { title: 'Dua for Peace of Heart', text: 'Ala bi-dhikrillahi tatma\'innul-quloob' },
+  { title: 'Dua for Relief & Ease', text: 'Ya Hayyu Ya Qayyum bi-rahmatika astagheeth' },
+  { title: 'Dua for Knowledge & Strength', text: 'Rabbi Zidni Ilma wa arzuqni fahma' }
 ];
 
 const ACTIVE_SCHOLARS = [
@@ -122,17 +129,28 @@ export default function FeedView({
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedBgStyle, setSelectedBgStyle] = useState('default');
-  const [selectedPostCategory, setSelectedPostCategory] = useState('Reminders');
+  const [selectedPostCategory, setSelectedPostCategory] = useState('How I Feel');
   const [publishSuccessMessage, setPublishSuccessMessage] = useState<string | null>(null);
   const [heartPops, setHeartPops] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const QUICK_TEMPLATES = [
-    { label: '🤲 Dua', text: '🤲 Ya Allah, grant ease, strength, and blessings to our Ummah...' },
-    { label: '📖 Reflection', text: '📖 Quran Reflection: When reciting today, I was reminded that...' },
-    { label: '✨ Hadith', text: '✨ The Prophet ﷺ said: "The best among you are those who have the best manners and character."' },
-    { label: '💡 Gratitude', text: '💡 Alhamdulillah for today\'s blessings: ' },
-    { label: '❓ Question', text: '❓ Question to the Ummah: How do you maintain consistency in your daily dhikr?' }
+    { label: '💖 How I feel today', text: '💖 Today I am feeling: ' },
+    { label: '🌿 Open Reflection', text: '🌿 Just thinking out loud: ' },
+    { label: '💡 Alhamdulillah', text: '💡 Alhamdulillah for this today: ' },
+    { label: '🤲 Dua for ease', text: '🤲 Ya Allah, grant peace and ease to my heart and everyone struggling today...' },
+    { label: '📖 Quranic gem', text: '📖 Quran Reflection: When reciting today, I was reminded that...' },
+    { label: '✨ Hadith reminder', text: '✨ The Prophet ﷺ said: "The best among you are those who have the best manners and character."' },
+    { label: '❓ Ask the Ummah', text: '❓ Question to the Ummah: What gives you peace when you are feeling overwhelmed?' }
+  ];
+
+  const FEELING_CHIPS = [
+    { emoji: '✨', label: 'Blessed', prefix: 'Feeling blessed today ✨ ' },
+    { emoji: '🤲', label: 'Seeking Peace', prefix: 'Hoping for peace & ease in my heart today 🤲 ' },
+    { emoji: '🕊️', label: 'Grateful', prefix: 'Full of gratitude today 🕊️ ' },
+    { emoji: '🌿', label: 'Reflective', prefix: 'Deep in thought today 🌿 ' },
+    { emoji: '💪', label: 'Determined', prefix: 'Ready to do good deeds today 💪 ' },
+    { emoji: '🌧️', label: 'Need Duas', prefix: 'Please keep me in your sincere duas today 🌧️ ' }
   ];
 
   const BG_STYLES = [
@@ -809,10 +827,10 @@ export default function FeedView({
         <div className="glass-panel border-white/10 rounded-[2rem] p-6 bg-noor-emerald/5 border-noor-emerald/10">
            <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="text-noor-emerald" size={20} />
-              <h3 className="text-sm font-black text-white">Community Adab</h3>
+              <h3 className="text-sm font-black text-white">Community Sanctuary</h3>
            </div>
            <p className="text-[11px] text-slate-400 leading-relaxed italic">
-             NoorTalk is a space for scholarly discussion and spiritual upliftment. Please maintain respectful dialogue and verify all religious quotes.
+             NoorTalk is your welcoming spiritual sanctuary. Feel free to express how you feel, share daily reflections, gratitude, questions, and all wholesome content with the global Ummah.
            </p>
         </div>
       </div>
@@ -829,7 +847,34 @@ export default function FeedView({
 
         {/* Create Post */}
         <div className="glass-panel rounded-[2.5rem] border-white/10 overflow-hidden bg-noor-charcoal/40 backdrop-blur-3xl shadow-2xl">
-          <div className="p-6 md:p-8 space-y-4">
+          <div className="p-6 md:p-8 space-y-5">
+            {/* How are you feeling chips */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-noor-gold uppercase tracking-widest flex items-center gap-1.5">
+                  <Smile size={13} className="text-noor-gold" />
+                  How are you feeling today?
+                </span>
+                <span className="text-[9px] font-bold text-slate-500">Tap to express</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                {FEELING_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPostCategory('How I Feel');
+                      setNewPost(prev => prev ? `${chip.prefix}${prev}` : chip.prefix);
+                    }}
+                    className="px-3 py-1.5 bg-white/5 hover:bg-noor-gold/15 hover:border-noor-gold/40 border border-white/5 rounded-2xl text-[11px] font-bold text-slate-300 hover:text-noor-gold transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>{chip.emoji}</span>
+                    <span>{chip.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Quick Inspiration Prompts */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest shrink-0 mr-1">Inspirations:</span>
@@ -853,8 +898,8 @@ export default function FeedView({
                   <textarea 
                     value={newPost}
                     onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="Share a Quranic reflection, reminder, or ask the Ummah..."
-                    className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-slate-600 resize-none py-2 font-medium text-lg min-h-[60px]"
+                    placeholder="How are you feeling today? Share your thoughts, reflections, daily stories, or questions with the Ummah..."
+                    className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-slate-500 resize-none py-2 font-medium text-lg min-h-[70px] leading-relaxed"
                   />
                   
                   {imagePreview && (
@@ -910,7 +955,17 @@ export default function FeedView({
                         onChange={(e) => setSelectedPostCategory(e.target.value)}
                         className="bg-white/5 border border-white/10 text-xs font-bold text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-noor-emerald cursor-pointer"
                       >
-                        {['Reminders', 'Quran & Tafsir', 'Hadith Studies', 'Reflections', 'Dua & Prayer', 'Charity'].map(cat => (
+                        {[
+                          'How I Feel',
+                          'General & Life',
+                          'Reminders',
+                          'Gratitude & Joy',
+                          'Reflections',
+                          'Quran & Tafsir',
+                          'Hadith Studies',
+                          'Dua & Prayer',
+                          'Charity'
+                        ].map(cat => (
                           <option key={cat} value={cat} className="bg-slate-900 text-white">
                             {cat}
                           </option>
@@ -987,14 +1042,67 @@ export default function FeedView({
           </div>
         </div>
 
+        {/* Feed Category Filter Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+          {[
+            'All',
+            'How I Feel',
+            'General & Life',
+            'Reminders',
+            'Gratitude & Joy',
+            'Reflections',
+            'Quran & Tafsir',
+            'Hadith Studies'
+          ].map((cat) => {
+            const isActive = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/20 border border-noor-emerald'
+                    : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/5'
+                }`}
+              >
+                {cat === 'All' ? '🌟 All Content' : cat === 'How I Feel' ? '💖 How I Feel' : cat}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Posts List */}
         <div className="space-y-6">
           <AnimatePresence mode="popLayout">
             {(() => {
               const activeUid = getActiveUser()?.uid || '';
-              return posts
-                .filter(p => activeCategory === 'All' || p.category === activeCategory)
-                .map((post) => {
+              const filteredPosts = posts.filter(p => activeCategory === 'All' || p.category === activeCategory);
+
+              if (filteredPosts.length === 0 && !loading) {
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-panel border-white/10 rounded-[2.5rem] p-12 text-center space-y-4"
+                  >
+                    <div className="w-16 h-16 rounded-3xl bg-noor-emerald/10 text-noor-emerald mx-auto flex items-center justify-center">
+                      <Sparkles size={32} />
+                    </div>
+                    <div className="space-y-1 max-w-sm mx-auto">
+                      <h4 className="text-lg font-black text-white">No posts in this category yet</h4>
+                      <p className="text-xs text-slate-400 font-medium">Be the first to share your feelings, story, or reflection with the Ummah!</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveCategory('All')}
+                      className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-noor-gold rounded-xl text-xs font-bold transition-all uppercase tracking-wider"
+                    >
+                      View All Posts
+                    </button>
+                  </motion.div>
+                );
+              }
+
+              return filteredPosts.map((post) => {
                   const myVote = post.userVotes?.[activeUid];
                   const myPollSelection = post.poll?.userSelections?.[activeUid];
 

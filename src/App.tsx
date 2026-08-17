@@ -32,7 +32,8 @@ import {
   Clock,
   HelpCircle
 } from 'lucide-react';
-import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST } from './constants.ts';
+import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST, GLOBAL_ADHAN_LIST } from './constants.ts';
+import { getAudioStreamUrl } from './lib/api.ts';
 import { Surah, Ayah } from './types.ts';
 import { auth, signInWithGoogle, db, handleRedirectResult } from './lib/firebase.ts';
 import { authStatePersistence } from './lib/authStatePersistence.ts';
@@ -81,6 +82,7 @@ import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 import WalkthroughTour from './components/WalkthroughTour.tsx';
 import PageGuideBanner from './components/PageGuideBanner.tsx';
+import AdhanCallerModal from './components/AdhanCallerModal.tsx';
 import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
 export default function App() {
@@ -92,6 +94,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastNotification, setLastNotification] = useState<any>(null);
+  const [activeAdhanAlert, setActiveAdhanAlert] = useState<{ prayerName: string; prayerTime?: string; preferredAdhanId?: string } | null>(null);
   const [showTrial, setShowTrial] = useState(true);
   const [showNotificationPopup, setShowNotificationPopup] = useState(() => {
     return !sessionStorage.getItem('dismissed_notification_popup');
@@ -274,27 +277,7 @@ export default function App() {
         return;
       }
 
-      // Find preferred Adhan sound
       const preferredId = localStorage.getItem('preferred-adhan-id') || 'makkah';
-      const customUrl = localStorage.getItem('preferred-adhan-custom-url');
-      
-      let audioUrl = 'https://www.islamcan.com/audio/adhan/azan2.mp3'; // Default Makkah
-      
-      if (preferredId === 'custom' && customUrl) {
-        audioUrl = customUrl;
-      } else {
-        const adhanMap: Record<string, string> = {
-          'makkah': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
-          'madinah': 'https://www.islamcan.com/audio/adhan/azan1.mp3',
-          'mishary': 'https://www.islamcan.com/audio/adhan/azan20.mp3',
-          'turkey': 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
-          'movie_style': 'https://www.islamcan.com/audio/adhan/azan14.mp3',
-          'sharjah': 'https://www.islamcan.com/audio/adhan/azan3.mp3',
-          'bosnia': 'https://www.islamcan.com/audio/adhan/azan12.mp3',
-          'africa': 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3'
-        };
-        audioUrl = adhanMap[preferredId] || audioUrl;
-      }
 
       notificationService.notify(
         `Time for ${prayer}`,
@@ -303,26 +286,91 @@ export default function App() {
         '/resources'
       );
 
-      const audio = new Audio(audioUrl);
-      audio.play().catch(e => {
-        console.warn("Adhan autoplay failed, trying fallback trigger", e);
-        // Force context resume and retry play
-        try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            const ctx = new AudioContextClass();
-            ctx.resume().then(() => {
-              audio.play().catch(innerErr => console.warn("Failed play on forced resume", innerErr));
-            });
-          }
-        } catch (ctxErr) {
-          console.warn("Ctx resume retry failed", ctxErr);
-        }
+      // Open rich interactive Adhan modal
+      setActiveAdhanAlert({
+        prayerName: prayer,
+        prayerTime: prayerTimes[prayer] || '',
+        preferredAdhanId: preferredId
       });
     };
 
+    const handleTestAdhan = (e: any) => {
+      const detail = e.detail || {};
+      setActiveAdhanAlert({
+        prayerName: detail.prayerName || 'Dhuhr',
+        prayerTime: detail.prayerTime || '13:05',
+        preferredAdhanId: detail.adhanId || localStorage.getItem('preferred-adhan-id') || 'makkah'
+      });
+    };
+
+    window.addEventListener('trigger_test_adhan', handleTestAdhan);
+
+    // Deep link and service worker message listener for closed-app notification clicks
+    const checkUrlDeepLinks = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const athanParam = searchParams.get('athan');
+        const timeParam = searchParams.get('time');
+        const claimedPrayer = searchParams.get('claimed_prayer');
+        const hash = window.location.hash;
+
+        if (athanParam || hash === '#adhan') {
+          const prayer = athanParam || 'Adhan';
+          const preferredId = localStorage.getItem('preferred-adhan-id') || 'makkah';
+          setActiveAdhanAlert({
+            prayerName: prayer,
+            prayerTime: timeParam || prayerTimes[prayer] || '',
+            preferredAdhanId: preferredId
+          });
+          // Clean up URL without reload
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        if (claimedPrayer) {
+          addHasanat(50);
+          notificationService.notify('Prayer Claimed', `Masha'Allah! You earned +50 Hasanat for completing ${claimedPrayer} prayer on time.`, 'system');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {
+        console.warn("Deep link parse error:", e);
+      }
+    };
+
+    checkUrlDeepLinks();
+
+    // Listen for Service Worker postMessage when app is active/woken
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'ATHAN_NOTIFICATION_CLICKED') {
+        const { prayerName, action } = event.data;
+        const preferredId = localStorage.getItem('preferred-adhan-id') || 'makkah';
+        
+        if (action === 'open_qibla') {
+          navigate('/qibla');
+        } else if (action === 'mark_prayed') {
+          addHasanat(50);
+          notificationService.notify('Prayer Claimed', `Masha'Allah! You earned +50 Hasanat for completing ${prayerName} prayer.`, 'system');
+        } else {
+          setActiveAdhanAlert({
+            prayerName: prayerName || 'Prayer',
+            prayerTime: prayerTimes[prayerName] || '',
+            preferredAdhanId: preferredId
+          });
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
     const interval = setInterval(checkPrayerTimes, 30000); // Check every 30s
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('trigger_test_adhan', handleTestAdhan);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
+    };
   }, [prayerTimes]);
 
   useEffect(() => {
@@ -2082,6 +2130,62 @@ export default function App() {
         onNavigate={handleNavigate} 
         addHasanat={addHasanat} 
       />
+
+      {/* Adhan Caller Modal with sacred caller voice, dynamic imagery & Du'a */}
+      <AdhanCallerModal 
+        isOpen={!!activeAdhanAlert}
+        onClose={() => setActiveAdhanAlert(null)}
+        prayerName={activeAdhanAlert?.prayerName || 'Prayer'}
+        prayerTime={activeAdhanAlert?.prayerTime}
+        preferredAdhanId={activeAdhanAlert?.preferredAdhanId}
+        addHasanat={addHasanat}
+        onNavigateToQibla={() => {
+          setActiveAdhanAlert(null);
+          navigate('/qibla');
+        }}
+      />
+
+      {/* Mobile Floating Bottom Navigation Dock (Optimized for all phone screen sizes) */}
+      <nav 
+        aria-label="Mobile Navigation"
+        className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-brand-sidebar/90 backdrop-blur-2xl border border-white/10 rounded-2xl px-2 py-2 shadow-2xl shadow-black/80 flex items-center justify-around"
+      >
+        {[
+          { id: 'home', label: 'Home', icon: Home },
+          { id: 'resources', label: 'Quran/Adhkar', icon: BookOpen },
+          { id: 'qibla', label: 'Qibla/Salah', icon: Compass },
+          { id: 'companion', label: 'AI Habib', icon: Sparkles },
+          { id: 'ummah', label: 'Ummah', icon: Users },
+          { id: 'profile', label: 'Profile', icon: UserIcon }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id || (tab.id === 'resources' && activeTab === 'bookmarks');
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                navigate(`/${tab.id}`);
+                if (tab.id !== 'resources') setSelectedSurah(null);
+              }}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all relative ${
+                isActive 
+                  ? 'text-brand-primary font-bold' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {isActive && (
+                <motion.div 
+                  layoutId="activeTabMobileIndicator"
+                  className="absolute inset-0 bg-brand-primary/15 rounded-xl border border-brand-primary/25"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <Icon size={18} className="relative z-10" />
+              <span className="text-[9px] mt-0.5 tracking-tight relative z-10 font-semibold">{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

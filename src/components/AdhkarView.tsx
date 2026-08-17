@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -8,26 +8,28 @@ import {
   Award, 
   ChevronRight, 
   Volume2, 
-  Square, 
   Play,
   CheckCircle2,
   Lock,
-  Pause
+  Pause,
+  RotateCcw,
+  FastForward,
+  Rewind,
+  Flame,
+  Check,
+  Languages,
+  Coffee,
+  Heart
 } from 'lucide-react';
 import { 
-  collection, 
   doc, 
   onSnapshot, 
   setDoc, 
-  serverTimestamp,
-  query,
-  limit,
-  orderBy
+  serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
-import { VoiceService } from '../services/voiceService.ts';
-import { getAudioStreamUrl } from '../lib/api.ts';
+import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 
 const NAMES_OF_ALLAH = [
   { id: 1, arabic: "الرَّحْمَنُ", transliteration: "Ar-Rahman", english: "The Most Merciful" },
@@ -40,639 +42,849 @@ const NAMES_OF_ALLAH = [
   { id: 8, arabic: "الْعَزِيزُ", transliteration: "Al-Aziz", english: "The Mighty" },
   { id: 9, arabic: "الْجَبَّارُ", transliteration: "Al-Jabbar", english: "The Compeller" },
   { id: 10, arabic: "الْمُتَكَبِّرُ", transliteration: "Al-Mutakabbir", english: "The Supreme, The Majestic" },
+  { id: 11, arabic: "الْخَالِقُ", transliteration: "Al-Khaliq", english: "The Creator" },
+  { id: 12, arabic: "الْبَارِئُ", transliteration: "Al-Bari'", english: "The Evolver" }
 ];
 
-const ADHKAR = [
+export interface DhikrItem {
+  id: string;
+  arabic: string;
+  transliteration?: string;
+  english: string;
+  benefit: string;
+  targetCount: number;
+}
+
+export interface DhikrCategory {
+  id: string;
+  category: string;
+  icon: any;
+  items: DhikrItem[];
+}
+
+const ADHKAR: DhikrCategory[] = [
   { 
+    id: "morning",
     category: "Morning", 
     icon: Sun,
     items: [
       { 
         id: 'm1', 
-        arabic: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ", 
-        english: "We have entered a new day and with it all dominion is Allah's. Praise is to Allah. None has the right to be worshipped but Allah alone.", 
-        benefit: "Declaration of Tawheed",
-        audio: "https://www.islamicfinder.org/dua/recording/1" 
+        arabic: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 
+        transliteration: "Asbahna wa-asbahal-mulku lillah, wal-hamdu lillah, la ilaha illallahu wahdahu la shareeka lah, lahul-mulku wa lahul-hamdu wa huwa 'ala kulli shay'in qadeer.",
+        english: "We have entered a new day and with it all dominion is Allah's. Praise is to Allah. None has the right to be worshipped but Allah alone with no partner.", 
+        benefit: "Declaration of Tawheed & Divine Sovereign Protection",
+        targetCount: 1
       },
       { 
         id: 'm2', 
-        arabic: "بِاسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ", 
+        arabic: "بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ", 
+        transliteration: "Bismillāhilladhī lā yadurru ma‘as-mihī shay'un fil-ardi wa lā fis-samā'i wa huwas-Samī‘ul-‘Alīm.",
         english: "In the Name of Allah with Whose Name nothing can cause harm in the earth nor in the heavens, and He is the All-Hearing, the All-Knowing.", 
-        benefit: "Protection from sudden harm",
-        audio: "https://www.islamicfinder.org/dua/recording/2"
+        benefit: "Protection from sudden harm & disease (3x)",
+        targetCount: 3
       },
       {
         id: 'm3',
         arabic: "رَضِيتُ بِاللَّهِ رَبًّا، وَبِالْإِسْلَامِ دِينًا، وَبِمُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ نَبِيًّا",
-        english: "I am pleased with Allah as my Lord, with Islam as my religion, and with Muhammad (PBUH) as my Prophet.",
-        benefit: "Allah promises to please the reciter on the Day of Judgment (3x)"
+        transliteration: "Radeetu billahi Rabba, wa bil-Islami deena, wa bi-Muhammadin sallallahu 'alayhi wa sallama Nabiyya.",
+        english: "I am pleased with Allah as my Lord, with Islam as my religion, and with Muhammad (peace be upon him) as my Prophet.",
+        benefit: "Allah promises to please the reciter on the Day of Judgment (3x)",
+        targetCount: 3
       },
       {
         id: 'm4',
         arabic: "يَا حَيُّ يَا قَيُّومُ بِرَحْمَتِكَ أَسْتَغِيثُ، أَصْلِحْ لِي شَأْنِي كُلَّهُ، وَلَا تَكِلْنِي إِلَى نَفْسِي طَرْفَةَ عَيْنٍ",
+        transliteration: "Ya Hayyu Ya Qayyoom, bi-rahmatika astagheeth, aslih lee sha'nee kullahu wa la takilnee ila nafsee tarfata 'ayn.",
         english: "O Ever-Living, O Self-Subsisting, by Your mercy I seek help. Rectify all my affairs and do not leave me to myself for even the blink of an eye.",
-        benefit: "Supplication for divine assistance"
+        benefit: "Supplication for divine guidance & psychological peace",
+        targetCount: 1
       },
       {
         id: 'm5',
         arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ: عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ",
+        transliteration: "Subhanallahi wa bihamdihi: 'adada khalqihi, wa rida nafsihi, wa zinata 'arshihi, wa midada kalimatih.",
         english: "Glory is to Allah and praise is to Him, by the multitude of His creation, by His Pleasure, by the weight of His Throne, and by the extent of His Words.",
-        benefit: "Substantial reward surpassing hours of dhikr (3x)"
+        benefit: "Substantial reward surpassing hours of dhikr (3x)",
+        targetCount: 3
       }
     ]
   },
   { 
+    id: "evening",
     category: "Evening", 
     icon: Moon,
     items: [
-      { id: 'e1', arabic: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ", english: "We have entered the evening and with it all dominion is Allah's. Praise is to Allah.", benefit: "Gratitude for reaching evening" },
-      { id: 'e2', arabic: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ", english: "I seek refuge in the perfect words of Allah from the evil of what He has created.", benefit: "Protection from poisonous stings/harm" },
-      { id: 'e5', arabic: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", english: "Allah is sufficient for me. None has the right to be worshipped but He. In Him I put my trust and He is the Lord of the Mighty Throne.", benefit: "Sufficiency in all matters (7x)" },
+      { 
+        id: 'e1', 
+        arabic: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ", 
+        transliteration: "Amsayna wa-amsal-mulku lillah wal-hamdu lillah, la ilaha illallahu wahdahu la shareeka lah.",
+        english: "We have entered the evening and with it all dominion is Allah's. Praise is to Allah. None has the right to be worshipped but Allah alone.", 
+        benefit: "Gratitude & peace for reaching evening safely",
+        targetCount: 1
+      },
+      { 
+        id: 'e2', 
+        arabic: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ", 
+        transliteration: "A'oodhu bi-kalimatil-lahit-tammati min sharri ma khalaq.",
+        english: "I seek refuge in the perfect words of Allah from the evil of what He has created.", 
+        benefit: "Total nightly protection from harm and poison (3x)",
+        targetCount: 3
+      },
+      { 
+        id: 'e3', 
+        arabic: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", 
+        transliteration: "Hasbiyallahu la ilaha illa Huwa, 'alayhi tawakkaltu wa Huwa Rabbul-'Arshil-'Azeem.",
+        english: "Allah is sufficient for me. None has the right to be worshipped but He. In Him I put my trust and He is the Lord of the Mighty Throne.", 
+        benefit: "Sufficiency in all worldly & spiritual worries (7x)",
+        targetCount: 7
+      },
       {
-        id: 'e6',
+        id: 'e4',
         arabic: "اللَّهُمَّ بِكَ أَمْسَيْنَا، وَبِكَ أَصْبَحْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ",
-        english: "O Allah, by Your leave we have reached evening and by Your leave we have reached morning, by Your leave we live and die, and unto You is our return.",
-        benefit: "Affirmation of Allah's control over time"
+        transliteration: "Allahumma bika amsayna, wa bika asbahna, wa bika nahya, wa bika namootu wa ilaykal-maseer.",
+        english: "O Allah, by Your leave we have reached evening and by Your leave we reached morning, by Your leave we live and die, and unto You is our return.",
+        benefit: "Affirmation of Allah's custody over life & time",
+        targetCount: 1
       }
     ]
   },
   {
+    id: "sleep",
     category: "Sleeping & Waking",
     icon: Shield,
     items: [
       {
         id: 's1',
         arabic: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا",
+        transliteration: "Bismika Allahumma amootu wa ahya.",
         english: "In Your name, O Allah, I die and I live.",
-        benefit: "Dua before sleeping"
+        benefit: "Sunnah dua before closing eyes to sleep",
+        targetCount: 1
       },
       {
         id: 's2',
         arabic: "الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ",
+        transliteration: "Alhamdu lillahil-ladhee ahyana ba'da ma amatana wa ilayhin-nushoor.",
         english: "Praise is to Allah Who gives us life after He has caused us to die and unto Him is the resurrection.",
-        benefit: "Dua upon waking up"
+        benefit: "First words upon waking up in the morning",
+        targetCount: 1
       },
       {
         id: 's3',
-        arabic: "بِاسْمِكَ رَبِّي وَضَعْتُ جَنْبِي، وَبِكَ أَرْفَعُهُ، فَإِنْ أَمْسَكْتَ نَفْسِي فَارْحَمْهَا، وَإِنْ أَرْسَلْتَهَا فَاحْفَظْهَا",
-        english: "In Your name my Lord, I lie down and in Your name I rise. If You take my soul, have mercy on it, and if You send it back, protect it.",
-        benefit: "Protection during sleep"
+        arabic: "بِاسْمِكَ رَبِّي وَضَعْتُ جَنْبِي، وَبِكَ أَرْفَعُهُ، فَإِنْ أَمْسَكْتَ نَفْسِي فَارْحَمْهَا، وَإِنْ أَرْسَلْتَهَا فَاحْفَظْهَا بِمَا تَحْفَظُ بِهِ عِبَادَكَ الصَّالِحِينَ",
+        transliteration: "Bismika Rabbee wada'tu janbee, wa bika arfa'uh, fa in amsakta nafsee farhamha, wa in arsaltaha fahfadh-ha bima tahfadhu bihi 'ibadakas-saliheen.",
+        english: "In Your name my Lord, I lie down and in Your name I rise. If You hold back my soul, have mercy on it, and if You release it, protect it.",
+        benefit: "Angelic protection during sleep",
+        targetCount: 1
       },
       {
         id: 's4',
         arabic: "اللَّهُمَّ قِنِي عَذَابَكَ يَوْمَ تَبْعَثُ عِبَادَكَ",
-        english: "O Allah, protect me from Your punishment on the day You resurrect Your slaves.",
-        benefit: "Safety from the Hereafter (3x)"
+        transliteration: "Allahumma qinee 'adhabaka yawma tab'athu 'ibadak.",
+        english: "O Allah, protect me from Your punishment on the Day You resurrect Your servants.",
+        benefit: "Safety from the Hereafter (3x)",
+        targetCount: 3
       }
     ]
   },
   {
+    id: "forgiveness",
     category: "Praise & Forgiveness",
     icon: Award,
     items: [
       {
         id: 'pf1',
         arabic: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ",
-        english: "I seek Allah's forgiveness and turn to Him in repentance.",
-        benefit: "Cleansing of sins (Recite 100x daily)"
+        transliteration: "Astaghfirullaha wa atoobu ilayh.",
+        english: "I seek Allah's forgiveness and turn to Him in sincere repentance.",
+        benefit: "Cleansing of sins & opening of sustenance (100x)",
+        targetCount: 100
       },
       {
         id: 'pf2',
         arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ",
+        transliteration: "Subhanallahi wa bihamdihi.",
         english: "Glory be to Allah and all praise is due to Him.",
-        benefit: "Forgiveness of sins even if as large as foam of the sea"
+        benefit: "Sins wiped away even if as vast as the foam of the sea (100x)",
+        targetCount: 100
       },
       {
         id: 'pf3',
         arabic: "سُبْحَانَ اللَّهِ، وَالْحَمْدُ لِلَّهِ، وَلَا إِلَهَ إِلَّا اللَّهُ، وَاللَّهُ أَكْبَرُ",
+        transliteration: "Subhanallah, wal-hamdulillah, wa la ilaha illallah, wallahu Akbar.",
         english: "Glory is to Allah, Praise is to Allah, None has the right to be worshipped but Allah, and Allah is the Greatest.",
-        benefit: "Direct route to Paradise"
+        benefit: "The four words most beloved to Allah",
+        targetCount: 33
       },
       {
         id: 'pf4',
         arabic: "لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ",
+        transliteration: "La hawla wa la quwwata illa billah.",
         english: "There is no might and no power except with Allah.",
-        benefit: "A treasure from the treasures of Paradise"
+        benefit: "A treasure from beneath the Throne of Allah in Paradise",
+        targetCount: 10
       },
       {
         id: 'pf5',
-        arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ",
-        english: "O Allah, You are my Lord, there is no god but You. You created me and I am Your slave, and I am faithful to my covenant and my promise as much as I can.",
-        benefit: "The Master of Forgiveness (Sayyid al-Istighfar)"
+        arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ، وَأَبُوءُ بِذَنْبِي فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ",
+        transliteration: "Allahumma Anta Rabbi la ilaha illa Ant, khalaqtani wa ana 'abduk, wa ana 'ala 'ahdika wa wa'dika mastata't, a'oodhu bika min sharri ma sana't, aboo'u laka bi ni'matika 'alayya wa aboo'u bi dhanbi faghfir lee fa innahu la yaghfirudh-dhunooba illa Ant.",
+        english: "O Allah, You are my Lord, there is no god but You. You created me and I am Your servant, and I remain upon Your covenant and promise as much as I am able. I seek refuge in You from the evil of what I have done.",
+        benefit: "The Chief of Repentance (Sayyid al-Istighfar) - Guarantee of Paradise",
+        targetCount: 1
       }
     ]
   },
   {
-    category: "Safety & Relief",
-    icon: Shield,
-    items: [
-      {
-        id: 'sr1',
-        arabic: "إِنَّا لِلَّهِ وَإِنَّا إِلَيْهِ رَاجِعُونَ، اللَّهُمَّ أْجُرْنِي فِي مُصِيبَتِي وَأَخْلِفْ لِي خَيْرًا مِنْهَا",
-        english: "To Allah we belong and unto Him is our return. O Allah, recompense me for my affliction and replace it with something better.",
-        benefit: "Comfort in times of loss or trial"
-      },
-      {
-        id: 'sr2',
-        arabic: "حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ",
-        english: "Allah is sufficient for us and He is the Best Disposer of affairs.",
-        benefit: "Relief from anxiety and fear"
-      },
-      {
-        id: 'sr3',
-        arabic: "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ",
-        english: "None has the right to be worshipped but You. Glory be to You! I have been among the wrongdoers.",
-        benefit: "Dua of Yunus (AS) - Relief from sadness"
-      }
-    ]
-  },
-  {
-    category: "Eating & Home",
+    id: "prayer_dhikr",
+    category: "After Swalah",
     icon: Sparkles,
     items: [
       {
-        id: 'eh1',
-        arabic: "بِسْمِ اللَّهِ",
-        english: "In the name of Allah.",
-        benefit: "Dua before eating"
-      },
-      {
-        id: 'eh2',
-        arabic: "الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنِي هَذَا وَرَزَقَنِيهِ مِنْ غَيْرِ حَوْلٍ مِنِّي وَلَا قُوَّةٍ",
-        english: "Praise be to Allah Who has fed me this and provided it for me without any might or power on my part.",
-        benefit: "Forgiveness of past sins"
-      },
-      {
-        id: 'eh3',
-        arabic: "بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَى رَبِّنا تَوَكَّلْنا",
-        english: "In the name of Allah we enter and in the name of Allah we leave, and upon our Lord we rely.",
-        benefit: "Dua before entering the home"
-      },
-      {
-        id: 'eh4',
-        arabic: "بِسْمِ اللَّهِ تَوَكَّلْتُ عَلَى اللَّهِ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ",
-        english: "In the name of Allah, I place my trust in Allah, and there is no might nor power except with Allah.",
-        benefit: "Supplication upon leaving the home"
-      }
-    ]
-  },
-  {
-    category: "Mosque & Prayer",
-    icon: Sparkles,
-    items: [
-      {
-        id: 'mp1',
-        arabic: "اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ",
-        english: "O Allah, open the gates of Your mercy for me.",
-        benefit: "Dua upon entering the Mosque"
-      },
-      {
-        id: 'mp2',
-        arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ",
-        english: "O Allah, I ask You from Your favor.",
-        benefit: "Dua upon leaving the Mosque"
-      },
-      {
-        id: 'mp3',
-        arabic: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ، وَشُكْرِكَ، وَحُسْنِ عِبَادَتِكَ",
-        english: "O Allah, help me to remember You, to give thanks to You, and to worship You in the best manner.",
-        benefit: "Dua after every Fard prayer"
-      },
-      {
-        id: 'mp4',
+        id: 'ps1',
         arabic: "أَسْتَغْفِرُ اللَّهَ (3x) ، اللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ، تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ",
-        english: "I ask Allah for forgiveness (3x). O Allah, You are Peace and from You comes peace. Blessed are You, O Possessor of Majesty and Honor.",
-        benefit: "Sunnah dhikr after Salah"
-      }
-    ]
-  },
-  {
-    category: "Social & Conduct",
-    icon: Shield,
-    items: [
-      {
-        id: 'sc1',
-        arabic: "السَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ",
-        english: "May the peace, mercy, and blessings of Allah be upon you.",
-        benefit: "The Islamic Greeting - Peace of the Ummah"
+        transliteration: "Astaghfirullah (3x). Allahumma Antas-Salam wa minkas-salam, tabarakta ya Dhal-Jalali wal-Ikram.",
+        english: "I seek forgiveness of Allah (3x). O Allah, You are Peace and from You comes peace. Blessed are You, O Possessor of Majesty and Honor.",
+        benefit: "Direct Sunnah immediately following obligatory prayer",
+        targetCount: 1
       },
       {
-        id: 'sc2',
-        arabic: "سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ، أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا أَنْتَ، أَسْتَغْفِرُكَ وَأَتُوبُ إِلَيْكَ",
-        english: "Glory be to You, O Allah, and all praise. I testify that there is no god but You. I ask Your forgiveness and turn to You in repentance.",
-        benefit: "Expiation for any idle talk in a gathering"
+        id: 'ps2',
+        arabic: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ، وَشُكْرِكَ، وَحُسْنِ عِبَادَتِكَ",
+        transliteration: "Allahumma a'innee 'ala dhikrika wa shukrika wa husni 'ibadatik.",
+        english: "O Allah, help me to remember You, to express gratitude to You, and to worship You in the finest manner.",
+        benefit: "Taught directly by the Prophet (ﷺ) to Mu'adh (RA)",
+        targetCount: 1
       },
       {
-        id: 'sc3',
-        arabic: "جَزَاكَ اللَّهُ خَيْرًا",
-        english: "May Allah reward you with goodness.",
-        benefit: "Expressing gratitude to another"
-      }
-    ]
-  },
-  {
-    category: "Travel & Nature",
-    icon: Sun,
-    items: [
-      {
-        id: 'tn1',
-        arabic: "سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ وَإِنَّا إِلَى رَبِّنَا لَمُنْقَلِبُونَ",
-        english: "Glory is to Him Who has subjected this to us, as we could never have done it by our own efforts. And surely, to our Lord we are returning.",
-        benefit: "Dua for traveling"
-      },
-      {
-        id: 'tn2',
-        arabic: "سُبْحَانَ اللَّهِ (33x)، الْحَمْدُ لِلَّهِ (33x)، اللَّهُ أَكْبَرُ (34x)",
-        english: "Glory is to Allah, Praise is to Allah, Allah is the Greatest.",
-        benefit: "Fatima's (RA) tasbih before sleep or for strength"
-      },
-      {
-        id: 'tn3',
-        arabic: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْبُخْلِ، وَأَعُوذُ بِكَ مِنَ الْجُبْنِ، وَأَعُوذُ بِكَ أَنْ أُرَدَّ إِلَى أَرْذَلِ الْعُمُرِ",
-        english: "O Allah, I seek refuge with You from miserliness, and I seek refuge with You from cowardice, and I seek refuge with You from being sent back to the most miserable old age.",
-        benefit: "Protection from negative traits"
-      },
-      {
-        id: 'tn4',
-        arabic: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَالْعَجْزِ وَالْكَسَلِ، وَالْبُخْلِ وَالْجُبْنِ، وَضَلَعِ الدَّيْنِ وَغَلَبَةِ الرِّجَالِ",
-        english: "O Allah, I seek refuge in you from anxiety and sorrow, weakness and laziness, miserliness and cowardice, the burden of debts and from being overpowered by men.",
-        benefit: "Relief from life's greatest burdens"
-      },
-      {
-        id: 'tn5',
-        arabic: "رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ إِنَّكَ أَنْتَ التَّوَّابُ الرَّحِيمُ",
-        english: "My Lord, forgive me and accept my repentance, You are the Ever-Relenting, the Most Merciful.",
-        benefit: "Repentance (The Prophet SAWS said this 100x in one sitting)"
-      },
-      {
-        id: 'tn6',
-        arabic: "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ",
-        english: "O Allah, send prayers and peace upon our Prophet Muhammad.",
-        benefit: "Obtaining Allah's blessings (10x in morning/evening)"
-      },
-      {
-        id: 'tn7',
-        arabic: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ",
-        english: "None has the right to be worshipped but Allah alone, Who has no partner. His is the dominion and His is the praise, and He is Able to do all things.",
-        benefit: "Protection from Shaytan all day (100x)"
-      },
-      {
-        id: 'tn8',
-        arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ",
-        english: "Glory and praise be to Allah, Glory be to Allah the Almighty.",
-        benefit: "Two words light on the tongue, heavy on the scales"
-      },
-      {
-        id: 'tn9',
-        arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ",
-        english: "O Allah, I ask You for forgiveness and well-being in this world and the next.",
-        benefit: "Comprehensive well-being"
-      },
-      {
-        id: 'tn10',
-        arabic: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّةِ مِنْ كُلِّ شَيْطَانٍ وَهَامَّةٍ وَمِنْ كُلِّ عَيْنٍ لَامَّةٍ",
-        english: "I seek refuge in the perfect words of Allah from every devil and every poisonous creature and from every evil eye.",
-        benefit: "Protection for children and self"
-      },
-      {
-        id: 'tn11',
-        arabic: "يَا مُقَلِّبَ الْقُلُوبِ ثَبِّتْ قَلْبِي عَلَى دِينِكَ",
-        english: "O Controller of hearts, make my heart steadfast in Your religion.",
-        benefit: "Dua for steadfastness in faith"
-      },
-      {
-        id: 'tn12',
-        arabic: "اللَّهُمَّ اجْعَلْ فِي قَلْبِي نُورًا، وَفِي بَصَرِي نُورًا، وَفِي سَمْعِي نُورًا",
-        english: "O Allah, place light in my heart, and light in my sight, and light in my hearing.",
-        benefit: "Supplication for internal and external light"
-      },
-      {
-        id: 'tn13',
-        arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، عَلَيْكَ تَوَكَّلْتُ وَأَنْتَ رَبُّ الْعَرْشِ الْعَظِيمِ",
-        english: "O Allah, You are my Lord, there is no god but You. In You I have placed my trust and You are the Lord of the Mighty Throne.",
-        benefit: "Protection of family and property"
-      },
-      {
-        id: 'tn14',
-        arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا",
-        english: "O Allah, I ask You for knowledge that is of benefit, a good provision, and deeds that will be accepted.",
-        benefit: "Morning invocation for success"
-      },
-      {
-        id: 'tn15',
-        arabic: "رَبِّ زِدْنِي عِلْمًا",
-        english: "My Lord, increase me in knowledge.",
-        benefit: "Quranic dua for internal growth"
-      },
-      {
-        id: 'tn16',
-        arabic: "اللَّهُمَّ بَارِكْ لَنَا فِيمَا رَزَقْتَنَا وَقِنَا عَذَابَ النَّارِ",
-        english: "O Allah, bless us in what You have provided us and save us from the punishment of the Fire.",
-        benefit: "Dua for blessings in sustenance"
-      },
-      {
-        id: 'tn17',
-        arabic: "اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي",
-        english: "O Allah, You are forgiving and You love forgiveness, so forgive me.",
-        benefit: "The ultimate Dua for the night of Qadr"
-      },
-      {
-        id: 'tn18',
-        arabic: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ",
-        english: "Our Lord, give us in this world that which is good and in the Hereafter that which is good and protect us from the punishment of the Fire.",
-        benefit: "The most comprehensive Quranic supplication"
-      },
-      {
-        id: 'tn19',
-        arabic: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ وَشُكْرِكَ وَحُسْنِ عِبَادَتِكَ",
-        english: "O Allah, help me to remember You, to thank You, and to worship You in the best way.",
-        benefit: "Dua for spiritual excellence"
+        id: 'ps3',
+        arabic: "سُبْحَانَ اللَّهِ (33x)، الْحَمْدُ لِلَّهِ (33x)، اللَّهُ أَكْبَرُ (33x)",
+        transliteration: "Subhanallah (33x), Alhamdulillah (33x), Allahu Akbar (33x).",
+        english: "Glory be to Allah, Praise be to Allah, Allah is the Greatest.",
+        benefit: "The post-prayer Tasbih that erases all minor sins",
+        targetCount: 33
       }
     ]
   }
 ];
 
-export default function AdhkarView({ addHasanat, incrementDua, searchQuery }: { addHasanat: (amount: number) => void, incrementDua: () => void, searchQuery: string }) {
-  const [activeTab, setActiveTab] = useState<'names' | 'adhkar'>('adhkar');
+export default function AdhkarView({
+  addHasanat,
+  incrementDua,
+  searchQuery = ''
+}: {
+  addHasanat: (amount: number) => void;
+  incrementDua: () => void;
+  searchQuery?: string;
+}) {
+  const [activeTab, setActiveTab] = useState<'adhkar' | 'names'>('adhkar');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
-  const [speakingId, setSpeakingId] = useState<string | null>(null);
-  const [audioPlayer, setAudioPlayer] = useState<HTMLAudioElement | null>(null);
+  const [counterMap, setCounterMap] = useState<Record<string, number>>({});
+  const [playbackState, setPlaybackState] = useState<VoicePlaybackState>(VoiceService.getState());
+  const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+  const [sessionIndex, setSessionIndex] = useState<number>(0);
+  const [sessionItems, setSessionItems] = useState<DhikrItem[]>([]);
+  const [fontSizeScale, setFontSizeScale] = useState<'sm' | 'md' | 'lg'>('md');
+  const [showTransliteration, setShowTransliteration] = useState<boolean>(true);
 
-  const currentUser = auth.currentUser;
-
-  const filteredAdhkar = ADHKAR.map(cat => ({
-    ...cat,
-    items: cat.items.filter(item => 
-      item.arabic.includes(searchQuery) || 
-      item.english.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.benefit.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(cat => cat.items.length > 0);
-
-  const filteredNames = NAMES_OF_ALLAH.filter(name => 
-    name.arabic.includes(searchQuery) ||
-    name.transliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    name.english.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const currentUser = auth?.currentUser;
 
   useEffect(() => {
-    if (!currentUser || currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_')) return;
-
-    const q = query(collection(db, `users/${currentUser.uid}/adhkarProgress`));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const mapping: Record<string, boolean> = {};
-      snapshot.docs.forEach(doc => {
-        mapping[doc.id] = doc.data().completed;
-      });
-      setCompletedMap(mapping);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'adhkarProgress');
-    });
-
+    const unsub = VoiceService.subscribe(setPlaybackState);
     return () => {
-      unsubscribe();
-      if (audioPlayer) audioPlayer.pause();
+      unsub();
       VoiceService.stop();
     };
+  }, []);
+
+  // Sync completion states
+  useEffect(() => {
+    if (!currentUser) {
+      const saved = localStorage.getItem('guest-adhkar-progress');
+      if (saved) {
+        try {
+          setCompletedMap(JSON.parse(saved));
+        } catch (e) {}
+      }
+      return;
+    }
+
+    const unsub = onSnapshot(doc(db, `users/${currentUser.uid}/adhkarProgress/all`), (docSnap) => {
+      if (docSnap.exists()) {
+        setCompletedMap(docSnap.data() as Record<string, boolean>);
+      }
+    }, () => {});
+
+    return () => unsub();
   }, [currentUser]);
 
-  const handleSpeak = (text: string, id: string, audioUrl?: string) => {
-    if (speakingId === id) {
+  // Haptic feedback helper
+  const triggerHaptic = () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(30);
+      } catch (e) {}
+    }
+  };
+
+  // Play audio for a single dhikr
+  const handlePlayDhikr = (dhikr: DhikrItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (playbackState.isPlaying && playbackState.activeId === dhikr.id) {
       VoiceService.stop();
-      if (audioPlayer) {
-        audioPlayer.pause();
-        setAudioPlayer(null);
-      }
-      setSpeakingId(null);
-      return;
-    }
-
-    setSpeakingId(id);
-    VoiceService.stop();
-    if (audioPlayer) {
-      audioPlayer.pause();
-      setAudioPlayer(null);
-    }
-
-    if (audioUrl) {
-      const streamUrl = getAudioStreamUrl(audioUrl);
-      const audio = new Audio(streamUrl);
-      audio.preload = 'auto';
-      audio.play().catch(e => {
-        console.warn("Direct audio playback failed, falling back to VoiceService", e);
-        VoiceService.speak(text, 'ar', () => setSpeakingId(null));
-      });
-      audio.onended = () => setSpeakingId(null);
-      setAudioPlayer(audio);
     } else {
-      VoiceService.speak(text, 'ar', () => setSpeakingId(null));
+      VoiceService.speakArabic(dhikr.arabic, dhikr.id);
     }
   };
 
-  const toggleComplete = async (id: string) => {
-    if (!currentUser) {
-      alert("Connect your heart to the sanctuary to track progress.");
+  // Play dual Arabic + English
+  const handlePlayBoth = (dhikr: DhikrItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (playbackState.isPlaying && playbackState.activeId === dhikr.id && playbackState.mode === 'both') {
+      VoiceService.stop();
+    } else {
+      VoiceService.speakBoth(dhikr.arabic, dhikr.english, dhikr.id);
+    }
+  };
+
+  // Interactive Tasbih Repetition Counter
+  const handleIncrementCounter = (dhikr: DhikrItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    triggerHaptic();
+
+    const currentCount = counterMap[dhikr.id] || 0;
+    const nextCount = currentCount + 1;
+    const isNowComplete = nextCount >= dhikr.targetCount;
+
+    setCounterMap(prev => ({
+      ...prev,
+      [dhikr.id]: isNowComplete ? dhikr.targetCount : nextCount
+    }));
+
+    if (isNowComplete && !completedMap[dhikr.id]) {
+      toggleComplete(dhikr.id, true);
+    }
+  };
+
+  const handleResetCounter = (dhikrId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCounterMap(prev => ({ ...prev, [dhikrId]: 0 }));
+  };
+
+  // Mark completion in Firebase / local
+  const toggleComplete = async (id: string, forceComplete?: boolean) => {
+    const isCurrentlyCompleted = completedMap[id];
+    const targetState = forceComplete !== undefined ? forceComplete : !isCurrentlyCompleted;
+
+    const newMap = { ...completedMap, [id]: targetState };
+    setCompletedMap(newMap);
+
+    if (targetState) {
+      triggerHaptic();
+      addHasanat(15);
+      incrementDua();
+    }
+
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, `users/${currentUser.uid}/adhkarProgress/all`), newMap, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `adhkarProgress/all`);
+      }
+    } else {
+      localStorage.setItem('guest-adhkar-progress', JSON.stringify(newMap));
+    }
+  };
+
+  // Start continuous audio session
+  const startSession = (categoryItems: DhikrItem[]) => {
+    if (!categoryItems.length) return;
+    setSessionItems(categoryItems);
+    setSessionIndex(0);
+    setIsSessionActive(true);
+    playSessionItem(categoryItems, 0);
+  };
+
+  const playSessionItem = (items: DhikrItem[], idx: number) => {
+    if (idx >= items.length) {
+      setIsSessionActive(false);
+      VoiceService.stop();
       return;
     }
 
-    const isCurrentlyCompleted = completedMap[id];
-    try {
-      await setDoc(doc(db, `users/${currentUser.uid}/adhkarProgress`, id), {
-        adhkarId: id,
-        completed: !isCurrentlyCompleted,
-        lastCompletedAt: serverTimestamp()
-      });
-
-      if (!isCurrentlyCompleted) {
-        incrementDua();
-        addHasanat(10);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `adhkarProgress/${id}`);
-    }
+    const current = items[idx];
+    VoiceService.speakArabic(current.arabic, current.id, () => {
+      // Auto-advance after item finishes
+      setTimeout(() => {
+        const nextIdx = idx + 1;
+        setSessionIndex(nextIdx);
+        if (nextIdx < items.length) {
+          playSessionItem(items, nextIdx);
+        } else {
+          setIsSessionActive(false);
+          addHasanat(50);
+        }
+      }, 1000);
+    });
   };
 
-  const completedCount = Object.values(completedMap).filter(Boolean).length;
-  const totalCount = ADHKAR.reduce((acc, cat) => acc + cat.items.length, 0);
+  const stopSession = () => {
+    setIsSessionActive(false);
+    VoiceService.stop();
+  };
+
+  const queryLower = searchQuery.trim().toLowerCase();
+
+  const filteredAdhkar = (selectedCategory === 'all' 
+    ? ADHKAR 
+    : ADHKAR.filter(c => c.id === selectedCategory)
+  ).map(cat => {
+    if (!queryLower) return cat;
+    return {
+      ...cat,
+      items: cat.items.filter(item => 
+        item.english.toLowerCase().includes(queryLower) ||
+        item.benefit.toLowerCase().includes(queryLower) ||
+        item.arabic.includes(searchQuery.trim()) ||
+        (item.transliteration && item.transliteration.toLowerCase().includes(queryLower))
+      )
+    };
+  }).filter(cat => cat.items.length > 0);
+
+  const filteredNames = queryLower 
+    ? NAMES_OF_ALLAH.filter(n => 
+        n.english.toLowerCase().includes(queryLower) || 
+        n.transliteration.toLowerCase().includes(queryLower) || 
+        n.arabic.includes(searchQuery.trim())
+      )
+    : NAMES_OF_ALLAH;
+
+  const totalDhikrCount = ADHKAR.reduce((acc, cat) => acc + cat.items.length, 0);
+  const completedDhikrCount = Object.values(completedMap).filter(Boolean).length;
+  const progressPercent = Math.min(100, Math.round((completedDhikrCount / totalDhikrCount) * 100));
+
+  const fontClass = fontSizeScale === 'lg' ? 'text-3xl sm:text-4xl' : fontSizeScale === 'sm' ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl';
 
   return (
-    <div className="space-y-12">
-      {/* ISIS Wrists Header Sponsorship */}
-      <div className="glass-panel border-brand-primary/20 p-8 rounded-[3rem] flex flex-col md:flex-row items-center justify-between bg-brand-primary/5 gap-8 mb-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="w-16 h-16 rounded-[2rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl shadow-brand-primary/20">
-            <Sparkles size={32} />
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300 pb-20">
+      
+      {/* Top Banner & Spiritual Tracker */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-depth via-brand-primary/10 to-brand-depth border border-brand-primary/20 p-5 sm:p-7 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
+          
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-brand-primary text-xs font-bold uppercase tracking-wider">
+              <Sparkles size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
+              <span>Sacred Remembrance • Hisnul Muslim</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Daily Athkar & Duas
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 font-light max-w-md">
+              "Verily, in the remembrance of Allah do hearts find rest." (Surah Ar-Ra'd 13:28)
+            </p>
           </div>
-          <div className="text-center md:text-left">
-            <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.5em] mb-2 text-nowrap">Sponsored by Aloha Group of Companies</p>
-            <h4 className="text-2xl font-black text-white uppercase tracking-tighter">Official Timekeeper: <span className="text-brand-primary">ISIS WRISTS</span></h4>
-            <p className="text-xs text-slate-500 font-bold uppercase mt-1 tracking-widest leading-relaxed">Precision for your sacred moments</p>
+
+          {/* Progress Bar & Hasanat stats */}
+          <div className="bg-black/40 border border-white/10 p-3.5 sm:p-4 rounded-2xl sm:min-w-[220px] space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-400">Daily Completion</span>
+              <span className="font-mono font-bold text-brand-primary">{progressPercent}%</span>
+            </div>
+            
+            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-brand-primary to-amber-400 rounded-full"
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+              <span>{completedDhikrCount} of {totalDhikrCount} Finished</span>
+              <span className="text-amber-300 font-bold">+{completedDhikrCount * 15} Hasanat</span>
+            </div>
           </div>
+
         </div>
-        <button className="w-full md:w-auto px-10 py-5 bg-brand-primary text-brand-depth text-[10px] font-black uppercase rounded-2xl shadow-2xl shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all tracking-widest relative z-10">Shop the Selection</button>
       </div>
 
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex p-1 bg-white/5 rounded-2xl w-full md:w-fit">
-          {['adhkar', 'names'].map((tab) => (
-            <button 
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex-1 md:flex-none ${activeTab === tab ? 'bg-brand-primary text-brand-depth shadow-xl' : 'text-slate-500 hover:text-slate-400'}`}
-            >
-              {tab === 'adhkar' ? 'Daily Adhkar' : '99 Names'}
-            </button>
-          ))}
+      {/* Tabs & Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        
+        {/* Main Tab Switcher */}
+        <div className="flex p-1 bg-white/5 border border-white/10 rounded-2xl w-full sm:w-auto">
+          <button 
+            onClick={() => setActiveTab('adhkar')}
+            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'adhkar' 
+                ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Daily Athkar
+          </button>
+          <button 
+            onClick={() => setActiveTab('names')}
+            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'names' 
+                ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            99 Names of Allah
+          </button>
         </div>
 
+        {/* Font & Transliteration Toggles */}
         {activeTab === 'adhkar' && (
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-6 bg-brand-sidebar border border-white/5 p-4 pr-8 rounded-3xl"
-          >
-             <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-                   <Sparkles size={20} />
-                </div>
-                <motion.div 
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-brand-sidebar"
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                />
-             </div>
-             <div className="space-y-1">
-                <div className="flex items-center justify-between gap-12">
-                   <p className="text-[10px] font-black text-white uppercase tracking-widest">Spiritual Momentum</p>
-                   <p className="text-[10px] font-black text-brand-primary uppercase">{Math.round((completedCount / totalCount) * 100)}%</p>
-                </div>
-                <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                   <motion.div 
-                     initial={{ width: 0 }}
-                     animate={{ width: `${(completedCount / totalCount) * 100}%` }}
-                     className="h-full bg-brand-primary shadow-[0_0_15px_rgba(168,85,247,0.5)]"
-                   />
-                </div>
-             </div>
-          </motion.div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              onClick={() => setShowTransliteration(!showTransliteration)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                showTransliteration 
+                  ? 'bg-white/10 border-white/20 text-white' 
+                  : 'bg-white/5 border-white/5 text-slate-500'
+              }`}
+              title="Toggle English pronunciation"
+            >
+              Abc Pronunciation
+            </button>
+
+            {/* Font Size Pills */}
+            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5 text-[11px] font-bold text-slate-400">
+              <button 
+                onClick={() => setFontSizeScale('sm')} 
+                className={`px-2 py-1 rounded-lg transition-colors ${fontSizeScale === 'sm' ? 'bg-brand-primary text-white' : 'hover:text-white'}`}
+              >
+                A-
+              </button>
+              <button 
+                onClick={() => setFontSizeScale('md')} 
+                className={`px-2 py-1 rounded-lg transition-colors ${fontSizeScale === 'md' ? 'bg-brand-primary text-white' : 'hover:text-white'}`}
+              >
+                A
+              </button>
+              <button 
+                onClick={() => setFontSizeScale('lg')} 
+                className={`px-2 py-1 rounded-lg transition-colors ${fontSizeScale === 'lg' ? 'bg-brand-primary text-white' : 'hover:text-white'}`}
+              >
+                A+
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
+      {/* Category Pills (Morning, Evening, Sleep, Forgiveness, After Swalah) */}
+      {activeTab === 'adhkar' && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-2 px-2 sm:mx-0 sm:px-0">
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 ${
+              selectedCategory === 'all' 
+                ? 'bg-white/20 border-white/30 text-white shadow-sm' 
+                : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            All Categories
+          </button>
+          {ADHKAR.map(cat => {
+            const Icon = cat.icon;
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 flex items-center gap-2 ${
+                  isSelected 
+                    ? 'bg-brand-primary border-brand-primary text-white shadow-md shadow-brand-primary/20' 
+                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Icon size={14} />
+                <span>{cat.category}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-400'}`}>
+                  {cat.items.length}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Main Content Area */}
       <AnimatePresence mode="wait">
         {activeTab === 'adhkar' ? (
           <motion.div 
-            key="adhkar"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-20"
+            key="adhkar-list"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-10"
           >
-            {filteredAdhkar.map((cat) => (
-              <section key={cat.category} className="space-y-8">
-                <div className="flex items-center justify-between px-4">
-                   <div className="flex items-center gap-4">
-                      <div className={`p-4 rounded-3xl bg-brand-sidebar border border-white/5 ${cat.category === 'Morning' ? 'text-brand-primary' : 'text-blue-400'} shadow-2xl`}>
-                         <cat.icon size={28} />
+            {filteredAdhkar.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <section key={cat.id} className="space-y-4">
+                  {/* Category Header with Auto-Play Session Action */}
+                  <div className="flex items-center justify-between px-1 flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 text-brand-primary">
+                        <Icon size={20} />
                       </div>
                       <div>
-                         <h3 className="text-3xl font-black text-white tracking-tight">{cat.category} Remembrance</h3>
-                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2">
-                            <Lock size={10} className="text-brand-primary/40" />
-                            Sacred Protection {cat.items.length} Verses
-                         </p>
+                        <h3 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                          {cat.category} Remembrance
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-medium">
+                          {cat.items.length} Authentic Supplications
+                        </p>
                       </div>
-                   </div>
-                </div>
+                    </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                   {cat.items.map((dhikr, idx) => (
-                     <motion.div 
-                        key={dhikr.id}
-                        layout
-                        className={`group relative glass-panel p-10 rounded-[3rem] border border-white/5 transition-all duration-500 overflow-hidden ${completedMap[dhikr.id] ? 'bg-brand-primary/[0.03] border-brand-primary/20' : 'hover:border-brand-primary/30 hover:bg-white/[0.02]'}`}
-                     >
-                        <div className="relative z-10 flex flex-col h-full justify-between gap-8">
-                           <div className="flex justify-between items-start gap-8">
-                              <div className="flex flex-col gap-4">
-                                 <motion.button 
-                                   whileHover={{ scale: 1.1 }}
-                                   whileTap={{ scale: 0.9 }}
-                                   onClick={() => toggleComplete(dhikr.id)}
-                                   className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all ${completedMap[dhikr.id] ? 'bg-brand-primary border-brand-primary text-brand-depth shadow-lg' : 'border-white/10 text-slate-600 hover:border-brand-primary/40 hover:text-brand-primary'}`}
-                                 >
-                                    {completedMap[dhikr.id] ? <CheckCircle2 size={24} /> : <ChevronRight size={24} />}
-                                 </motion.button>
-                                 <motion.button 
-                                   whileHover={{ scale: 1.1 }}
-                                   whileTap={{ scale: 0.9 }}
-                                   onClick={() => handleSpeak(dhikr.arabic, dhikr.id, (dhikr as any).audio)}
-                                   className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all ${speakingId === dhikr.id ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20' : 'border-white/10 text-slate-600 hover:border-amber-500/40 hover:text-amber-500'}`}
-                                 >
-                                    {speakingId === dhikr.id ? <Pause size={24} fill="currentColor" /> : <Volume2 size={24} />}
-                                 </motion.button>
+                    <button
+                      onClick={() => isSessionActive ? stopSession() : startSession(cat.items)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                        isSessionActive 
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                          : 'bg-brand-primary/15 hover:bg-brand-primary/25 text-brand-accent border border-brand-primary/30'
+                      }`}
+                    >
+                      {isSessionActive ? (
+                        <>
+                          <Pause size={13} />
+                          <span>Stop Session</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={13} />
+                          <span>Auto-Play {cat.category}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Cards Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+                    {cat.items.map((dhikr) => {
+                      const isComplete = completedMap[dhikr.id];
+                      const currentCount = counterMap[dhikr.id] || 0;
+                      const isThisPlaying = playbackState.isPlaying && playbackState.activeId === dhikr.id;
+
+                      return (
+                        <motion.div
+                          key={dhikr.id}
+                          layout
+                          className={`relative p-5 sm:p-6 rounded-3xl border text-left transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-lg ${
+                            isComplete 
+                              ? 'bg-emerald-500/[0.04] border-emerald-500/30 shadow-emerald-500/5' 
+                              : isThisPlaying 
+                                ? 'bg-brand-primary/10 border-brand-primary/40 ring-1 ring-brand-primary/30' 
+                                : 'bg-white/5 hover:bg-white/[0.08] border-white/10 hover:border-brand-primary/20'
+                          }`}
+                        >
+                          {/* Arabic Text & Recitation */}
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-accent text-[10px] font-bold uppercase tracking-wider">
+                                  {dhikr.benefit.split('(')[0].trim()}
+                                </span>
                               </div>
-                              <p className="arabic-text text-4xl text-right leading-[1.8] text-white/90 font-medium flex-1">
-                                 {dhikr.arabic}
+
+                              <button
+                                onClick={() => toggleComplete(dhikr.id)}
+                                className={`p-1.5 rounded-xl border transition-all ${
+                                  isComplete 
+                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' 
+                                    : 'border-white/10 text-slate-500 hover:text-white hover:bg-white/5'
+                                }`}
+                                title={isComplete ? "Mark incomplete" : "Mark completed"}
+                              >
+                                <CheckCircle2 size={16} className={isComplete ? 'fill-current' : ''} />
+                              </button>
+                            </div>
+
+                            {/* Arabic Script */}
+                            <p 
+                              className={`font-arabic text-right leading-loose text-amber-200/95 font-medium py-2 ${fontClass}`} 
+                              dir="rtl"
+                            >
+                              {dhikr.arabic}
+                            </p>
+
+                            {/* Transliteration */}
+                            {showTransliteration && dhikr.transliteration && (
+                              <p className="text-xs text-brand-accent/80 italic font-mono leading-relaxed mt-2 mb-1">
+                                {dhikr.transliteration}
                               </p>
-                           </div>
+                            )}
 
-                           <div className="space-y-6">
-                              <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5">
-                                 <p className="text-slate-400 text-sm font-medium leading-relaxed italic line-clamp-3 group-hover:line-clamp-none transition-all duration-500">"{dhikr.english}"</p>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                 <div className="flex items-center gap-2.5 px-4 py-2 bg-brand-primary/5 rounded-full border border-brand-primary/10">
-                                    <Shield size={14} className="text-brand-primary" />
-                                    <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.1em]">{dhikr.benefit}</span>
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-                     </motion.div>
-                   ))}
-                </div>
-              </section>
-            ))}
+                            {/* English Translation */}
+                            <p className="text-slate-300 text-xs sm:text-sm font-light leading-relaxed italic mt-2 mb-4">
+                              "{dhikr.english}"
+                            </p>
+                          </div>
+
+                          {/* Interactive Audio & Tasbih Counter Footer */}
+                          <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-3 mt-auto flex-wrap">
+                            
+                            {/* Audio Recite Buttons */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={(e) => handlePlayDhikr(dhikr, e)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                                  isThisPlaying && playbackState.mode !== 'both'
+                                    ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/30'
+                                    : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                                }`}
+                              >
+                                {isThisPlaying && playbackState.mode !== 'both' ? <Pause size={12} className="fill-current" /> : <Volume2 size={12} />}
+                                <span className="text-[11px]">Recite Voice</span>
+                              </button>
+
+                              <button
+                                onClick={(e) => handlePlayBoth(dhikr, e)}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all hidden sm:flex ${
+                                  isThisPlaying && playbackState.mode === 'both'
+                                    ? 'bg-emerald-500 text-white shadow-md'
+                                    : 'bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10'
+                                }`}
+                                title="Listen Arabic + English"
+                              >
+                                <Languages size={12} />
+                                <span className="text-[11px]">Recite + Meaning</span>
+                              </button>
+                            </div>
+
+                            {/* Sunnah Repetition Counter */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={(e) => handleIncrementCounter(dhikr, e)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+                                  currentCount >= dhikr.targetCount
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 shadow-sm'
+                                }`}
+                              >
+                                <Sparkles size={12} />
+                                <span>{currentCount} / {dhikr.targetCount}x</span>
+                              </button>
+
+                              {currentCount > 0 && (
+                                <button
+                                  onClick={(e) => handleResetCounter(dhikr.id, e)}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+                                  title="Reset counter"
+                                >
+                                  <RotateCcw size={12} />
+                                </button>
+                              )}
+                            </div>
+
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
           </motion.div>
         ) : (
+          /* 99 Names of Allah Tab */
           <motion.div 
-            key="names"
-            initial={{ opacity: 0, scale: 0.95 }}
+            key="names-list"
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            exit={{ opacity: 0 }}
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
           >
-            {filteredNames.map((name, idx) => (
-              <motion.div 
-                key={name.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.03 }}
-                className="group relative bg-brand-sidebar/40 border border-white/5 rounded-[3rem] p-10 text-center hover:bg-brand-sidebar/80 hover:border-brand-primary/30 transition-all duration-500"
-              >
-                 <div className="w-20 h-20 bg-brand-primary/5 rounded-[1.5rem] flex items-center justify-center text-brand-primary mx-auto group-hover:scale-110 group-hover:bg-brand-primary group-hover:text-brand-depth transition-all duration-500 shadow-xl">
-                    <Award size={32} />
-                 </div>
-                 <div className="space-y-6 mt-8">
-                    <p className="arabic-text text-5xl text-white tracking-widest">{name.arabic}</p>
-                    <div className="space-y-2">
-                       <h4 className="text-2xl font-black text-brand-primary tracking-tight">{name.transliteration}</h4>
-                       <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">{name.english}</p>
-                    </div>
-                    <motion.button 
-                       whileHover={{ scale: 1.1 }}
-                       whileTap={{ scale: 0.9 }}
-                       onClick={() => handleSpeak(name.arabic, `name-${name.id}`)}
-                       className={`mx-auto w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all ${speakingId === `name-${name.id}` ? 'bg-amber-500 border-amber-500 text-white shadow-lg' : 'border-white/10 text-slate-500 hover:border-amber-500 hover:text-amber-500'}`}
-                     >
-                       {speakingId === `name-${name.id}` ? <Square size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
-                     </motion.button>
-                 </div>
-              </motion.div>
-            ))}
+            {filteredNames.map((name) => {
+              const isPlayingName = playbackState.isPlaying && playbackState.activeId === `name-${name.id}`;
+              return (
+                <motion.div 
+                  key={name.id}
+                  className={`p-6 rounded-3xl border text-center transition-all flex flex-col justify-between space-y-4 shadow-lg ${
+                    isPlayingName 
+                      ? 'bg-brand-primary/15 border-brand-primary/50 shadow-brand-primary/20' 
+                      : 'bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <span className="w-7 h-7 rounded-full bg-white/5 text-[11px] font-mono text-slate-400 flex items-center justify-center mx-auto">
+                    {name.id}
+                  </span>
+
+                  <p className="font-arabic text-4xl text-amber-200 font-bold py-1">
+                    {name.arabic}
+                  </p>
+
+                  <div className="space-y-0.5">
+                    <h4 className="text-base font-extrabold text-white tracking-tight">
+                      {name.transliteration}
+                    </h4>
+                    <p className="text-xs text-slate-400 font-light">
+                      {name.english}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (isPlayingName) {
+                        VoiceService.stop();
+                      } else {
+                        VoiceService.speakArabic(name.arabic, `name-${name.id}`);
+                      }
+                    }}
+                    className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      isPlayingName 
+                        ? 'bg-brand-primary text-white shadow-md' 
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                    }`}
+                  >
+                    {isPlayingName ? <Pause size={13} className="fill-current" /> : <Volume2 size={13} />}
+                    <span>{isPlayingName ? 'Playing Voice' : 'Pronounce'}</span>
+                  </button>
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Floating Active Audio Session Bar */}
+      {isSessionActive && sessionItems.length > 0 && (
+        <motion.div 
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 50, opacity: 0 }}
+          className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-40 p-4 rounded-2xl bg-brand-depth/95 backdrop-blur-2xl border border-brand-primary/30 shadow-2xl shadow-black/80 flex items-center justify-between gap-3 text-app-text"
+        >
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-primary shrink-0 animate-pulse">
+              <Volume2 size={18} />
+            </div>
+            <div className="truncate">
+              <span className="text-[10px] font-bold text-brand-primary uppercase tracking-wider block">
+                Session ({sessionIndex + 1} of {sessionItems.length})
+              </span>
+              <p className="text-xs font-semibold text-white truncate">
+                {sessionItems[sessionIndex]?.arabic}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={stopSession}
+            className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-xs font-bold shrink-0 transition-colors"
+          >
+            End
+          </button>
+        </motion.div>
+      )}
+
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { Coordinates } from 'adhan';
 import QiblaView from './QiblaView.tsx';
 import { getPrayerTimes, formatTime, CALCULATION_METHODS } from '../services/prayerService.ts';
 import { getAudioStreamUrl } from '../lib/api.ts';
+import { GLOBAL_ADHAN_LIST } from '../constants.ts';
 
 interface Mosque {
   name: string;
@@ -68,11 +69,8 @@ export default function ToolsView() {
   });
 
   const ADHAN_OPTIONS = [
-    { id: 'standard', name: 'Makkah Adhan', url: 'https://www.islamcan.com/audio/adhan/makkah.mp3' },
-    { id: 'madinah', name: 'Madinah Adhan', url: 'https://www.islamcan.com/audio/adhan/madinah.mp3' },
-    { id: 'fajr', name: 'Fajr Adhan (Makkah)', url: 'https://www.islamcan.com/audio/adhan/makkah-fajr.mp3' },
-    { id: 'egypt', name: 'Egypt Adhan', url: 'https://www.islamcan.com/audio/adhan/egypt.mp3' },
-    { id: 'custom', name: 'Custom URL', url: customAdhanUrl }
+    ...GLOBAL_ADHAN_LIST.map(a => ({ id: a.id, name: a.name, url: a.audioUrl })),
+    { id: 'custom', name: 'Custom Audio URL', url: customAdhanUrl }
   ];
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -87,7 +85,10 @@ export default function ToolsView() {
 
   const playAdhan = (testUrl?: string) => {
     if (audioRef.current) {
-      audioRef.current.pause();
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      } catch (e) {}
       audioRef.current = null;
     }
 
@@ -95,15 +96,26 @@ export default function ToolsView() {
     if (!url) return;
 
     const streamUrl = getAudioStreamUrl(url);
+    if (!streamUrl) return;
+
     const audio = new Audio(streamUrl);
     audio.preload = 'auto';
     audioRef.current = audio;
-    audio.play().catch(e => console.warn("Audio playback failed:", e));
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        if (e.name === 'AbortError' || e.message?.includes('interrupted')) return;
+        console.warn("Audio playback interrupted or blocked:", e);
+      });
+    }
   };
 
   const stopAdhan = () => {
     if (audioRef.current) {
-      audioRef.current.pause();
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      } catch (e) {}
       audioRef.current = null;
     }
   };

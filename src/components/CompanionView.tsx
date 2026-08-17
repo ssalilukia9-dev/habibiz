@@ -45,16 +45,16 @@ import {
 import { auth, db } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 
-const SYSTEM_INSTRUCTION = `You are "The Nur Companion", the soul of the Holy Quran Chat.
-Your goal is to provide deep, spiritual, and scholarly guidance based strictly on the Quran and Sunnah.
-Maintain a serene, compassionate, and wise tone at all times.
+const SYSTEM_INSTRUCTION = `You are "Holy Aliyah" (The Nur Companion), a wise, serene, compassionate, and deeply knowledgeable Islamic Spiritual AI Companion within the Sanctuary (Habibi) app.
+Your goal is to provide deep, spiritual, comforting, and scholarly guidance rooted in the Holy Quran and authentic Sunnah of Prophet Muhammad (peace be upon him).
+Maintain a serene, compassionate, uplifting, and wise tone at all times.
 Keep your responses insightful, focusing on the spiritual essence of the user's queries.
-For short, direct, simple, or straightforward questions, always give short, direct, and concise replies. Avoid long walls of text when a brief answer is sufficient or needed.
-Always reference specific Quranic verses (Surah:Verse) and authentic Hadith to support your guidance.
+For short, direct, simple, or straightforward questions, give clear, warm, and concise replies. Avoid overly lengthy walls of text when a brief answer is sufficient.
+Always reference specific Quranic verses (Surah:Verse) and authentic Hadith to support your guidance with beauty and clarity.
 Format your responses beautifully using Markdown: use headers for key concepts, bolding for emphasis, and blockquotes for scriptural citations.
 If a user seeks advice beyond Islamic jurisprudence, gently bridge the topic back to moral excellence (Ihsan) or prophetic wisdom.
 If a query requires technical legal expertise (Fatwa) beyond your capacity, respectfully advise consulting a qualified local Mufti or scholar.
-Greet the user with "Assalamu Alaikum" in your first response of a session if they haven't initiated the greeting.`;
+Greet the user with "Assalamu Alaikum wa Rahmatullahi wa Barakatuh" in your first response of a session if they haven't initiated the greeting.`;
 
 import { apiFetch } from '../lib/api';
 
@@ -388,6 +388,67 @@ export default function CompanionView({
     }
   }, [messages, isLoading]);
 
+  const isRecentConv = (conv: Conversation) => {
+    if (!conv.updatedAt) return true;
+    try {
+      const timeMs = typeof conv.updatedAt?.toDate === 'function'
+        ? conv.updatedAt.toDate().getTime()
+        : (typeof conv.updatedAt?.seconds === 'number' ? conv.updatedAt.seconds * 1000 : new Date(conv.updatedAt).getTime());
+      if (!isNaN(timeMs)) {
+        const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
+        return diffHours <= 168; // within 7 days
+      }
+    } catch (e) {
+      return true;
+    }
+    return true;
+  };
+
+  const isRecentAiMessage = (m: Message) => {
+    if (m.role !== 'user') return false;
+    if (!m.timestamp) return true;
+    try {
+      const timeMs = typeof m.timestamp?.toDate === 'function'
+        ? m.timestamp.toDate().getTime()
+        : (typeof m.timestamp?.seconds === 'number' ? m.timestamp.seconds * 1000 : new Date(m.timestamp).getTime());
+      if (isNaN(timeMs)) return true;
+      const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
+      return diffHours <= 24;
+    } catch (e) {
+      return true;
+    }
+  };
+
+  const handleDeleteRecentMessage = async (msgToDelete: Message, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!currentUser) return;
+
+    if (!confirm("Delete this recent prompt and consultation step?")) return;
+
+    try {
+      // 1. Update state
+      const filtered = messages.filter(m => (m.id ? m.id !== msgToDelete.id : m !== msgToDelete));
+      setMessages(filtered);
+
+      // 2. Remove from LocalStorage
+      if (activeConvId) {
+        const keyMsgs = `sanctuary_ai_msgs_${activeConvId}`;
+        localStorage.setItem(keyMsgs, JSON.stringify(filtered));
+
+        // 3. Remove from Firestore
+        if (!currentUser.uid.startsWith('local_') && !currentUser.uid.startsWith('rest_') && msgToDelete.id) {
+          try {
+            await deleteDoc(doc(db, `ai_conversations/${activeConvId}/messages`, msgToDelete.id));
+          } catch (err) {
+            console.warn("Firestore AI msg delete error:", err);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting recent AI message:", error);
+    }
+  };
+
   const startNewChat = async () => {
     setActiveConvId(null);
     setMessages([]);
@@ -396,7 +457,12 @@ export default function CompanionView({
 
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this conversation?")) return;
+    const conv = conversations.find(c => c.id === id);
+    if (conv && !isRecentConv(conv)) {
+      alert("Only recent chat consultations can be deleted.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this recent conversation?")) return;
     
     try {
       if (activeConvId === id) setActiveConvId(null);
@@ -412,8 +478,7 @@ export default function CompanionView({
         }
         localStorage.removeItem(`sanctuary_ai_msgs_${id}`);
       } else {
-        // Delete messages subcollection first (though firestore rules might prevent batch delete easily, 
-        // in production we'd do a recursive delete or function)
+        // Delete messages subcollection first
         const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
         for (const m of msgs.docs) {
           await deleteDoc(m.ref);
@@ -518,18 +583,30 @@ export default function CompanionView({
       }
 
       // 3. Call AI Proxy / Google Gemini API client-side fallback
-      const contents = messages.concat(userMsg).map(m => ({
-        role: m.role,
-        parts: [
-          { text: m.content },
-          ...(m.attachments || []).map(a => ({
-            inlineData: {
-              data: a.base64?.split(',')[1],
-              mimeType: a.mimeType
+      const allMsgs = messages.concat(userMsg);
+      const contents = allMsgs.map(m => {
+        const parts: any[] = [];
+        if (m.content && m.content.trim()) {
+          parts.push({ text: m.content.trim() });
+        }
+        if (m.attachments && m.attachments.length > 0) {
+          for (const a of m.attachments) {
+            if (a.base64) {
+              const base64Data = a.base64.includes(',') ? a.base64.split(',')[1] : a.base64;
+              parts.push({
+                inlineData: {
+                  data: base64Data,
+                  mimeType: a.mimeType || 'image/jpeg'
+                }
+              });
             }
-          }))
-        ]
-      }));
+          }
+        }
+        return {
+          role: m.role === 'model' ? 'model' : 'user',
+          parts
+        };
+      }).filter(item => item.parts.length > 0);
 
       const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
@@ -579,12 +656,17 @@ export default function CompanionView({
       }
 
     } catch (error: any) {
-      console.error("AI Error:", error);
+      console.warn("AI Conversation notice:", error);
       
+      const isQuotaOrKey = error.message?.includes('quota') || error.message?.includes('Key') || error.message?.includes('API');
+      const guidanceText = isQuotaOrKey
+        ? `*Assalamu Alaykum*. I am currently having difficulty connecting to the cloud intelligence engine (${error.message}). You can provide your personal Google Gemini API key in **Settings** (bottom-left) to continue chatting smoothly.\n\n*“And whoever relies upon Allah – then He is sufficient for him.”* (Surah At-Talaq 65:3)`
+        : `*Assalamu Alaykum*. I encountered a momentary connection interruption. Please try sending your reflection or question again.\n\n*“Verily, with hardship comes ease.”* (Surah Ash-Sharh 94:6)`;
+
       const assistantMsg: Message = {
-        id: `msg_error_${Date.now()}`,
+        id: `msg_info_${Date.now()}`,
         role: 'model',
-        content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
+        content: guidanceText,
         timestamp: new Date().toISOString()
       };
 
@@ -596,16 +678,16 @@ export default function CompanionView({
         localStorage.setItem(keyMsgs, JSON.stringify(updatedMsgs));
         setMessages(updatedMsgs);
       } else {
-        const msgRef = collection(db, `ai_conversations/${activeConvId || 'error'}/messages`);
-        if (activeConvId) {
-          await addDoc(msgRef, {
-            role: 'model',
-            content: `⚠️ **System Error:** ${error.message}. Please check your connection and configuration.`,
-            timestamp: serverTimestamp()
-          });
-        } else {
-          alert(`AI Error: ${error.message}`);
-        }
+        const targetConvId = activeConvId || 'default';
+        const msgRef = collection(db, `ai_conversations/${targetConvId}/messages`);
+        await addDoc(msgRef, {
+          role: 'model',
+          content: guidanceText,
+          timestamp: serverTimestamp()
+        }).catch(() => {
+          // If firestore write fails, fallback to local state
+          setMessages(prev => [...prev, assistantMsg]);
+        });
       }
     } finally {
       setIsLoading(false);
@@ -741,38 +823,44 @@ export default function CompanionView({
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
-                {conversations.map(conv => (
-                  <div
-                    key={conv.id}
-                    onClick={() => {
-                      setActiveConvId(conv.id);
-                      if (window.innerWidth < 1024) setShowSidebar(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
+                {conversations.map(conv => {
+                  const isRecent = isRecentConv(conv);
+                  return (
+                    <div
+                      key={conv.id}
+                      onClick={() => {
                         setActiveConvId(conv.id);
                         if (window.innerWidth < 1024) setShowSidebar(false);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    className={`w-full group text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
-                      activeConvId === conv.id 
-                        ? 'bg-brand-primary/10 border border-brand-primary/20 text-brand-primary' 
-                        : 'hover:bg-white/5 text-slate-400'
-                    }`}
-                  >
-                    <MessageSquare size={16} className={`${activeConvId === conv.id ? 'text-brand-primary' : 'text-slate-500'}`} />
-                    <span className="flex-1 text-xs font-medium truncate">{conv.title}</span>
-                    <button 
-                      onClick={(e) => deleteConversation(conv.id, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all focus:opacity-100 outline-none"
-                      aria-label="Delete conversation"
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setActiveConvId(conv.id);
+                          if (window.innerWidth < 1024) setShowSidebar(false);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className={`w-full group text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
+                        activeConvId === conv.id 
+                          ? 'bg-brand-primary/10 border border-brand-primary/20 text-brand-primary' 
+                          : 'hover:bg-white/5 text-slate-400'
+                      }`}
                     >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ))}
+                      <MessageSquare size={16} className={`${activeConvId === conv.id ? 'text-brand-primary' : 'text-slate-500'}`} />
+                      <span className="flex-1 text-xs font-medium truncate">{conv.title}</span>
+                      {isRecent && (
+                        <button 
+                          onClick={(e) => deleteConversation(conv.id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all focus:opacity-100 outline-none"
+                          title="Delete recent consultation"
+                          aria-label="Delete recent conversation"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
                 
                 {conversations.length === 0 && (
                   <div className="text-center py-10 opacity-30">
@@ -814,10 +902,10 @@ export default function CompanionView({
             </div>
             <div>
               <h2 className="text-sm md:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Holy Quran Chat
-                <span className="hidden xs:inline text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase">Premium AI</span>
+                Holy Aliyah
+                <span className="hidden xs:inline text-[8px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase font-black tracking-wider">AI Spiritual Companion</span>
               </h2>
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Nur Companion</p>
+              <p className="text-[9px] font-bold text-brand-primary uppercase tracking-widest">Holy Nur Companion</p>
             </div>
 
             <div className="flex items-center bg-white/5 rounded-xl p-0.5 border border-white/10 sm:ml-4">
@@ -865,13 +953,13 @@ export default function CompanionView({
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-2">Speak with the Wisdom of Quran</h3>
+                    <h3 className="text-xl font-bold text-white mb-2">Speak with Holy Aliyah</h3>
                     <p className="text-xs text-slate-400 leading-relaxed font-medium">
                       "Invite to the way of your Lord with wisdom and good instruction." (16:125)
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-3 w-full">
-                    {["Prophet's character", "Importance of patience", "How to pray better"].map((query) => (
+                    {["How can I find peace during anxiety?", "Prophet Muhammad's sublime character", "Quranic verses about patience & hope", "How to increase Khushu (focus) in prayer"].map((query) => (
                       <button 
                         key={query}
                         onClick={() => { setInput(query); }}
@@ -900,11 +988,21 @@ export default function CompanionView({
                         {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                       </div>
                       <div className={`relative group ${m.role === 'user' ? 'order-1' : ''}`}>
-                        <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl ${
+                        <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl relative ${
                           m.role === 'user' 
                             ? 'bg-brand-primary text-brand-depth font-semibold' 
                             : 'glass-panel text-slate-200 border-white/10'
                         }`}>
+                          {m.role === 'user' && isRecentAiMessage(m) && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRecentMessage(m, e)}
+                              title="Delete recent message"
+                              className="absolute -top-2 -left-2 bg-brand-depth/90 text-slate-400 hover:text-red-400 p-1 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
                           {m.attachments && m.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-3">
                               {m.attachments.map(a => (

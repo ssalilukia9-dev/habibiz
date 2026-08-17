@@ -40,7 +40,7 @@ import { db, auth, signInWithGoogle, signInWithGithub } from '../lib/firebase.ts
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { updateProfile, deleteUser } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
-import { LANGUAGES } from '../constants.ts';
+import { LANGUAGES, GLOBAL_ADHAN_LIST } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
 import { getAudioStreamUrl } from '../lib/api.ts';
@@ -479,30 +479,25 @@ export default function ProfileView({
 
   const testAdhan = () => {
     let audioUrl = '';
-    const adhanMap: Record<string, string> = {
-      'makkah': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
-      'madinah': 'https://www.islamcan.com/audio/adhan/azan1.mp3',
-      'mishary': 'https://www.islamcan.com/audio/adhan/azan20.mp3',
-      'turkey': 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
-      'movie_style': 'https://www.islamcan.com/audio/adhan/azan14.mp3',
-      'sharjah': 'https://www.islamcan.com/audio/adhan/azan3.mp3',
-      'bosnia': 'https://www.islamcan.com/audio/adhan/azan12.mp3',
-      'africa': 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3'
-    };
-
     if (preferredAdhan === 'custom' && customAdhanUrl) {
       audioUrl = customAdhanUrl;
     } else {
-      const originalUrl = adhanMap[preferredAdhan] || adhanMap['makkah'];
-      audioUrl = getAudioStreamUrl(originalUrl);
+      const found = GLOBAL_ADHAN_LIST.find(a => a.id === preferredAdhan);
+      audioUrl = found ? found.audioUrl : (GLOBAL_ADHAN_LIST[0]?.audioUrl || '');
     }
 
-    const audio = new Audio(audioUrl);
+    const streamUrl = getAudioStreamUrl(audioUrl);
+    if (!streamUrl) return;
+
+    const audio = new Audio(streamUrl);
     audio.preload = 'auto';
-    audio.play().catch(e => {
-      console.error("Test playback failed", e);
-      alert("Playback failed. Please check the audio source.");
-    });
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        if (e.name === 'AbortError' || e.message?.includes('interrupted')) return;
+        console.warn("Test playback failed or interrupted:", e);
+      });
+    }
   };
 
   const startSync = async () => {

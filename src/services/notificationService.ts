@@ -97,58 +97,173 @@ class NotificationService {
   }
 
   async schedulePrayerNotifications(prayerTimes: Record<string, string>) {
-    if (!Capacitor.isNativePlatform()) return;
+    // 1. Read user reminder preferences
+    const savedReminders = localStorage.getItem('prayer-reminders');
+    const settings = savedReminders ? JSON.parse(savedReminders) : { 
+      Global: true, Fajr: true, Dhuhr: true, Asr: true, Maghrib: true, Isha: true 
+    };
 
-    try {
-      // 1. Cancel previous scheduled notifications to avoid double rings
-      const pending = await LocalNotifications.getPending();
-      const prayerPendingIds = pending.notifications
-        .filter(n => n.id >= 2000 && n.id <= 2100)
-        .map(n => ({ id: n.id }));
-      
-      if (prayerPendingIds.length > 0) {
-        await LocalNotifications.cancel({ notifications: prayerPendingIds });
-      }
+    if (settings.Global === false) {
+      console.log("Prayer notifications are globally disabled in settings.");
+      return;
+    }
 
-      // 2. Schedule notifications for today and tomorrow (5 prayers each, total 10 schedules)
-      const prayersToCheck = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-      const notificationsToSchedule: any[] = [];
-      let idCounter = 2000;
+    const preferredAdhanId = localStorage.getItem('preferred-adhan-id') || 'makkah';
+    const adhanVoiceTitles: Record<string, string> = {
+      makkah: 'Makkah Al-Mukarramah',
+      madinah: 'Al-Madinah Al-Munawwarah',
+      alafasy: 'Mishary Rashid Alafasy',
+      fajr_makkah: 'Fajr Makkah Al-Haram',
+      alaqsa: 'Al-Aqsa Mosque (Al-Quds)',
+      minshawi: 'Sheikh Mohamed Siddiq El-Minshawi',
+      abdulbasit: 'Sheikh Abdulbasit Abdusamad',
+      dubai: 'Dubai Adhan',
+      lebanon: 'Sheikh Abd Alrazaq Saleh',
+      nasreddine: 'Nasreddine Toubar',
+      arkan: 'Sheikh Abdul Wali Al-Arkani',
+      brunei: 'Sultan Omar Ali Saifuddien'
+    };
+    const adhanVoice = adhanVoiceTitles[preferredAdhanId] || 'Sacred Recitation';
 
-      for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + dayOffset);
+    const prayersToCheck = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+    const webScheduleItems: any[] = [];
+    const nativeNotifications: any[] = [];
+    let idCounter = 2000;
 
-        for (const prayer of prayersToCheck) {
-          const timeStr = prayerTimes[prayer];
-          if (!timeStr) continue;
+    for (let dayOffset = 0; dayOffset <= 2; dayOffset++) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + dayOffset);
 
-          const [hours, minutes] = timeStr.split(':').map(Number);
-          const scheduleTime = new Date(targetDate);
-          scheduleTime.setHours(hours, minutes, 0, 0);
+      for (const prayer of prayersToCheck) {
+        if (settings[prayer] === false) continue;
+        const timeStr = prayerTimes[prayer];
+        if (!timeStr) continue;
 
-          // Only schedule if it's in the future
-          if (scheduleTime.getTime() > Date.now()) {
-            notificationsToSchedule.push({
-              id: idCounter++,
-              title: `Time for ${prayer}`,
-              body: `The call to prayer for ${prayer} has begun. Come to success.`,
-              channelId: 'prayer',
-              schedule: { at: scheduleTime },
-              extra: { actionUrl: '/resources' }
-            });
-          }
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const scheduleTime = new Date(targetDate);
+        scheduleTime.setHours(hours, minutes, 0, 0);
+
+        if (scheduleTime.getTime() > Date.now()) {
+          // Add for Service Worker Background Scheduler
+          webScheduleItems.push({
+            prayer,
+            time: scheduleTime.toISOString(),
+            displayTime: timeStr,
+            id: `${prayer}-${scheduleTime.getTime()}`
+          });
+
+          // Add for Native Capacitor Scheduler
+          nativeNotifications.push({
+            id: idCounter++,
+            title: `🕌 Time for ${prayer} (${timeStr})`,
+            body: `The sacred call to prayer has begun (${adhanVoice}). Come to success.`,
+            channelId: 'prayer',
+            schedule: { at: scheduleTime },
+            extra: {
+              actionUrl: `/?athan=${encodeURIComponent(prayer)}&time=${encodeURIComponent(timeStr)}#adhan`,
+              prayerName: prayer
+            }
+          });
         }
       }
+    }
 
-      if (notificationsToSchedule.length > 0) {
-        await LocalNotifications.schedule({
-          notifications: notificationsToSchedule
-        });
-        console.log(`Successfully scheduled ${notificationsToSchedule.length} native prayer notifications.`);
+    // A. Dispatch to Service Worker for background / closed-app web push & timers
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'SCHEDULE_PRAYER_NOTIFICATIONS',
+            schedule: webScheduleItems,
+            adhanVoice
+          });
+        }
+      } catch (err) {
+        console.warn("ServiceWorker schedule sync failed:", err);
       }
-    } catch (e) {
-      console.warn("Native prayer scheduling failed:", e);
+    }
+
+    // B. Save schedule to LocalStorage for offline and tab-restore checks
+    localStorage.setItem('sanctuary_scheduled_prayers', JSON.stringify({
+      updatedAt: Date.now(),
+      schedule: webScheduleItems
+    }));
+
+    // C. Schedule Native Capacitor Notifications (iOS / Android APK)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const pending = await LocalNotifications.getPending();
+        const prayerPendingIds = pending.notifications
+          .filter(n => n.id >= 2000 && n.id <= 2500)
+          .map(n => ({ id: n.id }));
+        
+        if (prayerPendingIds.length > 0) {
+          await LocalNotifications.cancel({ notifications: prayerPendingIds });
+        }
+
+        if (nativeNotifications.length > 0) {
+          await LocalNotifications.schedule({
+            notifications: nativeNotifications
+          });
+          console.log(`Successfully scheduled ${nativeNotifications.length} native prayer alarms.`);
+        }
+      } catch (e) {
+        console.warn("Native prayer scheduling failed:", e);
+      }
+    }
+  }
+
+  async triggerTestClosedAppAthan(delaySeconds: number = 4, prayerName: string = 'Asr') {
+    const preferredAdhanId = localStorage.getItem('preferred-adhan-id') || 'makkah';
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    // Request permission if not already granted
+    const isGranted = await this.requestPermission();
+    if (!isGranted) {
+      alert("Please allow notification permissions to receive Athan calls when the app is closed.");
+      return;
+    }
+
+    // Dispatch test to Service Worker
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'TEST_PRAYER_ALARM',
+            delayMs: delaySeconds * 1000,
+            prayerName,
+            prayerTime: timeStr,
+            adhanVoice: 'Makkah Al-Mukarramah'
+          });
+        }
+      } catch (err) {
+        console.warn("SW test trigger error:", err);
+      }
+    }
+
+    // If native Capacitor
+    if (Capacitor.isNativePlatform()) {
+      const scheduleTime = new Date(Date.now() + delaySeconds * 1000);
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: 9999,
+            title: `🕌 Time for ${prayerName} (${timeStr})`,
+            body: `The sacred call to prayer has begun (Makkah Al-Mukarramah). Come to prayer, come to success.`,
+            channelId: 'prayer',
+            schedule: { at: scheduleTime },
+            extra: {
+              actionUrl: `/?athan=${encodeURIComponent(prayerName)}&time=${encodeURIComponent(timeStr)}#adhan`,
+              prayerName
+            }
+          }]
+        });
+      } catch (e) {
+        console.warn("Native test schedule failed:", e);
+      }
     }
   }
 

@@ -784,6 +784,142 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
     }
   };
 
+  const isRecentRoom = (room: Room) => {
+    if (room.type === 'private') return true;
+    if (room.createdBy === myUser?.uid) return true;
+    if (!room.updatedAt) return true;
+    try {
+      const timeMs = typeof room.updatedAt?.toDate === 'function' 
+        ? room.updatedAt.toDate().getTime()
+        : (typeof room.updatedAt?.seconds === 'number' ? room.updatedAt.seconds * 1000 : new Date(room.updatedAt).getTime());
+      if (!isNaN(timeMs)) {
+        const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
+        return diffHours <= 168; // within the week
+      }
+    } catch (e) {
+      return true;
+    }
+    return true;
+  };
+
+  const handleDeleteRecentChat = async (roomToDelete: Room, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!myUser) return;
+
+    const roomDisplayName = getRoomName(roomToDelete);
+    if (!confirm(`Delete recent chat "${roomDisplayName}"? All recent messages in this chat will be removed.`)) {
+      return;
+    }
+
+    try {
+      // 1. Remove from local storage
+      const localRoomsKey = `sanctuary_rooms_${myUser.uid}`;
+      const savedRoomsRaw = localStorage.getItem(localRoomsKey);
+      if (savedRoomsRaw) {
+        const parsed = JSON.parse(savedRoomsRaw);
+        const filtered = parsed.filter((r: any) => r.id !== roomToDelete.id);
+        localStorage.setItem(localRoomsKey, JSON.stringify(filtered));
+      }
+      localStorage.removeItem(`sanctuary_msgs_${roomToDelete.id}`);
+
+      // 2. Remove from Firestore if authenticated and not default global circle
+      if (!myUser.uid.startsWith('local_') && !myUser.isRest && !roomToDelete.id.startsWith('seeker_')) {
+        try {
+          const msgsQuery = query(collection(db, `rooms/${roomToDelete.id}/messages`));
+          const msgsSnap = await getDocs(msgsQuery);
+          const deletePromises = msgsSnap.docs.map(m => deleteDoc(doc(db, `rooms/${roomToDelete.id}/messages`, m.id)));
+          await Promise.all(deletePromises);
+          await deleteDoc(doc(db, 'rooms', roomToDelete.id));
+        } catch (err) {
+          console.warn("Firestore room delete error (or local room):", err);
+        }
+      }
+
+      // 3. Update state
+      setRooms(prev => prev.filter(r => r.id !== roomToDelete.id));
+      if (activeRoom?.id === roomToDelete.id) {
+        setActiveRoom(null);
+        setMessages([]);
+        setMobileViewState('list');
+      }
+    } catch (error) {
+      console.error("Error deleting recent chat:", error);
+    }
+  };
+
+  const isRecentMessage = (msg: Message) => {
+    if (msg.senderId !== myUser?.uid) return false;
+    if (!msg.timestamp) return true;
+
+    try {
+      const timeMs = typeof msg.timestamp?.toDate === 'function'
+        ? msg.timestamp.toDate().getTime()
+        : (typeof msg.timestamp?.seconds === 'number' ? msg.timestamp.seconds * 1000 : new Date(msg.timestamp).getTime());
+      
+      if (isNaN(timeMs)) return true;
+      const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
+      // Recent if sent within the last 24 hours
+      return diffHours <= 24;
+    } catch (e) {
+      return true;
+    }
+  };
+
+  const handleDeleteRecentMessage = async (msgToDelete: Message, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!activeRoom || !myUser) return;
+
+    if (!confirm("Delete this recent message? It will be permanently removed from the conversation.")) {
+      return;
+    }
+
+    try {
+      // 1. Remove from state
+      const updatedMessages = messages.filter(m => m.id !== msgToDelete.id);
+      setMessages(updatedMessages);
+
+      // 2. Remove from LocalStorage
+      const msgsKey = `sanctuary_msgs_${activeRoom.id}`;
+      localStorage.setItem(msgsKey, JSON.stringify(updatedMessages));
+
+      // 3. Remove from Firestore
+      if (!myUser.uid.startsWith('local_') && !myUser.isRest && !activeRoom.id.startsWith('seeker_')) {
+        try {
+          await deleteDoc(doc(db, `rooms/${activeRoom.id}/messages`, msgToDelete.id));
+        } catch (err) {
+          console.warn("Firestore message delete error:", err);
+        }
+      }
+
+      // 4. Update room's last message
+      const lastMsg = updatedMessages[updatedMessages.length - 1];
+      const newLastText = lastMsg ? (lastMsg.imageUrl ? '📷 Photo' : lastMsg.text) : 'No messages yet';
+      
+      setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, lastMessage: newLastText } : r));
+
+      const localRoomsKey = `sanctuary_rooms_${myUser.uid}`;
+      const savedRoomsRaw = localStorage.getItem(localRoomsKey);
+      if (savedRoomsRaw) {
+        const parsed = JSON.parse(savedRoomsRaw);
+        const target = parsed.find((r: any) => r.id === activeRoom.id);
+        if (target) {
+          target.lastMessage = newLastText;
+          localStorage.setItem(localRoomsKey, JSON.stringify(parsed));
+        }
+      }
+
+      if (!myUser.uid.startsWith('local_') && !myUser.isRest) {
+        try {
+          await updateDoc(doc(db, 'rooms', activeRoom.id), {
+            lastMessage: newLastText
+          });
+        } catch (err) {}
+      }
+    } catch (error) {
+      console.error("Error deleting recent message:", error);
+    }
+  };
+
   const handleDeleteRoom = async () => {
     if (!activeRoom || !myUser || activeRoom.createdBy !== myUser.uid) return;
     
@@ -872,29 +1008,53 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
         <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2 no-scrollbar">
           {activeTab === 'messages' && (
             <>
-              {filteredRooms.map(room => (
-                <button
-                  key={room.id}
-                  onClick={() => setActiveRoom(room)}
-                  className={`w-full text-left p-4 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-xl' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
-                    {room.type === 'group' ? <Hash size={18} /> : (
-                      <div className="relative w-full h-full flex items-center justify-center">
-                        {getRoomPhoto(room) ? (
-                          <img src={getRoomPhoto(room)} alt={getRoomName(room)} className="w-full h-full object-cover" />
-                        ) : (
-                          <MessageCircle size={18} />
+              {filteredRooms.map(room => {
+                const canDelete = isRecentRoom(room);
+                return (
+                  <div
+                    key={room.id}
+                    className="relative group/room"
+                  >
+                    <button
+                      onClick={() => setActiveRoom(room)}
+                      className={`w-full text-left p-4 pr-10 rounded-3xl transition-all flex items-center gap-3 ${activeRoom?.id === room.id ? 'bg-brand-primary text-brand-depth shadow-xl' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${activeRoom?.id === room.id ? 'bg-brand-depth/20' : 'bg-brand-primary/10 text-brand-primary'}`}>
+                        {room.type === 'group' ? <Hash size={18} /> : (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            {getRoomPhoto(room) ? (
+                              <img src={getRoomPhoto(room)} alt={getRoomName(room)} className="w-full h-full object-cover" />
+                            ) : (
+                              <MessageCircle size={18} />
+                            )}
+                          </div>
                         )}
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-black text-sm truncate">{getRoomName(room)}</p>
+                        </div>
+                        <p className="text-[10px] opacity-60 truncate font-medium">{room.lastMessage || 'No messages yet'}</p>
+                      </div>
+                    </button>
+
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteRecentChat(room, e)}
+                        title="Delete recent chat"
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all opacity-0 group-hover/room:opacity-100 focus:opacity-100 ${
+                          activeRoom?.id === room.id
+                            ? 'text-brand-depth/70 hover:text-red-900 hover:bg-brand-depth/10'
+                            : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'
+                        }`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-sm truncate">{getRoomName(room)}</p>
-                    <p className="text-[10px] opacity-60 truncate font-medium">{room.lastMessage || 'No messages yet'}</p>
-                  </div>
-                </button>
-              ))}
+                );
+              })}
               {rooms.length === 0 && (
                 <div className="py-20 text-center opacity-30 select-none">
                   <MessageCircle size={40} className="mx-auto mb-4" />
@@ -1039,13 +1199,23 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {activeRoom.type === 'group' && activeRoom.createdBy === myUser?.uid && (
+                {isRecentRoom(activeRoom) && (
+                  <button 
+                    onClick={(e) => handleDeleteRecentChat(activeRoom, e)}
+                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all flex items-center gap-1 text-xs font-bold"
+                    title="Delete recent chat"
+                  >
+                    <Trash2 size={18} />
+                    <span className="hidden sm:inline text-[11px]">Delete Chat</span>
+                  </button>
+                )}
+                {activeRoom.type === 'group' && activeRoom.createdBy === myUser?.uid && !isRecentRoom(activeRoom) && (
                   <button 
                     onClick={handleDeleteRoom}
                     className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                     title="Dissolve Group"
                   >
-                    <Trash2 size={20} />
+                    <Trash2 size={18} />
                   </button>
                 )}
                 <button className="p-2 text-slate-500 hover:text-white transition-colors"><MoreHorizontal /></button>
@@ -1104,6 +1274,16 @@ export default function ChatView({ currentUser, isPremium = false, searchQuery, 
                               }
                             })()}
                           </span>
+                          {isRecentMessage(msg) && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRecentMessage(msg, e)}
+                              title="Delete recent message"
+                              className="opacity-0 group-hover/msg:opacity-100 p-1 text-slate-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                         <div className={`p-4 rounded-[2rem] text-sm leading-relaxed shadow-xl relative group/msg ${
                           isMe 

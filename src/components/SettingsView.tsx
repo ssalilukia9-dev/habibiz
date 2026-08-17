@@ -162,6 +162,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
 
   useEffect(() => {
     localStorage.setItem('prayer-reminders', JSON.stringify(reminders));
+    window.dispatchEvent(new CustomEvent('prayer_times_updated'));
   }, [reminders]);
 
   const toggleGlobalReminders = async () => {

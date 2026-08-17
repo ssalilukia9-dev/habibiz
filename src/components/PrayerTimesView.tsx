@@ -17,11 +17,16 @@ import {
   BookOpen,
   Sparkles,
   Star,
-  Quote
+  Quote,
+  Smartphone,
+  ShieldCheck,
+  Zap,
+  Info
 } from 'lucide-react';
 import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 import { notificationService } from '../services/notificationService.ts';
 import { getAudioStreamUrl } from '../lib/api.ts';
+import { GLOBAL_ADHAN_LIST } from '../constants.ts';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
 
 interface PrayerTime {
@@ -38,64 +43,7 @@ interface AdhanSound {
   image: string;
 }
 
-const ADHAN_SOUNDS: AdhanSound[] = [
-  {
-    id: 'makkah',
-    title: 'Haram Al-Sharif',
-    location: 'Makkah, Saudi Arabia',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan2.mp3',
-    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'madinah',
-    title: 'Masjid Nabawi',
-    location: 'Madinah, Saudi Arabia',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan1.mp3',
-    image: 'https://images.unsplash.com/photo-1597401411513-41c37f7a771a?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'mishary',
-    title: 'Mishary Alafasy',
-    location: 'Kuwait City, Kuwait',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan20.mp3',
-    image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'turkey',
-    title: 'Blue Mosque',
-    location: 'Istanbul, Turkey',
-    audioUrl: 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
-    image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'movie_style',
-    title: 'Cinematic Echo',
-    location: 'Emotional / Movie Style',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan14.mp3',
-    image: 'https://images.unsplash.com/photo-1519817650390-64a934479f67?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'sharjah',
-    title: 'Noor Mosque',
-    location: 'Sharjah, UAE',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan3.mp3',
-    image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'bosnia',
-    title: 'Sarajevo Style',
-    location: 'Sarajevo, Bosnia',
-    audioUrl: 'https://www.islamcan.com/audio/adhan/azan12.mp3',
-    image: 'https://images.unsplash.com/photo-1563914442296-e2652b123689?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'africa',
-    title: 'Bilal Harmony',
-    location: 'West African Echo',
-    audioUrl: 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3',
-    image: 'https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?auto=format&fit=crop&q=80&w=800'
-  }
-];
+const ADHAN_SOUNDS: AdhanSound[] = GLOBAL_ADHAN_LIST;
 
 export default function PrayerTimesView() {
   const [loading, setLoading] = useState(true);
@@ -122,6 +70,11 @@ export default function PrayerTimesView() {
     return localStorage.getItem('prayer-country') || 'UK';
   });
   const [testingAdhan, setTestingAdhan] = useState(false);
+  const [testCountdown, setTestCountdown] = useState<number | null>(null);
+  const [showClosedAppGuide, setShowClosedAppGuide] = useState(false);
+  const [notificationPerm, setNotificationPerm] = useState<NotificationPermission>(() => {
+    return typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default';
+  });
 
   useEffect(() => {
     if (errorStatus) {
@@ -301,27 +254,17 @@ export default function PrayerTimesView() {
     if (testingAdhan) return;
     try {
       setTestingAdhan(true);
-      setErrorStatus("Triggering 10s voice test. Click screen to unlock if audio is blocked...");
       
-      const granted = await notificationService.requestPermission();
+      await notificationService.requestPermission().catch(() => {});
       
       const preferredId = selectedAdhanId || 'makkah';
-      let audioUrl = 'https://www.islamcan.com/audio/adhan/azan2.mp3';
+      let audioUrl = ADHAN_SOUNDS[0]?.audioUrl || '';
       
       if (preferredId === 'custom' && customUrl) {
         audioUrl = customUrl;
       } else {
-        const adhanMap: Record<string, string> = {
-          'makkah': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
-          'madinah': 'https://www.islamcan.com/audio/adhan/azan1.mp3',
-          'mishary': 'https://www.islamcan.com/audio/adhan/azan20.mp3',
-          'turkey': 'https://archive.org/download/Adhan_Collection/Adhan-Turkey.mp3',
-          'movie_style': 'https://www.islamcan.com/audio/adhan/azan14.mp3',
-          'sharjah': 'https://www.islamcan.com/audio/adhan/azan3.mp3',
-          'bosnia': 'https://www.islamcan.com/audio/adhan/azan12.mp3',
-          'africa': 'https://archive.org/download/Adhan_Collection/Adhan-African.mp3'
-        };
-        audioUrl = adhanMap[preferredId] || audioUrl;
+        const found = ADHAN_SOUNDS.find(a => a.id === preferredId);
+        if (found) audioUrl = found.audioUrl;
       }
 
       const streamAudioUrl = getAudioStreamUrl(audioUrl);
@@ -333,23 +276,44 @@ export default function PrayerTimesView() {
         '/resources'
       );
 
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(streamAudioUrl);
-      audio.preload = 'auto';
-      audioRef.current = audio;
-      
-      await audio.play();
-      
-      setTimeout(() => {
-        audio.pause();
-        setTestingAdhan(false);
-      }, 10000);
+      // Trigger rich Adhan modal screen
+      window.dispatchEvent(new CustomEvent('trigger_test_adhan', {
+        detail: {
+          prayerName: nextPrayer?.name || 'Dhuhr',
+          prayerTime: nextPrayer?.time || '12:45',
+          adhanId: preferredId
+        }
+      }));
+
+      setTestingAdhan(false);
       
     } catch (err: any) {
-      console.error(err);
-      setErrorStatus("Autoplay restricted. Tap anywhere on the page first, then retry.");
+      console.warn("Adhan test notification error:", err);
       setTestingAdhan(false);
     }
+  };
+
+  const startClosedAppTest = async () => {
+    const granted = await notificationService.requestPermission();
+    if (!granted) {
+      setErrorStatus("Please enable notifications in your browser/device permissions.");
+      return;
+    }
+    setNotificationPerm('granted');
+    
+    // 5-second countdown to allow user to lock or minimize
+    setTestCountdown(5);
+    let count = 5;
+    const interval = setInterval(() => {
+      count -= 1;
+      if (count <= 0) {
+        clearInterval(interval);
+        setTestCountdown(null);
+        notificationService.triggerTestClosedAppAthan(1, nextPrayer?.name || 'Asr');
+      } else {
+        setTestCountdown(count);
+      }
+    }, 1000);
   };
 
   useEffect(() => {
@@ -373,20 +337,35 @@ export default function PrayerTimesView() {
 
   const toggleAdhan = (id: string, url: string) => {
     if (playingAdhan === id) {
-      audioRef.current?.pause();
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        } catch (e) {}
+      }
       setPlayingAdhan(null);
     } else {
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        } catch (e) {}
+      }
       
       const streamUrl = getAudioStreamUrl(url);
       const audio = new Audio(streamUrl);
       audio.preload = 'auto';
       audioRef.current = audio;
-      audio.play().catch(e => {
-        console.error("Playback failed:", e);
-        setErrorStatus("Playback failed. The source might be restricted or broken.");
-        setPlayingAdhan(null);
-      });
+      
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+          if (e.name === 'AbortError' || e.message?.includes('interrupted')) return;
+          console.warn("Playback interrupted or blocked:", e);
+          setErrorStatus("Playback waiting for user interaction. Tap anywhere to play.");
+          setPlayingAdhan(null);
+        });
+      }
       setPlayingAdhan(id);
       audio.onended = () => setPlayingAdhan(null);
     }
@@ -398,7 +377,8 @@ export default function PrayerTimesView() {
 
   const handleDownload = async (adhan: AdhanSound | { id: string, title: string, audioUrl: string }) => {
     try {
-      const response = await fetch(adhan.audioUrl);
+      const streamUrl = getAudioStreamUrl(adhan.audioUrl);
+      const response = await fetch(streamUrl);
       if (!response.ok) throw new Error("Network response was not ok");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -410,10 +390,9 @@ export default function PrayerTimesView() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
-      console.warn("Direct download failed due to CORS, falling back to open in new tab:", e);
-      // Fallback: Just open the URL in a new tab so user can save it manually
-      window.open(adhan.audioUrl, '_blank');
-      setErrorStatus("Direct download restricted. Opening in new tab for manual save.");
+      console.warn("Direct download fallback to stream URL:", e);
+      const streamUrl = getAudioStreamUrl(adhan.audioUrl);
+      window.open(streamUrl, '_blank');
     }
   };
 
@@ -689,6 +668,131 @@ export default function PrayerTimesView() {
             ))
           )}
         </div>
+      </section>
+
+      {/* Closed-App Athan Calls & Engagement Guardian Card */}
+      <section className="relative overflow-hidden rounded-[2.5rem] p-6 sm:p-8 bg-gradient-to-br from-brand-primary/15 via-black/40 to-brand-depth border border-brand-primary/25 shadow-2xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30">
+                <ShieldCheck size={20} />
+              </span>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Closed-App Athan Calls
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Background Active
+                </span>
+              </div>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-300 font-medium max-w-xl">
+              Receive the sacred Call to Prayer with real audio alerts on your lockscreen even when Sanctuary is closed or your device is asleep.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setShowClosedAppGuide(!showClosedAppGuide)}
+              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Info size={14} className="text-brand-primary" />
+              <span>{showClosedAppGuide ? 'Hide Guide' : 'Setup Guide'}</span>
+            </button>
+
+            <button
+              onClick={startClosedAppTest}
+              disabled={testCountdown !== null}
+              className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg ${
+                testCountdown !== null
+                  ? 'bg-amber-500 text-black animate-pulse'
+                  : 'bg-brand-primary hover:bg-brand-primary/90 text-white shadow-brand-primary/25 active:scale-95'
+              }`}
+            >
+              <Smartphone size={15} />
+              <span>
+                {testCountdown !== null 
+                  ? `Lock Screen Now! (${testCountdown}s)` 
+                  : 'Test Closed-App Call'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Engagement Booster Value Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+              <Sparkles size={16} />
+            </div>
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-white">Instant Lockscreen Actions</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Tap directly into the Adhan player, Qibla compass, or fast prayer log without searching through apps.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+              <Zap size={16} />
+            </div>
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-white">+50 Hasanat on Every Swalah</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Recite the authentic Sunnah Du'a after Adhan with voice assistance to claim Hasanat & boost your spiritual streak.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 shrink-0">
+              <Volume2 size={16} />
+            </div>
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-white">Offline Service Worker Audio</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Scheduled in your browser's persistent Service Worker daemon to sound even when internet drops.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Expandable Setup & Permission Guide */}
+        <AnimatePresence>
+          {showClosedAppGuide && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-3 text-xs text-slate-300"
+            >
+              <h4 className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                <Smartphone size={14} /> How to Ensure 100% Reliable Closed-App Calls
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p className="font-bold text-white">📱 For iPhone & iPad (iOS)</p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    1. Tap the <strong>Share button</strong> (square with arrow) in Safari.<br />
+                    2. Choose <strong>"Add to Home Screen"</strong>.<br />
+                    3. Open Sanctuary from your Home Screen to unlock native lockscreen Athan alerts and banner notifications.
+                  </p>
+                </div>
+                <div className="space-y-1.5 p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p className="font-bold text-white">🤖 For Android & Chrome</p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    1. Allow <strong>Notification & Sound</strong> permissions when prompted.<br />
+                    2. In Android Settings &gt; Apps &gt; Sanctuary, set Battery to <strong>"Unrestricted"</strong> to prevent background sleep.<br />
+                    3. Install the app to your Home Screen for instant 1-tap lockscreen wake.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       {/* Adhan Gallery */}

@@ -12,47 +12,44 @@ export const getApiBaseUrl = () => {
   if (typeof window === 'undefined') return '';
 
   // In Capacitor, the app runs on capacitor://localhost (iOS) or http://localhost (Android, with NO port or standard port)
-  // In regular browsers, local development always has a port (e.g., 3000, 5173).
   const isCapacitor = 
     window.location.href.startsWith('capacitor://') ||
     (window.location.hostname === 'localhost' && !window.location.port) ||
     (window.location.hostname === '127.0.0.1' && !window.location.port);
 
   if (!isCapacitor) {
-    // On web, relative paths work perfectly as the backend and frontend share the same origin
+    // On web, relative paths work directly as backend and frontend share the same origin
     return '';
   }
   
-  // Check localStorage for a custom configured API URL (useful for troubleshooting/testing)
+  // Check localStorage for a custom configured API URL
   const customUrl = localStorage.getItem('custom_api_base_url');
   if (customUrl) {
     return customUrl.endsWith('/') ? customUrl.slice(0, -1) : customUrl;
   }
 
-  // For Native (iOS/Android), we need an absolute production URL to reach the hosted backend
   const productionUrl = import.meta.env.VITE_PRODUCTION_API_URL || '';
   if (productionUrl) {
     return productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
   }
   
-  // Fallback to the active Cloud Run development server for seamless out-of-the-box Capacitor support
   return 'https://ais-dev-p6nimnue2dep6nfjkp4jd6-520387765455.europe-west2.run.app';
 };
 
 /**
  * Universal Secure Audio Stream URL Resolver
  * Works everywhere: Netlify, Vercel, Cloud Run, Safari, iOS, Android, and Capacitor.
- * Directly streams from high-speed Quran and Adhan CDNs with native browser buffering.
+ * Ensures HTTPS and reliable CDN streams.
  */
 export const getAudioStreamUrl = (rawUrl?: string): string => {
   if (!rawUrl) return '';
   
-  // If it's already a Blob or Data URI, return directly
+  // Blob or Data URIs can be played immediately
   if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
     return rawUrl;
   }
 
-  // If someone passed an existing /api/proxy/audio?url=... string, extract the target
+  // Extract from proxy query if present
   if (rawUrl.includes('/api/proxy/audio?url=')) {
     try {
       const match = rawUrl.match(/url=([^&]+)/);
@@ -65,69 +62,37 @@ export const getAudioStreamUrl = (rawUrl?: string): string => {
     }
   }
 
-  // Ensure all HTTP audio endpoints use HTTPS to prevent Mixed Content security blocking
-  const secureUrl = rawUrl.replace(/^http:\/\//i, 'https://');
-
+  // Replace obsolete or broken domains if encountered
+  let secureUrl = rawUrl.replace(/^http:\/\//i, 'https://');
+  
   return secureUrl;
 };
 
 /**
- * Enhanced fetch that automatically handles absolute URLs, proxy bypasses, audio streams, and client-side Gemini fallbacks.
+ * Enhanced fetch that automatically handles absolute URLs, proxy bypasses, audio streams, and AI fallbacks.
  */
 export const apiFetch = async (path: string, options: RequestInit = {}): Promise<Response> => {
   const isWeb = typeof window !== 'undefined';
   const originalFetch = getRawFetch();
-  
-  // 1. Detect if we are on a client-only static hosting like Netlify, Vercel, or a native app (Capacitor/Cordova)
-  const isContainerEnvironment = isWeb && (
-    window.location.hostname.endsWith('.run.app') || 
-    window.location.hostname.includes('run.app') ||
-    window.location.hostname.includes('googleusercontent.com') ||
-    window.location.hostname.includes('aistudio.google.com') ||
-    window.location.hostname === '' ||
-    (window.location.hostname === 'localhost' && window.location.port !== '') ||
-    (window.location.hostname === '127.0.0.1' && window.location.port !== '')
-  );
 
-  const shouldBypassProxy = !isContainerEnvironment;
-
-  // 2. Intercept Audio Proxy Calls (Solves Netlify Audio failure completely)
+  // 1. Intercept Audio Proxy Calls
   if (path.startsWith('/api/proxy/audio')) {
     try {
       const parsed = new URL(path, 'https://localhost');
       const targetUrl = parsed.searchParams.get('url');
       if (targetUrl) {
-        const secureTarget = targetUrl.replace(/^http:\/\//i, 'https://');
-        
-        // On static hosting (like Netlify), directly fetch the target audio resource!
-        if (shouldBypassProxy) {
-          return originalFetch(secureTarget, {
-            ...options,
-            mode: 'cors'
-          });
-        }
-
-        // In container environment, try local proxy first then fallback to upstream
-        try {
-          const baseUrl = getApiBaseUrl();
-          const localUrl = `${baseUrl}${path}`;
-          const res = await originalFetch(localUrl, options);
-          const contentType = res.headers.get('content-type') || '';
-          if (res.status === 404 || contentType.includes('text/html')) {
-            throw new Error('Local audio proxy returned HTML / 404');
-          }
-          return res;
-        } catch (err) {
-          console.warn('Local Audio proxy failed, streaming upstream directly:', err);
-          return originalFetch(secureTarget, { ...options, mode: 'cors' });
-        }
+        const secureTarget = getAudioStreamUrl(targetUrl);
+        return originalFetch(secureTarget, {
+          ...options,
+          mode: 'cors'
+        });
       }
     } catch (e) {
       console.warn('Audio proxy intercept failed:', e);
     }
   }
 
-  // 3. Intercept Alquran and Aladhan Proxy Calls
+  // 2. Intercept Alquran and Aladhan Proxy Calls with upstream fallbacks
   if (path.startsWith('/api/proxy/alquran/')) {
     const subPath = path.replace(/^\/api\/proxy\/alquran\//, '');
     const upstreamUrl = `https://api.alquran.cloud/v1/${subPath}`;
@@ -166,68 +131,105 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
     }
   }
 
-  // 4. Intercept Gemini Chat Proxy Calls for client-side fallback
+  // 3. Gemini Chat & AI Endpoints
   if (path === '/api/ai/chat' || path.startsWith('/api/ai/chat')) {
+    // First try the server proxy
+    try {
+      const baseUrl = getApiBaseUrl();
+      const localUrl = `${baseUrl}${path}`;
+      const serverRes = await originalFetch(localUrl, options);
+      const contentType = serverRes.headers.get('content-type') || '';
+      
+      // If server successfully processed it, return the response
+      if (serverRes.ok && contentType.includes('application/json')) {
+        return serverRes;
+      }
+      
+      // If server returned 404 (static hosting) or 500 error, attempt client-side fallback
+      if (serverRes.status === 404 || contentType.includes('text/html')) {
+        // Fall through to client-side Gemini call
+      } else {
+        return serverRes;
+      }
+    } catch (err) {
+      console.warn('Server AI endpoint unreachable, attempting client-side fallback:', err);
+    }
+
+    // Client-side Gemini fallback for static hostings (Netlify/Vercel)
     const customKey = isWeb ? (localStorage.getItem('custom_gemini_api_key') || '') : '';
     const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
     const apiKey = customKey.trim() || envKey.trim();
 
-    if (shouldBypassProxy || customKey.trim()) {
-      if (!apiKey) {
-        return new Response(JSON.stringify({
-          error: "To chat with Aliyah on this hosted deployment, please go to Settings (bottom-left) and enter your own free Google Gemini API Key."
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+    if (!apiKey) {
+      return new Response(JSON.stringify({
+        error: "To chat with Aliyah on this hosted deployment, please go to Settings (bottom-left) and enter your free Google Gemini API Key."
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-      try {
-        const bodyData = options.body ? JSON.parse(options.body as string) : {};
-        const { contents, systemInstruction } = bodyData;
+    try {
+      const bodyData = options.body ? JSON.parse(options.body as string) : {};
+      const { contents, systemInstruction } = bodyData;
 
-        const rawRes = await originalFetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            systemInstruction: systemInstruction ? {
-              parts: [{ text: systemInstruction }]
-            } : undefined
-          })
-        });
+      const candidateClientModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      let assistantText: string | null = null;
+      let lastClientError = 'Failed to communicate with Google Gemini API client-side.';
 
-        if (!rawRes.ok) {
-          const errJson = await rawRes.json().catch(() => ({}));
-          throw new Error(errJson.error?.message || 'Failed to communicate with Google Gemini API client-side.');
+      for (const modelName of candidateClientModels) {
+        try {
+          const rawRes = await originalFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              systemInstruction: systemInstruction ? {
+                parts: [{ text: typeof systemInstruction === 'string' ? systemInstruction : (systemInstruction.parts?.[0]?.text || '') }]
+              } : undefined
+            })
+          });
+
+          if (rawRes.ok) {
+            const rawData = await rawRes.json();
+            assistantText = rawData.candidates?.[0]?.content?.parts?.[0]?.text || null;
+            if (assistantText) break;
+          } else {
+            const errJson = await rawRes.json().catch(() => ({}));
+            lastClientError = errJson.error?.message || lastClientError;
+            console.warn(`Client Gemini fallback on model ${modelName} returned status ${rawRes.status}:`, lastClientError);
+          }
+        } catch (err: any) {
+          lastClientError = err?.message || lastClientError;
         }
-
-        const rawData = await rawRes.json();
-        const assistantText = rawData.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, I couldn't process that.";
-        
-        return new Response(JSON.stringify({ text: assistantText }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      } catch (err: any) {
-        console.error('Client-side Gemini call failed:', err);
-        return new Response(JSON.stringify({
-          error: err.message || 'Failed to generate response from Gemini API.'
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
       }
+
+      if (!assistantText) {
+        throw new Error(lastClientError);
+      }
+      
+      return new Response(JSON.stringify({ text: assistantText }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (err: any) {
+      console.error('Client-side Gemini call failed:', err);
+      return new Response(JSON.stringify({
+        error: err.message || 'Failed to generate response from Gemini API.'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
   }
 
-  // 5. Default standard fetch behavior
+  // 4. Default standard fetch behavior
   const baseUrl = getApiBaseUrl();
   const url = path.startsWith('http') ? path : `${baseUrl}${path}`;
   return originalFetch(url, options);
 };
 
-// 6. Global monkey-patching of window.fetch to capture ALL proxy fetches in the app automatically
+// 5. Global monkey-patching of window.fetch to capture ALL proxy fetches in the app automatically
 if (typeof window !== 'undefined' && !(window as any).__fetchPatched) {
   try {
     const originalFetch = window.fetch;
