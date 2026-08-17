@@ -196,6 +196,30 @@ class RestDbClient {
     return data.comment;
   }
 
+  async deletePost(postId: string): Promise<boolean> {
+    const token = this.getToken();
+    const res = await apiFetch(`/api/db/feed/posts/${postId}`, {
+      method: 'DELETE',
+      headers: token ? {
+        'Authorization': `Bearer ${token}`
+      } : {}
+    });
+    const data = await res.json();
+    return res.ok && data.success;
+  }
+
+  async deleteComment(postId: string, commentId: string): Promise<boolean> {
+    const token = this.getToken();
+    const res = await apiFetch(`/api/db/feed/posts/${postId}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: token ? {
+        'Authorization': `Bearer ${token}`
+      } : {}
+    });
+    const data = await res.json();
+    return res.ok && data.success;
+  }
+
   // Chat Endpoints
   async getRooms(): Promise<any[]> {
     const res = await apiFetch('/api/db/chat/rooms', {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 import { notificationService } from '../services/notificationService.ts';
+import { getAudioStreamUrl } from '../lib/api.ts';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
 
 interface PrayerTime {
@@ -100,7 +101,10 @@ export default function PrayerTimesView() {
   const [loading, setLoading] = useState(true);
   const [prayerData, setPrayerData] = useState<PrayerTime[]>([]);
   const [nextPrayer, setNextPrayer] = useState<PrayerTime | null>(null);
+  const [prevPrayer, setPrevPrayer] = useState<PrayerTime | null>(null);
   const [timeLeft, setTimeLeft] = useState('');
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [detailedCountdown, setDetailedCountdown] = useState<{ hours: number; mins: number; secs: number }>({ hours: 0, mins: 0, secs: 0 });
   const [location, setLocation] = useState('London, UK'); // Default
   const [playingAdhan, setPlayingAdhan] = useState<string | null>(null);
   const [selectedAdhanId, setSelectedAdhanId] = useState<string>(() => {
@@ -224,34 +228,74 @@ export default function PrayerTimesView() {
   };
 
   const calculateNextPrayer = (prayers: PrayerTime[]) => {
+    if (!prayers || prayers.length === 0) return;
     const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
     
-    let found = prayers.find(p => {
+    let nextIdx = prayers.findIndex(p => {
       const [h, m] = p.time.split(':').map(Number);
       return (h * 60 + m) > currentMinutes;
     });
 
-    if (!found) found = prayers[0]; // Next day Fajr
-    setNextPrayer(found);
+    if (nextIdx === -1) {
+      nextIdx = 0; // Wraps to tomorrow Fajr
+    }
+
+    const prevIdx = (nextIdx - 1 + prayers.length) % prayers.length;
+    const foundNext = prayers[nextIdx];
+    const foundPrev = prayers[prevIdx];
+
+    setNextPrayer(foundNext);
+    setPrevPrayer(foundPrev);
     
-    // Update countdown every minute
-    updateCountdown(found);
+    updateLiveProgress(foundNext, foundPrev);
   };
 
-  const updateCountdown = (prayer: PrayerTime) => {
+  const updateLiveProgress = (next: PrayerTime, prev: PrayerTime | null) => {
     const now = new Date();
-    const [h, m] = prayer.time.split(':').map(Number);
-    const target = new Date();
-    target.setHours(h, m, 0);
+    const [nh, nm] = next.time.split(':').map(Number);
+    const targetNext = new Date(now.getFullYear(), now.getMonth(), now.getDate(), nh, nm, 0, 0);
     
-    if (target < now) target.setDate(target.getDate() + 1);
+    if (targetNext.getTime() <= now.getTime()) {
+      targetNext.setDate(targetNext.getDate() + 1);
+    }
     
-    const diff = target.getTime() - now.getTime();
+    const diff = targetNext.getTime() - now.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    setTimeLeft(`${hours}h ${mins}m`);
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    setDetailedCountdown({ hours, mins, secs });
+    setTimeLeft(`${hours}h ${mins}m ${secs}s`);
+
+    // Calculate percentage between previous prayer and next prayer
+    if (prev) {
+      const [ph, pm] = prev.time.split(':').map(Number);
+      const targetPrev = new Date(now.getFullYear(), now.getMonth(), now.getDate(), ph, pm, 0, 0);
+      if (targetPrev.getTime() > targetNext.getTime()) {
+        targetPrev.setDate(targetPrev.getDate() - 1);
+      }
+      if (targetPrev.getTime() > now.getTime()) {
+        targetPrev.setDate(targetPrev.getDate() - 1);
+      }
+      
+      const totalInterval = targetNext.getTime() - targetPrev.getTime();
+      const elapsed = now.getTime() - targetPrev.getTime();
+      const pct = Math.max(0, Math.min(100, (elapsed / (totalInterval || 1)) * 100));
+      setProgressPercent(pct);
+    } else {
+      setProgressPercent(Math.min(100, Math.max(0, 100 - (diff / (6 * 3600 * 1000)) * 100)));
+    }
   };
+
+  // Live real-time tick every second
+  useEffect(() => {
+    if (!prayerData.length) return;
+    const ticker = setInterval(() => {
+      calculateNextPrayer(prayerData);
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, [prayerData]);
 
   const testAdhanNotification = async () => {
     if (testingAdhan) return;
@@ -280,10 +324,7 @@ export default function PrayerTimesView() {
         audioUrl = adhanMap[preferredId] || audioUrl;
       }
 
-      // Proxy external audio to bypass CORS/iframe restrictions
-      if (audioUrl && !audioUrl.startsWith('data:') && !audioUrl.startsWith('blob:')) {
-        audioUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
-      }
+      const streamAudioUrl = getAudioStreamUrl(audioUrl);
 
       notificationService.notify(
         "Adhan Voice Test Signal",
@@ -293,7 +334,8 @@ export default function PrayerTimesView() {
       );
 
       if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(audioUrl);
+      const audio = new Audio(streamAudioUrl);
+      audio.preload = 'auto';
       audioRef.current = audio;
       
       await audio.play();
@@ -336,12 +378,9 @@ export default function PrayerTimesView() {
     } else {
       if (audioRef.current) audioRef.current.pause();
       
-      let proxiedUrl = url;
-      if (url && !url.startsWith('data:') && !url.startsWith('blob:')) {
-        proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(url)}`;
-      }
-      
-      const audio = new Audio(proxiedUrl);
+      const streamUrl = getAudioStreamUrl(url);
+      const audio = new Audio(streamUrl);
+      audio.preload = 'auto';
       audioRef.current = audio;
       audio.play().catch(e => {
         console.error("Playback failed:", e);
@@ -463,34 +502,119 @@ export default function PrayerTimesView() {
         </section>
       )}
 
-      {/* Hero Stats */}
-      <section className="relative h-[450px] rounded-[3.5rem] overflow-hidden group shadow-2xl border border-white/5 bg-brand-depth/40">
+      {/* Hero Stats with Dynamic Circular Progress Ring */}
+      <section className="relative min-h-[480px] md:min-h-[520px] rounded-[3.5rem] overflow-hidden group shadow-2xl border border-white/10 bg-brand-depth/60 flex items-center justify-center p-6 md:p-12">
         <img 
           src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=1200" 
-          className="w-full h-full object-cover transition-transform duration-[3000ms] group-hover:scale-110 opacity-40"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-[3000ms] group-hover:scale-105 opacity-30 pointer-events-none"
           alt=""
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-depth via-brand-depth/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-depth via-brand-depth/70 to-transparent pointer-events-none" />
         
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-6">
-          <div className="w-20 h-20 bg-brand-primary/20 backdrop-blur-3xl rounded-3xl flex items-center justify-center border border-brand-primary/30 shadow-[0_0_50px_rgba(168,85,247,0.3)]">
-            <Clock size={40} className="text-brand-primary animate-pulse" />
-          </div>
-          
-          <div className="space-y-2">
-            <p className="text-xs font-black text-brand-primary uppercase tracking-[0.5em]">Upcoming Prayer</p>
-            <h2 className="text-7xl font-black text-white tracking-tighter">
-              {nextPrayer?.name}
-            </h2>
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <span className="text-3xl font-mono font-black text-white px-6 py-2 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
-                {timeLeft} left
-              </span>
+        <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl w-full">
+          {/* Dynamic Progress Ring Widget */}
+          <div className="relative flex items-center justify-center">
+            {/* Ambient Background Aura */}
+            <div className="absolute w-72 h-72 md:w-80 md:h-80 bg-gradient-to-tr from-emerald-500/20 via-amber-500/20 to-brand-primary/25 rounded-full blur-3xl pointer-events-none animate-pulse" />
+
+            <svg className="w-72 h-72 md:w-84 md:h-84 -rotate-90 transform" viewBox="0 0 300 300">
+              <defs>
+                <linearGradient id="prayerDynamicRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="45%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#ec4899" />
+                </linearGradient>
+                <filter id="ringGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              {/* Background Track Circle */}
+              <circle
+                cx="150"
+                cy="150"
+                r="125"
+                className="stroke-white/10"
+                strokeWidth="10"
+                fill="none"
+              />
+
+              {/* Inner Decorative Ticks Circle */}
+              <circle
+                cx="150"
+                cy="150"
+                r="110"
+                className="stroke-white/5"
+                strokeWidth="1"
+                strokeDasharray="4 8"
+                fill="none"
+              />
+
+              {/* Dynamic Animated Progress Circle */}
+              <motion.circle
+                cx="150"
+                cy="150"
+                r="125"
+                stroke="url(#prayerDynamicRingGrad)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                fill="none"
+                filter="url(#ringGlow)"
+                strokeDasharray={785.4}
+                strokeDashoffset={785.4 - (785.4 * Math.min(100, Math.max(2, progressPercent))) / 100}
+                className="transition-all duration-1000 ease-out"
+              />
+
+              {/* Rotating Indicator Dot on the Ring Tip */}
+              {(() => {
+                const angle = (Math.min(100, Math.max(0, progressPercent)) / 100) * 360;
+                const rad = (angle * Math.PI) / 180;
+                const dotX = 150 + 125 * Math.cos(rad);
+                const dotY = 150 + 125 * Math.sin(rad);
+                return (
+                  <circle
+                    cx={dotX}
+                    cy={dotY}
+                    r="7"
+                    className="fill-amber-300 shadow-lg filter drop-shadow-[0_0_8px_#fbbf24]"
+                  />
+                );
+              })()}
+            </svg>
+
+            {/* Content Inside Dynamic Ring */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/15 mb-1.5">
+                <Clock size={12} className="text-amber-400 animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-300">
+                  Next Prayer
+                </span>
+              </div>
+
+              <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight uppercase drop-shadow-lg">
+                {nextPrayer?.name || 'Loading...'}
+              </h2>
+
+              <div className="mt-1 font-mono font-black text-2xl md:text-3xl text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-white to-emerald-300 tracking-tight tabular-nums">
+                {String(detailedCountdown.hours).padStart(2, '0')}:{String(detailedCountdown.mins).padStart(2, '0')}:{String(detailedCountdown.secs).padStart(2, '0')}
+              </div>
+
+              <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                at {nextPrayer?.time}
+              </p>
+
+              {/* Progress percentage capsule */}
+              <div className="mt-2.5 px-3 py-0.5 bg-emerald-500/15 border border-emerald-500/30 rounded-full">
+                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
+                  {Math.round(100 - progressPercent)}% remaining
+                </span>
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-            <MapPin size={14} className="text-brand-primary" /> {location}
+          <div className="flex items-center gap-2 text-slate-400 font-bold uppercase tracking-widest text-[10px] bg-black/30 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
+            <MapPin size={13} className="text-emerald-400" /> {location}
           </div>
         </div>
       </section>
@@ -514,20 +638,52 @@ export default function PrayerTimesView() {
               <motion.div
                 key={prayer.id}
                 whileHover={{ y: -5 }}
-                className={`p-6 rounded-[2.5rem] border text-center transition-all ${
+                className={`p-6 rounded-[2.5rem] border text-center transition-all relative overflow-hidden ${
                   nextPrayer?.id === prayer.id 
-                  ? 'bg-brand-primary/10 border-brand-primary/30 shadow-2xl shadow-brand-primary/10' 
+                  ? 'bg-gradient-to-b from-amber-500/15 via-emerald-500/10 to-brand-primary/10 border-amber-500/40 shadow-2xl shadow-amber-500/15' 
                   : 'bg-white/5 border-white/5'
                 }`}
               >
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${nextPrayer?.id === prayer.id ? 'text-brand-primary' : 'text-slate-500'}`}>
-                  {prayer.name}
-                </p>
-                <p className="text-2xl font-black text-white font-mono">{prayer.time}</p>
                 {nextPrayer?.id === prayer.id && (
-                  <div className="mt-3 flex justify-center">
-                    <span className="w-2 h-2 bg-brand-primary rounded-full animate-ping" />
+                  <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-400/20 rounded-full blur-xl pointer-events-none" />
+                )}
+
+                <div className="flex items-center justify-center gap-1.5 mb-3">
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${nextPrayer?.id === prayer.id ? 'text-amber-300' : 'text-slate-500'}`}>
+                    {prayer.name}
+                  </p>
+                </div>
+
+                <p className="text-2xl font-black text-white font-mono">{prayer.time}</p>
+                
+                {nextPrayer?.id === prayer.id ? (
+                  <div className="mt-3 flex flex-col items-center gap-1.5">
+                    {/* Mini SVG Progress Ring */}
+                    <div className="relative w-8 h-8 flex items-center justify-center">
+                      <svg className="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="14" className="stroke-white/10" strokeWidth="3" fill="none" />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="14"
+                          className="stroke-amber-400"
+                          strokeWidth="3.5"
+                          strokeDasharray="88"
+                          strokeDashoffset={88 - (88 * Math.min(100, Math.max(5, progressPercent))) / 100}
+                          strokeLinecap="round"
+                          fill="none"
+                        />
+                      </svg>
+                      <span className="absolute text-[8px] font-black text-amber-300">
+                        {Math.round(100 - progressPercent)}%
+                      </span>
+                    </div>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-amber-300/90">
+                      Active Next
+                    </span>
                   </div>
+                ) : (
+                  <div className="mt-4 h-4" />
                 )}
               </motion.div>
             ))

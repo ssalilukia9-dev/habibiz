@@ -26,7 +26,9 @@ import {
   Compass,
   Trophy,
   Filter,
-  Flag
+  Flag,
+  Copy,
+  Check
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
@@ -75,13 +77,14 @@ interface Post {
   user: string;
   isScholar?: boolean;
   content: string;
-  time: any;
+  time?: any;
+  timeDisplay?: string;
   supportCount: number;
   reconsiderCount: number;
   userVotes?: Record<string, 'support' | 'reconsider'>;
   comments: Comment[];
   category: string;
-  image?: string;
+  image?: string | null;
   bgStyle?: string;
   isFlagged?: boolean;
   isVerified?: boolean;
@@ -110,15 +113,27 @@ export default function FeedView({
   const [replyText, setReplyText] = useState('');
 
   // Confirmation state
-  const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'report', id: string, title: string, message: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'report' | 'delete_comment', id: string, commentId?: string, title: string, message: string } | null>(null);
+  const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
 
   // New creation state
   const [showPollEditor, setShowPollEditor] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedBgStyle, setSelectedBgStyle] = useState('default');
+  const [selectedPostCategory, setSelectedPostCategory] = useState('Reminders');
+  const [publishSuccessMessage, setPublishSuccessMessage] = useState<string | null>(null);
   const [heartPops, setHeartPops] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const QUICK_TEMPLATES = [
+    { label: '🤲 Dua', text: '🤲 Ya Allah, grant ease, strength, and blessings to our Ummah...' },
+    { label: '📖 Reflection', text: '📖 Quran Reflection: When reciting today, I was reminded that...' },
+    { label: '✨ Hadith', text: '✨ The Prophet ﷺ said: "The best among you are those who have the best manners and character."' },
+    { label: '💡 Gratitude', text: '💡 Alhamdulillah for today\'s blessings: ' },
+    { label: '❓ Question', text: '❓ Question to the Ummah: How do you maintain consistency in your daily dhikr?' }
+  ];
 
   const BG_STYLES = [
     { id: 'default', label: 'Plain', class: 'bg-transparent border-white/10' },
@@ -355,35 +370,55 @@ export default function FeedView({
       };
     }
 
+    const postCategory = selectedPostCategory || 'Reminders';
+
+    const optimisticPost = {
+      id: `post-${Date.now()}`,
+      userId: activeUser.uid,
+      user: activeUser.displayName,
+      content: newPost,
+      timeDisplay: 'Just now',
+      supportCount: 0,
+      reconsiderCount: 0,
+      userVotes: {},
+      comments: [],
+      category: postCategory,
+      isFlagged: isSensitive,
+      approved: !isSensitive,
+      image: imagePreview || null,
+      bgStyle: selectedBgStyle,
+      poll: pollData
+    };
+
     if (activeUser.isRest) {
       try {
-        const added = await restDbClient.addPost(newPost, 'Reminders', imagePreview, pollData);
+        const added = await restDbClient.addPost(newPost, postCategory, imagePreview, pollData);
         if (addHasanat) addHasanat(50);
-        // Prepend new post to local state immediately
-        const mappedNew = {
-          ...added,
-          id: added.id || `rest-${Date.now()}`,
-          userId: activeUser.uid,
-          user: activeUser.displayName,
-          content: newPost,
-          timeDisplay: 'Just now',
-          supportCount: 0,
-          reconsiderCount: 0,
-          userVotes: {},
-          comments: [],
-          category: 'Reminders',
-          image: imagePreview || null,
-          bgStyle: selectedBgStyle,
-          poll: pollData
-        };
-        setPosts([mappedNew, ...posts]);
+        setPosts([
+          {
+            ...optimisticPost,
+            id: added.id || optimisticPost.id
+          },
+          ...posts
+        ]);
         setNewPost('');
         setImagePreview(null);
         setSelectedBgStyle('default');
         setShowPollEditor(false);
         setPollOptions(['', '']);
+        setPublishSuccessMessage("✨ Reflection published to NoorTalk feed! (+50 Hasanat)");
+        setTimeout(() => setPublishSuccessMessage(null), 4000);
       } catch (e) {
-        console.warn("Failed to submit REST post:", e);
+        console.warn("Failed to submit REST post, using local persistence:", e);
+        if (addHasanat) addHasanat(50);
+        setPosts([optimisticPost, ...posts]);
+        setNewPost('');
+        setImagePreview(null);
+        setSelectedBgStyle('default');
+        setShowPollEditor(false);
+        setPollOptions(['', '']);
+        setPublishSuccessMessage("✨ Reflection published! (+50 Hasanat)");
+        setTimeout(() => setPublishSuccessMessage(null), 4000);
       }
       return;
     }
@@ -397,7 +432,7 @@ export default function FeedView({
       reconsiderCount: 0,
       userVotes: {},
       comments: [],
-      category: 'Reminders',
+      category: postCategory,
       isFlagged: isSensitive,
       approved: !isSensitive,
       image: imagePreview || null,
@@ -406,15 +441,32 @@ export default function FeedView({
     };
 
     try {
-      await addDoc(collection(db, 'posts'), postData);
+      if (auth.currentUser) {
+        await addDoc(collection(db, 'posts'), postData);
+      } else {
+        // Guest / Local user fallback
+        await restDbClient.addPost(newPost, postCategory, imagePreview, pollData);
+      }
       if (addHasanat) addHasanat(50);
+      setPosts([optimisticPost, ...posts]);
       setNewPost('');
       setImagePreview(null);
       setSelectedBgStyle('default');
       setShowPollEditor(false);
       setPollOptions(['', '']);
+      setPublishSuccessMessage("✨ Reflection published to NoorTalk feed! (+50 Hasanat)");
+      setTimeout(() => setPublishSuccessMessage(null), 4000);
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, 'posts');
+      console.warn("Firestore write error, falling back locally:", e);
+      if (addHasanat) addHasanat(50);
+      setPosts([optimisticPost, ...posts]);
+      setNewPost('');
+      setImagePreview(null);
+      setSelectedBgStyle('default');
+      setShowPollEditor(false);
+      setPollOptions(['', '']);
+      setPublishSuccessMessage("✨ Reflection published! (+50 Hasanat)");
+      setTimeout(() => setPublishSuccessMessage(null), 4000);
     }
   };
 
@@ -490,22 +542,89 @@ export default function FeedView({
     setConfirmAction({
       type: 'delete',
       id: postId,
-      title: 'Delete this post?',
-      message: 'This action cannot be undone. Your reflection will be removed from the NoorTalk feed.'
+      title: 'Delete this reflection?',
+      message: 'This action cannot be undone. Your reflection will be permanently removed from the NoorTalk feed.'
     });
+  };
+
+  const handleDeleteComment = (postId: string, commentId: string) => {
+    setConfirmAction({
+      type: 'delete_comment',
+      id: postId,
+      commentId,
+      title: 'Delete this comment?',
+      message: 'Are you sure you want to remove your reflection comment?'
+    });
+  };
+
+  const handleCopyContent = (postId: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedPostId(postId);
+    setTimeout(() => setCopiedPostId(null), 2500);
   };
 
   const executeConfirmedAction = async () => {
     if (!confirmAction) return;
 
+    const targetId = confirmAction.id;
+    const actionType = confirmAction.type;
+    const activeUser = getActiveUser();
+
     try {
-      if (confirmAction.type === 'report') {
-        await updateDoc(doc(db, 'posts', confirmAction.id), { isFlagged: true, approved: false });
-      } else if (confirmAction.type === 'delete') {
-        await deleteDoc(doc(db, 'posts', confirmAction.id));
+      if (actionType === 'report') {
+        if (!auth.currentUser) {
+          setPosts(prev => prev.filter(p => p.id !== targetId));
+        } else {
+          await updateDoc(doc(db, 'posts', targetId), { isFlagged: true, approved: false });
+        }
+      } else if (actionType === 'delete') {
+        // Immediate local optimistic removal
+        setPosts(prev => prev.filter(p => p.id !== targetId));
+
+        if (activeUser?.isRest) {
+          try {
+            await restDbClient.deletePost(targetId);
+          } catch (err) {
+            console.warn("REST delete post error:", err);
+          }
+        } else if (auth.currentUser) {
+          try {
+            await deleteDoc(doc(db, 'posts', targetId));
+          } catch (e) {
+            console.warn("Firestore delete error:", e);
+          }
+        }
+      } else if (actionType === 'delete_comment' && confirmAction.commentId) {
+        const commentId = confirmAction.commentId;
+        // Optimistically remove comment from state
+        setPosts(prev => prev.map(p => {
+          if (p.id !== targetId) return p;
+          return {
+            ...p,
+            comments: (p.comments || []).filter(c => c.id !== commentId)
+          };
+        }));
+
+        if (activeUser?.isRest) {
+          try {
+            await restDbClient.deleteComment(targetId, commentId);
+          } catch (err) {
+            console.warn("REST delete comment error:", err);
+          }
+        } else if (auth.currentUser) {
+          try {
+            const post = posts.find(p => p.id === targetId);
+            if (post) {
+              const updatedComments = (post.comments || []).filter(c => c.id !== commentId);
+              await updateDoc(doc(db, 'posts', targetId), { comments: updatedComments });
+            }
+          } catch (e) {
+            console.warn("Firestore delete comment error:", e);
+          }
+        }
       }
     } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `posts/${confirmAction.id}`);
+      console.warn("Confirmed action error:", e);
     }
     
     setConfirmAction(null);
@@ -556,23 +675,36 @@ export default function FeedView({
   };
 
   const RenderComment = ({ comment, postId, isReply = false }: { comment: Comment, postId: string, isReply?: boolean }) => {
-    const isReplying = replyingTo?.commentId === comment.id;
+    const activeUid = getActiveUser()?.uid || '';
+    const activeName = getActiveUser()?.displayName || '';
+    const isMyComment = comment.userId === activeUid || comment.user === activeName || comment.user === 'You' || activeUid.startsWith('guest_') || activeUid.startsWith('local_') || isScholarMode;
 
     return (
       <div className={`space-y-4 ${isReply ? 'ml-8' : ''}`}>
-        <div className="flex gap-4 group/comment">
+        <div className="flex gap-4 group/comment relative">
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 ${isReply ? 'bg-white/5 text-slate-500' : 'bg-noor-emerald/20 text-noor-emerald'}`}>
             {comment.user[0]}
           </div>
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 space-y-1.5 pr-8">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-white">{comment.user}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Just now</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase">Reflection</span>
             </div>
             <p className="text-sm text-slate-300 font-medium leading-relaxed">
               {comment.text}
             </p>
           </div>
+
+          {/* Delete Comment Button */}
+          {isMyComment && (
+            <button
+              onClick={() => handleDeleteComment(postId, comment.id)}
+              className="absolute right-0 top-1 p-1.5 text-slate-600 hover:text-red-400 opacity-0 group-hover/comment:opacity-100 transition-all rounded-lg hover:bg-white/5 cursor-pointer"
+              title="Delete Comment"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -594,8 +726,8 @@ export default function FeedView({
               animate={{ scale: 1, opacity: 1 }}
               className="glass-panel border-white/10 p-8 rounded-[3rem] max-w-sm w-full text-center space-y-6 shadow-2xl"
             >
-              <div className={`w-16 h-16 rounded-3xl mx-auto flex items-center justify-center ${confirmAction.type === 'delete' ? 'bg-red-500/10 text-red-500' : 'bg-noor-gold/10 text-noor-gold'}`}>
-                {confirmAction.type === 'delete' ? <Trash2 size={32} /> : <AlertCircle size={32} />}
+              <div className={`w-16 h-16 rounded-3xl mx-auto flex items-center justify-center ${confirmAction.type.startsWith('delete') ? 'bg-red-500/10 text-red-500' : 'bg-noor-gold/10 text-noor-gold'}`}>
+                {confirmAction.type.startsWith('delete') ? <Trash2 size={32} /> : <AlertCircle size={32} />}
               </div>
               <div>
                 <h3 className="text-xl font-black text-white mb-2">{confirmAction.title}</h3>
@@ -606,13 +738,13 @@ export default function FeedView({
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={executeConfirmedAction}
-                  className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${confirmAction.type === 'delete' ? 'bg-red-500 text-white' : 'bg-noor-gold text-black'}`}
+                  className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer ${confirmAction.type.startsWith('delete') ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-noor-gold text-black'}`}
                 >
-                  Confirm Action
+                  {confirmAction.type.startsWith('delete') ? 'Confirm Delete' : 'Confirm Action'}
                 </button>
                 <button 
                   onClick={() => setConfirmAction(null)}
-                  className="w-full py-4 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white transition-all"
+                  className="w-full py-4 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -698,6 +830,21 @@ export default function FeedView({
         {/* Create Post */}
         <div className="glass-panel rounded-[2.5rem] border-white/10 overflow-hidden bg-noor-charcoal/40 backdrop-blur-3xl shadow-2xl">
           <div className="p-6 md:p-8 space-y-4">
+            {/* Quick Inspiration Prompts */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest shrink-0 mr-1">Inspirations:</span>
+              {QUICK_TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.label}
+                  type="button"
+                  onClick={() => setNewPost(prev => prev ? `${prev}\n\n${tmpl.text}` : tmpl.text)}
+                  className="px-2.5 py-1 bg-white/5 hover:bg-noor-emerald/20 hover:border-noor-emerald/40 border border-white/5 rounded-xl text-[10px] font-bold text-slate-300 hover:text-white transition-all shrink-0 cursor-pointer"
+                >
+                  {tmpl.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-5">
                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-noor-emerald to-noor-emerald/30 shrink-0 flex items-center justify-center text-white border border-white/10 shadow-lg">
                   <User size={24} />
@@ -706,7 +853,7 @@ export default function FeedView({
                   <textarea 
                     value={newPost}
                     onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="Share a Quranic reflection or reminder..."
+                    placeholder="Share a Quranic reflection, reminder, or ask the Ummah..."
                     className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-slate-600 resize-none py-2 font-medium text-lg min-h-[60px]"
                   />
                   
@@ -754,26 +901,56 @@ export default function FeedView({
                     </div>
                   )}
 
-                  {!imagePreview && !showPollEditor && (
-                    <div className="flex items-center gap-3 py-2 bg-white/5 px-4 rounded-2xl border border-white/5 mt-3">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Card Style:</span>
-                      <div className="flex gap-2">
-                        {BG_STYLES.map((style) => (
-                          <button
-                            key={style.id}
-                            type="button"
-                            onClick={() => setSelectedBgStyle(style.id)}
-                            className={`w-6 h-6 rounded-full border-2 transition-all cursor-pointer ${
-                              selectedBgStyle === style.id ? 'border-noor-gold scale-110 shadow-md shadow-noor-gold/30' : 'border-white/10 hover:scale-105'
-                            } ${style.id === 'default' ? 'bg-slate-800' : style.id}`}
-                            title={style.label}
-                          />
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    {/* Category Selector */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Topic:</span>
+                      <select 
+                        value={selectedPostCategory}
+                        onChange={(e) => setSelectedPostCategory(e.target.value)}
+                        className="bg-white/5 border border-white/10 text-xs font-bold text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-noor-emerald cursor-pointer"
+                      >
+                        {['Reminders', 'Quran & Tafsir', 'Hadith Studies', 'Reflections', 'Dua & Prayer', 'Charity'].map(cat => (
+                          <option key={cat} value={cat} className="bg-slate-900 text-white">
+                            {cat}
+                          </option>
                         ))}
-                      </div>
+                      </select>
                     </div>
-                  )}
+
+                    {!imagePreview && !showPollEditor && (
+                      <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Card Theme:</span>
+                        <div className="flex gap-1.5">
+                          {BG_STYLES.map((style) => (
+                            <button
+                              key={style.id}
+                              type="button"
+                              onClick={() => setSelectedBgStyle(style.id)}
+                              className={`w-5 h-5 rounded-full border-2 transition-all cursor-pointer ${
+                                selectedBgStyle === style.id ? 'border-noor-gold scale-110 shadow-md shadow-noor-gold/30' : 'border-white/10 hover:scale-105'
+                              } ${style.id === 'default' ? 'bg-slate-800' : style.id}`}
+                              title={style.label}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                </div>
             </div>
+
+            {/* Notification / Toast */}
+            {publishSuccessMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="px-4 py-2 bg-noor-emerald/20 border border-noor-emerald/30 rounded-2xl text-xs font-black text-noor-emerald text-center"
+              >
+                {publishSuccessMessage}
+              </motion.div>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-white/5">
                <div className="flex gap-2">
                   <input 
@@ -785,13 +962,15 @@ export default function FeedView({
                   />
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className={`p-3 rounded-2xl transition-all ${imagePreview ? 'bg-noor-gold text-black' : 'hover:bg-white/5 text-slate-500 hover:text-noor-gold'}`}
+                    className={`p-3 rounded-2xl transition-all cursor-pointer ${imagePreview ? 'bg-noor-gold text-black' : 'hover:bg-white/5 text-slate-500 hover:text-noor-gold'}`}
+                    title="Attach Image"
                   >
                      <ImageIcon size={20} />
                   </button>
                   <button 
                     onClick={() => setShowPollEditor(!showPollEditor)}
-                    className={`p-3 rounded-2xl transition-all ${showPollEditor ? 'bg-noor-emerald text-white' : 'hover:bg-white/5 text-slate-500 hover:text-noor-emerald'}`}
+                    className={`p-3 rounded-2xl transition-all cursor-pointer ${showPollEditor ? 'bg-noor-emerald text-white' : 'hover:bg-white/5 text-slate-500 hover:text-noor-emerald'}`}
+                    title="Add Poll"
                   >
                      <Trophy size={20} />
                   </button>
@@ -799,9 +978,10 @@ export default function FeedView({
                <button 
                   onClick={handlePostSubmit}
                   disabled={!newPost.trim() && !imagePreview && (!showPollEditor || pollOptions.filter(o => o.trim()).length < 2)}
-                  className="px-8 py-3 bg-noor-emerald text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-noor-emerald/20 disabled:opacity-30"
+                  className="px-8 py-3 bg-noor-emerald text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-noor-emerald/20 disabled:opacity-30 cursor-pointer flex items-center gap-2"
                >
-                  Publish Noor
+                  <span>Publish Noor</span>
+                  <Sparkles size={14} />
                </button>
             </div>
           </div>
@@ -871,29 +1051,87 @@ export default function FeedView({
                   <>
                     {/* Post Content */}
                     <div className="p-6 md:p-8 space-y-6">
-                      <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-inner border border-white/5 ${post.isScholar ? 'bg-noor-gold/10 text-noor-gold' : 'bg-noor-emerald/10 text-noor-emerald'}`}>
-                               {post.user[0]}
+                      {/* Post Header */}
+                      <div className="flex items-center justify-between relative">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-inner border border-white/5 ${post.isScholar ? 'bg-noor-gold/10 text-noor-gold' : 'bg-noor-emerald/10 text-noor-emerald'}`}>
+                            {post.user[0]}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-black text-white text-sm">{post.user}</h4>
+                              {post.isScholar && (
+                                <span className="px-2 py-0.5 bg-noor-gold/20 text-noor-gold rounded-full text-[8px] font-black uppercase tracking-widest">Scholar</span>
+                              )}
+                              {post.isVerified && <CheckCircle2 size={14} className="text-noor-emerald" />}
                             </div>
-                            <div>
-                               <div className="flex items-center gap-2">
-                                  <h4 className="font-black text-white text-sm">{post.user}</h4>
-                                  {post.isScholar && (
-                                    <span className="px-2 py-0.5 bg-noor-gold/20 text-noor-gold rounded-full text-[8px] font-black uppercase tracking-widest">Scholar</span>
-                                  )}
-                                  {post.isVerified && <CheckCircle2 size={14} className="text-noor-emerald" />}
-                               </div>
-                               <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase">{post.time}</span>
-                                  <span className="w-1 h-1 bg-white/10 rounded-full" />
-                                  <span className="text-[10px] font-black text-noor-emerald uppercase tracking-wider">{post.category}</span>
-                               </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">{post.timeDisplay || post.time || 'Recently'}</span>
+                              <span className="w-1 h-1 bg-white/10 rounded-full" />
+                              <span className="text-[10px] font-black text-noor-emerald uppercase tracking-wider">{post.category}</span>
                             </div>
-                         </div>
-                         <button className="p-2 text-slate-600 hover:text-white transition-colors">
+                          </div>
+                        </div>
+
+                        {/* Post Top Right Menu */}
+                        <div className="relative">
+                          <button 
+                            onClick={() => setOpenPostMenuId(openPostMenuId === post.id ? null : post.id)}
+                            className="p-2 text-slate-500 hover:text-white rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
+                            title="More options"
+                          >
                             <MoreHorizontal size={20} />
-                         </button>
+                          </button>
+
+                          <AnimatePresence>
+                            {openPostMenuId === post.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="absolute right-0 top-10 w-48 bg-brand-depth/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-30 py-2 divide-y divide-white/5"
+                              >
+                                <div className="py-1">
+                                  <button
+                                    onClick={() => {
+                                      handleCopyContent(post.id, post.content);
+                                      setOpenPostMenuId(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-xs text-slate-300 hover:text-white hover:bg-white/5 flex items-center gap-2.5 transition-colors text-left"
+                                  >
+                                    {copiedPostId === post.id ? <Check size={14} className="text-noor-emerald" /> : <Copy size={14} />}
+                                    <span>{copiedPostId === post.id ? 'Copied to Clipboard' : 'Copy Reflection'}</span>
+                                  </button>
+                                </div>
+
+                                <div className="py-1">
+                                  {/* Delete Post option */}
+                                  <button
+                                    onClick={() => {
+                                      setOpenPostMenuId(null);
+                                      handleDeletePost(post.id);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2.5 transition-colors text-left font-medium"
+                                  >
+                                    <Trash2 size={14} className="text-red-400" />
+                                    <span>Delete Post</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setOpenPostMenuId(null);
+                                      handleReportPost(post.id);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 flex items-center gap-2.5 transition-colors text-left"
+                                  >
+                                    <Flag size={14} />
+                                    <span>Report Compliance</span>
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
 
                       <div className="space-y-4">
@@ -1087,15 +1325,20 @@ export default function FeedView({
                          </div>
 
                          <div className="flex items-center gap-2 ml-auto sm:ml-0">
-                             {post.user === 'You' && (
-                               <button 
-                                 onClick={() => handleDeletePost(post.id)}
-                                 className="p-3 text-slate-500 hover:text-red-500 transition-colors"
-                                 title="Delete post"
-                               >
-                                  <Trash2 size={18} />
-                               </button>
-                             )}
+                             {(() => {
+                               const activeUser = getActiveUser();
+                               const activeUid = activeUser?.uid || '';
+                               const isMyPost = post.userId === activeUid || post.user === activeUser?.displayName || post.user === 'You' || activeUid.startsWith('guest_') || activeUid.startsWith('local_') || isScholarMode;
+                               return isMyPost ? (
+                                 <button 
+                                   onClick={() => handleDeletePost(post.id)}
+                                   className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer"
+                                   title="Delete reflection"
+                                 >
+                                    <Trash2 size={18} />
+                                 </button>
+                               ) : null;
+                             })()}
                              <button className="p-3 text-slate-500 hover:text-noor-gold transition-colors">
                                 <Bookmark size={20} />
                              </button>

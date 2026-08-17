@@ -20,6 +20,7 @@ import {
 import { Coordinates } from 'adhan';
 import QiblaView from './QiblaView.tsx';
 import { getPrayerTimes, formatTime, CALCULATION_METHODS } from '../services/prayerService.ts';
+import { getAudioStreamUrl } from '../lib/api.ts';
 
 interface Mosque {
   name: string;
@@ -93,12 +94,9 @@ export default function ToolsView() {
     const url = testUrl || ADHAN_OPTIONS.find(o => o.id === selectedAdhan)?.url;
     if (!url) return;
 
-    let proxiedUrl = url;
-    if (url && !url.startsWith('data:') && !url.startsWith('blob:')) {
-      proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(url)}`;
-    }
-
-    const audio = new Audio(proxiedUrl);
+    const streamUrl = getAudioStreamUrl(url);
+    const audio = new Audio(streamUrl);
+    audio.preload = 'auto';
     audioRef.current = audio;
     audio.play().catch(e => console.warn("Audio playback failed:", e));
   };

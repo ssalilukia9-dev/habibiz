@@ -31,12 +31,28 @@ export interface Translation {
   type: string;
 }
 
+export interface JuzSurahEntry {
+  surahNumber: number;
+  surahName: string;
+  surahEnglishName: string;
+  startAyah: number;
+  endAyah: number;
+  totalAyahsInJuz: number;
+}
+
 export interface Juz {
   index: number;
+  nameArabic: string;
+  nameTransliteration: string;
+  nameTranslation: string;
   startSurah: number;
   startAyah: number;
   endSurah: number;
   endAyah: number;
+  startPage: number;
+  endPage: number;
+  totalAyahs: number;
+  surahs: JuzSurahEntry[];
 }
 
 export interface Hadith {

@@ -1,3 +1,5 @@
+import { getAudioStreamUrl } from '../lib/api';
+
 export class VoiceService {
   private static synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
   private static audio: HTMLAudioElement | null = null;
@@ -7,14 +9,12 @@ export class VoiceService {
     this.stop();
     this.onEndCallback = onEnd || null;
 
-    // Use our server-side proxied Google Translate TTS for 100% reliable, high-quality audio pronunciation.
-    // This perfectly bypasses browser/iframe sandbox security policies and works everywhere.
     try {
       const cleanText = text.replace(/[\r\n]+/g, ' ').trim().slice(0, 200);
       const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=${lang}&client=tw-ob`;
-      const proxiedUrl = `/api/proxy/audio?url=${encodeURIComponent(ttsUrl)}`;
+      const streamUrl = getAudioStreamUrl(ttsUrl);
 
-      const audioObj = new Audio(proxiedUrl);
+      const audioObj = new Audio(streamUrl);
       this.audio = audioObj;
       
       const playPromise = audioObj.play();
@@ -29,12 +29,12 @@ export class VoiceService {
             };
           })
           .catch(err => {
-            console.warn("Proxied Google TTS play failed, falling back to local speech synthesis:", err);
+            console.warn("TTS stream play failed, falling back to local speech synthesis:", err);
             this.speakWithSynthesis(text, lang, onEnd);
           });
       }
     } catch (e) {
-      console.warn("Failed to play proxied Google TTS, falling back to synthesis:", e);
+      console.warn("Failed to play TTS audio, falling back to synthesis:", e);
       this.speakWithSynthesis(text, lang, onEnd);
     }
   }
@@ -58,46 +58,38 @@ export class VoiceService {
         const enVoice = voices.find(v => v.lang.startsWith('en'));
         if (enVoice) utterance.voice = enVoice;
       }
-
+      
       utterance.onend = () => {
-        if (this.onEndCallback) {
-          this.onEndCallback();
-          this.onEndCallback = null;
-        }
+        if (onEnd) onEnd();
       };
-      utterance.onerror = () => {
-        if (this.onEndCallback) {
-          this.onEndCallback();
-          this.onEndCallback = null;
-        }
+      
+      utterance.onerror = (e) => {
+        console.warn("Speech synthesis error", e);
+        if (onEnd) onEnd();
       };
-
+      
       this.synth.speak(utterance);
-    } catch (err) {
-      console.error("SpeechSynthesis failed:", err);
+    } catch (e) {
+      console.warn("Speech synthesis error:", e);
       if (onEnd) onEnd();
     }
   }
 
   static stop() {
-    try {
-      if (this.audio) {
-        this.audio.pause();
-        this.audio = null;
-      }
-      if (this.synth) {
+    if (this.synth) {
+      try {
         this.synth.cancel();
-      }
-    } catch (err) {
-      console.warn("Error stopping audio/synthesis:", err);
+      } catch (e) {}
+    }
+    if (this.audio) {
+      try {
+        this.audio.pause();
+        this.audio.src = "";
+      } catch (e) {}
+      this.audio = null;
     }
     if (this.onEndCallback) {
-      this.onEndCallback();
       this.onEndCallback = null;
     }
-  }
-
-  static isSpeaking() {
-    return (this.audio && !this.audio.paused) || (this.synth && this.synth.speaking);
   }
 }

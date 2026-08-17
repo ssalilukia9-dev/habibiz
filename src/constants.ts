@@ -117,13 +117,9 @@ export const SURAH_LIST: Surah[] = [
   { number: 114, name: "الناس", englishName: "An-Nas", englishNameTranslation: "The Mankind", numberOfAyahs: 6, revelationType: "Meccan" },
 ];
 
-export const JUZ_LIST: Juz[] = Array.from({ length: 30 }, (_, i) => ({
-  index: i + 1,
-  startSurah: 0, // Simplified for now
-  startAyah: 0,
-  endSurah: 0,
-  endAyah: 0
-}));
+import { FULL_JUZ_LIST } from './data/juzData.ts';
+
+export const JUZ_LIST: Juz[] = FULL_JUZ_LIST;
 
 export const NAVIGATION_TABS = [
   { id: 'home', label: 'Home', icon: 'Home' },

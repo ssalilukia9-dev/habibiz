@@ -81,6 +81,7 @@ import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 import WalkthroughTour from './components/WalkthroughTour.tsx';
 import PageGuideBanner from './components/PageGuideBanner.tsx';
+import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
 export default function App() {
   const navigate = useNavigate();
@@ -334,25 +335,13 @@ export default function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    // Dynamic Splash Control: 
-    // Wait for auth to be ready, but ensure a minimum of 1.2s for the animation.
-    // Also provide a safety fallback at 5s if something hangs.
-    
-    let timer: any;
-    if (!authLoading) {
-      // Auth is ready! Wait a moment for splash animation to feel right then hide.
-      timer = setTimeout(() => {
-        setShowSplash(false);
-      }, 1200);
-    } else {
-      // Still loading auth? Safety fallback to show app anyway after 5 seconds.
-      timer = setTimeout(() => {
-        setShowSplash(false);
-      }, 5000);
-    }
+    // 8-second Splash Screen immersion experience with safety fallback
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 8400);
 
     return () => clearTimeout(timer);
-  }, [authLoading]);
+  }, []);
 
   useEffect(() => {
     // 5 mins visible, 30 mins hidden cycle
@@ -466,23 +455,22 @@ export default function App() {
   
   // App State
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('app-theme') || 'dark';
+    const saved = localStorage.getItem('app-theme') || 'dark';
+    if (saved === 'blue' || saved === 'light') return 'sapphire';
+    if (saved === 'green' || saved === 'light-green') return 'emerald';
+    return saved;
   });
 
   useEffect(() => {
     localStorage.setItem('app-theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
-    // Backward compatibility for .dark class - these themes have dark backgrounds
-    if (theme === 'dark' || theme === 'purple' || theme === 'light' || theme === 'light-green') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // All sanctuary themes are designed with deep, rich contrast
+    document.documentElement.classList.add('dark');
   }, [theme]);
 
   // Derived for components that still expect boolean
-  const darkMode = theme === 'dark' || theme === 'purple';
-  const setDarkMode = (isDark: boolean) => setTheme(isDark ? 'dark' : 'light');
+  const darkMode = true;
+  const setDarkMode = (isDark: boolean) => setTheme(isDark ? 'dark' : 'emerald');
 
   const lastInteractionRef = useRef<Record<string, any>>({});
   const initialLoadDone = useRef(false);
@@ -1361,7 +1349,7 @@ export default function App() {
   ];
 
   if (showSplash) {
-    return <SplashScreen />;
+    return <SplashScreen onEnter={() => setShowSplash(false)} />;
   }
 
   if (!currentUser) {
@@ -1375,9 +1363,15 @@ export default function App() {
 
   if (needsOnboarding) {
     return (
-      <div className="fixed inset-0 flex text-slate-200 overflow-y-auto font-sans selection:bg-brand-primary/30 islamic-pattern bg-brand-depth">
+      <div className="fixed inset-0 flex text-slate-200 overflow-y-auto font-sans selection:bg-brand-primary/30 islamic-pattern bg-brand-depth relative">
+        {/* Visible Spiritual Kaaba Dua Ambient Background */}
+        <div 
+          className="fixed inset-0 pointer-events-none bg-cover bg-center bg-no-repeat opacity-25 scale-100 transform-gpu z-0"
+          style={{ backgroundImage: `url(${kaabaDuaThemeBg})` }}
+        />
+        <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-brand-depth via-brand-depth/80 to-brand-depth/60 z-0" />
         <HeadsUpNotification />
-        <div className="w-full max-w-2xl mx-auto px-4 py-8 md:py-16">
+        <div className="relative z-10 w-full max-w-2xl mx-auto px-4 py-8 md:py-16">
           <OnboardingView user={currentUser} onComplete={() => setNeedsOnboarding(false)} />
         </div>
       </div>
@@ -1385,7 +1379,16 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern">
+    <div className="fixed inset-0 flex text-slate-200 overflow-hidden font-sans selection:bg-brand-primary/30 islamic-pattern relative">
+      {/* Visible Spiritual Kaaba Dua Ambient Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none bg-cover bg-center bg-no-repeat opacity-25 scale-100 transform-gpu z-0"
+        style={{ backgroundImage: `url(${kaabaDuaThemeBg})` }}
+      />
+      
+      {/* Delicate Theme Gradient Blends */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-brand-depth via-brand-depth/40 to-brand-depth/60 z-0" />
+
       <HeadsUpNotification />
       <AnimatePresence>
         {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
@@ -1552,13 +1555,36 @@ export default function App() {
         </div>
       </div>
 
-      {/* Desktop/Tablet Navigation Rail (Narrow Sidebar) */}
-      <aside className="hidden md:flex w-16 h-full bg-brand-sidebar border-r border-brand-border flex-col items-center py-8 gap-6 z-40 flex-shrink-0">
-        <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 mb-6 group cursor-pointer">
+      {/* Desktop/Tablet Navigation Rail (Narrow Sidebar) with Staggered Entrance */}
+      <motion.aside 
+        initial={{ opacity: 0, x: -30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="hidden md:flex w-16 h-full bg-brand-sidebar border-r border-brand-border flex-col items-center py-8 gap-6 z-40 flex-shrink-0"
+      >
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.6, rotate: -20 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, type: 'spring', stiffness: 400, damping: 20 }}
+          className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 mb-4 group cursor-pointer"
+        >
           <BookOpen size={20} className="text-brand-depth group-hover:scale-110 transition-transform" />
-        </div>
+        </motion.div>
         
-        <nav className="flex flex-col gap-6">
+        <motion.nav 
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: {
+              transition: {
+                staggerChildren: 0.045,
+                delayChildren: 0.15
+              }
+            }
+          }}
+          className="flex flex-col gap-4"
+        >
           {tabsWithCompanion.map((tab) => {
             const Icon = { 
               Home, 
@@ -1578,13 +1604,24 @@ export default function App() {
             
             const isActive = activeTab === tab.id;
             return (
-              <button
+              <motion.button
                 key={tab.id}
+                variants={{
+                  hidden: { opacity: 0, x: -20, scale: 0.75 },
+                  visible: { 
+                    opacity: 1, 
+                    x: 0, 
+                    scale: 1,
+                    transition: { type: 'spring', stiffness: 350, damping: 22 }
+                  }
+                }}
+                whileHover={{ scale: 1.12, x: 2 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => {
                   navigate(`/${tab.id}`);
                   if (tab.id !== 'resources') setSelectedSurah(null);
                 }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative group ${
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 relative group cursor-pointer ${
                   isActive 
                     ? 'bg-brand-primary text-brand-depth shadow-lg shadow-brand-primary/30' 
                     : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'
@@ -1592,18 +1629,28 @@ export default function App() {
                 title={tab.label}
               >
                 <Icon size={20} />
-                {isActive && <div className="absolute left-[-16px] w-[4px] h-6 bg-brand-primary rounded-r-full" />}
+                {isActive && (
+                  <motion.div 
+                    layoutId="activeTabIndicator"
+                    className="absolute left-[-16px] w-[4px] h-6 bg-brand-primary rounded-r-full shadow-[0_0_8px_#10b981]" 
+                  />
+                )}
                 
                 {/* TOOLTIP */}
                 <div className="absolute left-14 bg-brand-sidebar border border-brand-border px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap z-50 shadow-2xl">
                   {tab.label}
                 </div>
-              </button>
+              </motion.button>
             );
           })}
-        </nav>
+        </motion.nav>
 
-        <div className="mt-auto flex flex-col items-center gap-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.45 }}
+          className="mt-auto flex flex-col items-center gap-4"
+        >
            {currentUser ? (
              <div className="group relative">
                <img 
@@ -1621,18 +1668,18 @@ export default function App() {
            ) : (
              <button 
                onClick={handleLogin}
-               className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary hover:bg-brand-primary transition-all group"
+               className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary hover:bg-brand-primary transition-all group cursor-pointer"
              >
                 <UserIcon size={20} className="group-hover:text-brand-depth" />
              </button>
            )}
-           <button className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-brand-primary hover:bg-white/5 transition-all">
+           <button className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-brand-primary hover:bg-white/5 transition-all cursor-pointer">
               <LayoutGrid size={20} />
            </button>
-        </div>
-      </aside>
+        </motion.div>
+      </motion.aside>
 
-      {/* SECONDARY SIDEBAR: List Area */}
+      {/* SECONDARY SIDEBAR: List Area with Staggered Elements */}
       <aside className={`hidden md:flex flex-col h-full bg-brand-sidebar border-r border-brand-border z-30 transition-[width,opacity] duration-300 ease-in-out flex-shrink-0 ${['home', 'settings', 'companion', 'premium', 'profile', 'ummah'].includes(activeTab) ? 'w-0 opacity-0 pointer-events-none' : 'w-80 opacity-100'}`}>
         <div className="sticky top-0 bg-brand-sidebar/95 backdrop-blur-md p-6 border-b border-brand-border flex items-center justify-between z-20">
            <h2 className="text-xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
@@ -1643,16 +1690,33 @@ export default function App() {
         
         <div className="flex-1 overflow-y-auto scrollbar-hide py-4 px-2">
         {activeTab === 'resources' && (
-              <div className="space-y-1">
+              <motion.div 
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: {},
+                  visible: {
+                    transition: {
+                      staggerChildren: 0.03,
+                      delayChildren: 0.05
+                    }
+                  }
+                }}
+                className="space-y-1"
+              >
                  <div className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Quran</div>
                  {SURAH_LIST.slice(0, 5).map((s) => (
-                    <button 
+                    <motion.button 
                        key={s.number}
+                       variants={{
+                         hidden: { opacity: 0, x: -12 },
+                         visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
+                       }}
+                       whileHover={{ x: 3 }}
                        onClick={() => {
                           setSelectedSurah(s);
-                          // We might want a way to ensure we're viewing Quran within Resources
                        }}
-                       className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all group border border-transparent ${selectedSurah?.number === s.number ? 'bg-brand-primary/10 border-brand-primary/20' : 'hover:bg-white/5'}`}
+                       className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all group border border-transparent cursor-pointer ${selectedSurah?.number === s.number ? 'bg-brand-primary/10 border-brand-primary/20' : 'hover:bg-white/5'}`}
                     >
                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all ${selectedSurah?.number === s.number ? 'bg-brand-primary text-brand-depth' : 'bg-white/5 text-brand-primary'}`}>
                           {s.number}
@@ -1660,7 +1724,7 @@ export default function App() {
                        <div className="text-left flex-1 min-w-0">
                           <p className={`text-xs font-bold truncate transition-colors ${selectedSurah?.number === s.number ? 'text-brand-primary' : 'text-slate-200 group-hover:text-brand-primary'}`}>{s.englishName}</p>
                        </div>
-                    </button>
+                    </motion.button>
                  ))}
                  <div className="h-[1px] bg-white/5 mx-4 my-4" />
                  <div className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Collections</div>
@@ -1668,21 +1732,26 @@ export default function App() {
                    { id: 'Sahih Bukhari', name: 'Sahih Bukhari' },
                    { id: 'Sahih Muslim', name: 'Sahih Muslim' },
                  ].map(coll => (
-                    <button 
+                    <motion.button 
                       key={coll.id} 
+                      variants={{
+                        hidden: { opacity: 0, x: -12 },
+                        visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
+                      }}
+                      whileHover={{ x: 3 }}
                       onClick={() => setSelectedHadithCollection(coll.id)}
-                      className={`w-full text-left px-4 py-3 rounded-2xl transition-all group border border-transparent ${selectedHadithCollection === coll.id ? 'bg-brand-primary/10 border-brand-primary/20' : 'hover:bg-white/5'}`}
+                      className={`w-full text-left px-4 py-3 rounded-2xl transition-all group border border-transparent cursor-pointer ${selectedHadithCollection === coll.id ? 'bg-brand-primary/10 border-brand-primary/20' : 'hover:bg-white/5'}`}
                     >
                        <p className={`text-xs font-bold transition-all ${selectedHadithCollection === coll.id ? 'text-brand-primary' : 'text-slate-200 group-hover:text-brand-primary'}`}>{coll.name}</p>
-                    </button>
+                    </motion.button>
                  ))}
-              </div>
+              </motion.div>
            )}
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 relative flex flex-col z-10 min-w-0">
+      <main className="flex-1 relative flex flex-col z-10 min-w-0 h-full overflow-hidden">
         {/* Floating Point Popups */}
         <div className="fixed top-24 right-8 z-[100] flex flex-col gap-2 pointer-events-none">
           <AnimatePresence>
@@ -1856,37 +1925,68 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar with Staggered Entrance */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
             <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
               className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
             />
             <motion.div 
-              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-              className="fixed inset-y-0 left-0 w-80 bg-brand-sidebar z-50 p-8 lg:hidden border-r border-brand-border"
+              initial={{ x: '-100%' }} 
+              animate={{ x: 0 }} 
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-y-0 left-0 w-80 bg-brand-sidebar z-50 p-8 lg:hidden border-r border-brand-border flex flex-col justify-between overflow-y-auto"
             >
-               <div className="flex justify-between items-center mb-12">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tighter">HABIBI Navigation</h2>
-                  <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400"><X size={24} /></button>
+               <div>
+                 <div className="flex justify-between items-center mb-8">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20">
+                        <BookOpen size={18} className="text-brand-depth" />
+                      </div>
+                      <h2 className="text-xl font-bold text-white uppercase tracking-tighter">HABIBI</h2>
+                    </div>
+                    <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white p-2 cursor-pointer"><X size={22} /></button>
+                 </div>
+                 <motion.nav 
+                   initial="hidden"
+                   animate="visible"
+                   variants={{
+                     hidden: {},
+                     visible: {
+                       transition: {
+                         staggerChildren: 0.035,
+                         delayChildren: 0.05
+                       }
+                     }
+                   }}
+                   className="space-y-2"
+                 >
+                   {NAVIGATION_TABS.map((tab) => (
+                     <motion.button
+                       key={tab.id}
+                       variants={{
+                         hidden: { opacity: 0, x: -16 },
+                         visible: { opacity: 1, x: 0, transition: { duration: 0.25 } }
+                       }}
+                       whileTap={{ scale: 0.96 }}
+                       onClick={() => { navigate(`/${tab.id}`); setIsSidebarOpen(false); if (tab.id !== 'resources') setSelectedSurah(null); }}
+                       className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all cursor-pointer ${activeTab === tab.id ? 'bg-brand-primary/20 text-brand-primary border border-brand-primary/30 font-bold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium'}`}
+                     >
+                       <span>{tab.label}</span>
+                     </motion.button>
+                   ))}
+                 </motion.nav>
                </div>
-               <nav className="space-y-3">
-                 {NAVIGATION_TABS.map((tab) => (
-                   <button
-                     key={tab.id}
-                     onClick={() => { navigate(`/${tab.id}`); setIsSidebarOpen(false); if (tab.id !== 'resources') setSelectedSurah(null); }}
-                     className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-all ${activeTab === tab.id ? 'bg-brand-primary/20 text-brand-primary border border-brand-primary/30' : 'text-slate-500'}`}
-                   >
-                     <span>{tab.label}</span>
-                   </button>
-                 ))}
-               </nav>
-               <div className="mt-8 pt-8 border-t border-white/10">
-                 <div className="p-6 rounded-3xl bg-white/5 border border-white/5 text-center">
-                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] mb-2">Partner</p>
+
+               <div className="mt-8 pt-6 border-t border-white/10">
+                 <div className="p-5 rounded-3xl bg-white/5 border border-white/5 text-center">
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] mb-1">Partner</p>
                     <h4 className="text-white font-black uppercase tracking-widest text-sm">ISIS WRISTS</h4>
                     <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Aloha Group Sponsorship</p>
                  </div>

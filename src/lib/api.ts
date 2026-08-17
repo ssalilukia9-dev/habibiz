@@ -1,7 +1,7 @@
 /**
- * API Utility for Sanctuary
- * Handles environment-aware URL construction for web and native (Capacitor) apps.
- * Automatically falls back to direct third-party APIs for Quran and Prayer Times if hosted on Netlify or mobile (Capacitor).
+ * API Utility for Sanctuary (Habibi)
+ * Handles environment-aware URL construction for web, Netlify, Vercel, and native (Capacitor) apps.
+ * Automatically falls back to direct third-party APIs for Quran, Audio streaming, and Prayer Times.
  */
 
 const getRawFetch = () => {
@@ -30,7 +30,6 @@ export const getApiBaseUrl = () => {
   }
 
   // For Native (iOS/Android), we need an absolute production URL to reach the hosted backend
-  // The user should set VITE_PRODUCTION_API_URL in their hosted environment (e.g., Netlify/Vercel)
   const productionUrl = import.meta.env.VITE_PRODUCTION_API_URL || '';
   if (productionUrl) {
     return productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
@@ -41,7 +40,39 @@ export const getApiBaseUrl = () => {
 };
 
 /**
- * Enhanced fetch that automatically handles absolute URLs, proxy bypasses, and client-side Gemini fallbacks.
+ * Universal Secure Audio Stream URL Resolver
+ * Works everywhere: Netlify, Vercel, Cloud Run, Safari, iOS, Android, and Capacitor.
+ * Directly streams from high-speed Quran and Adhan CDNs with native browser buffering.
+ */
+export const getAudioStreamUrl = (rawUrl?: string): string => {
+  if (!rawUrl) return '';
+  
+  // If it's already a Blob or Data URI, return directly
+  if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
+    return rawUrl;
+  }
+
+  // If someone passed an existing /api/proxy/audio?url=... string, extract the target
+  if (rawUrl.includes('/api/proxy/audio?url=')) {
+    try {
+      const match = rawUrl.match(/url=([^&]+)/);
+      if (match && match[1]) {
+        const decoded = decodeURIComponent(match[1]);
+        return decoded.replace(/^http:\/\//i, 'https://');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Ensure all HTTP audio endpoints use HTTPS to prevent Mixed Content security blocking
+  const secureUrl = rawUrl.replace(/^http:\/\//i, 'https://');
+
+  return secureUrl;
+};
+
+/**
+ * Enhanced fetch that automatically handles absolute URLs, proxy bypasses, audio streams, and client-side Gemini fallbacks.
  */
 export const apiFetch = async (path: string, options: RequestInit = {}): Promise<Response> => {
   const isWeb = typeof window !== 'undefined';
@@ -54,25 +85,57 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
     window.location.hostname.includes('googleusercontent.com') ||
     window.location.hostname.includes('aistudio.google.com') ||
     window.location.hostname === '' ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
+    (window.location.hostname === 'localhost' && window.location.port !== '') ||
+    (window.location.hostname === '127.0.0.1' && window.location.port !== '')
   );
 
-  // If we are NOT in a container environment, we should immediately fallback to direct upstream URLs for proxies
   const shouldBypassProxy = !isContainerEnvironment;
 
-  // 2. Intercept Alquran and Aladhan Proxy Calls
+  // 2. Intercept Audio Proxy Calls (Solves Netlify Audio failure completely)
+  if (path.startsWith('/api/proxy/audio')) {
+    try {
+      const parsed = new URL(path, 'https://localhost');
+      const targetUrl = parsed.searchParams.get('url');
+      if (targetUrl) {
+        const secureTarget = targetUrl.replace(/^http:\/\//i, 'https://');
+        
+        // On static hosting (like Netlify), directly fetch the target audio resource!
+        if (shouldBypassProxy) {
+          return originalFetch(secureTarget, {
+            ...options,
+            mode: 'cors'
+          });
+        }
+
+        // In container environment, try local proxy first then fallback to upstream
+        try {
+          const baseUrl = getApiBaseUrl();
+          const localUrl = `${baseUrl}${path}`;
+          const res = await originalFetch(localUrl, options);
+          const contentType = res.headers.get('content-type') || '';
+          if (res.status === 404 || contentType.includes('text/html')) {
+            throw new Error('Local audio proxy returned HTML / 404');
+          }
+          return res;
+        } catch (err) {
+          console.warn('Local Audio proxy failed, streaming upstream directly:', err);
+          return originalFetch(secureTarget, { ...options, mode: 'cors' });
+        }
+      }
+    } catch (e) {
+      console.warn('Audio proxy intercept failed:', e);
+    }
+  }
+
+  // 3. Intercept Alquran and Aladhan Proxy Calls
   if (path.startsWith('/api/proxy/alquran/')) {
     const subPath = path.replace(/^\/api\/proxy\/alquran\//, '');
     const upstreamUrl = `https://api.alquran.cloud/v1/${subPath}`;
     
-    // We always attempt the local proxy first because CORS/Mixed-Content restricts direct upstream fetches inside the iframe.
-    // If it returns 404 or fails, we fall back to direct fetch.
     try {
       const baseUrl = getApiBaseUrl();
       const localUrl = `${baseUrl}${path}`;
       const res = await originalFetch(localUrl, options);
-      // If the response is index.html (which usually happens on SPA router redirect for 404s)
       const contentType = res.headers.get('content-type') || '';
       if (res.status === 404 || contentType.includes('text/html')) {
         throw new Error('Local proxy not found, falling back to upstream');
@@ -103,16 +166,14 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
     }
   }
 
-  // 3. Intercept Gemini Chat Proxy Calls for client-side fallback
+  // 4. Intercept Gemini Chat Proxy Calls for client-side fallback
   if (path === '/api/ai/chat' || path.startsWith('/api/ai/chat')) {
     const customKey = isWeb ? (localStorage.getItem('custom_gemini_api_key') || '') : '';
     const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
     const apiKey = customKey.trim() || envKey.trim();
 
-    // If we are NOT in the container environment, OR if we have a custom API key, we should handle Gemini client-side!
     if (shouldBypassProxy || customKey.trim()) {
       if (!apiKey) {
-        // Return a custom error Response prompting the user to configure their Gemini API Key in settings
         return new Response(JSON.stringify({
           error: "To chat with Aliyah on this hosted deployment, please go to Settings (bottom-left) and enter your own free Google Gemini API Key."
         }), {
@@ -125,7 +186,6 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
         const bodyData = options.body ? JSON.parse(options.body as string) : {};
         const { contents, systemInstruction } = bodyData;
 
-        console.log('Using client-side Gemini API directly to generate content...');
         const rawRes = await originalFetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -161,13 +221,13 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
     }
   }
 
-  // 4. Default standard fetch behavior
+  // 5. Default standard fetch behavior
   const baseUrl = getApiBaseUrl();
   const url = path.startsWith('http') ? path : `${baseUrl}${path}`;
   return originalFetch(url, options);
 };
 
-// 5. Global monkey-patching of window.fetch to capture ALL proxy fetches in the app automatically
+// 6. Global monkey-patching of window.fetch to capture ALL proxy fetches in the app automatically
 if (typeof window !== 'undefined' && !(window as any).__fetchPatched) {
   try {
     const originalFetch = window.fetch;
@@ -198,7 +258,6 @@ if (typeof window !== 'undefined' && !(window as any).__fetchPatched) {
     try {
       window.fetch = customFetch;
     } catch (e) {
-      // If direct assignment fails (e.g. read-only property / getter-only on window), try Object.defineProperty
       Object.defineProperty(window, 'fetch', {
         value: customFetch,
         configurable: true,

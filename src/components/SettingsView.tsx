@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
@@ -244,25 +244,26 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Sanctuary Essence</p>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
-                { id: 'light', label: 'Blue & White', desc: 'Oceanic Calm', icon: Waves, color: 'bg-blue-800' },
-                { id: 'blue', label: 'White & Blue', desc: 'Daylight Clarity', icon: Sun, color: 'bg-sky-500' },
-                { id: 'green', label: 'White & Green', desc: 'Morning Dew', icon: Tent, color: 'bg-emerald-500' },
-                { id: 'light-green', label: 'Green & White', desc: 'Eden Forest', icon: Tent, color: 'bg-emerald-800' },
-                { id: 'purple', label: 'Purple & Black', desc: 'Ethereal Deep', icon: Moon, color: 'bg-purple-900' }
+                { id: 'emerald', label: 'Imperial Emerald', desc: 'Rawdah & Gold Majesty', icon: Sparkles, color: 'bg-emerald-600' },
+                { id: 'amber', label: 'Desert Amber', desc: 'Golden Makkah Sunset', icon: Sun, color: 'bg-amber-500' },
+                { id: 'sapphire', label: 'Sultani Sapphire', desc: 'Andalusian Twilight', icon: Waves, color: 'bg-sky-600' },
+                { id: 'crimson', label: 'Velvet Kiswah', desc: 'Ottoman Ruby Glow', icon: Heart, color: 'bg-rose-600' },
+                { id: 'purple', label: 'Ethereal Noor', desc: 'Celestial Lavender', icon: Moon, color: 'bg-purple-600' },
+                { id: 'dark', label: 'Midnight Obsidian', desc: 'Starlit Kaaba Night', icon: Compass, color: 'bg-slate-800' }
               ].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTheme(t.id)}
-                  className={`p-6 rounded-[2rem] border transition-all flex flex-col items-center text-center gap-3 relative overflow-hidden group ${theme === t.id ? 'bg-brand-primary/10 border-brand-primary shadow-lg' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
+                  className={`p-6 rounded-[2rem] border transition-all flex flex-col items-center text-center gap-3 relative overflow-hidden group cursor-pointer ${theme === t.id ? 'bg-brand-primary/15 border-brand-primary shadow-lg shadow-brand-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
                 >
-                  <div className={`w-12 h-12 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-xl group-hover:scale-110 transition-transform`}>
-                    <t.icon size={24} />
+                  <div className={`w-12 h-12 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-xl group-hover:scale-105 transition-transform`}>
+                    <t.icon size={22} />
                   </div>
                   <div>
                     <p className="font-bold text-slate-200 text-sm whitespace-nowrap">{t.label}</p>
-                    <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">{t.desc}</p>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{t.desc}</p>
                   </div>
                   {theme === t.id && (
                     <motion.div layoutId="active-theme" className="absolute top-4 right-4 text-brand-primary">

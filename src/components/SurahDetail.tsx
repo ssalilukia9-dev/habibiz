@@ -26,6 +26,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
+import { getAudioStreamUrl } from '../lib/api';
 import VerseShareModal from './VerseShareModal.tsx';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
 
@@ -127,56 +128,33 @@ export default function SurahDetail({
     ayahsRef.current = ayahs;
   }, [ayahs]);
 
-  const prefetchSingleAyah = async (nextAyah: any) => {
+  const prefetchSingleAyah = (nextAyah: any) => {
     if (nextAyah.audioBlob || prefetchedAyahsRef.current.has(nextAyah.number)) return;
     
     prefetchedAyahsRef.current.add(nextAyah.number);
-    console.log(`Silently prefetching Ayah ${nextAyah.numberInSurah} in the background...`);
-    
-    const secureAudioUrl = nextAyah.audio ? nextAyah.audio.replace(/^http:/, 'https:') : undefined;
-    if (!secureAudioUrl) return;
+    const streamUrl = getAudioStreamUrl(nextAyah.audio);
+    if (!streamUrl) return;
 
-    const proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-
-    // Standard HTML5 Audio Preloading (Bypasses CORS for direct caching on browser disk/memory cache)
+    // Use browser native prefetching without forcing React state re-renders (prevents UI freezing)
     if (!preloadedAudioElementsRef.current.has(nextAyah.number)) {
-      const preloadAudio = new Audio();
-      preloadAudio.preload = 'auto';
-      preloadAudio.src = proxiedUrl;
-      preloadedAudioElementsRef.current.set(nextAyah.number, preloadAudio);
-    }
-
-    try {
-      const res = await fetch(proxiedUrl);
-      if (!res.ok) throw new Error("Audio prefetch failed");
-      
-      const blob = await res.blob();
-      
-      setAyahs(currentAyahs => {
-        const updated = currentAyahs.map(a => 
-          a.number === nextAyah.number ? { ...a, audioBlob: blob } : a
-        );
-        // Persist offline
-        offlineService.saveAyahs(surah.number, updated, selectedReciter).catch(err => {
-          console.warn("Failed to persist prefetched ayah offline:", err);
-        });
-        return updated;
-      });
-      
-      console.log(`Successfully prefetched Ayah ${nextAyah.numberInSurah} and cached it offline.`);
-    } catch (e) {
-      console.warn(`Offline cache prefetch fetch failed for ayah ${nextAyah.numberInSurah}, browser audio cache fallback used:`, e);
-      // We do not remove from prefetchedAyahsRef because the HTML5 Audio preload is still functional
+      try {
+        const preloadAudio = new Audio();
+        preloadAudio.preload = 'auto';
+        preloadAudio.src = streamUrl;
+        preloadedAudioElementsRef.current.set(nextAyah.number, preloadAudio);
+      } catch (e) {
+        // ignore
+      }
     }
   };
 
-  const prefetchNextAyahs = async (currentAyahNumber: number) => {
+  const prefetchNextAyahs = (currentAyahNumber: number) => {
     const currentAyahs = ayahsRef.current;
     const currentIndex = currentAyahs.findIndex(a => a.number === currentAyahNumber);
     if (currentIndex === -1) return;
 
-    // Prefetch up to 3 verses ahead
-    const nextIndices = [currentIndex + 1, currentIndex + 2, currentIndex + 3];
+    // Prefetch next 2 verses ahead lightly
+    const nextIndices = [currentIndex + 1, currentIndex + 2];
     
     for (const idx of nextIndices) {
       if (idx < currentAyahs.length) {
@@ -311,17 +289,19 @@ export default function SurahDetail({
 
   const playAyah = async (ayah: any) => {
     if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-      audioRef.current.oncanplaythrough = null;
-      audioRef.current.onprogress = null;
+      try {
+        audioRef.current.pause();
+        audioRef.current.onended = null;
+        audioRef.current.onerror = null;
+        audioRef.current.oncanplaythrough = null;
+        audioRef.current.onprogress = null;
+      } catch (e) {}
     }
     
-    const audioUrl = ayah.audio ? ayah.audio.replace(/^http:/, 'https:') : undefined;
+    const rawAudioUrl = ayah.audioBlob ? URL.createObjectURL(ayah.audioBlob) : getAudioStreamUrl(ayah.audio);
     const currentAyahs = ayahsRef.current;
     
-    if (!audioUrl) {
+    if (!rawAudioUrl) {
       console.warn(`No audio URL found for ayah ${ayah.number}. Skipping or stopping.`);
       if (autoPlay) {
         const currentIndex = currentAyahs.findIndex(a => a.number === ayah.number);
@@ -339,36 +319,29 @@ export default function SurahDetail({
     setIsAudioLoading(ayah.number);
     setBufferingProgress(0);
     
-    // Start prefetching the next 3 verses in the background to avoid stopping when reciting
+    // Lightly prefetch the next verses ahead
     prefetchNextAyahs(ayah.number);
     
     try {
-      let localUrl;
       let audio: HTMLAudioElement;
 
-      if (ayah.audioBlob) {
-        localUrl = URL.createObjectURL(ayah.audioBlob);
-      } else {
-        localUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
-      }
-      
+      // Reuse preloaded audio instance if available for instant playback without buffer lag
       const preloadedAudio = !ayah.audioBlob ? preloadedAudioElementsRef.current.get(ayah.number) : undefined;
       if (preloadedAudio) {
-        console.log(`Utilizing preloaded Audio instance for Ayah ${ayah.numberInSurah}`);
         audio = preloadedAudio;
         preloadedAudioElementsRef.current.delete(ayah.number);
       } else {
         audio = new Audio();
         audio.preload = 'auto';
-        audio.src = localUrl;
+        audio.src = rawAudioUrl;
       }
       
       audioRef.current = audio;
 
-      // Handle Buffering Progress
+      // Buffering progress handler
       audio.onprogress = () => {
         if (audio.buffered.length > 0) {
-          const duration = audio.duration || 1; // Fallback to avoid division by zero
+          const duration = audio.duration || 1;
           const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
           const progress = Math.min(100, Math.round((bufferedEnd / duration) * 100));
           setBufferingProgress(progress);
@@ -379,7 +352,7 @@ export default function SurahDetail({
         setIsAudioLoading(null);
         setBufferingProgress(100);
         audio.play().catch(e => {
-          console.error("Play failed", e);
+          console.warn("Audio play blocked or waiting on user touch:", e);
           setIsAudioLoading(null);
           setPlayingAyah(null);
         });
@@ -404,11 +377,10 @@ export default function SurahDetail({
       };
 
       audio.onerror = (e) => {
-        console.error("Audio failed to load", e);
-        // Final fallback to direct URL if Blob URL failed
-        if (audio.src.startsWith('blob:')) {
-          console.log("Retrying with direct URL...");
-          audio.src = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
+        console.error("Audio failed to load directly", e);
+        // Fallback: If blob URL or specific stream failed, attempt direct fallback URL
+        if (audio.src.startsWith('blob:') && ayah.audio) {
+          audio.src = getAudioStreamUrl(ayah.audio);
           audio.play().catch(() => {
             setPlayingAyah(null);
             setIsAudioLoading(null);
@@ -419,7 +391,7 @@ export default function SurahDetail({
         }
       };
 
-      // If the audio element has already loaded enough data, play immediately
+      // If audio already ready, play immediately for snappy response
       if (audio.readyState >= 3) {
         onCanPlay();
       } else {
@@ -427,7 +399,7 @@ export default function SurahDetail({
       }
 
     } catch (error) {
-      console.error("Failed to download audio ayah", error);
+      console.error("Failed to initialize audio ayah", error);
       setIsAudioLoading(null);
     }
   };
@@ -446,9 +418,8 @@ export default function SurahDetail({
         const ayah = updatedAyahs[i];
         if (ayah.audio && !ayah.audioBlob) {
           try {
-            const secureAudioUrl = ayah.audio.replace(/^http:/, 'https:');
-            const proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-            const res = await fetch(proxiedUrl);
+            const streamUrl = getAudioStreamUrl(ayah.audio);
+            const res = await fetch(streamUrl);
             if (!res.ok) throw new Error("Network response was not ok");
             const blob = await res.blob();
             updatedAyahs[i] = {
@@ -478,11 +449,10 @@ export default function SurahDetail({
     setDownloadingAyahProgress(0);
 
     try {
-      const secureAudioUrl = ayah.audio ? ayah.audio.replace(/^http:/, 'https:') : undefined;
-      if (!secureAudioUrl) throw new Error("No audio URL found for this verse.");
+      const streamUrl = getAudioStreamUrl(ayah.audio);
+      if (!streamUrl) throw new Error("No audio URL found for this verse.");
 
-      const proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-      const res = await fetch(proxiedUrl);
+      const res = await fetch(streamUrl);
       if (!res.ok) throw new Error("Audio download failed");
       
       const contentLength = res.headers.get('content-length');
@@ -490,7 +460,16 @@ export default function SurahDetail({
       let loaded = 0;
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("Could not get stream reader");
+      if (!reader) {
+        const blob = await res.blob();
+        const updatedAyahs = ayahs.map(a => 
+          a.number === ayah.number ? { ...a, audioBlob: blob } : a
+        );
+        setAyahs(updatedAyahs);
+        await offlineService.saveAyahs(surah.number, updatedAyahs, selectedReciter);
+        notificationService.notify('Ayah Synchronized', `Ayah ${ayah.numberInSurah} is now available offline.`, 'system');
+        return;
+      }
 
       const chunks: Uint8Array[] = [];
       while (true) {

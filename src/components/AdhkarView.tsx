@@ -27,6 +27,7 @@ import {
 import { db, auth } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { VoiceService } from '../services/voiceService.ts';
+import { getAudioStreamUrl } from '../lib/api.ts';
 
 const NAMES_OF_ALLAH = [
   { id: 1, arabic: "الرَّحْمَنُ", transliteration: "Ar-Rahman", english: "The Most Merciful" },
@@ -454,10 +455,11 @@ export default function AdhkarView({ addHasanat, incrementDua, searchQuery }: { 
     }
 
     if (audioUrl) {
-      const proxiedUrl = `/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
-      const audio = new Audio(proxiedUrl);
+      const streamUrl = getAudioStreamUrl(audioUrl);
+      const audio = new Audio(streamUrl);
+      audio.preload = 'auto';
       audio.play().catch(e => {
-        console.warn("Proxied audio playback failed, falling back to VoiceService", e);
+        console.warn("Direct audio playback failed, falling back to VoiceService", e);
         VoiceService.speak(text, 'ar', () => setSpeakingId(null));
       });
       audio.onended = () => setSpeakingId(null);

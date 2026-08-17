@@ -5,17 +5,14 @@ import {
   CheckCircle2, 
   BookOpen, 
   MessageCircle, 
-  ShoppingBag, 
-  Compass, 
-  Users, 
-  User, 
-  Award,
   X,
   HelpCircle,
   ArrowRight,
-  MapPin,
+  ArrowLeft,
+  Moon,
   Flame,
-  Search,
+  Crown,
+  Award,
   BookMarked
 } from 'lucide-react';
 
@@ -26,36 +23,100 @@ interface WalkthroughTourProps {
   addHasanat: (amount: number) => void;
 }
 
+const SANCTUARY_STEPS = [
+  {
+    id: "welcome",
+    title: "Welcome, Noble Soul! 🌟",
+    desc: "Welcome to your digital Islamic Sanctuary. Let us take a brief interactive tour of your custom-designed spiritual dashboard.",
+    elementId: "",
+  },
+  {
+    id: "salam-soul",
+    title: "Daily Greetings Banner 🌅",
+    desc: "This is your new spiritual command banner. It features daily-changing peaceful greetings, spiritual badges, and quick resumes for your Quran readings.",
+    elementId: "tour-salam-soul",
+  },
+  {
+    id: "prayer-console",
+    title: "Holy Makkah Prayer Console 🕋",
+    desc: "Track live prayer times, view real-time countdowns, configure custom notification alarms, and align your life with the divine schedule.",
+    elementId: "tour-prayer-console",
+  },
+  {
+    id: "progress-stats",
+    title: "Spiritual Vigor Stats ⚡",
+    desc: "Monitor your Quran Verses Read, active Hadith Daily Streak, and track your Level progression up to the ultimate Spiritual Rank.",
+    elementId: "tour-progress-stats",
+  },
+  {
+    id: "daily-centerpiece",
+    title: "Celestial Centerpiece 📖",
+    desc: "Nourish your mind and soul with today's handpicked Quranic verses and prophetic Hadiths, complete with authentic Arabic and English translations.",
+    elementId: "tour-daily-centerpiece",
+  },
+  {
+    id: "shortcuts",
+    title: "Interactive Instruments 🔮",
+    desc: "Quickly access your essential spiritual utilities: Adhkar rosary, Community Leaderboards, the Zakat calculator, and Aliyah—your scripture-guided AI.",
+    elementId: "tour-shortcuts",
+  }
+];
+
 export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasanat }: WalkthroughTourProps) {
-  // Determine current active page based on pathname
   const [currentTab, setCurrentTab] = useState('home');
-  const [subTab, setSubTab] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [enableHighlight, setEnableHighlight] = useState(true);
 
   useEffect(() => {
+    if (!isOpen) return;
     const handlePathname = () => {
       const path = window.location.pathname.substring(1) || 'home';
       setCurrentTab(path);
-
-      // Detect sub-tab/initialResId from local storage or memory if applicable
-      const urlParams = new URLSearchParams(window.location.search);
-      const resId = urlParams.get('res') || null;
-      setSubTab(resId);
     };
 
     handlePathname();
-    // Listen to route changes (window popstate or custom events)
     window.addEventListener('popstate', handlePathname);
-    
-    // Set up interval to poll pathname in case SPA router doesn't trigger popstate
-    const interval = setInterval(handlePathname, 1000);
 
     return () => {
       window.removeEventListener('popstate', handlePathname);
-      clearInterval(interval);
     };
-  }, []);
+  }, [isOpen]);
 
-  // Track claimed rewards per tab to prevent double claiming
+  // Control highlight classes on the targeted DOM elements
+  useEffect(() => {
+    if (!isOpen || currentTab !== 'home') {
+      SANCTUARY_STEPS.forEach(step => {
+        if (step.elementId) {
+          const el = document.getElementById(step.elementId);
+          if (el) el.classList.remove('tour-highlight');
+        }
+      });
+      return;
+    }
+
+    SANCTUARY_STEPS.forEach((step, idx) => {
+      if (!step.elementId) return;
+      const el = document.getElementById(step.elementId);
+      if (!el) return;
+
+      if (idx === currentStep && enableHighlight) {
+        el.classList.add('tour-highlight');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        el.classList.remove('tour-highlight');
+      }
+    });
+
+    return () => {
+      SANCTUARY_STEPS.forEach(step => {
+        if (step.elementId) {
+          const el = document.getElementById(step.elementId);
+          if (el) el.classList.remove('tour-highlight');
+        }
+      });
+    };
+  }, [isOpen, currentStep, currentTab, enableHighlight]);
+
   const [claimedRewards, setClaimedRewards] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('sanctuary_claimed_hints');
@@ -70,27 +131,8 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
     localStorage.setItem('sanctuary_claimed_hints', JSON.stringify(updated));
   };
 
-  // Define dynamic guide content based on the active tab/section
   const getPageGuide = () => {
     switch (currentTab) {
-      case 'home':
-        return {
-          title: "Home Sanctuary 🏡",
-          subtitle: "Your Daily Spiritual Launchpad",
-          description: "Start every day strong here. Complete holy deeds and check off prayer times to grow your continuous streak.",
-          color: "from-indigo-500/20 to-purple-500/20",
-          accent: "text-indigo-400",
-          border: "border-indigo-500/30",
-          bg: "bg-indigo-500/10",
-          steps: [
-            { id: "h1", text: "Check off a prayer time to keep your streak burning hot! 📅" },
-            { id: "h2", text: "Read today's divine Hadith selection in the Daily Deed card. 📖" },
-            { id: "h3", text: "View your current Spiritual Level and global Hall of Fame rank. 🏆" }
-          ],
-          rewardAmount: 25,
-          rewardId: "home_deeds"
-        };
-
       case 'resources':
         return {
           title: "The Conservatory 📖",
@@ -220,136 +262,251 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
   };
 
   const activeGuide = getPageGuide();
-  const isClaimed = claimedRewards[activeGuide.rewardId];
+  const isClaimed = claimedRewards[activeGuide.rewardId || 'general_deeds'];
 
   const handleClaimReward = () => {
-    if (!isClaimed) {
-      addHasanat(activeGuide.rewardAmount);
-      const updated = { ...claimedRewards, [activeGuide.rewardId]: true };
+    const rId = activeGuide.rewardId || 'general_deeds';
+    const rAmount = activeGuide.rewardAmount || 15;
+    if (!claimedRewards[rId]) {
+      addHasanat(rAmount);
+      const updated = { ...claimedRewards, [rId]: true };
       saveClaimed(updated);
       
-      // Dispatch custom audio or visual event for celebratory feedback
       window.dispatchEvent(new CustomEvent('hasanat_earned_popup', { 
-        detail: { amount: activeGuide.rewardAmount, reason: `${activeGuide.title} Guide completed!` } 
+        detail: { amount: rAmount, reason: `${activeGuide.title} Guide completed!` } 
       }));
     }
   };
 
   if (!isOpen) return null;
 
+  const isHomeTour = currentTab === 'home';
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] pointer-events-none flex justify-end items-end md:items-start p-4 md:p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 100, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 100, scale: 0.95 }}
-          className="pointer-events-auto w-full max-w-sm bg-brand-sidebar/95 border border-brand-border rounded-3xl p-5 shadow-2xl backdrop-blur-md overflow-hidden relative"
-        >
-          {/* Top glow */}
-          <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${activeGuide.color} opacity-80`} />
-          
-          {/* Header */}
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <span className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-                Al-Murshid Guidance
-              </span>
-              <h3 className="text-lg font-black text-white italic uppercase tracking-tighter mt-0.5">
-                {activeGuide.title}
-              </h3>
-              <p className="text-[10px] font-bold text-brand-primary uppercase tracking-widest">
-                {activeGuide.subtitle}
+      {/* Backdrop overlay for interactive focus */}
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/80 backdrop-blur-[2px] z-[9990] pointer-events-auto"
+        />
+      )}
+
+      <div className="fixed inset-0 z-[9995] flex items-center justify-center p-4 md:p-6 pointer-events-none">
+        {isHomeTour ? (
+          /* Sanctuary Dashboard Interactive Onboarding Popup Modal */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 30 }}
+            className="pointer-events-auto w-full max-w-lg bg-brand-sidebar/95 border border-white/10 rounded-[3rem] p-8 md:p-10 shadow-3xl backdrop-blur-xl overflow-hidden relative space-y-6"
+          >
+            {/* Top gold bar */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-brand-primary to-amber-500 opacity-90" />
+            
+            {/* Step Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary animate-pulse flex items-center gap-2">
+                  <Sparkles size={12} /> Interactive Sanctuary Tour
+                </span>
+                <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
+                  {SANCTUARY_STEPS[currentStep].title}
+                </h3>
+                <p className="text-xs text-slate-500 font-bold tracking-widest">
+                  STEP {currentStep + 1} OF {SANCTUARY_STEPS.length}
+                </p>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl">
+              <p className="text-sm text-slate-300 font-medium leading-relaxed">
+                {SANCTUARY_STEPS[currentStep].desc}
               </p>
             </div>
-            <button 
-              onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-white/5 text-slate-500 hover:text-white transition-all"
-              title="Close Guide"
-            >
-              <X size={16} />
-            </button>
-          </div>
 
-          {/* Description */}
-          <p className="text-[11px] text-slate-400 font-medium leading-relaxed mb-4 text-justify">
-            {activeGuide.description}
-          </p>
-
-          {/* Page Steps */}
-          <div className="space-y-2.5 mb-4">
-            {activeGuide.steps.map((step, idx) => (
-              <div 
-                key={step.id}
-                className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
+            {/* Highlighting controls to easily toggle spotlight focus */}
+            <div className="flex items-center justify-between py-2 border-y border-white/5">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Target Element Highlighted</span>
+              <button 
+                onClick={() => setEnableHighlight(!enableHighlight)}
+                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                  enableHighlight 
+                    ? "bg-brand-primary/10 text-brand-primary border border-brand-primary/20" 
+                    : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
+                }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black bg-brand-primary/10 text-brand-primary border border-brand-primary/20 shrink-0 mt-0.5`}>
-                  {idx + 1}
-                </div>
-                <span className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider leading-normal">
-                  {step.text}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Reward Section */}
-          <div className={`p-3 rounded-2xl border ${activeGuide.border} ${activeGuide.bg} flex items-center justify-between gap-3`}>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shrink-0">
-                <Award size={16} />
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Section Progress
-                </p>
-                <p className="text-xs font-black text-white uppercase tracking-tighter">
-                  {isClaimed ? "Rewarded & Read!" : "Complete Section"}
-                </p>
-              </div>
+                {enableHighlight ? "Spotlight: Active" : "Spotlight: Skipped"}
+              </button>
             </div>
 
-            {isClaimed ? (
-              <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-1.5 rounded-full border border-emerald-500/20">
-                Claimed ✓
-              </span>
-            ) : (
+            {/* Action buttons */}
+            <div className="flex items-center justify-between pt-4">
               <button
-                onClick={handleClaimReward}
-                className="px-3 py-1.5 rounded-xl bg-brand-primary text-brand-depth text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-md shadow-brand-primary/10"
+                onClick={onClose}
+                className="text-xs font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
               >
-                Claim +{activeGuide.rewardAmount}
+                Skip Tour
               </button>
-            )}
-          </div>
 
-          {/* Quick Nav Suggestion */}
-          <div className="mt-3 flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-widest pt-3 border-t border-white/5">
-            <span>Explore Sanctuary</span>
-            <div className="flex gap-2">
+              <div className="flex items-center gap-3">
+                {currentStep > 0 && (
+                  <button
+                    onClick={() => setCurrentStep(prev => prev - 1)}
+                    className="px-6 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-widest border border-white/10 transition-all flex items-center gap-2"
+                  >
+                    <ArrowLeft size={14} /> Back
+                  </button>
+                )}
+
+                {currentStep < SANCTUARY_STEPS.length - 1 ? (
+                  <button
+                    onClick={() => setCurrentStep(prev => prev + 1)}
+                    className="px-8 py-4 bg-brand-primary text-brand-depth rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/20 flex items-center gap-2"
+                  >
+                    Next <ArrowRight size={14} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      // Award completed reward
+                      addHasanat(50);
+                      window.dispatchEvent(new CustomEvent('hasanat_earned_popup', { 
+                        detail: { amount: 50, reason: "First Sanctuary Tour completed! Noble Soul!" } 
+                      }));
+                      onClose();
+                    }}
+                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 animate-bounce"
+                  >
+                    Complete Tour <CheckCircle2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          /* Corner Walkthrough card for other sections of the app */
+          <motion.div
+            initial={{ opacity: 0, y: 100, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 100, scale: 0.95 }}
+            className="pointer-events-auto w-full max-w-sm bg-brand-sidebar/95 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-md overflow-hidden relative space-y-4"
+          >
+            {/* Top glow */}
+            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${activeGuide.color} opacity-80`} />
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Al-Murshid Guidance
+                </span>
+                <h3 className="text-lg font-black text-white italic uppercase tracking-tighter mt-0.5">
+                  {activeGuide.title}
+                </h3>
+                <p className="text-[10px] font-bold text-brand-primary uppercase tracking-widest">
+                  {activeGuide.subtitle}
+                </p>
+              </div>
               <button 
-                onClick={() => onNavigate('home')}
-                className="hover:text-brand-primary transition-colors"
+                onClick={onClose}
+                className="p-1.5 rounded-full hover:bg-white/5 text-slate-500 hover:text-white transition-all"
+                title="Close Guide"
               >
-                Home
-              </button>
-              <span>•</span>
-              <button 
-                onClick={() => onNavigate('resources')}
-                className="hover:text-brand-primary transition-colors"
-              >
-                Quran
-              </button>
-              <span>•</span>
-              <button 
-                onClick={() => onNavigate('companion')}
-                className="hover:text-brand-primary transition-colors"
-              >
-                AI Companion
+                <X size={16} />
               </button>
             </div>
-          </div>
-        </motion.div>
+
+            {/* Description */}
+            <p className="text-[11px] text-slate-400 font-medium leading-relaxed text-justify">
+              {activeGuide.description}
+            </p>
+
+            {/* Page Steps */}
+            <div className="space-y-2">
+              {activeGuide.steps.map((step, idx) => (
+                <div 
+                  key={step.id}
+                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black bg-brand-primary/10 text-brand-primary border border-brand-primary/20 shrink-0 mt-0.5">
+                    {idx + 1}
+                  </div>
+                  <span className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider leading-normal">
+                    {step.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Reward Section */}
+            <div className={`p-3 rounded-2xl border ${activeGuide.border} ${activeGuide.bg} flex items-center justify-between gap-3`}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shrink-0">
+                  <Award size={16} />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    Section Progress
+                  </p>
+                  <p className="text-xs font-black text-white uppercase tracking-tighter">
+                    {isClaimed ? "Rewarded & Read!" : "Complete Section"}
+                  </p>
+                </div>
+              </div>
+
+              {isClaimed ? (
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-1.5 rounded-full border border-emerald-500/20">
+                  Claimed ✓
+                </span>
+              ) : (
+                <button
+                  onClick={handleClaimReward}
+                  className="px-3 py-1.5 rounded-xl bg-brand-primary text-brand-depth text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-md shadow-brand-primary/10"
+                >
+                  Claim +{activeGuide.rewardAmount}
+                </button>
+              )}
+            </div>
+
+            {/* Quick Nav Suggestion */}
+            <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-widest pt-3 border-t border-white/5">
+              <span>Explore Sanctuary</span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => onNavigate('home')}
+                  className="hover:text-brand-primary transition-colors"
+                >
+                  Home
+                </button>
+                <span>•</span>
+                <button 
+                  onClick={() => onNavigate('resources')}
+                  className="hover:text-brand-primary transition-colors"
+                >
+                  Quran
+                </button>
+                <span>•</span>
+                <button 
+                  onClick={() => onNavigate('companion')}
+                  className="hover:text-brand-primary transition-colors"
+                >
+                  AI Companion
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
     </AnimatePresence>
   );

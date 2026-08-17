@@ -24,93 +24,79 @@
 }
 
 @layer base {
-  :root:not([data-theme]), :root[data-theme="light"] {
-    --color-brand-primary: #ffffff;
-    --color-brand-secondary: #bae6fd;
-    --color-brand-depth: #0369a1; /* Sky 700 background */
-    --color-brand-sidebar: #075985;
-    --color-brand-border: rgba(255, 255, 255, 0.1);
+  :root:not([data-theme]), :root[data-theme="dark"] {
+    --color-brand-primary: #a855f7; /* Purple 500 */
+    --color-brand-secondary: #fbbf24; /* Warm Gold */
+    --color-brand-accent: #e2e8f0;
+    --color-brand-depth: #070913; /* Midnight Starlit Obsidian */
+    --color-brand-sidebar: #04050b;
+    --color-brand-border: rgba(255, 255, 255, 0.08);
+    --color-app-text: #f8fafc;
+    --color-app-text-muted: #94a3b8;
+    --color-app-text-dim: #64748b;
+  }
+
+  :root[data-theme="emerald"] {
+    --color-brand-primary: #10b981; /* Emerald 500 */
+    --color-brand-secondary: #f59e0b; /* Amber Gold */
+    --color-brand-accent: #34d399; /* Mint light */
+    --color-brand-depth: #041913; /* Imperial Forest Green */
+    --color-brand-sidebar: #02120e;
+    --color-brand-border: rgba(16, 185, 129, 0.18);
+    --color-app-text: #f0fdf4;
+    --color-app-text-muted: #a7f3d0;
+    --color-app-text-dim: #6ee7b7;
+  }
+
+  :root[data-theme="amber"] {
+    --color-brand-primary: #f59e0b; /* Amber 500 */
+    --color-brand-secondary: #fbbf24; /* Warm Gold */
+    --color-brand-accent: #fde68a;
+    --color-brand-depth: #170f06; /* Desert Amber & Oud */
+    --color-brand-sidebar: #0f0903;
+    --color-brand-border: rgba(245, 158, 11, 0.18);
+    --color-app-text: #fffbeb;
+    --color-app-text-muted: #fde68a;
+    --color-app-text-dim: #fcd34d;
+  }
+
+  :root[data-theme="sapphire"] {
+    --color-brand-primary: #38bdf8; /* Sky / Cyan 400 */
+    --color-brand-secondary: #0284c7; /* Ocean blue */
+    --color-brand-accent: #7dd3fc;
+    --color-brand-depth: #061022; /* Sultani Royal Sapphire */
+    --color-brand-sidebar: #030814;
+    --color-brand-border: rgba(56, 189, 248, 0.18);
     --color-app-text: #f0f9ff;
     --color-app-text-muted: #bae6fd;
     --color-app-text-dim: #7dd3fc;
   }
 
-  :root[data-theme="blue"] {
-    --color-brand-primary: #0284c7; /* Sky 600 primary */
-    --color-brand-secondary: #0ea5e9;
-    --color-brand-depth: #ffffff; /* White background */
-    --color-brand-sidebar: #f8fafc;
-    --color-brand-border: rgba(2, 132, 199, 0.1);
-    --color-app-text: #0f172a;
-    --color-app-text-muted: #475569;
-    --color-app-text-dim: #94a3b8;
-  }
-
-  :root[data-theme="green"] {
-    --color-brand-primary: #059669; /* Emerald 600 primary */
-    --color-brand-secondary: #10b981;
-    --color-brand-depth: #ffffff; /* White background */
-    --color-brand-sidebar: #f0fdf4;
-    --color-brand-border: rgba(5, 150, 105, 0.1);
-    --color-app-text: #064e3b;
-    --color-app-text-muted: #065f46;
-    --color-app-text-dim: #059669;
-  }
-
-  :root[data-theme="light-green"] {
-    --color-brand-primary: #ffffff;
-    --color-brand-secondary: #dcfce7;
-    --color-brand-depth: #064e3b; /* Green 900 background */
-    --color-brand-sidebar: #065f46;
-    --color-brand-border: rgba(255, 255, 255, 0.1);
-    --color-app-text: #f0fdf4;
-    --color-app-text-muted: #86efac;
-    --color-app-text-dim: #4ade80;
+  :root[data-theme="crimson"] {
+    --color-brand-primary: #fb7185; /* Rose 400 */
+    --color-brand-secondary: #f43f5e; /* Rose 500 */
+    --color-brand-accent: #fda4af;
+    --color-brand-depth: #19050d; /* Velvet Kiswah Crimson */
+    --color-brand-sidebar: #0f0207;
+    --color-brand-border: rgba(251, 113, 133, 0.18);
+    --color-app-text: #fff1f2;
+    --color-app-text-muted: #fecdd3;
+    --color-app-text-dim: #fda4af;
   }
 
   :root[data-theme="purple"] {
     --color-brand-primary: #a855f7; /* Purple 500 */
     --color-brand-secondary: #f472b6; /* Pink 400 */
-    --color-brand-depth: #05010a; /* Black-purple */
-    --color-brand-sidebar: #0c0218;
-    --color-brand-border: rgba(168, 85, 247, 0.15);
+    --color-brand-depth: #090314; /* Ethereal Lavender Night */
+    --color-brand-sidebar: #05010c;
+    --color-brand-border: rgba(168, 85, 247, 0.18);
     --color-app-text: #faf5ff;
     --color-app-text-muted: #d8b4fe;
     --color-app-text-dim: #a855f7;
   }
 
-  :root[data-theme="dark"] {
-    --color-brand-primary: #ffffff;
-    --color-brand-secondary: #cbd5e1;
-    --color-brand-depth: #020617;
-    --color-brand-sidebar: #0f172a;
-    --color-app-text: #f8fafc;
-    --color-app-text-muted: #94a3b8;
-    --color-app-text-dim: #475569;
-  }
-
   body {
     @apply bg-brand-depth text-app-text font-sans antialiased transition-colors duration-300;
-    background-image: radial-gradient(circle at 50% 0%, var(--color-brand-primary), transparent 50%);
-    background-size: 100% 100vh;
-    background-attachment: fixed;
-    background-blend-mode: soft-light;
-  }
-  
-  :root[data-theme="dark"] body {
-    background-image: 
-      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
-      url("https://www.transparenttextures.com/patterns/stardust.png");
-  }
-
-  :root[data-theme="purple"] body {
-    background-image: 
-      radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
-      url("https://www.transparenttextures.com/patterns/cubes.png");
-  }
-
-  :root:not([data-theme]) body, :root[data-theme="light"] body {
-    background-image: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
   }
 }
 
@@ -157,16 +143,6 @@
   text-orientation: mixed;
 }
 
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
 /* Markdown Content Styling */
 .markdown-body {
   @apply text-slate-200 leading-relaxed;
@@ -189,4 +165,14 @@
 .markdown-body code {
   @apply bg-white/10 px-1 rounded text-brand-secondary;
 }
+
+/* Walkthrough Onboarding Tour Highlight Spotlight */
+.tour-highlight {
+  position: relative !important;
+  z-index: 9991 !important;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85), 0 0 25px rgba(168, 85, 247, 0.5) !important;
+  border-color: rgba(168, 85, 247, 0.8) !important;
+  pointer-events: none !important;
+}
+
 

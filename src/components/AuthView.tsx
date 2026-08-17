@@ -15,6 +15,7 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
+  Compass,
   Check,
   Globe,
   Info
@@ -26,6 +27,7 @@ import {
   handleRedirectResult
 } from '../lib/firebase';
 import { restDbClient } from '../lib/restDbClient';
+import kaabaDuaThemeBg from '../assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
 interface AuthViewProps {
   onSuccess: () => void;
@@ -76,8 +78,6 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
         }
       } catch (err: any) {
         console.warn("Redirect authentication note (usually sandbox restriction):", err);
-        // Suppress automatic scary red error on page load as requested
-        // Redirect flows are often blocked by standard browser sandbox cookies security
       } finally {
         setLoading(false);
       }
@@ -88,11 +88,10 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
   const handleInstantJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError('Please provide your email address to initiate custom profile rendering.');
+      setError('Please provide your email address to initiate your spiritual journey.');
       return;
     }
 
-    // Advanced regex check for email verification
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setError('Please provide a valid email format (e.g., you@domain.com).');
@@ -103,24 +102,40 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
     setLoading(true);
 
     try {
-      // 1. Save email in local storage so the app can retrieve it on future loadings or onboarding
       localStorage.setItem('saved-auth-email', email.trim().toLowerCase());
       
       try {
-        // 2. Authenticate anonymously using Firebase (securely bypasses popup blockers totally)
         await signInAnon();
       } catch (fbErr) {
-        console.warn('Firebase Auth blocked or uninitialized. Activating standalone local identity fallback...', fbErr);
-        // Turn on Local Session Active!
+        console.warn('Activating local identity session...', fbErr);
         localStorage.setItem('local-session-active', 'true');
-        // Instantly invoke reload to boot state inside App.tsx seamlessly
         window.location.reload();
         return;
       }
       onSuccess();
     } catch (err: any) {
       console.error('Instant join failed:', err);
-      setError(err.message || 'Verification failed. Please try again.');
+      setError(err.message || 'Verification failed. Please try again or continue as guest.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuestAccess = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      try {
+        await signInAnon();
+      } catch {
+        localStorage.setItem('local-session-active', 'true');
+        window.location.reload();
+        return;
+      }
+      onSuccess();
+    } catch (err: any) {
+      localStorage.setItem('local-session-active', 'true');
+      window.location.reload();
     } finally {
       setLoading(false);
     }
@@ -149,7 +164,13 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       onSuccess();
     } catch (err: any) {
       console.error('REST database auth error:', err);
-      setError(err.message || 'Authentication failed. Please verify your credentials.');
+      const errMsg = err?.message || 'Authentication error.';
+      if (errMsg.includes('No account found') || errMsg.includes('404') || errMsg.includes('Failed to login')) {
+        setError("Account not found for this email. Would you like to create your account?");
+        setIsRegister(true);
+      } else {
+        setError(errMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -163,20 +184,29 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-y-auto bg-brand-depth">
-      {/* Premium Ambient Floating Glow Spotlights */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60vw] h-[60vw] bg-brand-primary/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60vw] h-[60vw] bg-brand-secondary/8 rounded-full blur-[140px] pointer-events-none" />
+      {/* Visible Theme Ambient Background - Hands in Dua before Kaaba */}
+      <div 
+        className="fixed inset-0 pointer-events-none bg-cover bg-center bg-no-repeat opacity-25 scale-100 transform-gpu z-0"
+        style={{ backgroundImage: `url(${kaabaDuaThemeBg})` }}
+      />
+      
+      {/* Deep Vignette & Theme Gradient Layer */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-brand-depth via-brand-depth/75 to-brand-depth/65 z-0" />
+
+      {/* Premium Ambient Glow Spotlights */}
+      <div className="absolute top-[-20%] left-[-20%] w-[60vw] h-[60vw] bg-brand-primary/10 rounded-full blur-[140px] pointer-events-none z-0" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60vw] h-[60vw] bg-brand-secondary/8 rounded-full blur-[140px] pointer-events-none z-0" />
 
       {/* Atmospheric Star Sparks */}
-      <div className="absolute top-12 left-12 text-white/5 animate-pulse"><Sparkles size={24} /></div>
-      <div className="absolute bottom-16 left-20 text-white/5 animate-bounce"><Moon size={20} /></div>
-      <div className="absolute top-24 right-16 text-white/5"><Sparkles size={16} /></div>
+      <div className="absolute top-12 left-12 text-white/10 z-0"><Sparkles size={24} /></div>
+      <div className="absolute bottom-16 left-20 text-white/10 z-0"><Moon size={20} /></div>
+      <div className="absolute top-24 right-16 text-white/10 z-0"><Sparkles size={16} /></div>
 
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-xl rounded-[2.5rem] border border-white/10 bg-brand-sidebar/45 backdrop-blur-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] overflow-hidden p-6 md:p-10 space-y-6 my-8"
+        className="relative z-10 w-full max-w-xl rounded-[2.5rem] border border-white/10 bg-brand-sidebar/70 backdrop-blur-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] overflow-hidden p-6 md:p-10 space-y-6 my-8"
       >
         {/* Top elegant gradient highlight line */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-brand-primary/60 to-transparent" />
@@ -188,18 +218,29 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
             <div className="absolute inset-0 bg-brand-primary/15 rounded-2xl rotate-45 animate-pulse" />
             <div className="absolute inset-1.5 bg-brand-secondary/10 rounded-2xl rotate-12 animate-pulse [animation-delay:0.3s]" />
             <div className="relative text-brand-primary flex items-center justify-center">
-              <LogIn size={26} className="text-brand-primary drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+              <Compass size={28} className="text-brand-primary drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
             </div>
           </div>
           <div className="space-y-1">
             <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight italic">
-              The Sanctuary
+              Habibi Sanctuary
             </h2>
             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.25em]">
-              Digital Spiritual Haven
+              Welcome to Your Spiritual Haven
             </p>
           </div>
         </div>
+
+        {/* Quick 1-Tap Guest Access Pill for effortless user onboarding */}
+        <button
+          onClick={handleGuestAccess}
+          disabled={loading}
+          className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500/15 via-brand-primary/15 to-amber-500/15 hover:from-amber-500/25 hover:to-amber-500/25 border border-amber-500/30 rounded-2xl text-amber-300 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-amber-500/10 cursor-pointer"
+        >
+          <Sparkles size={16} className="text-amber-400 animate-pulse" />
+          <span>Instant Quick Start • Continue as Guest</span>
+          <ArrowRight size={14} className="text-amber-400" />
+        </button>
 
         {/* Sliding Tab Selector with smooth layout projection */}
         <div className="relative flex bg-brand-depth/80 p-1.5 rounded-2xl border border-white/5 shadow-inner">
@@ -224,8 +265,8 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
               useRestDb ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <RefreshCw size={13} className={useRestDb ? 'animate-spin' : ''} />
-            Android Sync
+            <Shield size={13} />
+            {isRegister ? 'New Pilgrim (Sign Up)' : 'Pilgrim Login'}
           </button>
           
           <button
@@ -238,7 +279,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
             }`}
           >
             <Sparkles size={13} />
-            Firebase / Social
+            Social & Fast Join
           </button>
         </div>
 
@@ -252,7 +293,18 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
               className="p-4 bg-red-500/10 border border-red-500/25 rounded-2xl flex items-start gap-3"
             >
                <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
-               <p className="text-red-400 text-xs font-semibold leading-relaxed">{error}</p>
+               <div className="flex-1">
+                 <p className="text-red-400 text-xs font-semibold leading-relaxed">{error}</p>
+                 {error.includes("create your account") && (
+                   <button 
+                     type="button" 
+                     onClick={() => { setIsRegister(true); setError(null); }}
+                     className="mt-2 text-[10px] font-black uppercase tracking-wider text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                   >
+                     Create Account Now →
+                   </button>
+                 )}
+               </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -271,15 +323,15 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                 onSubmit={handleRestAuthSubmit} 
                 className="space-y-5"
               >
-                <div className="space-y-1 bg-brand-depth/30 p-4 rounded-2xl border border-white/5">
+                <div className="space-y-1 bg-brand-depth/40 p-4 rounded-2xl border border-white/5">
                   <h3 className="text-xs font-bold text-brand-primary uppercase tracking-wider flex items-center gap-1.5">
                     <Shield size={13} />
-                    {isRegister ? 'Create Cloud Sync Account' : 'Sign In to Cloud Sync'}
+                    {isRegister ? 'New Account • Sync Across Devices' : 'Welcome Back • Pilgrim Sign In'}
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-medium">
                     {isRegister 
-                      ? 'Establish custom login credentials to back up streaks, Hasanat points, books, and enable feed posts and chat rooms.'
-                      : 'Log in with your password to restore and sync your full spiritual journey instantly.'}
+                      ? 'Establish custom login credentials to back up streaks, Hasanat points, bookmarks, and join chat rooms.'
+                      : 'Log in with your password to restore and sync your full spiritual journey.'}
                   </p>
                 </div>
 
@@ -347,11 +399,11 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <RefreshCw size={14} className="animate-spin" />
-                        Processing Sync...
+                        Processing...
                       </span>
                     ) : (
                       <>
-                        {isRegister ? 'Register & Begin Journey' : 'Log In & Retrieve Sync'}
+                        {isRegister ? 'Register & Begin Journey' : 'Log In to Sanctuary'}
                         <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
@@ -365,7 +417,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                     }}
                     className="text-xs text-slate-400 hover:text-white font-bold py-2 transition-colors cursor-pointer"
                   >
-                    {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Create one"}
+                    {isRegister ? 'Already have an account? Sign In' : "New here? Create a free account"}
                   </button>
                 </div>
               </motion.form>
@@ -379,13 +431,13 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                <div className="space-y-1.5 bg-brand-depth/30 p-4 rounded-2xl border border-white/5">
+                <div className="space-y-1.5 bg-brand-depth/40 p-4 rounded-2xl border border-white/5">
                   <h3 className="text-xs font-bold text-brand-primary uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles size={13} />
-                    Secure Firebase Account
+                    Social & Fast Entry
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                    Log in securely with your Google or GitHub credentials, or create a password-free direct entry profile.
+                    Log in securely with Google or GitHub, or enter with your email without needing a password.
                   </p>
                 </div>
 
@@ -401,7 +453,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                         onSuccess();
                       } catch (err: any) {
                         console.error("Google Auth failed:", err);
-                        setError(err.message || "Google authentication failed. Under sandboxed previews, third-party redirects can be restricted. Try Instant Entry below!");
+                        setError(err.message || "Google authentication failed. Try Instant Quick Start above!");
                       } finally {
                         setLoading(false);
                       }
@@ -428,7 +480,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                         onSuccess();
                       } catch (err: any) {
                         console.error("GitHub Auth failed:", err);
-                        setError(err.message || "GitHub authentication failed. Under sandboxed previews, third-party redirects can be restricted. Try Instant Entry below!");
+                        setError(err.message || "GitHub authentication failed. Try Instant Quick Start above!");
                       } finally {
                         setLoading(false);
                       }
@@ -490,7 +542,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                     )}
                     {!isSavedEmail && (
                       <p className="text-[10px] text-slate-400 leading-relaxed font-medium px-1">
-                        Swift, secure verification. The system preserves your email locally to keep your streaks, bookmarks, and journey intact seamlessly.
+                        Swift, secure verification to keep your streaks, bookmarks, and journey intact seamlessly.
                       </p>
                     )}
                   </div>
@@ -526,7 +578,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
           >
             <span className="flex items-center gap-2">
               <HelpCircle size={14} className="text-brand-primary" />
-              Stuck on Google or GitHub?
+              Need Help Signing In?
             </span>
             {showTroubleshoot ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -541,22 +593,17 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                 className="overflow-hidden"
               >
                 <div className="bg-brand-depth/40 p-4 rounded-2xl border border-white/5 mt-2 space-y-2.5 text-xs text-slate-400 leading-relaxed font-medium">
-                  <div className="flex gap-2 items-start text-brand-primary">
-                    <Info size={14} className="shrink-0 mt-0.5" />
-                    <span className="font-bold">Browser Sandbox Constraints</span>
-                  </div>
                   <p>
-                    Because the app is running in a secure, sandboxed <span className="text-white font-bold">iframe preview</span>, browser security policies strictly block social popups and cross-origin authentication cookies from loading.
+                    You can access all sanctuary features seamlessly via:
                   </p>
                   <p className="bg-white/5 p-3 rounded-xl border border-white/5 space-y-1.5 text-slate-300">
-                    <span className="text-brand-primary font-bold uppercase text-[9px] tracking-wider block">Recommended Alternatives:</span>
                     <span className="flex items-start gap-2">
-                      <span className="text-brand-primary font-extrabold mt-0.5">•</span>
-                      <span>Use <strong className="text-white">Android Sync</strong> with an email and password to sync and save progress seamlessly across dev and mobile builds.</span>
+                      <span className="text-amber-400 font-extrabold mt-0.5">•</span>
+                      <span><strong className="text-white">Instant Quick Start</strong> to explore the app immediately without passwords.</span>
                     </span>
                     <span className="flex items-start gap-2">
                       <span className="text-brand-primary font-extrabold mt-0.5">•</span>
-                      <span>Use <strong className="text-white">Password-Free Entry</strong> to bypass all popups and log in instantly with your email address.</span>
+                      <span><strong className="text-white">Pilgrim Login / Sign Up</strong> to save your profile with an email and password.</span>
                     </span>
                   </p>
                 </div>

@@ -14,8 +14,8 @@ import { db, auth } from '../lib/firebase.ts';
 import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { notificationService } from '../services/notificationService';
-
 import { apiFetch } from '../lib/api';
+import kaabaDuaThemeBg from '../assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
 interface OnboardingViewProps {
   user: FirebaseUser;
@@ -215,8 +215,14 @@ export default function OnboardingView({ user, onComplete }: OnboardingViewProps
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-brand-depth overflow-y-auto overflow-x-hidden pt-20 pb-20">
-      <div className="absolute inset-0 bg-brand-primary/5 blur-[150px] rounded-full pointer-events-none" />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-brand-depth overflow-y-auto overflow-x-hidden pt-20 pb-20 relative">
+      {/* Visible Theme Ambient Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none bg-cover bg-center bg-no-repeat opacity-25 scale-100 transform-gpu z-0"
+        style={{ backgroundImage: `url(${kaabaDuaThemeBg})` }}
+      />
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-brand-depth via-brand-depth/75 to-brand-depth/65 z-0" />
+      <div className="absolute inset-0 bg-brand-primary/5 blur-[150px] rounded-full pointer-events-none z-0" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.95 }}

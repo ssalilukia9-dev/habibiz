@@ -43,6 +43,7 @@ import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
+import { getAudioStreamUrl } from '../lib/api.ts';
 
 import { apiFetch } from '../lib/api';
 import { restDbClient } from '../lib/restDbClient.ts';
@@ -493,10 +494,11 @@ export default function ProfileView({
       audioUrl = customAdhanUrl;
     } else {
       const originalUrl = adhanMap[preferredAdhan] || adhanMap['makkah'];
-      audioUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(originalUrl)}`;
+      audioUrl = getAudioStreamUrl(originalUrl);
     }
 
     const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
     audio.play().catch(e => {
       console.error("Test playback failed", e);
       alert("Playback failed. Please check the audio source.");

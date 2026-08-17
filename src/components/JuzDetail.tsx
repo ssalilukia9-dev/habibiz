@@ -25,6 +25,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
+import { getAudioStreamUrl } from '../lib/api';
 import VerseShareModal from './VerseShareModal.tsx';
 
 interface JuzDetailProps {
@@ -202,14 +203,14 @@ export default function JuzDetail({
     setBufferingProgress(0);
     
     try {
-      let localUrl;
-      if (ayah.audioBlob) {
-        localUrl = URL.createObjectURL(ayah.audioBlob);
-      } else {
-        localUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
+      const streamUrl = ayah.audioBlob ? URL.createObjectURL(ayah.audioBlob) : getAudioStreamUrl(audioUrl);
+      if (!streamUrl) {
+        setIsAudioLoading(null);
+        return;
       }
 
-      const audio = new Audio(localUrl);
+      const audio = new Audio(streamUrl);
+      audio.preload = 'auto';
       audioRef.current = audio;
 
       audio.onprogress = () => {
@@ -223,7 +224,11 @@ export default function JuzDetail({
       audio.oncanplaythrough = () => {
         setIsAudioLoading(null);
         setBufferingProgress(100);
-        audio.play();
+        audio.play().catch(e => {
+          console.warn("Juz audio playback interrupted:", e);
+          setIsAudioLoading(null);
+          setPlayingAyah(null);
+        });
         setPlayingAyah(ayah.number);
       };
 
@@ -243,9 +248,8 @@ export default function JuzDetail({
 
       audio.onerror = (e) => {
         console.error("Audio failed to load", e);
-        if (audio.src.startsWith('blob:')) {
-          console.log("Retrying with direct URL...");
-          audio.src = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
+        if (audio.src.startsWith('blob:') && ayah.audio) {
+          audio.src = getAudioStreamUrl(ayah.audio);
           audio.play().catch(() => {
             setPlayingAyah(null);
             setIsAudioLoading(null);
@@ -255,6 +259,15 @@ export default function JuzDetail({
           setIsAudioLoading(null);
         }
       };
+
+      if (audio.readyState >= 3) {
+        setIsAudioLoading(null);
+        setBufferingProgress(100);
+        audio.play().catch(() => {});
+        setPlayingAyah(ayah.number);
+      } else {
+        audio.load();
+      }
     } catch (error) {
       console.error("Audio error", error);
       setIsAudioLoading(null);
@@ -272,9 +285,8 @@ export default function JuzDetail({
         const ayah = updatedAyahs[i];
         if (ayah.audio && !ayah.audioBlob) {
           try {
-            const secureAudioUrl = ayah.audio.replace(/^http:/, 'https:');
-            const proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-            const res = await fetch(proxiedUrl);
+            const streamUrl = getAudioStreamUrl(ayah.audio);
+            const res = await fetch(streamUrl);
             if (!res.ok) throw new Error("Audio download failed");
             const blob = await res.blob();
             updatedAyahs[i] = { ...ayah, audioBlob: blob };
@@ -308,9 +320,10 @@ export default function JuzDetail({
     setDownloadingAyahProgress(0);
 
     try {
-      const secureAudioUrl = ayah.audio ? ayah.audio.replace(/^http:/, 'https:') : '';
-      const proxiedUrl = `/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-      const res = await fetch(proxiedUrl);
+      const streamUrl = getAudioStreamUrl(ayah.audio);
+      if (!streamUrl) throw new Error("No audio url");
+
+      const res = await fetch(streamUrl);
       if (!res.ok) throw new Error("Fetch failed");
       
       const contentLength = res.headers.get('content-length');
@@ -318,7 +331,11 @@ export default function JuzDetail({
       let loaded = 0;
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("No reader");
+      if (!reader) {
+        const blob = await res.blob();
+        setAyahs(prev => prev.map(a => a.number === ayah.number ? { ...a, audioBlob: blob } : a));
+        return;
+      }
 
       const chunks: Uint8Array[] = [];
       while (true) {

@@ -3,6 +3,7 @@ import { Surah, Ayah } from '../types';
 import { RECITERS } from '../constants';
 import { auth, db } from '../lib/firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getAudioStreamUrl } from '../lib/api';
 
 const quranStore = localforage.createInstance({
   name: 'AnNurCache',
@@ -228,11 +229,11 @@ class OfflineService {
         // Now download audio blobs for any missing ones
         const updatedAyahs = [...ayahs];
         for (let j = 0; j < updatedAyahs.length; j++) {
-          const secureAudioUrl = updatedAyahs[j].audio ? updatedAyahs[j].audio.replace(/^http:/, 'https:') : undefined;
-          if (secureAudioUrl && !updatedAyahs[j].audioBlob) {
+          const rawUrl = updatedAyahs[j].audio;
+          if (rawUrl && !updatedAyahs[j].audioBlob) {
             try {
-              const proxiedUrl = `${window.location.origin}/api/proxy/audio?url=${encodeURIComponent(secureAudioUrl)}`;
-              const res = await fetch(proxiedUrl);
+              const streamUrl = getAudioStreamUrl(rawUrl);
+              const res = await fetch(streamUrl);
               if (res.ok) {
                 updatedAyahs[j].audioBlob = await res.blob();
               }
