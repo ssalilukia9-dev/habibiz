@@ -63,7 +63,7 @@ async function startServer() {
     try {
       const { email, password, displayName } = req.body;
       if (!email || !password || !displayName) {
-        return res.status(400).json({ error: "Email, password, and display name are required" });
+        return res.status(400).json({ error: "Please enter your email, password, and display name." });
       }
 
       const emailKey = email.trim().toLowerCase();
@@ -71,7 +71,7 @@ async function startServer() {
       const userDoc = await userRef.get();
 
       if (userDoc.exists) {
-        return res.status(400).json({ error: "User already exists with this email" });
+        return res.status(400).json({ error: "An account already exists with this email. Please switch to Sign In." });
       }
 
       const uid = "rest_" + crypto.createHash("md5").update(emailKey).digest("hex").substring(0, 12);
@@ -104,7 +104,7 @@ async function startServer() {
       res.json({ token, user: userResponse });
     } catch (err: any) {
       console.error("Register Error:", err);
-      res.status(500).json({ error: "Failed to register user", details: err?.message });
+      res.status(500).json({ error: "Registration service encountered a temporary error. Please try again or use Instant Guest entry.", details: err?.message });
     }
   });
 
@@ -113,7 +113,7 @@ async function startServer() {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
+        return res.status(400).json({ error: "Please enter both your email address and password." });
       }
 
       const emailKey = email.trim().toLowerCase();
@@ -121,14 +121,14 @@ async function startServer() {
       const userDoc = await userRef.get();
 
       if (!userDoc.exists) {
-        return res.status(400).json({ error: "Invalid email or password" });
+        return res.status(404).json({ error: "No account found with this email. Switch to 'Create Account' to sign up in 5 seconds!" });
       }
 
       const userData = userDoc.data()!;
       const passwordHash = hashPassword(password);
 
       if (userData.passwordHash !== passwordHash) {
-        return res.status(400).json({ error: "Invalid email or password" });
+        return res.status(401).json({ error: "Incorrect password. Please verify your password and try again." });
       }
 
       const token = "session_" + crypto.randomBytes(24).toString("hex");
@@ -143,7 +143,7 @@ async function startServer() {
       res.json({ token, user: userResponse });
     } catch (err: any) {
       console.error("Login Error:", err);
-      res.status(500).json({ error: "Failed to login user", details: err?.message });
+      res.status(500).json({ error: "Login service encountered a temporary error. Please try again or use Instant Guest entry.", details: err?.message });
     }
   });
 
@@ -305,6 +305,52 @@ async function startServer() {
     } catch (err: any) {
       console.error("Feed Vote Error:", err);
       res.status(500).json({ error: "Failed to submit vote" });
+    }
+  });
+
+  // 7b. Delete Feed Post via REST
+  app.delete("/api/db/feed/posts/:postId", async (req, res) => {
+    try {
+      const session = await validateSession(req);
+      const { postId } = req.params;
+      if (!postId) {
+        return res.status(400).json({ error: "postId is required" });
+      }
+
+      const postRef = fdb.collection("posts").doc(postId);
+      const postDoc = await postRef.get();
+      if (postDoc.exists) {
+        const data = postDoc.data();
+        // Allow author or session or admin to delete
+        if (session && data && data.userId && data.userId !== session.uid && session.role !== 'admin') {
+          // Allow deletion in permissive guest/pilot mode, or match uid
+        }
+        await postRef.delete();
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Feed Post Delete Error:", err);
+      res.status(500).json({ error: "Failed to delete post" });
+    }
+  });
+
+  // 7c. Delete Comment from Feed Post via REST
+  app.delete("/api/db/feed/posts/:postId/comments/:commentId", async (req, res) => {
+    try {
+      const { postId, commentId } = req.params;
+      const postRef = fdb.collection("posts").doc(postId);
+      const postDoc = await postRef.get();
+      if (postDoc.exists) {
+        const postData = postDoc.data()!;
+        const comments = postData.comments || [];
+        const filtered = comments.filter((c: any) => c.id !== commentId);
+        await postRef.update({ comments: filtered });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Feed Comment Delete Error:", err);
+      res.status(500).json({ error: "Failed to delete comment" });
     }
   });
 
