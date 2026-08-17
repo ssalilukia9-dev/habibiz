@@ -1,6 +1,6 @@
 {
-  "name": "Sanctuary AI",
-  "short_name": "Sanctuary",
+  "name": "Muslim Deen Habibi",
+  "short_name": "Deen Habibi",
   "description": "Your Heart's Spiritual Companion",
   "start_url": "/",
   "display": "standalone",
@@ -8,15 +8,15 @@
   "theme_color": "#A855F7",
   "icons": [
     {
-      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7",
+      "src": "/muslim_deen_habibi_icon.jpg",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7",
+      "src": "/muslim_deen_habibi_icon.jpg",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]

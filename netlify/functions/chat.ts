@@ -41,7 +41,7 @@ export const handler: Handler = async (event, context) => {
     });
     
     const response = await client.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.7-flash",
       contents,
       config: {
         systemInstruction

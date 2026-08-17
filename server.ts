@@ -215,7 +215,7 @@ async function startServer() {
         userId: session.uid,
         user: userDisplayName,
         content,
-        category: category || "Reminders",
+        category: category || "How I Feel",
         time: Timestamp.now(),
         supportCount: 0,
         reconsiderCount: 0,
@@ -517,19 +517,85 @@ async function startServer() {
           }
         }
       });
-      
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents,
-        config: {
-          systemInstruction: {
-            parts: [{ text: systemInstruction }]
+
+      // Normalize system instruction string
+      let sysInstructionStr = "You are Holy Aliyah (The Nur Companion), the soul of the Holy Quran & Islamic Spiritual Chat. You provide serene, compassionate, scholarly guidance rooted in the Holy Quran and authentic Sunnah.";
+      if (typeof systemInstruction === "string" && systemInstruction.trim()) {
+        sysInstructionStr = systemInstruction.trim();
+      } else if (systemInstruction?.parts?.[0]?.text) {
+        sysInstructionStr = systemInstruction.parts[0].text;
+      }
+
+      // Normalize and sanitize contents for multi-turn chat
+      let normalizedContents: any = contents;
+      if (Array.isArray(contents)) {
+        const cleaned: any[] = [];
+        for (const item of contents) {
+          const role = item.role === "model" ? "model" : "user";
+          const validParts = (item.parts || []).filter((p: any) => {
+            if (p.text && typeof p.text === "string" && p.text.trim().length > 0) return true;
+            if (p.inlineData && p.inlineData.data) return true;
+            return false;
+          });
+          if (validParts.length > 0) {
+            cleaned.push({ role, parts: validParts });
           }
         }
-      });
 
-      const text = response.text || "I apologize, I couldn't process that.";
-      res.json({ text });
+        // Ensure the conversation begins with 'user'
+        while (cleaned.length > 0 && cleaned[0].role === "model") {
+          cleaned.shift();
+        }
+
+        // If after cleaning it's empty, provide a fallback user turn
+        if (cleaned.length === 0) {
+          cleaned.push({ role: "user", parts: [{ text: "Assalamu Alaikum" }] });
+        }
+
+        // Merge consecutive turns with the same role
+        const merged: any[] = [];
+        for (const turn of cleaned) {
+          if (merged.length > 0 && merged[merged.length - 1].role === turn.role) {
+            merged[merged.length - 1].parts.push(...turn.parts);
+          } else {
+            merged.push(turn);
+          }
+        }
+        normalizedContents = merged;
+      } else if (typeof contents === "string") {
+        normalizedContents = [{ role: "user", parts: [{ text: contents }] }];
+      }
+      
+      // Helper to generate with model fallback
+      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      let responseText: string | null = null;
+      let lastErr: any = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          const resp = await client.models.generateContent({
+            model: modelName,
+            contents: normalizedContents,
+            config: {
+              systemInstruction: sysInstructionStr
+            }
+          });
+          if (resp && resp.text) {
+            responseText = resp.text;
+            break;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`Model ${modelName} encountered error or high demand (503/429), trying fallback model...`, err?.message || err);
+        }
+      }
+
+      if (!responseText) {
+        if (lastErr) throw lastErr;
+        responseText = "Assalamu Alaikum. May Allah grant you ease, peace, and spiritual tranquility in your daily journey.";
+      }
+
+      res.json({ text: responseText });
     } catch (error: any) {
       console.error("Gemini API Error details:", error?.message || error);
       
@@ -539,7 +605,9 @@ async function startServer() {
         if (error.message.includes("API_KEY_INVALID") || error.message.includes("403")) {
           errorMessage = "Invalid Gemini API Key. Please update it in Settings > Secrets.";
         } else if (error.message.includes("quota") || error.message.includes("429")) {
-          errorMessage = "Gemini API quota exceeded. Please check your billing or quota limits.";
+          errorMessage = "Gemini API quota reached. Please try again in a few moments.";
+        } else if (error.message.includes("503") || error.message.includes("high demand") || error.message.includes("UNAVAILABLE")) {
+          errorMessage = "The AI network is experiencing a temporary spike in traffic. Please try again in a moment.";
         } else if (error.message.includes("NOT_FOUND") || error.message.includes("model")) {
           errorMessage = "The selected AI model is currently unavailable.";
         }
@@ -574,12 +642,17 @@ async function startServer() {
 
       const prompt = `Here is my reflection about my day: "${text}"\n\nPlease find 3-4 comforting, guiding Quranic verses for me.`;
 
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          systemInstruction: {
-            parts: [{ text: `You are a compassionate, scholarly Quranic counseling advisor.
+      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      let responseText: string = "[]";
+      let lastErr: any = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          const response = await client.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              systemInstruction: `You are a compassionate, scholarly Quranic counseling advisor.
 Given a user's personal reflection about their day, you must identify 3-4 highly relevant Quranic verses that address their feelings, thoughts, or situations (such as patience, gratitude, comfort, hope, struggle, anxiety, or success).
 For each verse, you MUST return a structured JSON object containing:
 - "surah": the Surah number (integer)
@@ -589,13 +662,23 @@ For each verse, you MUST return a structured JSON object containing:
 - "translation": the English translation (Sahih International)
 - "relevance": a beautifully written, comforting, and spiritually uplifting explanation (2-3 sentences) of why this verse is relevant to their specific reflection and how they can apply it in their daily life.
 
-Your output MUST be a valid JSON array of these objects. Do not include markdown blocks, conversational preamble, or code block backticks. Only return the raw JSON array.` }]
-          },
-          responseMimeType: "application/json"
+Your output MUST be a valid JSON array of these objects. Do not include markdown blocks, conversational preamble, or code block backticks. Only return the raw JSON array.`,
+              responseMimeType: "application/json"
+            }
+          });
+          if (response && response.text) {
+            responseText = response.text;
+            break;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`Reflection model ${modelName} error, trying fallback...`, err?.message || err);
         }
-      });
+      }
 
-      const responseText = response.text || "[]";
+      if (responseText === "[]" && lastErr) {
+        throw lastErr;
+      }
       let parsedVerses = [];
       try {
         parsedVerses = JSON.parse(responseText.trim());
