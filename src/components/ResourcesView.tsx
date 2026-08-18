@@ -53,6 +53,8 @@ import HajjGame3D from './HajjGame3D.tsx';
 import PrayerTimesView from './PrayerTimesView.tsx';
 import IslamicFinanceView from './IslamicFinanceView.tsx';
 import DownloadAppView from './DownloadAppView.tsx';
+import NearbyMosquesMap from './NearbyMosquesMap.tsx';
+import QiblaView from './QiblaView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
@@ -148,13 +150,13 @@ export default function ResourcesView({
     {
       title: 'DEEN',
       cards: [
-        { id: 'prayer_times', title: 'Prayer Times', icon: Clock, image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800' },
+        { id: 'prayer_times', title: 'Prayer Times', icon: Clock, image: 'https://images.unsplash.com/photo-1565552645632-d725f8bfc19a?auto=format&fit=crop&q=80&w=800' },
         { id: 'quran', title: 'Quran', icon: BookOpen, image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800' },
-        { id: 'tasbih', title: 'Tasbih', icon: History, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
-        { id: 'qibla', title: 'Qibla', icon: Compass, image: 'https://images.unsplash.com/photo-1551041777-ed39feb53934?auto=format&fit=crop&q=80&w=800' },
-        { id: 'adhkar', title: 'Duas & Adhkar', icon: Moon, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
+        { id: 'tasbih', title: 'Tasbih', icon: History, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
+        { id: 'qibla', title: 'Qibla', icon: Compass, image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=800' },
+        { id: 'adhkar', title: 'Duas & Adhkar', icon: Moon, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
         { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
-        { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&q=80&w=800' },
+        { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
         { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
         { id: 'memorise', title: 'Hifz Companion', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
         { id: 'market', title: 'Halal Market', icon: ShoppingBag, image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=800' },
@@ -797,7 +799,9 @@ export default function ResourcesView({
                   )}
                   {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
-                 {(activeRes === 'tools' || activeRes === 'tasbih' || activeRes === 'qibla') && <ToolsView />}
+                 {activeRes === 'mosques' && <NearbyMosquesMap />}
+                  {activeRes === 'qibla' && <QiblaView />}
+                  {(activeRes === 'tools' || activeRes === 'tasbih') && <ToolsView />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}
                  {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
@@ -826,7 +830,7 @@ export default function ResourcesView({
                        </button>
                     </div>
                  )}
-                 {['mirror', 'calendar', 'immerse', 'memorise', 'khatam', 'mosques', 'learn', 'names_old'].includes(activeRes as string) && (
+                 {['mirror', 'calendar', 'immerse', 'memorise', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
                    <div className="flex flex-col items-center justify-center py-20 md:py-40 text-center space-y-6 bg-white/[0.02] rounded-[3rem] border border-white/5 mx-auto max-w-2xl px-8">
                       <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
                          <Sparkles size={32} className="animate-pulse" />

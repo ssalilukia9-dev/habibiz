@@ -663,6 +663,25 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
         </div>
       </section>
 
+      {/* Admin Command Console Section */}
+      <section className="space-y-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400/80 flex items-center gap-3">
+          <Shield size={14} /> Sanctuary Super Admin Console
+        </h3>
+        <div className="bg-amber-500/5 rounded-[2rem] border border-amber-500/20 overflow-hidden shadow-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center md:text-left">
+            <h4 className="text-base font-black text-white uppercase tracking-tight">Admin & Governance Hub</h4>
+            <p className="text-xs text-slate-400">Manage pilgrim deeds, grant Hasanat, broadcast Ummah announcements, and inspect Firestore entities.</p>
+          </div>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('app_navigate', { detail: { tab: 'admin' } }))}
+            className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+          >
+            Launch Admin Hub <ArrowRight size={14} />
+          </button>
+        </div>
+      </section>
+
       {/* AI & Gateway Configuration Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-400/60 flex items-center gap-3">

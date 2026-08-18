@@ -130,6 +130,7 @@ export const NAVIGATION_TABS = [
   { id: 'leaderboard', label: 'Hall of Fame', icon: 'Trophy' },
   { id: 'ummah', label: 'Ummah Hub', icon: 'Users' },
   { id: 'profile', label: 'Profile & Settings', icon: 'User' },
+  { id: 'admin', label: 'Admin Hub', icon: 'Shield' },
   { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
   { id: 'premium', label: 'Premium', icon: 'Sparkles' }
 ];

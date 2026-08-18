@@ -30,7 +30,8 @@ import {
   Terminal,
   Volume2,
   Clock,
-  HelpCircle
+  HelpCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { NAVIGATION_TABS, SURAH_LIST, JUZ_LIST, GLOBAL_ADHAN_LIST } from './constants.ts';
 import { getAudioStreamUrl } from './lib/api.ts';
@@ -81,7 +82,7 @@ import UmmahHubView from './components/UmmahHubView.tsx';
 import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 import WalkthroughTour from './components/WalkthroughTour.tsx';
-import PageGuideBanner from './components/PageGuideBanner.tsx';
+import AdminView from './components/AdminView.tsx';
 import AdhanCallerModal from './components/AdhanCallerModal.tsx';
 import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
@@ -1647,13 +1648,15 @@ export default function App() {
               Sparkles,
               Trophy,
               Medal,
-              User: UserIcon
+              User: UserIcon,
+              Shield: ShieldCheck
             }[tab.icon as keyof typeof Icon] || BookOpen;
             
             const isActive = activeTab === tab.id;
             return (
               <motion.button
                 key={tab.id}
+                id={`tour-nav-${tab.id}`}
                 variants={{
                   hidden: { opacity: 0, x: -20, scale: 0.75 },
                   visible: { 
@@ -1884,7 +1887,6 @@ export default function App() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
                 >
-                  <PageGuideBanner activeTab={activeTab} />
                   <Routes location={location}>
                     <Route path="/" element={<Navigate to="/home" replace />} />
                     <Route path="/home" element={
@@ -1942,6 +1944,7 @@ export default function App() {
                         currentUser={currentUser}
                       />
                     } />
+                    <Route path="/admin" element={<AdminView currentUser={currentUser} addHasanat={addHasanat} />} />
                     <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
@@ -2163,6 +2166,7 @@ export default function App() {
           return (
             <button
               key={tab.id}
+              id={`tour-nav-${tab.id}`}
               onClick={() => {
                 navigate(`/${tab.id}`);
                 if (tab.id !== 'resources') setSelectedSurah(null);

@@ -1,512 +1,482 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
   CheckCircle2, 
   BookOpen, 
   MessageCircle, 
-  X,
+  X, 
+  ArrowRight, 
+  ArrowLeft, 
+  Compass, 
+  Flame, 
+  Crown, 
+  Users, 
+  User, 
+  Moon, 
+  Sun, 
+  ShieldCheck, 
+  Zap, 
   HelpCircle,
-  ArrowRight,
-  ArrowLeft,
-  Moon,
-  Flame,
-  Crown,
-  Award,
-  BookMarked
+  LocateFixed,
+  Play
 } from 'lucide-react';
 
 interface WalkthroughTourProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (tab: string, extra?: any) => void;
-  addHasanat: (amount: number) => void;
+  addHasanat?: (amount: number) => void;
 }
 
-const SANCTUARY_STEPS = [
+interface TourStep {
+  id: string;
+  targetId: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  badge: string;
+  icon: any;
+  preferredPosition?: 'top' | 'bottom' | 'center';
+  fallbackTab?: string;
+}
+
+const TOUR_STEPS: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome, Noble Soul! 🌟",
-    desc: "Welcome to your digital Islamic Sanctuary. Let us take a brief interactive tour of your custom-designed spiritual dashboard.",
-    elementId: "",
+    targetId: "",
+    title: "Welcome to Habibi Sanctuary 🌟",
+    subtitle: "Your Digital Spiritual Companion",
+    description: "Take a 60-second guided tour of your bespoke Islamic Sanctuary. We'll highlight the essential buttons, prayer instruments, AI counselor, and community hubs.",
+    badge: "Sanctuary Onboarding",
+    icon: Sparkles,
+    preferredPosition: 'center'
   },
   {
-    id: "salam-soul",
-    title: "Daily Greetings Banner 🌅",
-    desc: "This is your new spiritual command banner. It features daily-changing peaceful greetings, spiritual badges, and quick resumes for your Quran readings.",
-    elementId: "tour-salam-soul",
+    id: "salam-banner",
+    targetId: "tour-salam-soul",
+    title: "Daily Sanctuary Banner 🌅",
+    subtitle: "Daily Serenity & Quick Resume",
+    description: "Your daily spiritual header updates every morning with inspiring quotes, Hijri reminders, and a one-click button to resume your exact Quran reading progress.",
+    badge: "Daily Inspiration",
+    icon: Flame,
+    preferredPosition: 'bottom',
+    fallbackTab: 'home'
   },
   {
     id: "prayer-console",
+    targetId: "tour-prayer-console",
     title: "Holy Makkah Prayer Console 🕋",
-    desc: "Track live prayer times, view real-time countdowns, configure custom notification alarms, and align your life with the divine schedule.",
-    elementId: "tour-prayer-console",
+    subtitle: "Live Adhan & Dynamic Countdown",
+    description: "Tracks exact prayer times with a live animated countdown ring, automatic geographic coordinates, and customizable Adhan alerts with authentic audio recitations.",
+    badge: "Salah Precision",
+    icon: Moon,
+    preferredPosition: 'top',
+    fallbackTab: 'home'
   },
   {
     id: "progress-stats",
-    title: "Spiritual Vigor Stats ⚡",
-    desc: "Monitor your Quran Verses Read, active Hadith Daily Streak, and track your Level progression up to the ultimate Spiritual Rank.",
-    elementId: "tour-progress-stats",
+    targetId: "tour-progress-stats",
+    title: "Spiritual Vigor & Streaks ⚡",
+    subtitle: "Track Hasanat, Verses & Levels",
+    description: "Every verse you read, daily Hadith you study, and Dhikr you complete awards Hasanat deeds to ascend through spiritual ranks from Seeker up to Legacy of Light.",
+    badge: "Spiritual Growth",
+    icon: Crown,
+    preferredPosition: 'top',
+    fallbackTab: 'home'
   },
   {
     id: "daily-centerpiece",
-    title: "Celestial Centerpiece 📖",
-    desc: "Nourish your mind and soul with today's handpicked Quranic verses and prophetic Hadiths, complete with authentic Arabic and English translations.",
-    elementId: "tour-daily-centerpiece",
+    targetId: "tour-daily-centerpiece",
+    title: "Celestial Daily Centerpiece 📖",
+    subtitle: "Quranic Verses & Prophetic Hadiths",
+    description: "Reflect upon hand-curated Quranic verses and authentic prophetic narrations complete with clear Arabic script and English translations.",
+    badge: "Sacred Wisdom",
+    icon: BookOpen,
+    preferredPosition: 'top',
+    fallbackTab: 'home'
   },
   {
     id: "shortcuts",
-    title: "Interactive Instruments 🔮",
-    desc: "Quickly access your essential spiritual utilities: Adhkar rosary, Community Leaderboards, the Zakat calculator, and Aliyah—your scripture-guided AI.",
-    elementId: "tour-shortcuts",
+    targetId: "tour-shortcuts",
+    title: "Quick Action Instruments 🔮",
+    subtitle: "Adhkar, Rankings & Pilgrimage",
+    description: "Instant access to your daily morning/evening Adhkar rosary, Community Leaderboards, 3D interactive Hajj/Umrah simulation, and Aliyah AI.",
+    badge: "Smart Utilities",
+    icon: Zap,
+    preferredPosition: 'top',
+    fallbackTab: 'home'
+  },
+  {
+    id: "nav-resources",
+    targetId: "tour-nav-resources",
+    title: "Quran & Sacred Adhkar 📚",
+    subtitle: "Full Surahs, Translations & Audios",
+    description: "Tap this button on mobile or desktop to open the 114 Surahs of the Holy Quran, Hadith collections, and rich daily supplications.",
+    badge: "Knowledge Conservatory",
+    icon: BookOpen,
+    preferredPosition: 'top'
+  },
+  {
+    id: "nav-qibla",
+    targetId: "tour-nav-qibla",
+    title: "Qibla Compass & Prayer Times 🧭",
+    subtitle: "Real-time Direction to Makkah",
+    description: "Tap to launch the responsive 3D Qibla Compass, prayer calculation settings, and audio caller configurations.",
+    badge: "Sacred Direction",
+    icon: Compass,
+    preferredPosition: 'top'
+  },
+  {
+    id: "nav-companion",
+    targetId: "tour-nav-companion",
+    title: "Aliyah AI Spiritual Counselor 🤖",
+    subtitle: "Scripture-Grounded Islamic AI",
+    description: "Consult Aliyah anytime for answers grounded directly in authentic Quranic verses and verified Hadith narrations with voice synthesis.",
+    badge: "Divine AI Guide",
+    icon: MessageCircle,
+    preferredPosition: 'top'
+  },
+  {
+    id: "nav-ummah",
+    targetId: "tour-nav-ummah",
+    title: "Ummah Hub & Faith Feed 🤝",
+    subtitle: "Community Reflections & Chat",
+    description: "Connect with brothers and sisters globally, share reflections on the NoorTalk feed, participate in polls, and join live themed chat rooms.",
+    badge: "Global Ummah",
+    icon: Users,
+    preferredPosition: 'top'
+  },
+  {
+    id: "nav-profile",
+    targetId: "tour-nav-profile",
+    title: "Pilgrim Passport & Admin 🏆",
+    subtitle: "Your Badges, Stats & Settings",
+    description: "View your earned achievements, customize visual color themes, manage offline caches, and access the Admin Governance Hub.",
+    badge: "Pilgrim Profile",
+    icon: User,
+    preferredPosition: 'top'
   }
 ];
 
 export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasanat }: WalkthroughTourProps) {
-  const [currentTab, setCurrentTab] = useState('home');
-  const [currentStep, setCurrentStep] = useState(0);
-  const [enableHighlight, setEnableHighlight] = useState(true);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  const [isPulsing, setIsPulsing] = useState(false);
 
+  const currentStep = TOUR_STEPS[currentStepIndex] || TOUR_STEPS[0];
+  const isLastStep = currentStepIndex === TOUR_STEPS.length - 1;
+
+  // Window resize handler
   useEffect(() => {
-    if (!isOpen) return;
-    const handlePathname = () => {
-      const path = window.location.pathname.substring(1) || 'home';
-      setCurrentTab(path);
-    };
-
-    handlePathname();
-    window.addEventListener('popstate', handlePathname);
-
-    return () => {
-      window.removeEventListener('popstate', handlePathname);
-    };
-  }, [isOpen]);
-
-  // Control highlight classes on the targeted DOM elements
-  useEffect(() => {
-    if (!isOpen || currentTab !== 'home') {
-      SANCTUARY_STEPS.forEach(step => {
-        if (step.elementId) {
-          const el = document.getElementById(step.elementId);
-          if (el) el.classList.remove('tour-highlight');
-        }
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
       });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Update target rect based on current step
+  const updateSpotlightPosition = useCallback(() => {
+    if (!isOpen) return;
+
+    if (!currentStep.targetId) {
+      setTargetRect(null);
       return;
     }
 
-    SANCTUARY_STEPS.forEach((step, idx) => {
-      if (!step.elementId) return;
-      const el = document.getElementById(step.elementId);
-      if (!el) return;
-
-      if (idx === currentStep && enableHighlight) {
-        el.classList.add('tour-highlight');
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        el.classList.remove('tour-highlight');
-      }
-    });
-
-    return () => {
-      SANCTUARY_STEPS.forEach(step => {
-        if (step.elementId) {
-          const el = document.getElementById(step.elementId);
-          if (el) el.classList.remove('tour-highlight');
-        }
-      });
-    };
-  }, [isOpen, currentStep, currentTab, enableHighlight]);
-
-  const [claimedRewards, setClaimedRewards] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('sanctuary_claimed_hints');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const saveClaimed = (updated: Record<string, boolean>) => {
-    setClaimedRewards(updated);
-    localStorage.setItem('sanctuary_claimed_hints', JSON.stringify(updated));
-  };
-
-  const getPageGuide = () => {
-    switch (currentTab) {
-      case 'resources':
-        return {
-          title: "The Conservatory 📖",
-          subtitle: "Holy Quran & NoorTalk Feed",
-          description: "Immerse yourself in deep knowledge or interact with reflections from the global Ummah.",
-          color: "from-emerald-500/20 to-teal-500/20",
-          accent: "text-emerald-400",
-          border: "border-emerald-500/30",
-          bg: "bg-emerald-500/10",
-          steps: [
-            { id: "r1", text: "Scroll Quran Surahs! Look out for the top progress percentage bar. 📊" },
-            { id: "r2", text: "Finish reading any Surah (95%+) to claim a premium +150 Hasanat reward! 🌟" },
-            { id: "r3", text: "Tap 'NoorTalk Feed' to publish thoughts, comment, or vote on global polls. 💬" }
-          ],
-          rewardAmount: 30,
-          rewardId: "resources_deeds"
-        };
-
-      case 'companion':
-        return {
-          title: "Aliyah AI Companion 🤖",
-          subtitle: "Divine Guidance on Demand",
-          description: "Aliyah answers using authentic scriptures from the Quran and prophetic Sunnah with deep wisdom.",
-          color: "from-pink-500/20 to-rose-500/20",
-          accent: "text-pink-400",
-          border: "border-pink-500/30",
-          bg: "bg-pink-500/10",
-          steps: [
-            { id: "c1", text: "Ask Aliyah about Islamic history, daily jurisprudence, or moral advice. ✍️" },
-            { id: "c2", text: "Keep questions short and direct to receive immediate, concise replies! ⚡" },
-            { id: "c3", text: "Use voice microphone mode to comfortably speak your queries. 🎙️" }
-          ],
-          rewardAmount: 25,
-          rewardId: "companion_deeds"
-        };
-
-      case 'market':
-        return {
-          title: "Halal Bazaar 🛍️",
-          subtitle: "Spiritual Artifacts & Exchanges",
-          description: "Exchange your virtual Hasanat deeds for unique badges and items to showcase on your profile.",
-          color: "from-amber-500/20 to-orange-500/20",
-          accent: "text-amber-400",
-          border: "border-amber-500/30",
-          bg: "bg-amber-500/10",
-          steps: [
-            { id: "m1", text: "Unlock custom ranks and visual labels to adorn your public avatar. 🎖️" },
-            { id: "m2", text: "Post spiritual assets for sale to interact with other sellers in the Bazaar. 💼" },
-            { id: "m3", text: "Check your transaction logs to trace your purchases and trades. 📊" }
-          ],
-          rewardAmount: 25,
-          rewardId: "market_deeds"
-        };
-
-      case 'ummah':
-        return {
-          title: "Ummah Hub & Guides 🕋",
-          subtitle: "Interactive Spiritual Instruments",
-          description: "A comprehensive toolbox featuring step-by-step Hajj/Umrah models, Adhkar counters, and calculators.",
-          color: "from-violet-500/20 to-fuchsia-500/20",
-          accent: "text-violet-400",
-          border: "border-violet-500/30",
-          bg: "bg-violet-500/10",
-          steps: [
-            { id: "u1", text: "Play the interactive 3D Hajj Game to simulate active stages of pilgrimage. 🎮" },
-            { id: "u2", text: "Calculate exact annual Zakat obligations using the instant financial model. 💰" },
-            { id: "u3", text: "Use the live Qibla compass or count custom daily morning/evening Adhkar. 📿" }
-          ],
-          rewardAmount: 30,
-          rewardId: "ummah_deeds"
-        };
-
-      case 'profile':
-        return {
-          title: "Pilgrim Passport 🏆",
-          subtitle: "Spiritual Level & Achievements",
-          description: "Your passport holds all stats, achievements, streaks, and verified badges.",
-          color: "from-blue-500/20 to-cyan-500/20",
-          accent: "text-blue-400",
-          border: "border-blue-500/30",
-          bg: "bg-blue-500/10",
-          steps: [
-            { id: "p1", text: "Secure your account using Google or GitHub to never lose your Hasanat. 🔐" },
-            { id: "p2", text: "Review active daily streaks and your progression towards the next Level. ⚡" },
-            { id: "p3", text: "Set custom bio details and display your purchased premium badges. 🎨" }
-          ],
-          rewardAmount: 25,
-          rewardId: "profile_deeds"
-        };
-
-      case 'settings':
-        return {
-          title: "Sanctuary Settings ⚙️",
-          subtitle: "Tailor Your Daily Atmosphere",
-          description: "Customize your prayer calculation methods, Adhan audios, and offline pre-caching.",
-          color: "from-slate-500/20 to-slate-400/20",
-          accent: "text-slate-300",
-          border: "border-slate-500/30",
-          bg: "bg-slate-500/10",
-          steps: [
-            { id: "s1", text: "Configure prayer offsets and select your preferred Adhan caller. 🔊" },
-            { id: "s2", text: "Activate full Offline Pre-Caching to download resources for offline travel. ✈️" },
-            { id: "s3", text: "Choose custom calculation methods (e.g. Muslim World League, ISNA). 🌍" }
-          ],
-          rewardAmount: 20,
-          rewardId: "settings_deeds"
-        };
-
-      default:
-        return {
-          title: "Spiritual Sanctuary 🌟",
-          subtitle: "Welcome, Noble Pilgrim!",
-          description: "Habibi Sanctuary is designed to elevate your daily connection to prayer, knowledge, and community.",
-          color: "from-brand-primary/15 to-emerald-500/15",
-          accent: "text-brand-primary",
-          border: "border-brand-primary/20",
-          bg: "bg-brand-primary/10",
-          steps: [
-            { id: "g1", text: "Earn Hasanat deeds for reading Quran, praying, and saying Tasbih. 📿" },
-            { id: "g2", text: "Strengthen your daily habits and review your stats in Pilgrim Passport. 🏆" },
-            { id: "g3", text: "Talk to Aliyah AI for authentic, scripture-supported answers. 🤖" }
-          ],
-          rewardAmount: 15,
-          rewardId: "general_deeds"
-        };
-    }
-  };
-
-  const activeGuide = getPageGuide();
-  const isClaimed = claimedRewards[activeGuide.rewardId || 'general_deeds'];
-
-  const handleClaimReward = () => {
-    const rId = activeGuide.rewardId || 'general_deeds';
-    const rAmount = activeGuide.rewardAmount || 15;
-    if (!claimedRewards[rId]) {
-      addHasanat(rAmount);
-      const updated = { ...claimedRewards, [rId]: true };
-      saveClaimed(updated);
+    const element = document.getElementById(currentStep.targetId);
+    if (element) {
+      // Auto-scroll target into viewport smoothly
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
       
+      // Delay rect read slightly to allow smooth scroll to settle
+      const timeout = setTimeout(() => {
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+      }, 150);
+
+      return () => clearTimeout(timeout);
+    } else {
+      // If target is in another tab, try to navigate if needed
+      if (currentStep.fallbackTab && window.location.pathname !== `/${currentStep.fallbackTab}`) {
+        onNavigate(currentStep.fallbackTab);
+      }
+      setTargetRect(null);
+    }
+  }, [isOpen, currentStep, onNavigate]);
+
+  useEffect(() => {
+    updateSpotlightPosition();
+    const interval = setInterval(updateSpotlightPosition, 400);
+    return () => clearInterval(interval);
+  }, [updateSpotlightPosition]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        handlePrev();
+      } else if (e.key === 'Escape') {
+        handleFinish();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, currentStepIndex]);
+
+  const handleNext = () => {
+    if (currentStepIndex < TOUR_STEPS.length - 1) {
+      setCurrentStepIndex(prev => prev + 1);
+      triggerPulse();
+    } else {
+      handleFinish();
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex(prev => prev - 1);
+      triggerPulse();
+    }
+  };
+
+  const triggerPulse = () => {
+    setIsPulsing(true);
+    setTimeout(() => setIsPulsing(false), 800);
+  };
+
+  const handleFinish = () => {
+    if (addHasanat) {
+      addHasanat(50);
       window.dispatchEvent(new CustomEvent('hasanat_earned_popup', { 
-        detail: { amount: rAmount, reason: `${activeGuide.title} Guide completed!` } 
+        detail: { amount: 50, reason: "In-App Tour Completed! +50 Hasanat!" } 
       }));
     }
+    localStorage.setItem('sanctuary_tour_completed', 'true');
+    onClose();
+    setCurrentStepIndex(0);
   };
 
   if (!isOpen) return null;
 
-  const isHomeTour = currentTab === 'home';
+  const Icon = currentStep.icon;
+
+  // Calculate tooltip placement dynamically
+  const padding = 10;
+  const spotlightX = targetRect ? targetRect.left - padding : 0;
+  const spotlightY = targetRect ? targetRect.top - padding : 0;
+  const spotlightWidth = targetRect ? targetRect.width + padding * 2 : 0;
+  const spotlightHeight = targetRect ? targetRect.height + padding * 2 : 0;
+
+  // Decide if coach mark tooltip should be above or below target
+  const isMobile = windowDimensions.width < 768;
+  const showAbove = targetRect ? (targetRect.top > windowDimensions.height / 2) : false;
 
   return (
     <AnimatePresence>
-      {/* Backdrop overlay for interactive focus */}
-      {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black/80 backdrop-blur-[2px] z-[9990] pointer-events-auto"
-        />
-      )}
+      <div className="fixed inset-0 z-[99990] pointer-events-auto overflow-hidden">
+        {/* SVG Spotlight Mask with Pitch Dark Overlay */}
+        <svg 
+          className="absolute inset-0 w-full h-full pointer-events-none transition-all duration-300 ease-out"
+          style={{ filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.8))' }}
+        >
+          <defs>
+            <mask id="spotlight-mask">
+              {/* White background = completely visible dark overlay */}
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              {/* Black cutout = transparent hole where spotlight focuses */}
+              {targetRect && (
+                <rect 
+                  x={spotlightX}
+                  y={spotlightY}
+                  width={spotlightWidth}
+                  height={spotlightHeight}
+                  rx="24"
+                  ry="24"
+                  fill="black"
+                  className="transition-all duration-300 ease-out"
+                />
+              )}
+            </mask>
+          </defs>
 
-      <div className="fixed inset-0 z-[9995] flex items-center justify-center p-4 md:p-6 pointer-events-none">
-        {isHomeTour ? (
-          /* Sanctuary Dashboard Interactive Onboarding Popup Modal */
+          {/* Dark backdrop with hole cutout */}
+          <rect 
+            x="0" 
+            y="0" 
+            width="100%" 
+            height="100%" 
+            fill="rgba(5, 5, 8, 0.85)" 
+            mask="url(#spotlight-mask)"
+            className="pointer-events-auto"
+            onClick={handleNext}
+          />
+        </svg>
+
+        {/* Dynamic Glowing Spotlight Focus Ring around target element */}
+        {targetRect && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 30 }}
-            className="pointer-events-auto w-full max-w-lg bg-brand-sidebar/95 border border-white/10 rounded-[3rem] p-8 md:p-10 shadow-3xl backdrop-blur-xl overflow-hidden relative space-y-6"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ 
+              opacity: 1, 
+              scale: isPulsing ? 1.05 : 1,
+              x: spotlightX,
+              y: spotlightY,
+              width: spotlightWidth,
+              height: spotlightHeight
+            }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="absolute pointer-events-none rounded-[24px] border-2 border-brand-primary shadow-[0_0_40px_rgba(16,185,129,0.5)] z-[99992]"
           >
-            {/* Top gold bar */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-brand-primary to-amber-500 opacity-90" />
-            
-            {/* Step Header */}
+            {/* Coach mark corner reticles */}
+            <div className="absolute -top-1.5 -left-1.5 w-4 h-4 border-t-2 border-l-2 border-white rounded-tl-lg" />
+            <div className="absolute -top-1.5 -right-1.5 w-4 h-4 border-t-2 border-r-2 border-white rounded-tr-lg" />
+            <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 border-b-2 border-l-2 border-white rounded-bl-lg" />
+            <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 border-b-2 border-r-2 border-white rounded-br-lg" />
+
+            {/* Glowing beacon pulse ring */}
+            <div className="absolute inset-0 rounded-[24px] border border-brand-primary animate-ping opacity-60 pointer-events-none" />
+
+            {/* Target Label pill */}
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute -top-7 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-brand-primary text-brand-depth font-black text-[9px] uppercase tracking-widest rounded-full shadow-lg whitespace-nowrap flex items-center gap-1.5"
+            >
+              <LocateFixed size={10} className="animate-spin" />
+              <span>Target Focused</span>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Coach Mark / Walkthrough Tooltip Card */}
+        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-[99995]">
+          <motion.div
+            key={currentStep.id}
+            initial={{ opacity: 0, scale: 0.9, y: showAbove ? 20 : -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className={`pointer-events-auto w-full max-w-lg bg-brand-sidebar/95 backdrop-blur-2xl border border-brand-primary/30 rounded-[2.5rem] p-6 md:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative overflow-hidden space-y-6 ${
+              targetRect && !isMobile ? (
+                showAbove 
+                  ? 'mb-auto mt-6' 
+                  : 'mt-auto mb-6'
+              ) : ''
+            }`}
+          >
+            {/* Top decorative gradient glow */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-primary via-amber-400 to-brand-primary animate-pulse" />
+
+            {/* Header: Step info & Close */}
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary animate-pulse flex items-center gap-2">
-                  <Sparkles size={12} /> Interactive Sanctuary Tour
-                </span>
-                <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
-                  {SANCTUARY_STEPS[currentStep].title}
-                </h3>
-                <p className="text-xs text-slate-500 font-bold tracking-widest">
-                  STEP {currentStep + 1} OF {SANCTUARY_STEPS.length}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary shrink-0 shadow-lg shadow-brand-primary/10">
+                  <Icon size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand-primary">
+                      {currentStep.badge}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-500">•</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                      {currentStepIndex + 1} / {TOUR_STEPS.length}
+                    </span>
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-black text-white italic uppercase tracking-tight mt-0.5">
+                    {currentStep.title}
+                  </h3>
+                </div>
               </div>
-              <button 
-                onClick={onClose}
-                className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10"
+
+              <button
+                onClick={handleFinish}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/10"
+                title="Exit Tour"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Description */}
-            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl">
-              <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                {SANCTUARY_STEPS[currentStep].desc}
+            {/* Subtitle & Description */}
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-2">
+              <h4 className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                {currentStep.subtitle}
+              </h4>
+              <p className="text-xs md:text-sm text-slate-300 font-medium leading-relaxed">
+                {currentStep.description}
               </p>
             </div>
 
-            {/* Highlighting controls to easily toggle spotlight focus */}
-            <div className="flex items-center justify-between py-2 border-y border-white/5">
-              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Target Element Highlighted</span>
-              <button 
-                onClick={() => setEnableHighlight(!enableHighlight)}
-                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                  enableHighlight 
-                    ? "bg-brand-primary/10 text-brand-primary border border-brand-primary/20" 
-                    : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
-                }`}
-              >
-                {enableHighlight ? "Spotlight: Active" : "Spotlight: Skipped"}
-              </button>
+            {/* Visual Step Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                <span>Sanctuary Walkthrough Progress</span>
+                <span className="text-brand-primary font-mono font-bold">
+                  {Math.round(((currentStepIndex + 1) / TOUR_STEPS.length) * 100)}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden p-[1px]">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${((currentStepIndex + 1) / TOUR_STEPS.length) * 100}%` }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full bg-gradient-to-r from-brand-primary to-amber-400 rounded-full"
+                />
+              </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center justify-between pt-4">
+            {/* Interactive Step Navigation Controls */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
               <button
-                onClick={onClose}
-                className="text-xs font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
+                onClick={handleFinish}
+                className="text-xs font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors py-2"
               >
                 Skip Tour
               </button>
 
               <div className="flex items-center gap-3">
-                {currentStep > 0 && (
+                {currentStepIndex > 0 && (
                   <button
-                    onClick={() => setCurrentStep(prev => prev - 1)}
-                    className="px-6 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-widest border border-white/10 transition-all flex items-center gap-2"
+                    onClick={handlePrev}
+                    className="px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer"
                   >
                     <ArrowLeft size={14} /> Back
                   </button>
                 )}
 
-                {currentStep < SANCTUARY_STEPS.length - 1 ? (
+                {isLastStep ? (
                   <button
-                    onClick={() => setCurrentStep(prev => prev + 1)}
-                    className="px-8 py-4 bg-brand-primary text-brand-depth rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/20 flex items-center gap-2"
+                    onClick={handleFinish}
+                    className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer animate-bounce"
                   >
-                    Next <ArrowRight size={14} />
+                    Complete (+50 Hasanat) <CheckCircle2 size={16} />
                   </button>
                 ) : (
                   <button
-                    onClick={() => {
-                      // Award completed reward
-                      addHasanat(50);
-                      window.dispatchEvent(new CustomEvent('hasanat_earned_popup', { 
-                        detail: { amount: 50, reason: "First Sanctuary Tour completed! Noble Soul!" } 
-                      }));
-                      onClose();
-                    }}
-                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 animate-bounce"
+                    onClick={handleNext}
+                    className="px-7 py-3.5 rounded-2xl bg-brand-primary text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                   >
-                    Complete Tour <CheckCircle2 size={14} />
+                    Next Feature <ArrowRight size={14} />
                   </button>
                 )}
               </div>
             </div>
           </motion.div>
-        ) : (
-          /* Corner Walkthrough card for other sections of the app */
-          <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.95 }}
-            className="pointer-events-auto w-full max-w-sm bg-brand-sidebar/95 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-md overflow-hidden relative space-y-4"
-          >
-            {/* Top glow */}
-            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${activeGuide.color} opacity-80`} />
-            
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">
-                  Al-Murshid Guidance
-                </span>
-                <h3 className="text-lg font-black text-white italic uppercase tracking-tighter mt-0.5">
-                  {activeGuide.title}
-                </h3>
-                <p className="text-[10px] font-bold text-brand-primary uppercase tracking-widest">
-                  {activeGuide.subtitle}
-                </p>
-              </div>
-              <button 
-                onClick={onClose}
-                className="p-1.5 rounded-full hover:bg-white/5 text-slate-500 hover:text-white transition-all"
-                title="Close Guide"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Description */}
-            <p className="text-[11px] text-slate-400 font-medium leading-relaxed text-justify">
-              {activeGuide.description}
-            </p>
-
-            {/* Page Steps */}
-            <div className="space-y-2">
-              {activeGuide.steps.map((step, idx) => (
-                <div 
-                  key={step.id}
-                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
-                >
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black bg-brand-primary/10 text-brand-primary border border-brand-primary/20 shrink-0 mt-0.5">
-                    {idx + 1}
-                  </div>
-                  <span className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider leading-normal">
-                    {step.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Reward Section */}
-            <div className={`p-3 rounded-2xl border ${activeGuide.border} ${activeGuide.bg} flex items-center justify-between gap-3`}>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20 shrink-0">
-                  <Award size={16} />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                    Section Progress
-                  </p>
-                  <p className="text-xs font-black text-white uppercase tracking-tighter">
-                    {isClaimed ? "Rewarded & Read!" : "Complete Section"}
-                  </p>
-                </div>
-              </div>
-
-              {isClaimed ? (
-                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-1.5 rounded-full border border-emerald-500/20">
-                  Claimed ✓
-                </span>
-              ) : (
-                <button
-                  onClick={handleClaimReward}
-                  className="px-3 py-1.5 rounded-xl bg-brand-primary text-brand-depth text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-md shadow-brand-primary/10"
-                >
-                  Claim +{activeGuide.rewardAmount}
-                </button>
-              )}
-            </div>
-
-            {/* Quick Nav Suggestion */}
-            <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-widest pt-3 border-t border-white/5">
-              <span>Explore Sanctuary</span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => onNavigate('home')}
-                  className="hover:text-brand-primary transition-colors"
-                >
-                  Home
-                </button>
-                <span>•</span>
-                <button 
-                  onClick={() => onNavigate('resources')}
-                  className="hover:text-brand-primary transition-colors"
-                >
-                  Quran
-                </button>
-                <span>•</span>
-                <button 
-                  onClick={() => onNavigate('companion')}
-                  className="hover:text-brand-primary transition-colors"
-                >
-                  AI Companion
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        </div>
       </div>
     </AnimatePresence>
   );
