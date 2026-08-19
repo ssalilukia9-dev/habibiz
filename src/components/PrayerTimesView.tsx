@@ -21,13 +21,19 @@ import {
   Smartphone,
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  Moon,
+  Flame,
+  Bell,
+  Check,
+  Award
 } from 'lucide-react';
 import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 import { notificationService } from '../services/notificationService.ts';
 import { getAudioStreamUrl } from '../lib/api.ts';
 import { GLOBAL_ADHAN_LIST } from '../constants.ts';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
+import { calculateTahajjudTimings, getUpcomingWhiteDays, TahajjudTiming, WhiteDayInfo } from '../services/islamicScheduleService.ts';
 
 interface PrayerTime {
   name: string;
@@ -87,6 +93,25 @@ export default function PrayerTimesView() {
   });
   const [isCustomValid, setIsCustomValid] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Tahajjud & Night Vigil State
+  const [tahajjudAlarmEnabled, setTahajjudAlarmEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('tahajjud-reminder-settings');
+    return saved ? JSON.parse(saved).enabled !== false : true;
+  });
+  const [tahajjudOffset, setTahajjudOffset] = useState<string>(() => {
+    const saved = localStorage.getItem('tahajjud-reminder-settings');
+    return saved ? JSON.parse(saved).offset || 'last_third' : 'last_third';
+  });
+  const [testingTahajjud, setTestingTahajjud] = useState(false);
+
+  // White Days (Ayyam al-Beed) State
+  const [whiteDaysAlarmEnabled, setWhiteDaysAlarmEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('whitedays-reminder-settings');
+    return saved ? JSON.parse(saved).enabled !== false : true;
+  });
+  const [testingWhiteDays, setTestingWhiteDays] = useState(false);
+  const [whiteDaysData, setWhiteDaysData] = useState(() => getUpcomingWhiteDays());
 
   useEffect(() => {
     fetchPrayerTimes();
@@ -314,6 +339,54 @@ export default function PrayerTimesView() {
         setTestCountdown(count);
       }
     }, 1000);
+  };
+
+  const handleToggleTahajjudAlarm = async () => {
+    const nextState = !tahajjudAlarmEnabled;
+    setTahajjudAlarmEnabled(nextState);
+    const newSettings = { enabled: nextState, offset: tahajjudOffset };
+    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(newSettings));
+    
+    if (nextState) {
+      await notificationService.requestPermission();
+      // Re-schedule
+      const maghrib = prayerData.find(p => p.id === 'Maghrib')?.time || '18:40';
+      const fajr = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
+      notificationService.scheduleTahajjudNotifications({ Maghrib: maghrib, Fajr: fajr });
+    }
+  };
+
+  const handleChangeTahajjudOffset = (offset: string) => {
+    setTahajjudOffset(offset);
+    const newSettings = { enabled: tahajjudAlarmEnabled, offset };
+    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(newSettings));
+    const maghrib = prayerData.find(p => p.id === 'Maghrib')?.time || '18:40';
+    const fajr = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
+    notificationService.scheduleTahajjudNotifications({ Maghrib: maghrib, Fajr: fajr });
+  };
+
+  const handleTestTahajjud = async () => {
+    setTestingTahajjud(true);
+    await notificationService.triggerTestTahajjudAlarm(2);
+    setTimeout(() => setTestingTahajjud(false), 3000);
+  };
+
+  const handleToggleWhiteDaysAlarm = async () => {
+    const nextState = !whiteDaysAlarmEnabled;
+    setWhiteDaysAlarmEnabled(nextState);
+    const newSettings = { enabled: nextState, eveningBefore: true, suhoorMorning: true };
+    localStorage.setItem('whitedays-reminder-settings', JSON.stringify(newSettings));
+
+    if (nextState) {
+      await notificationService.requestPermission();
+      notificationService.scheduleWhiteDaysNotifications();
+    }
+  };
+
+  const handleTestWhiteDays = async () => {
+    setTestingWhiteDays(true);
+    await notificationService.triggerTestWhiteDaysAlarm(2);
+    setTimeout(() => setTestingWhiteDays(false), 3000);
   };
 
   useEffect(() => {
@@ -794,6 +867,217 @@ export default function PrayerTimesView() {
           )}
         </AnimatePresence>
       </section>
+
+      {/* Tahajjud (Night Vigil) & White Days (Ayyam al-Beed) Alarms Hub */}
+      {(() => {
+        const maghribTime = prayerData.find(p => p.id === 'Maghrib')?.time || '18:30';
+        const fajrTime = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
+        const tahajjudInfo = calculateTahajjudTimings(maghribTime, fajrTime);
+
+        return (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between px-4">
+              <div>
+                <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+                  <Moon className="text-purple-400" size={28} /> Sacred Alarms & Voluntary Devotions
+                </h3>
+                <p className="text-slate-400 text-sm font-medium">Automatic lockscreen wake alerts for Tahajjud & Sunnah White Days fasts</p>
+              </div>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-full text-xs font-bold">
+                <Sparkles size={13} /> Divine Blessings
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Card 1: Tahajjud (Night Vigil & Last Third of Night) */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                className="relative overflow-hidden rounded-[2.5rem] border border-purple-500/25 bg-gradient-to-br from-purple-950/40 via-slate-900/60 to-black/60 p-6 md:p-8 backdrop-blur-xl shadow-2xl space-y-6"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shadow-inner">
+                      <Moon size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xl font-black text-white tracking-tight">Tahajjud Vigil</h4>
+                        {tahajjudInfo.isLastThirdNow && (
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                            Active Right Now!
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-purple-200/70 font-medium">Last 1/3 of the Night & Qiyam</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleToggleTahajjudAlarm}
+                    className={`px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${
+                      tahajjudAlarmEnabled
+                        ? 'bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-500/30'
+                        : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Bell size={14} className={tahajjudAlarmEnabled ? 'animate-bounce' : ''} />
+                    {tahajjudAlarmEnabled ? 'Alarm ON' : 'Alarm OFF'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-black/40 border border-white/5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tahajjud Begins</span>
+                    <p className="text-2xl font-black text-purple-300 font-mono">{tahajjudInfo.startTimeStr}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Optimal prayer window</p>
+                  </div>
+                  <div className="space-y-1 border-l border-white/10 pl-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Islamic Midnight</span>
+                    <p className="text-2xl font-black text-slate-200 font-mono">{tahajjudInfo.midnightTimeStr}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Halfway point of night</p>
+                  </div>
+                </div>
+
+                {/* Alarm Timing Trigger Picker */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Alarm Wake-up Window</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'last_third', label: 'Last 1/3 Start' },
+                      { id: '60_min_before_fajr', label: '60m before Fajr' },
+                      { id: '45_min_before_fajr', label: '45m before Fajr' },
+                      { id: '30_min_before_fajr', label: '30m before Fajr' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleChangeTahajjudOffset(opt.id)}
+                        className={`py-2 px-2.5 rounded-xl text-[11px] font-bold text-center transition-all border ${
+                          tahajjudOffset === opt.id
+                            ? 'bg-purple-500/20 text-purple-200 border-purple-400/50 shadow-sm'
+                            : 'bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-purple-500/5 border border-purple-500/15 flex items-start gap-3">
+                  <Quote size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-purple-200/80 italic leading-relaxed">
+                    "Our Lord descends every night to the lowest heaven when the last third of the night remains, saying: 'Who is calling upon Me that I may answer him?'" (Sahih Bukhari)
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={handleTestTahajjud}
+                    disabled={testingTahajjud}
+                    className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {testingTahajjud ? <Loader2 size={13} className="animate-spin" /> : <Smartphone size={13} />}
+                    {testingTahajjud ? 'Testing Alarm...' : 'Test Tahajjud Lockscreen Alert'}
+                  </button>
+                  <span className="text-[10px] text-slate-500 font-bold">Lockscreen Ready</span>
+                </div>
+              </motion.div>
+
+              {/* Card 2: White Days (Ayyam al-Beed) Sunnah Fasting Hub */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                className="relative overflow-hidden rounded-[2.5rem] border border-amber-500/25 bg-gradient-to-br from-amber-950/30 via-slate-900/60 to-black/60 p-6 md:p-8 backdrop-blur-xl shadow-2xl space-y-6"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shadow-inner">
+                      <Flame size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-black text-white tracking-tight">White Days Fasting</h4>
+                      <p className="text-xs text-amber-200/70 font-medium">Ayyam al-Beed (13th, 14th, 15th {whiteDaysData.currentHijriMonthName})</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleToggleWhiteDaysAlarm}
+                    className={`px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${
+                      whiteDaysAlarmEnabled
+                        ? 'bg-amber-500 text-black border-amber-400 font-black shadow-lg shadow-amber-500/30'
+                        : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Bell size={14} className={whiteDaysAlarmEnabled ? 'animate-bounce' : ''} />
+                    {whiteDaysAlarmEnabled ? 'Alarms ON' : 'Alarms OFF'}
+                  </button>
+                </div>
+
+                {/* 3 White Days Strip */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  {whiteDaysData.currentMonthDays.map((day) => (
+                    <div
+                      key={day.hijriDay}
+                      className={`p-3.5 rounded-2xl border text-center transition-all ${
+                        day.isToday
+                          ? 'bg-amber-500/25 border-amber-400 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400'
+                          : day.isTomorrow
+                          ? 'bg-amber-500/10 border-amber-500/30'
+                          : 'bg-black/40 border-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                          {day.hijriDay}th Hijri
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-white leading-snug">{day.dateStr.split(',')[0]}</p>
+                      <p className="text-[10px] text-slate-400">{day.dateStr.split(',')[1]}</p>
+                      <div className="mt-1.5">
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full inline-block ${
+                          day.isToday 
+                            ? 'bg-amber-400 text-black uppercase' 
+                            : day.isTomorrow 
+                            ? 'bg-amber-500/20 text-amber-300' 
+                            : day.daysRemaining > 0 
+                            ? 'text-slate-400' 
+                            : 'text-slate-600'
+                        }`}>
+                          {day.isToday ? 'Today!' : day.isTomorrow ? 'Tomorrow' : day.daysRemaining > 0 ? `In ${day.daysRemaining}d` : 'Passed'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-start gap-3">
+                  <Award size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-200/80 italic leading-relaxed">
+                    "Fasting three days of each month (13th, 14th, and 15th) is equivalent to fasting the entire lifetime." (Sunan an-Nasa'i)
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={handleTestWhiteDays}
+                    disabled={testingWhiteDays}
+                    className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {testingWhiteDays ? <Loader2 size={13} className="animate-spin" /> : <Smartphone size={13} />}
+                    {testingWhiteDays ? 'Testing Alarm...' : 'Test White Days Lockscreen Alert'}
+                  </button>
+                  <span className="text-[10px] text-slate-500 font-bold">Suhoor & Evening Reminders</span>
+                </div>
+              </motion.div>
+
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Adhan Gallery */}
       <section className="space-y-10">

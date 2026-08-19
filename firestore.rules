@@ -2,9 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Global Helper
+    // Global Helpers
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ssalilukia9@gmail.com' ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*admin.*')) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
     // Default Deny
@@ -17,29 +25,29 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // User Profiles
+    // User Profiles & Admin Overrides
     match /users/{userId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
 
       // Bookmarked Ayahs
       match /ayahBookmarks/{bookmarkId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
 
       // Adhkar Progress
       match /adhkarProgress/{progressId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
 
       // Voice Reflections
       match /voiceReflections/{reflectionId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
 
       // Downloaded Surahs
       match /downloadedSurahs/{surahId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
     }
 
@@ -48,14 +56,21 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && (
         (request.resource != null && request.resource.data.uid == request.auth.uid) || 
-        (resource != null && resource.data.uid == request.auth.uid)
+        (resource != null && resource.data.uid == request.auth.uid) ||
+        isAdmin()
       );
+    }
+
+    // Announcements / Global Broadcasts
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     // NoorTalk Feed Posts
     match /posts/{postId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Chat Rooms and Messages
@@ -70,10 +85,11 @@ service cloud.firestore {
 
     // AI Conversations
     match /ai_conversations/{convId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isSignedIn() && (
         (request.resource != null && request.resource.data.userId == request.auth.uid) ||
-        (resource != null && resource.data.userId == request.auth.uid)
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        isAdmin()
       );
 
       match /messages/{msgId} {
@@ -84,7 +100,7 @@ service cloud.firestore {
     // Marketplace Listings
     match /listings/{listingId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
 
     // Friend Requests

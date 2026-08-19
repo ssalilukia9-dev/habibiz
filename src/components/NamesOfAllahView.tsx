@@ -1,162 +1,318 @@
-import { motion } from 'motion/react';
-import { Sparkles, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Sparkles, 
+  Volume2, 
+  Pause, 
+  Play, 
+  FastForward, 
+  Rewind, 
+  Check, 
+  RotateCcw, 
+  Languages,
+  BookOpen,
+  Heart
+} from 'lucide-react';
+import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
+import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 
-const NAMES_OF_ALLAH = [
-  { name: "Ar-Rahman", transliteration: "The Most Merciful", meaning: "The One who has plenty of mercy for the believers and the blasphemers in this world." },
-  { name: "Ar-Raheem", transliteration: "The Most Compassionate", meaning: "The One who has plenty of mercy for the believers." },
-  { name: "Al-Malik", transliteration: "The Absolute Ruler", meaning: "The One with the complete Dominion, the One Whose Dominion is clear from imperfection." },
-  { name: "Al-Quddus", transliteration: "The Pure One", meaning: "The One who is pure from any imperfection and clear from children and adversaries." },
-  { name: "As-Salam", transliteration: "The Source of Peace", meaning: "The One who is free from every imperfection." },
-  { name: "Al-Mu'min", transliteration: "The Inspirer of Faith", meaning: "The One who witnessed for Himself that no one is God but Him." },
-  { name: "Al-Muhaymin", transliteration: "The Guardian", meaning: "The One who witnesses the saying and deeds of His creatures." },
-  { name: "Al-Aziz", transliteration: "The Victorious", meaning: "The Defeater who is not defeated." },
-  { name: "Al-Jabbar", transliteration: "The Compeller", meaning: "The One that nothing happens in His Dominion except that which He willed." },
-  { name: "Al-Mutakabbir", transliteration: "The Greatest", meaning: "The One who is clear from the attributes of the creatures." },
-  { name: "Al-Khaliq", transliteration: "The Creator", meaning: "The One who brings everything from non-existence to existence." },
-  { name: "Al-Bari'", transliteration: "The Maker of Order", meaning: "The Creator who has the power to turn the entities." },
-  { name: "Al-Musawwir", transliteration: "The Shaper of Beauty", meaning: "The One who forms His creatures in different pictures." },
-  { name: "Al-Ghaffar", transliteration: "The Forgiving", meaning: "The One who forgives the sins of His slaves time after time." },
-  { name: "Al-Qahhar", transliteration: "The Subduer", meaning: "The One who has the perfect power and is not unable over anything." },
-  { name: "Al-Wahhab", transliteration: "The Giver of All", meaning: "The One who is Generous in giving without any return." },
-  { name: "Ar-Razzaq", transliteration: "The Sustainer", meaning: "The One who provides all things beneficial to His creatures." },
-  { name: "Al-Fattah", transliteration: "The Opener", meaning: "The One who opens for His slaves the closed worldly and religious matters." },
-  { name: "Al-Alim", transliteration: "The All-Knowing", meaning: "The One who knows everything in the universe." },
-  { name: "Al-Qabid", transliteration: "The Constrictor", meaning: "The One who constricts or withholds provisions." },
-  { name: "Al-Basit", transliteration: "The Expander", meaning: "The One who expands or provides liberally." },
-  { name: "Al-Khafid", transliteration: "The Abaser", meaning: "The One who lowers who He wills by His destruction." },
-  { name: "Ar-Rafi", transliteration: "The Exalter", meaning: "The One who raises who He wills by His endowment." },
-  { name: "Al-Mu'izz", transliteration: "The Bestower of Honors", meaning: "The One who gives esteem to whoever He wills." },
-  { name: "Al-Mudhill", transliteration: "The Humiliator", meaning: "The One who degrades whoever He wills." },
-  { name: "As-Sami", transliteration: "The All-Hearing", meaning: "The One who hears all things without an ear." },
-  { name: "Al-Basir", transliteration: "The All-Seeing", meaning: "The One who sees all things without an eye." },
-  { name: "Al-Hakam", transliteration: "The Judge", meaning: "The One who is the absolute Arbiter." },
-  { name: "Al-Adl", transliteration: "The Just", meaning: "The One who is entitled to do what He does." },
-  { name: "Al-Latif", transliteration: "The Subtle One", meaning: "The One who is kind to His slaves and gives them what is beneficial." },
-  { name: "Al-Khabir", transliteration: "The All-Aware", meaning: "The One who knows the internal truth of things." },
-  { name: "Al-Halim", transliteration: "The Forbearing", meaning: "The One who delays the punishment for those who deserve it." },
-  { name: "Al-Azim", transliteration: "The Magnificent", meaning: "The One who is greater than everything." },
-  { name: "Al-Ghafur", transliteration: "The Forgiving", meaning: "The One who forgives many sins." },
-  { name: "Ash-Shakur", transliteration: "The Appreciative", meaning: "The One who gives a lot of reward for a little obedience." },
-  { name: "Al-Ali", transliteration: "The Highest", meaning: "The One who is above all in status and attribute." },
-  { name: "Al-Kabir", transliteration: "The Greatest", meaning: "The One who is great in status." },
-  { name: "Al-Hafiz", transliteration: "The Preserver", meaning: "The One who protects the universe from being destroyed." },
-  { name: "Al-Muqit", transliteration: "The Nourisher", meaning: "The One who provides the creatures with their nourishment." },
-  { name: "Al-Hasib", transliteration: "The Accounter", meaning: "The One who is sufficient for everyone." },
-  { name: "Al-Jalil", transliteration: "The Majestic", meaning: "The One who is attributed with greatness of Power." },
-  { name: "Al-Karim", transliteration: "The Bountiful", meaning: "The One who is generous and kind." },
-  { name: "Ar-Raqib", transliteration: "The Watchful", meaning: "The One that nothing is absent from Him." },
-  { name: "Al-Mujib", transliteration: "The Responsive", meaning: "The One who answers the one in need if he asks Him." },
-  { name: "Al-Wasi", transliteration: "The All-Pervading", meaning: "The One whose knowledge and mercy are vast." },
-  { name: "Al-Hakim", transliteration: "The Wise", meaning: "The One who is correct in His doings." },
-  { name: "Al-Wadud", transliteration: "The Loving", meaning: "The One who loves His believing slaves." },
-  { name: "Al-Majid", transliteration: "The Most Glorious", meaning: "The One who is with perfect Power and High Status." },
-  { name: "Al-Ba'ith", transliteration: "The Resurrector", meaning: "The One who resurrects the creatures after death." },
-  { name: "Ash-Shahid", transliteration: "The Witness", meaning: "The One who is aware of all things." },
-  { name: "Al-Haqq", transliteration: "The Truth", meaning: "The One who truly exists." },
-  { name: "Al-Wakil", transliteration: "The Trustee", meaning: "The One who gives the satisfaction and is relied upon." },
-  { name: "Al-Qawi", transliteration: "The Strong", meaning: "The One with the complete Power." },
-  { name: "Al-Matin", transliteration: "The Firm", meaning: "The One with extreme Power which is uninterrupted." },
-  { name: "Al-Wali", transliteration: "The Protecting Friend", meaning: "The One who gives support to the believers." },
-  { name: "Al-Hamid", transliteration: "The Praiseworthy", meaning: "The One who deserves to be praised." },
-  { name: "Al-Muhsi", transliteration: "The Accounter", meaning: "The One who knows the count of everything." },
-  { name: "Al-Mubdi", transliteration: "The Originator", meaning: "The One who started the creation." },
-  { name: "Al-Mu'id", transliteration: "The Restorer", meaning: "The One who brings back the creatures after death." },
-  { name: "Al-Muhyi", transliteration: "The Giver of Life", meaning: "The One who took out a living human from a sperm." },
-  { name: "Al-Mumit", transliteration: "The Creator of Death", meaning: "The One who renders the living dead." },
-  { name: "Al-Hayy", transliteration: "The Living", meaning: "The One who is attributed with a life that is unlike ours." },
-  { name: "Al-Qayyum", transliteration: "The Subsisting", meaning: "The One who remains and does not end or vanish." },
-  { name: "Al-Wajid", transliteration: "The Finder", meaning: "The One who does not lack anything." },
-  { name: "Al-Majid", transliteration: "The Noble", meaning: "The One who is with broad generosity." },
-  { name: "Al-Wahid", transliteration: "The Unique", meaning: "The One who is without a partner." },
-  { name: "Al-Ahad", transliteration: "The One", meaning: "The One who is indivisible." },
-  { name: "As-Samad", transliteration: "The Eternal", meaning: "The One who is relied upon in matters and reverted to in needs." },
-  { name: "Al-Qadir", transliteration: "The Able", meaning: "The One who is attributed with Power." },
-  { name: "Al-Muqtadir", transliteration: "The Powerful", meaning: "The One with the perfect Power." },
-  { name: "Al-Muqaddim", transliteration: "The Expediter", meaning: "The One who puts things in their right places." },
-  { name: "Al-Mu'akhkhir", transliteration: "The Delayer", meaning: "The One who delays what He wills." },
-  { name: "Al-Awwal", transliteration: "The First", meaning: "The One whose Existence is without a beginning." },
-  { name: "Al-Akhir", transliteration: "The Last", meaning: "The One whose Existence is without an end." },
-  { name: "Az-Zahir", transliteration: "The Manifest", meaning: "The One whose Existence is obvious by proofs." },
-  { name: "Al-Batin", transliteration: "The Hidden", meaning: "The One who is clear from the delusions of the attributes of bodies." },
-  { name: "Al-Wali", transliteration: "The Governor", meaning: "The One who owns things and manages them." },
-  { name: "Al-Muta'ali", transliteration: "The Most Exalted", meaning: "The One who is clear from the attributes of the creatures." },
-  { name: "Al-Barr", transliteration: "The Source of Goodness", meaning: "The One who is kind to His creatures." },
-  { name: "At-Tawwab", transliteration: "The Acceptor of Repentance", meaning: "The One who grants the success to the heart to repent." },
-  { name: "Al-Muntaqim", transliteration: "The Avenger", meaning: "The One who victoriously prevails over His enemies." },
-  { name: "Al-Afu", transliteration: "The Pardoner", meaning: "The One with wide forgiveness." },
-  { name: "Ar-Ra'uf", transliteration: "The Compassionate", meaning: "The One with extreme Mercy." },
-  { name: "Malik-ul-Mulk", transliteration: "The Owner of All Sovereignty", meaning: "The One who controls the Dominion and gives dominion to whoever He wills." },
-  { name: "Dhu-l-Jalal wa-l-Ikram", transliteration: "The Lord of Majesty and Generosity", meaning: "The One who deserves to be Exalted and not denied." },
-  { name: "Al-Muqsit", transliteration: "The Equitable", meaning: "The One who is Just in His judgment." },
-  { name: "Al-Jami", transliteration: "The Gatherer", meaning: "The One who gathers the creatures on a day that there is no doubt about." },
-  { name: "Al-Ghani", transliteration: "The Self-Sufficient", meaning: "The One who does not need the creatures." },
-  { name: "Al-Mughni", transliteration: "The Enricher", meaning: "The One who satisfies the necessities of the creatures." },
-  { name: "Al-Mani", transliteration: "The Preventer", meaning: "The One who prevents what He wills from happening." },
-  { name: "Ad-Darr", transliteration: "The Distresser", meaning: "The One who makes harm reach whoever He wills." },
-  { name: "An-Nafi", transliteration: "The Propitious", meaning: "The One who makes good reach whoever He wills." },
-  { name: "An-Nur", transliteration: "The Light", meaning: "The One who guides." },
-  { name: "Al-Hadi", transliteration: "The Guide", meaning: "The One with whose Guidance His believers were guided." },
-  { name: "Al-Badi", transliteration: "The Incomparable", meaning: "The One who created the universe and devised it without any preceding example." },
-  { name: "Al-Baqi", transliteration: "The Everlasting", meaning: "The One that the state of non-existence is impossible for Him." },
-  { name: "Al-Warith", transliteration: "The Supreme Inheritor", meaning: "The One whose Existence remains after all creatures perish." },
-  { name: "Ar-Rashid", transliteration: "The Guide to the Right Path", meaning: "The One who guides the creatures to what is beneficial for them." },
-  { name: "As-Sabur", transliteration: "The Patient", meaning: "The One who does not quickly punish the sinners." }
-];
+export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: string }) {
+  const [playbackState, setPlaybackState] = useState<VoicePlaybackState>(VoiceService.getState());
+  const [isSequencePlaying, setIsSequencePlaying] = useState(false);
+  const [currentSequenceIndex, setCurrentSequenceIndex] = useState<number>(0);
+  const [learnedMap, setLearnedMap] = useState<Record<number, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sanctuary_learned_names') || '{}');
+    } catch {
+      return {};
+    }
+  });
 
-export default function NamesOfAllahView({ searchQuery }: { searchQuery: string }) {
-  const filteredNames = NAMES_OF_ALLAH.filter(n => 
-    n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    n.transliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    n.meaning.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    const unsub = VoiceService.subscribe(setPlaybackState);
+    return () => {
+      unsub();
+      VoiceService.stop();
+    };
+  }, []);
+
+  const toggleLearned = (id: number) => {
+    setLearnedMap(prev => {
+      const next = { ...prev, [id]: !prev[id] };
+      localStorage.setItem('sanctuary_learned_names', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handlePlayArabic = (n: NameOfAllah, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const id = `name-ar-${n.id}`;
+    if (playbackState.isPlaying && playbackState.activeId === id) {
+      VoiceService.stop();
+      setIsSequencePlaying(false);
+    } else {
+      setIsSequencePlaying(false);
+      VoiceService.speakArabic(n.arabic, id);
+    }
+  };
+
+  const handlePlayBoth = (n: NameOfAllah, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const id = `name-both-${n.id}`;
+    if (playbackState.isPlaying && playbackState.activeId === id) {
+      VoiceService.stop();
+      setIsSequencePlaying(false);
+    } else {
+      setIsSequencePlaying(false);
+      const enText = `${n.transliteration}. ${n.english}. ${n.meaning}`;
+      VoiceService.speakBoth(n.arabic, enText, id);
+    }
+  };
+
+  // Sequence Player: Recites all 99 names one after another
+  const playSequenceAt = (index: number) => {
+    if (index >= ALL_NAMES_OF_ALLAH.length) {
+      setIsSequencePlaying(false);
+      VoiceService.stop();
+      return;
+    }
+
+    setCurrentSequenceIndex(index);
+    setIsSequencePlaying(true);
+    const n = ALL_NAMES_OF_ALLAH[index];
+    const id = `seq-name-${n.id}`;
+
+    VoiceService.speakArabic(n.arabic, id, () => {
+      setTimeout(() => {
+        playSequenceAt(index + 1);
+      }, 700);
+    });
+  };
+
+  const toggleSequencePlay = () => {
+    if (isSequencePlaying && playbackState.isPlaying) {
+      VoiceService.stop();
+      setIsSequencePlaying(false);
+    } else {
+      playSequenceAt(currentSequenceIndex);
+    }
+  };
+
+  const handleNextInSequence = () => {
+    const nextIdx = (currentSequenceIndex + 1) % ALL_NAMES_OF_ALLAH.length;
+    playSequenceAt(nextIdx);
+  };
+
+  const handlePrevInSequence = () => {
+    const prevIdx = currentSequenceIndex > 0 ? currentSequenceIndex - 1 : ALL_NAMES_OF_ALLAH.length - 1;
+    playSequenceAt(prevIdx);
+  };
+
+  const query = searchQuery.toLowerCase().trim();
+  const filteredNames = ALL_NAMES_OF_ALLAH.filter(n => 
+    n.transliteration.toLowerCase().includes(query) ||
+    n.english.toLowerCase().includes(query) ||
+    n.meaning.toLowerCase().includes(query) ||
+    n.arabic.includes(searchQuery.trim()) ||
+    n.id.toString() === query
   );
 
+  const learnedCount = Object.values(learnedMap).filter(Boolean).length;
+  const progressPercent = Math.round((learnedCount / 99) * 100);
+
   return (
-    <div className="space-y-12">
-      <div className="text-center space-y-4 px-4">
-        <h3 className="text-2xl md:text-5xl font-black text-white">Asma-ul-Husna</h3>
-        <p className="text-sm md:text-lg text-slate-500 font-medium max-w-2xl mx-auto uppercase tracking-widest">The 99 Beautiful Names of Allah</p>
+    <div className="space-y-8 animate-in fade-in duration-300 pb-24">
+      
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-brand-sidebar via-brand-primary/10 to-brand-sidebar border border-brand-primary/20 p-6 md:p-8 shadow-2xl">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-brand-primary text-xs font-black uppercase tracking-[0.25em]">
+              <Sparkles size={14} className="animate-spin" style={{ animationDuration: '8s' }} />
+              <span>Divine Attributes • Asma-ul-Husna</span>
+            </div>
+            <h2 className="text-3xl md:text-5xl font-black text-white italic tracking-tight">
+              The 99 Beautiful Names of Allah
+            </h2>
+            <p className="text-xs md:text-sm text-slate-300 font-light max-w-xl">
+              "To Allah belong the Most Beautiful Names, so call on Him by them." (Surah Al-A'raf 7:180). Tap any name to listen to authentic Arabic recitation.
+            </p>
+          </div>
+
+          {/* Memorization Progress Tracker */}
+          <div className="bg-black/50 border border-white/10 p-4 rounded-2xl min-w-[220px] space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-400">Names Learned</span>
+              <span className="font-mono font-black text-brand-primary">{learnedCount} / 99</span>
+            </div>
+            <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-brand-primary to-emerald-400 rounded-full"
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.4 }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 font-mono text-right">
+              {progressPercent}% Memorized
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredNames.map((n, idx) => (
-          <motion.div 
-            key={idx}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.03 }}
-            className="glass-panel p-8 rounded-[2.5rem] border-white/5 hover:border-brand-primary/20 transition-all group relative overflow-hidden"
+      {/* Sequential Reciter Audio Console */}
+      <div className="glass-panel p-4 md:p-5 rounded-2xl border-white/10 bg-brand-sidebar/70 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="w-10 h-10 rounded-xl bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-primary shrink-0">
+            <Volume2 size={18} />
+          </div>
+          <div>
+            <p className="text-xs font-black text-white uppercase tracking-wider">Continuous Reciter</p>
+            <p className="text-[11px] text-slate-400">
+              {isSequencePlaying 
+                ? `Reciting Name #${ALL_NAMES_OF_ALLAH[currentSequenceIndex]?.id}: ${ALL_NAMES_OF_ALLAH[currentSequenceIndex]?.transliteration}` 
+                : "Listen to all 99 Names in continuous sequence"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrevInSequence}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95"
+            title="Previous Name"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
-              <Sparkles size={40} className="text-brand-primary" />
-            </div>
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em]">Name {idx + 1}</span>
-                <div className="w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-slate-500">
-                  <Info size={14} />
-                </div>
+            <Rewind size={16} />
+          </button>
+
+          <button
+            onClick={toggleSequencePlay}
+            className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-lg active:scale-95 ${
+              isSequencePlaying && playbackState.isPlaying
+                ? 'bg-amber-500 hover:bg-amber-600 text-black shadow-amber-500/20'
+                : 'bg-brand-primary hover:bg-brand-primary/90 text-white shadow-brand-primary/30'
+            }`}
+          >
+            {isSequencePlaying && playbackState.isPlaying ? (
+              <>
+                <Pause size={14} className="fill-current" />
+                <span>Pause Recitation</span>
+              </>
+            ) : (
+              <>
+                <Play size={14} className="fill-current" />
+                <span>Play All 99 Names</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleNextInSequence}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95"
+            title="Next Name"
+          >
+            <FastForward size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Grid of All 99 Names of Allah */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredNames.map((n) => {
+          const isArPlaying = playbackState.isPlaying && (playbackState.activeId === `name-ar-${n.id}` || (isSequencePlaying && ALL_NAMES_OF_ALLAH[currentSequenceIndex]?.id === n.id));
+          const isBothPlaying = playbackState.isPlaying && playbackState.activeId === `name-both-${n.id}`;
+          const isLearned = Boolean(learnedMap[n.id]);
+
+          return (
+            <motion.div 
+              key={n.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-6 rounded-[2rem] border transition-all relative overflow-hidden flex flex-col justify-between space-y-4 shadow-xl ${
+                isArPlaying || isBothPlaying
+                  ? 'bg-gradient-to-br from-brand-primary/20 via-brand-sidebar to-brand-depth border-brand-primary shadow-brand-primary/20 scale-[1.02]'
+                  : isLearned
+                  ? 'bg-emerald-950/20 border-emerald-500/30'
+                  : 'glass-panel border-white/5 hover:border-white/20'
+              }`}
+            >
+              {/* Header: ID, Badge, Learned Check */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 text-xs font-mono font-bold text-slate-400 flex items-center justify-center">
+                  #{n.id}
+                </span>
+
+                <button
+                  onClick={() => toggleLearned(n.id)}
+                  className={`p-1.5 rounded-xl border transition-all ${
+                    isLearned
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                      : 'border-white/10 text-slate-500 hover:text-white hover:bg-white/5'
+                  }`}
+                  title={isLearned ? "Mark unlearned" : "Mark as memorized"}
+                >
+                  <Check size={14} className={isLearned ? "stroke-[3]" : ""} />
+                </button>
               </div>
-              <div>
-                <h4 className="text-3xl font-black text-white group-hover:text-brand-primary transition-colors">{n.name}</h4>
-                <p className="text-sm font-bold text-slate-400 mt-1">{n.transliteration}</p>
+
+              {/* Arabic Script */}
+              <div className="text-center py-2">
+                <p 
+                  className="font-arabic text-4xl sm:text-5xl font-bold text-amber-200 leading-tight tracking-wide drop-shadow-md"
+                  dir="rtl"
+                >
+                  {n.arabic}
+                </p>
+                <h3 className="text-lg font-black text-white tracking-tight mt-3">
+                  {n.transliteration}
+                </h3>
+                <p className="text-xs font-semibold text-brand-primary uppercase tracking-wider mt-0.5">
+                  {n.english}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed font-medium pt-4 border-t border-white/5">
+
+              {/* Meaning & Explanation */}
+              <p className="text-xs text-slate-400 font-light leading-relaxed border-t border-white/5 pt-3">
                 {n.meaning}
               </p>
-            </div>
-          </motion.div>
-        ))}
+
+              {/* Action Buttons */}
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                <button
+                  onClick={(e) => handlePlayArabic(n, e)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    isArPlaying && !isBothPlaying
+                      ? 'bg-brand-primary text-white shadow-md'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                  }`}
+                >
+                  {isArPlaying && !isBothPlaying ? <Pause size={12} className="fill-current" /> : <Volume2 size={12} />}
+                  <span>Recite</span>
+                </button>
+
+                <button
+                  onClick={(e) => handlePlayBoth(n, e)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    isBothPlaying
+                      ? 'bg-emerald-500 text-white shadow-md'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10'
+                  }`}
+                  title="Recite Arabic + English explanation"
+                >
+                  <Languages size={12} />
+                  <span>Meaning</span>
+                </button>
+              </div>
+            </motion.div>
+          );
+        })}
+
         {filteredNames.length === 0 && (
-          <div className="col-span-full py-20 text-center">
-            <p className="text-slate-500 font-bold uppercase tracking-widest italic">No names found matching your search</p>
+          <div className="col-span-full py-16 text-center glass-panel rounded-3xl border-white/5">
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
+              No Divine Names found matching "{searchQuery}"
+            </p>
           </div>
         )}
-      </div>
-
-      <div className="p-12 glass-panel rounded-[3rem] border-brand-primary/10 text-center space-y-6">
-        <Sparkles size={48} className="mx-auto text-brand-primary animate-pulse" />
-        <h4 className="text-2xl font-black text-white">More Names Coming Soon</h4>
-        <p className="text-slate-500 max-w-md mx-auto font-medium">We are adding the remaining names with detailed tafsir and benefits of recitation.</p>
       </div>
     </div>
   );

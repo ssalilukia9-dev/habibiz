@@ -55,6 +55,7 @@ import IslamicFinanceView from './IslamicFinanceView.tsx';
 import DownloadAppView from './DownloadAppView.tsx';
 import NearbyMosquesMap from './NearbyMosquesMap.tsx';
 import QiblaView from './QiblaView.tsx';
+import HijriCalendarView from './HijriCalendarView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
@@ -812,7 +813,16 @@ export default function ResourcesView({
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} currentUser={currentUser} />}
-                  {activeRes === 'mobile' && <DownloadAppView />}
+                 {activeRes === 'mobile' && <DownloadAppView />}
+                 {(activeRes === 'calendar' || (activeRes as string) === 'calendar_view') && (
+                   <HijriCalendarView onNavigate={(tab, extra) => {
+                     if (tab === 'resources') {
+                       setActiveRes(extra?.resId || null);
+                     } else {
+                       navigate(`/${tab}`);
+                     }
+                   }} />
+                 )}
                  {['coin_shop'].includes(activeRes as string) && (
                     <div className="flex flex-col items-center justify-center py-40 text-center space-y-6">
                        <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary animate-pulse">
@@ -830,7 +840,7 @@ export default function ResourcesView({
                        </button>
                     </div>
                  )}
-                 {['mirror', 'calendar', 'immerse', 'memorise', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
+                 {['mirror', 'immerse', 'memorise', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
                    <div className="flex flex-col items-center justify-center py-20 md:py-40 text-center space-y-6 bg-white/[0.02] rounded-[3rem] border border-white/5 mx-auto max-w-2xl px-8">
                       <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
                          <Sparkles size={32} className="animate-pulse" />

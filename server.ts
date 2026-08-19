@@ -864,6 +864,80 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     }
   });
 
+  // High-Fidelity Universal Text-To-Speech (TTS) Proxy for Arabic Athkar, Hadiths & 99 Names
+  const ttsCache = new Map<string, { buffer: Buffer; contentType: string }>();
+
+  app.get("/api/tts", async (req, res) => {
+    try {
+      const text = (req.query.text as string || "").trim();
+      const lang = (req.query.lang as string || "ar").toLowerCase();
+
+      if (!text) {
+        return res.status(400).json({ error: "Text query parameter is required." });
+      }
+
+      const cacheKey = `${lang}:${text.slice(0, 200)}`;
+      if (ttsCache.has(cacheKey)) {
+        const cached = ttsCache.get(cacheKey)!;
+        res.setHeader("Content-Type", cached.contentType);
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        return res.send(cached.buffer);
+      }
+
+      // Encode and limit text chunk size for TTS engine
+      const truncated = text.slice(0, 250);
+      const upstreamUrls = [
+        `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(truncated)}&tl=${lang}&client=tw-ob`,
+        `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${lang}&q=${encodeURIComponent(truncated)}`
+      ];
+
+      let audioBuffer: Buffer | null = null;
+      let contentType = "audio/mpeg";
+
+      for (const upstreamUrl of upstreamUrls) {
+        try {
+          const response = await fetch(upstreamUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+              "Referer": "https://translate.google.com/",
+              "Accept": "audio/mpeg, audio/*;q=0.9, */*;q=0.8"
+            }
+          });
+
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = Buffer.from(arrayBuffer);
+            contentType = response.headers.get("content-type") || "audio/mpeg";
+            break;
+          }
+        } catch (e) {
+          console.warn("TTS upstream attempt failed, trying next...", e);
+        }
+      }
+
+      if (!audioBuffer || audioBuffer.length === 0) {
+        return res.status(502).json({ error: "Failed to synthesize speech audio from upstream." });
+      }
+
+      // Cache up to 300 recent speech audio clips
+      if (ttsCache.size > 300) {
+        const firstKey = ttsCache.keys().next().value;
+        if (firstKey) ttsCache.delete(firstKey);
+      }
+      ttsCache.set(cacheKey, { buffer: audioBuffer, contentType });
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Length", audioBuffer.length.toString());
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.send(audioBuffer);
+    } catch (err: any) {
+      console.error("TTS synthesis error:", err);
+      res.status(500).json({ error: "Internal TTS synthesis failure", details: err?.message });
+    }
+  });
+
   // ==================== MAILING & EMAIL LIFECYCLE API ====================
 
   // In-memory / Firestore Email Logs
@@ -877,6 +951,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     sentAt: string;
     status: string;
     intervalTrigger: string;
+    pushTriggered?: boolean;
   }> = [
     { id: "log_1", recipientEmail: "seeker.london@deen.app", recipientName: "Tariq Al-Mansoor", templateId: "welcome_new_user", templateName: "Welcome to Sanctuary", subject: "Welcome to Sanctuary — Your Spiritual Journey Begins 🌿", sentAt: "2 mins ago", status: "opened", intervalTrigger: "Instant" },
     { id: "log_2", recipientEmail: "fatima.z@sanctuary.org", recipientName: "Fatima Zahra", templateId: "how_to_use_guide", templateName: "How to Use & Habibi AI Tips", subject: "3 Ways to Elevate Your Daily Worship with Habibi AI 💡", sentAt: "18 mins ago", status: "clicked", intervalTrigger: "24h" },

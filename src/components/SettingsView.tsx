@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
@@ -160,6 +160,38 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
 
   const [isRemindersExpanded, setIsRemindersExpanded] = useState(false);
 
+  // Tahajjud & White Days Settings State
+  const [tahajjudSettings, setTahajjudSettings] = useState(() => {
+    const saved = localStorage.getItem('tahajjud-reminder-settings');
+    return saved ? JSON.parse(saved) : { enabled: true, offset: 'last_third' };
+  });
+
+  const [whiteDaysSettings, setWhiteDaysSettings] = useState(() => {
+    const saved = localStorage.getItem('whitedays-reminder-settings');
+    return saved ? JSON.parse(saved) : { enabled: true, eveningBefore: true, suhoorMorning: true };
+  });
+
+  const toggleTahajjudSetting = (enabled: boolean) => {
+    const updated = { ...tahajjudSettings, enabled };
+    setTahajjudSettings(updated);
+    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('prayer_times_updated'));
+  };
+
+  const setTahajjudOffsetSetting = (offset: string) => {
+    const updated = { ...tahajjudSettings, offset };
+    setTahajjudSettings(updated);
+    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('prayer_times_updated'));
+  };
+
+  const toggleWhiteDaysSetting = (enabled: boolean) => {
+    const updated = { ...whiteDaysSettings, enabled };
+    setWhiteDaysSettings(updated);
+    localStorage.setItem('whitedays-reminder-settings', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('prayer_times_updated'));
+  };
+
   useEffect(() => {
     localStorage.setItem('prayer-reminders', JSON.stringify(reminders));
     window.dispatchEvent(new CustomEvent('prayer_times_updated'));
@@ -233,46 +265,133 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
          </motion.button>
       </div>
 
-      {/* Appearance Section */}
+      {/* Appearance & Theme Previewer Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-primary/60 flex items-center gap-3">
-          <Moon size={14} /> Global Appearance
+          <Moon size={14} /> Global Appearance & Live Theme Previewer
         </h3>
-        <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
+        <div className="bg-white/5 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl space-y-px">
+          {/* Theme Selector with Swatches & Live Preview Card */}
           <div className="p-8 border-b border-white/5 space-y-6">
-            <div className="flex items-center gap-4 mb-2">
-               <div className="w-1 h-4 bg-brand-primary rounded-full" />
-               <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Sanctuary Essence</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-4">
+                 <div className="w-1.5 h-5 bg-brand-primary rounded-full" />
+                 <div>
+                   <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Sanctuary Essence</p>
+                   <h4 className="text-lg font-black text-white">Live Color Palette & Theme Previewer</h4>
+                 </div>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+                Instant System Re-skin
+              </span>
             </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+            {/* Interactive Color Swatches Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { id: 'emerald', label: 'Imperial Emerald', desc: 'Rawdah & Gold Majesty', icon: Sparkles, color: 'bg-emerald-600' },
-                { id: 'amber', label: 'Desert Amber', desc: 'Golden Makkah Sunset', icon: Sun, color: 'bg-amber-500' },
-                { id: 'sapphire', label: 'Sultani Sapphire', desc: 'Andalusian Twilight', icon: Waves, color: 'bg-sky-600' },
-                { id: 'crimson', label: 'Velvet Kiswah', desc: 'Ottoman Ruby Glow', icon: Heart, color: 'bg-rose-600' },
-                { id: 'purple', label: 'Ethereal Noor', desc: 'Celestial Lavender', icon: Moon, color: 'bg-purple-600' },
-                { id: 'dark', label: 'Midnight Obsidian', desc: 'Starlit Kaaba Night', icon: Compass, color: 'bg-slate-800' }
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  className={`p-6 rounded-[2rem] border transition-all flex flex-col items-center text-center gap-3 relative overflow-hidden group cursor-pointer ${theme === t.id ? 'bg-brand-primary/15 border-brand-primary shadow-lg shadow-brand-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
-                >
-                  <div className={`w-12 h-12 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-xl group-hover:scale-105 transition-transform`}>
-                    <t.icon size={22} />
+                { id: 'emerald', label: 'Imperial Emerald', desc: 'Rawdah & Gold', icon: Sparkles, color: 'bg-emerald-500', border: 'border-emerald-500', hex: '#10b981', glow: 'shadow-emerald-500/25' },
+                { id: 'amber', label: 'Desert Amber', desc: 'Makkah Sunset', icon: Sun, color: 'bg-amber-500', border: 'border-amber-500', hex: '#f59e0b', glow: 'shadow-amber-500/25' },
+                { id: 'sapphire', label: 'Sultani Sapphire', desc: 'Andalusian Twilight', icon: Waves, color: 'bg-sky-500', border: 'border-sky-500', hex: '#0ea5e9', glow: 'shadow-sky-500/25' },
+                { id: 'crimson', label: 'Velvet Kiswah', desc: 'Ottoman Ruby Glow', icon: Heart, color: 'bg-rose-500', border: 'border-rose-500', hex: '#f43f5e', glow: 'shadow-rose-500/25' },
+                { id: 'purple', label: 'Ethereal Noor', desc: 'Celestial Lavender', icon: Moon, color: 'bg-purple-500', border: 'border-purple-500', hex: '#a855f7', glow: 'shadow-purple-500/25' },
+                { id: 'dark', label: 'Midnight Obsidian', desc: 'Kaaba Deep Night', icon: Compass, color: 'bg-slate-700', border: 'border-slate-500', hex: '#64748b', glow: 'shadow-slate-500/25' }
+              ].map((t) => {
+                const isSelected = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setTheme(t.id);
+                      localStorage.setItem('sanctuary-theme', t.id);
+                      window.dispatchEvent(new CustomEvent('app_theme_changed', { detail: { theme: t.id } }));
+                    }}
+                    className={`p-4 rounded-3xl border transition-all flex flex-col items-center text-center gap-2.5 relative overflow-hidden group cursor-pointer ${
+                      isSelected 
+                        ? 'bg-white/10 border-brand-primary shadow-xl ring-2 ring-brand-primary/40' 
+                        : 'bg-white/5 border-white/5 hover:border-white/20 hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    {/* Color Swatch Circle */}
+                    <div className={`w-11 h-11 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-lg ${t.glow} group-hover:scale-110 group-active:scale-95 transition-transform relative`}>
+                      <t.icon size={20} />
+                      {isSelected && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-white text-black rounded-full flex items-center justify-center shadow-md">
+                          <CheckCircle2 size={12} className="text-brand-depth" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-black text-white text-xs whitespace-nowrap">{t.label}</p>
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{t.desc}</p>
+                    </div>
+                    {/* Swatch hex badge */}
+                    <span className="text-[8px] font-mono text-slate-500 px-2 py-0.5 rounded-md bg-black/40 border border-white/5">
+                      {t.hex}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Live Interactive Mini-App Previewer Component */}
+            <div className="mt-4 p-6 rounded-3xl bg-black/40 border border-white/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-primary flex items-center gap-2">
+                  <Sparkles size={12} /> Live Theme Canvas Preview
+                </span>
+                <span className="text-[9px] font-mono text-slate-400 capitalize">
+                  Active Theme: <span className="text-white font-bold">{theme}</span>
+                </span>
+              </div>
+
+              {/* Mock App Interface Preview Card */}
+              <div className="p-5 rounded-2xl bg-brand-sidebar border border-brand-primary/30 shadow-2xl space-y-4 relative overflow-hidden">
+                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-brand-primary text-brand-depth flex items-center justify-center font-black text-xs shadow-md">
+                      ✦
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-white">Sanctuary OS Preview</h5>
+                      <p className="text-[8px] text-slate-400">All UI surfaces reflect selected palette</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-200 text-sm whitespace-nowrap">{t.label}</p>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{t.desc}</p>
+                  <span className="px-2.5 py-1 bg-brand-primary/20 text-brand-primary rounded-lg text-[9px] font-black uppercase tracking-wider border border-brand-primary/30">
+                    Live Active
+                  </span>
+                </div>
+
+                {/* Mock Prayer Time & Verse Widget */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl bg-brand-primary/10 border border-brand-primary/20 space-y-1">
+                    <div className="flex items-center justify-between text-brand-primary text-[9px] font-black uppercase">
+                      <span>Next Prayer: Maghrib</span>
+                      <Sun size={12} />
+                    </div>
+                    <p className="text-lg font-black text-white font-mono">06:42 PM</p>
+                    <p className="text-[8px] text-slate-400">Time remaining: 42 mins</p>
                   </div>
-                  {theme === t.id && (
-                    <motion.div layoutId="active-theme" className="absolute top-4 right-4 text-brand-primary">
-                       <CheckCircle2 size={16} />
-                    </motion.div>
-                  )}
-                </button>
-              ))}
+
+                  <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
+                    <div className="flex items-center justify-between text-amber-400 text-[9px] font-black uppercase">
+                      <span>Daily Hasanat</span>
+                      <Sparkles size={12} />
+                    </div>
+                    <p className="text-lg font-black text-amber-300 font-mono">+1,250 Barakah</p>
+                    <p className="text-[8px] text-slate-400">Level 4 • Seeker of Light</p>
+                  </div>
+                </div>
+
+                {/* Mock Action Buttons with Theme Glow */}
+                <div className="flex gap-2 pt-1">
+                  <button className="flex-1 py-2.5 bg-brand-primary text-brand-depth rounded-xl text-[10px] font-black uppercase tracking-wider shadow-lg shadow-brand-primary/20">
+                    Primary Action
+                  </button>
+                  <button className="px-4 py-2.5 bg-white/10 text-white rounded-xl text-[10px] font-black uppercase tracking-wider border border-white/10 hover:bg-white/15">
+                    Explore Quran
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -432,6 +551,74 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                  </motion.div>
                )}
              </AnimatePresence>
+           </div>
+
+           {/* Tahajjud (Night Vigil) Alarms */}
+           <div className="border-b border-white/5 p-6 hover:bg-white/5 transition-all">
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-5">
+                  <div className="p-3 bg-purple-500/10 rounded-2xl text-purple-400 border border-purple-500/20">
+                    <Moon size={22} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-200">Tahajjud & Qiyam Al-Layl Alarm</p>
+                    <p className="text-xs text-slate-500">Wake up for the blessed Last Third of the Night</p>
+                  </div>
+               </div>
+               <button 
+                  onClick={() => toggleTahajjudSetting(!tahajjudSettings.enabled)}
+                  className={`w-16 h-9 rounded-full transition-all relative ${tahajjudSettings.enabled ? 'bg-purple-500' : 'bg-slate-800'}`}
+                >
+                  <div className={`absolute top-1.5 w-6 h-6 bg-white rounded-full transition-all ${tahajjudSettings.enabled ? 'left-8' : 'left-1.5'} shadow-lg`} />
+                </button>
+             </div>
+
+             {tahajjudSettings.enabled && (
+               <div className="mt-4 pl-16 space-y-2">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alarm Offset</p>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                   {[
+                     { id: 'last_third', label: 'Last 1/3 Start' },
+                     { id: '60_min_before_fajr', label: '60m before Fajr' },
+                     { id: '45_min_before_fajr', label: '45m before Fajr' },
+                     { id: '30_min_before_fajr', label: '30m before Fajr' }
+                   ].map((opt) => (
+                     <button
+                       key={opt.id}
+                       onClick={() => setTahajjudOffsetSetting(opt.id)}
+                       className={`py-2 px-2.5 rounded-xl text-[10px] font-bold text-center transition-all border ${
+                         tahajjudSettings.offset === opt.id
+                           ? 'bg-purple-500/20 text-purple-200 border-purple-400/50'
+                           : 'bg-white/5 text-slate-400 border-white/5 hover:text-white'
+                       }`}
+                     >
+                       {opt.label}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             )}
+           </div>
+
+           {/* White Days (Ayyam al-Beed) Fasting Alarms */}
+           <div className="border-b border-white/5 p-6 hover:bg-white/5 transition-all">
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-5">
+                  <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-400 border border-amber-500/20">
+                    <Flame size={22} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-200">White Days (Ayyam al-Beed) Alarms</p>
+                    <p className="text-xs text-slate-500">Sunnah fasting reminders on 13th, 14th, 15th of lunar month</p>
+                  </div>
+               </div>
+               <button 
+                  onClick={() => toggleWhiteDaysSetting(!whiteDaysSettings.enabled)}
+                  className={`w-16 h-9 rounded-full transition-all relative ${whiteDaysSettings.enabled ? 'bg-amber-500' : 'bg-slate-800'}`}
+                >
+                  <div className={`absolute top-1.5 w-6 h-6 bg-white rounded-full transition-all ${whiteDaysSettings.enabled ? 'left-8' : 'left-1.5'} shadow-lg`} />
+                </button>
+             </div>
            </div>
 
            {/* Community Notifications */}

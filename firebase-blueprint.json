@@ -181,9 +181,26 @@
         "syncedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["surahNumber", "syncedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Global announcement published by admins",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "target": { "type": "string" },
+        "sentBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "createdAt"]
     }
   },
   "firestore": {
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Global broadcasts sent to app users"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User records"

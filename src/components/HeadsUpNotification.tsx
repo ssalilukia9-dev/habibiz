@@ -1,106 +1,127 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { notificationService, AppNotification } from '../services/notificationService';
-import { Bell, X, MessageSquare, ShieldCheck, Info, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AppNotification } from '../services/notificationService.ts';
+import { Bell, X, MessageSquare, ShieldCheck, Info, Sparkles, ArrowRight, Clock } from 'lucide-react';
 
 export default function HeadsUpNotification() {
   const [activeNotification, setActiveNotification] = useState<AppNotification | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleNotification = (e: any) => {
       const notification = e.detail as AppNotification;
+      if (!notification || !notification.title) return;
+      
       setActiveNotification(notification);
       
-      // Auto-dismiss after 6 seconds
-      setTimeout(() => {
+      // Auto-dismiss smoothly after 5.5 seconds
+      const timer = setTimeout(() => {
         setActiveNotification(prev => prev?.id === notification.id ? null : prev);
-      }, 6000);
+      }, 5500);
+
+      return () => clearTimeout(timer);
     };
 
     window.addEventListener('notification_received', handleNotification);
     return () => window.removeEventListener('notification_received', handleNotification);
   }, []);
 
-  const getIcon = (type: string) => {
+  const getIcon = (type?: string) => {
     switch (type) {
-      case 'community': return <MessageSquare size={16} className="text-[#25D366]" />; // WhatsApp color proxy
-      case 'prayer': return <ShieldCheck size={16} className="text-[#A855F7]" />;
-      case 'system': return <Info size={16} className="text-blue-500" />;
-      default: return <Bell size={16} className="text-slate-400" />;
+      case 'community': return <MessageSquare size={16} className="text-emerald-400" />;
+      case 'prayer': return <Clock size={16} className="text-amber-400" />;
+      case 'system': return <Sparkles size={16} className="text-brand-primary" />;
+      default: return <Bell size={16} className="text-brand-primary" />;
     }
   };
 
-  const getAppLabel = (type: string) => {
+  const getAppLabel = (type?: string) => {
     switch (type) {
-      case 'community': return 'Ummah Chat';
-      case 'prayer': return 'Noor Al-Iman';
-      case 'system': return 'Sanctuary System';
-      default: return 'Sanctuary';
+      case 'community': return 'Ummah Hub';
+      case 'prayer': return 'Prayer Reminder';
+      case 'system': return 'Sanctuary OS';
+      default: return 'Sanctuary Signal';
     }
   };
 
-  if (!activeNotification) return null;
+  const handleAction = () => {
+    if (activeNotification?.actionUrl) {
+      const url = activeNotification.actionUrl.startsWith('#')
+        ? `/${activeNotification.actionUrl.substring(1)}`
+        : activeNotification.actionUrl;
+      navigate(url);
+    }
+    setActiveNotification(null);
+  };
 
   return (
     <AnimatePresence>
       {activeNotification && (
-        <div className="fixed top-2 left-0 right-0 z-[9999] flex justify-center px-4 pointer-events-none">
+        <div className="fixed top-3 md:top-4 left-0 right-0 z-[999999] flex justify-center px-3 md:px-4 pointer-events-none">
           <motion.div
-            initial={{ y: -100, opacity: 0, scale: 0.95 }}
+            initial={{ y: -80, opacity: 0, scale: 0.94 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -100, opacity: 0, scale: 0.95 }}
-            className="w-full max-w-md glass-panel pointer-events-auto rounded-[2.5rem] shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] border-white/10 overflow-hidden bg-brand-sidebar/80 backdrop-blur-3xl"
+            exit={{ y: -80, opacity: 0, scale: 0.94 }}
+            transition={{ type: "spring", stiffness: 450, damping: 30 }}
+            className="w-full max-w-md pointer-events-auto bg-brand-sidebar/95 backdrop-blur-2xl border border-brand-primary/35 rounded-[1.8rem] md:rounded-[2.2rem] p-3.5 md:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative overflow-hidden"
           >
-            <div className="p-5">
-              {/* Native Android-style Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                   <div className="w-6 h-6 rounded-full bg-brand-secondary/10 flex items-center justify-center">
-                     {getIcon(activeNotification.type)}
-                   </div>
-                   <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">
-                     {getAppLabel(activeNotification.type)} • Just now
-                   </span>
-                </div>
+            {/* Top subtle highlight shimmer */}
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-brand-primary to-transparent" />
+
+            <div className="flex items-start gap-3">
+              {/* Icon */}
+              <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-brand-primary/15 border border-brand-primary/25 flex items-center justify-center shrink-0 shadow-md shadow-brand-primary/10">
+                {getIcon(activeNotification.type)}
               </div>
 
-              {/* Notification Content */}
-              <div className="flex gap-4 items-start pb-4">
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-black text-white leading-tight">
-                    {activeNotification.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 font-medium line-clamp-2 mt-1 leading-relaxed">
-                    {activeNotification.body}
-                  </p>
+              {/* Text Body */}
+              <div className="flex-1 min-w-0 pr-1 cursor-pointer" onClick={handleAction}>
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-brand-primary">
+                    {getAppLabel(activeNotification.type)}
+                  </span>
+                  <span className="text-[8px] font-mono text-slate-500 uppercase">Now</span>
                 </div>
-                
-                <div className="w-12 h-12 rounded-2xl bg-brand-primary flex items-center justify-center text-brand-depth shadow-xl shadow-brand-primary/20 shrink-0 overflow-hidden">
-                   <Bell size={24} />
-                </div>
+                <h4 className="text-xs md:text-sm font-black text-white leading-tight truncate">
+                  {activeNotification.title}
+                </h4>
+                <p className="text-[11px] md:text-xs text-slate-300 font-medium line-clamp-2 leading-relaxed mt-0.5">
+                  {activeNotification.body}
+                </p>
               </div>
 
-              {/* In-app action bar */}
-              <div className="flex gap-2">
-                 <button 
-                   onClick={() => setActiveNotification(null)}
-                   className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
-                 >
-                   Dismiss
-                 </button>
-                 <button 
-                   onClick={() => {
-                     if (activeNotification.actionUrl) {
-                       window.location.hash = activeNotification.actionUrl;
-                     }
-                     setActiveNotification(null);
-                   }}
-                   className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-brand-secondary rounded-xl hover:scale-105 transition-all shadow-lg shadow-brand-secondary/20"
-                 >
-                   View Sanctuary
-                 </button>
-              </div>
+              {/* Close Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveNotification(null);
+                }}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/10 shrink-0 cursor-pointer"
+                title="Dismiss"
+              >
+                <X size={13} />
+              </button>
             </div>
+
+            {/* Quick action bar if actionUrl is present */}
+            {activeNotification.actionUrl && (
+              <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setActiveNotification(null)}
+                  className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  Dismiss
+                </button>
+                <button
+                  onClick={handleAction}
+                  className="px-3.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-brand-depth bg-brand-primary hover:opacity-95 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-brand-primary/20 cursor-pointer"
+                >
+                  <span>Open</span>
+                  <ArrowRight size={11} />
+                </button>
+              </div>
+            )}
           </motion.div>
         </div>
       )}

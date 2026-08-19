@@ -57,6 +57,7 @@ If a query requires technical legal expertise (Fatwa) beyond your capacity, resp
 Greet the user with "Assalamu Alaikum wa Rahmatullahi wa Barakatuh" in your first response of a session if they haven't initiated the greeting.`;
 
 import { apiFetch } from '../lib/api';
+import { telemetryService } from '../services/telemetryService.ts';
 
 interface Attachment {
   id: string;
@@ -608,6 +609,7 @@ export default function CompanionView({
         };
       }).filter(item => item.parts.length > 0);
 
+      const startTime = Date.now();
       const response = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -616,6 +618,7 @@ export default function CompanionView({
           systemInstruction: SYSTEM_INSTRUCTION
         })
       });
+      const latencyMs = Date.now() - startTime;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -624,6 +627,11 @@ export default function CompanionView({
       
       const data = await response.json();
       const assistantText = data.text || "I apologize, I couldn't process that. Please try again.";
+
+      // Record in Real-Time Telemetry for Admin Hub
+      if (userText) {
+        telemetryService.recordHabibiQuery(userText, 'Salah & Fiqh', latencyMs);
+      }
 
       // 4. Add assistant message
       const assistantMsg: Message = {

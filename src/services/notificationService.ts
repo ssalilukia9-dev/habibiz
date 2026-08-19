@@ -2,12 +2,13 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import OneSignal from 'react-onesignal';
+import { calculateTahajjudTimings, getUpcomingWhiteDays } from './islamicScheduleService.ts';
 
 export interface AppNotification {
   id: string;
   title: string;
   body: string;
-  type: 'prayer' | 'hadith' | 'system' | 'community';
+  type: 'prayer' | 'hadith' | 'system' | 'community' | 'tahajjud' | 'whitedays';
   timestamp: Date;
   read: boolean;
   actionUrl?: string;
@@ -81,17 +82,403 @@ class NotificationService {
       try {
         await LocalNotifications.createChannel({
           id: 'prayer',
-          name: 'Prayer Reminders',
-          description: 'Notifications for prayer/Swalah times and daily reminders',
+          name: 'Prayer Reminders (Adhan)',
+          description: 'Notifications for prayer/Swalah times and Athan calls',
           importance: 5, // High importance -> shows pop-up / heads-up banner
           visibility: 1, // Public visibility -> shows on lock screen
           vibration: true,
           lights: true,
           lightColor: '#A855F7'
         });
-        console.log("Native prayer notification channel initialized.");
+
+        await LocalNotifications.createChannel({
+          id: 'adhkar',
+          name: 'Daily Adhkar & Dua Reminders',
+          description: 'Morning, evening, and bedtime Athkar and prophetic Duas',
+          importance: 4,
+          visibility: 1, // Shows on lock screen
+          vibration: true,
+          lights: true,
+          lightColor: '#10B981'
+        });
+
+        await LocalNotifications.createChannel({
+          id: 'tahajjud',
+          name: 'Tahajjud & Qiyam Al-Layl Alarms',
+          description: 'Awaken for the Last Third of the Night and voluntary night prayer',
+          importance: 5, // High importance for waking up
+          visibility: 1, // Shows on lock screen
+          vibration: true,
+          lights: true,
+          lightColor: '#8B5CF6'
+        });
+
+        await LocalNotifications.createChannel({
+          id: 'whitedays',
+          name: 'White Days (Ayyam al-Beed) Fasting Alarms',
+          description: 'Reminders for Sunnah fasting on the 13th, 14th, and 15th of the lunar month',
+          importance: 4,
+          visibility: 1, // Shows on lock screen
+          vibration: true,
+          lights: true,
+          lightColor: '#F59E0B'
+        });
+
+        await LocalNotifications.createChannel({
+          id: 'community',
+          name: 'Community & Chat Alerts',
+          description: 'Messages, halal community discussions and announcements',
+          importance: 4,
+          visibility: 1, // Shows on lock screen
+          vibration: true,
+          lights: true,
+          lightColor: '#3B82F6'
+        });
+
+        console.log("Native notification channels initialized successfully for APK build.");
       } catch (e) {
-        console.warn("Failed to create native notification channel:", e);
+        console.warn("Failed to create native notification channels:", e);
+      }
+    }
+  }
+
+  async scheduleTahajjudNotifications(prayerTimes: Record<string, string>) {
+    const saved = localStorage.getItem('tahajjud-reminder-settings');
+    const settings = saved ? JSON.parse(saved) : { enabled: true, offset: 'last_third' };
+
+    if (!settings.enabled) {
+      console.log("Tahajjud alarms are disabled by user preference.");
+      return;
+    }
+
+    const maghrib = prayerTimes['Maghrib'] || '18:40';
+    const fajr = prayerTimes['Fajr'] || '05:15';
+    const tahajjudInfo = calculateTahajjudTimings(maghrib, fajr);
+
+    const nativeTahajjudList: any[] = [];
+    const webTahajjudList: any[] = [];
+
+    for (let dayOffset = 0; dayOffset <= 2; dayOffset++) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + dayOffset);
+
+      const [fH, fM] = fajr.split(':').map(Number);
+      const fajrDate = new Date(targetDate);
+      fajrDate.setHours(fH, fM, 0, 0);
+
+      // Determine alarm time based on offset preference
+      let alarmDate = new Date(tahajjudInfo.startTime);
+      alarmDate.setDate(targetDate.getDate());
+
+      if (settings.offset === '60_min_before_fajr') {
+        alarmDate = new Date(fajrDate.getTime() - 60 * 60 * 1000);
+      } else if (settings.offset === '45_min_before_fajr') {
+        alarmDate = new Date(fajrDate.getTime() - 45 * 60 * 1000);
+      } else if (settings.offset === '30_min_before_fajr') {
+        alarmDate = new Date(fajrDate.getTime() - 30 * 60 * 1000);
+      }
+
+      if (alarmDate.getTime() > Date.now()) {
+        const timeFormatted = alarmDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        webTahajjudList.push({
+          time: alarmDate.toISOString(),
+          displayTime: timeFormatted,
+          title: '🌌 Tahajjud & Last Third of the Night',
+          body: 'The gates of divine mercy are open. "Is there anyone asking that I may give?" Answer the call to Qiyam.',
+          actionUrl: '/?tab=resources&resId=adhkar#tahajjud'
+        });
+
+        nativeTahajjudList.push({
+          id: 4001 + dayOffset,
+          title: `🌌 Time for Tahajjud (${timeFormatted})`,
+          body: 'The Lord descends in the last third of the night. Stand in Qiyam and seek forgiveness.',
+          channelId: 'tahajjud',
+          schedule: { at: alarmDate },
+          extra: { actionUrl: '/?tab=resources&resId=adhkar#tahajjud' }
+        });
+      }
+    }
+
+    // Sync to SW
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'SCHEDULE_TAHAJJUD_NOTIFICATIONS',
+            schedule: webTahajjudList
+          });
+        }
+      } catch (e) {
+        console.warn("SW Tahajjud sync failed:", e);
+      }
+    }
+
+    // Native Capacitor Scheduling
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const pending = await LocalNotifications.getPending();
+        const existing = pending.notifications
+          .filter(n => n.id >= 4000 && n.id <= 4050)
+          .map(n => ({ id: n.id }));
+
+        if (existing.length > 0) {
+          await LocalNotifications.cancel({ notifications: existing });
+        }
+
+        if (nativeTahajjudList.length > 0) {
+          await LocalNotifications.schedule({ notifications: nativeTahajjudList });
+          console.log(`Scheduled ${nativeTahajjudList.length} native Tahajjud alarms.`);
+        }
+      } catch (err) {
+        console.warn("Failed to schedule native Tahajjud alarms:", err);
+      }
+    }
+  }
+
+  async scheduleWhiteDaysNotifications() {
+    const saved = localStorage.getItem('whitedays-reminder-settings');
+    const settings = saved ? JSON.parse(saved) : { enabled: true, eveningBefore: true, suhoorMorning: true };
+
+    if (!settings.enabled) {
+      console.log("White days alarms are disabled by user preference.");
+      return;
+    }
+
+    const { currentMonthDays, nextMonthDays } = getUpcomingWhiteDays();
+    const allDays = [...currentMonthDays, ...nextMonthDays];
+
+    const nativeWhiteDaysList: any[] = [];
+    const webWhiteDaysList: any[] = [];
+    let idCounter = 5001;
+
+    for (const wd of allDays) {
+      // 1. Evening before (at 20:00 / 8:00 PM)
+      if (settings.eveningBefore) {
+        const eveningDate = new Date(wd.gregorianDate);
+        eveningDate.setDate(eveningDate.getDate() - 1);
+        eveningDate.setHours(20, 0, 0, 0);
+
+        if (eveningDate.getTime() > Date.now()) {
+          const bodyText = `Tomorrow is the ${wd.hijriDay}th of ${wd.hijriMonthName} (Sunnah White Day Fast). Prepare your intention and Suhoor.`;
+          
+          webWhiteDaysList.push({
+            time: eveningDate.toISOString(),
+            title: `🌙 White Day Fast Tomorrow (${wd.hijriDay}th ${wd.hijriMonthName})`,
+            body: bodyText,
+            actionUrl: '/?tab=resources&resId=calendar'
+          });
+
+          nativeWhiteDaysList.push({
+            id: idCounter++,
+            title: `🌙 White Day Fast Tomorrow (${wd.hijriDay}th ${wd.hijriMonthName})`,
+            body: bodyText,
+            channelId: 'whitedays',
+            schedule: { at: eveningDate },
+            extra: { actionUrl: '/?tab=resources&resId=calendar' }
+          });
+        }
+      }
+
+      // 2. Morning of White Day (at 04:30 AM for Suhoor)
+      if (settings.suhoorMorning) {
+        const morningDate = new Date(wd.gregorianDate);
+        morningDate.setHours(4, 30, 0, 0);
+
+        if (morningDate.getTime() > Date.now()) {
+          const bodyText = `Suhoor time for the ${wd.hijriDay}th of ${wd.hijriMonthName}. Fasting 3 days every month carries the reward of fasting the whole year.`;
+
+          webWhiteDaysList.push({
+            time: morningDate.toISOString(),
+            title: `✨ Suhoor for White Day Fast (${wd.hijriDay}th ${wd.hijriMonthName})`,
+            body: bodyText,
+            actionUrl: '/?tab=resources&resId=calendar'
+          });
+
+          nativeWhiteDaysList.push({
+            id: idCounter++,
+            title: `✨ Suhoor for White Day Fast (${wd.hijriDay}th ${wd.hijriMonthName})`,
+            body: bodyText,
+            channelId: 'whitedays',
+            schedule: { at: morningDate },
+            extra: { actionUrl: '/?tab=resources&resId=calendar' }
+          });
+        }
+      }
+    }
+
+    // Sync to SW
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'SCHEDULE_WHITEDAYS_NOTIFICATIONS',
+            schedule: webWhiteDaysList
+          });
+        }
+      } catch (e) {
+        console.warn("SW White Days sync failed:", e);
+      }
+    }
+
+    // Native Capacitor Scheduling
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const pending = await LocalNotifications.getPending();
+        const existing = pending.notifications
+          .filter(n => n.id >= 5000 && n.id <= 5050)
+          .map(n => ({ id: n.id }));
+
+        if (existing.length > 0) {
+          await LocalNotifications.cancel({ notifications: existing });
+        }
+
+        if (nativeWhiteDaysList.length > 0) {
+          await LocalNotifications.schedule({ notifications: nativeWhiteDaysList });
+          console.log(`Scheduled ${nativeWhiteDaysList.length} native White Days fasting alarms.`);
+        }
+      } catch (err) {
+        console.warn("Failed to schedule native White Days alarms:", err);
+      }
+    }
+  }
+
+  async triggerTestTahajjudAlarm(delaySeconds: number = 3) {
+    const isGranted = await this.requestPermission();
+    if (!isGranted) return false;
+
+    const title = "🌌 Tahajjud & Last Third of Night Alarm";
+    const body = "The Lord descends to the lowest heaven. Stand in devotion and make Du'a in this blessed hour.";
+
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'TEST_CUSTOM_ALARM',
+            delayMs: delaySeconds * 1000,
+            title,
+            body,
+            tag: 'tahajjud-test'
+          });
+        }
+      } catch (e) {}
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: 9998,
+            title,
+            body,
+            channelId: 'tahajjud',
+            schedule: { at: new Date(Date.now() + delaySeconds * 1000) },
+            extra: { actionUrl: '/resources?tab=adhkar' }
+          }]
+        });
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      this.notify(title, body, 'tahajjud', '/resources?tab=adhkar');
+    }, delaySeconds * 1000);
+
+    return true;
+  }
+
+  async triggerTestWhiteDaysAlarm(delaySeconds: number = 3) {
+    const isGranted = await this.requestPermission();
+    if (!isGranted) return false;
+
+    const title = "🌙 White Days Sunnah Fast Alarm (13th, 14th, 15th)";
+    const body = "Reminder for Ayyam al-Beed Sunnah Fasting. Prepare Suhoor and purify your soul.";
+
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.active) {
+          registration.active.postMessage({
+            type: 'TEST_CUSTOM_ALARM',
+            delayMs: delaySeconds * 1000,
+            title,
+            body,
+            tag: 'whitedays-test'
+          });
+        }
+      } catch (e) {}
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: 9997,
+            title,
+            body,
+            channelId: 'whitedays',
+            schedule: { at: new Date(Date.now() + delaySeconds * 1000) },
+            extra: { actionUrl: '/resources?tab=calendar' }
+          }]
+        });
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      this.notify(title, body, 'whitedays', '/resources?tab=calendar');
+    }, delaySeconds * 1000);
+
+    return true;
+  }
+
+  async scheduleDailyAdhkarAndDuaReminders() {
+    const reminders = [
+      { id: 3001, hour: 7, minute: 0, title: '🌅 Morning Adhkar & Protection Duas', body: 'Begin your morning with the remembrance of Allah. Recite Ayat al-Kursi & the 3 Quls for full protection.', actionUrl: '/resources?tab=adhkar&section=morning' },
+      { id: 3002, hour: 17, minute: 30, title: '🌇 Evening Adhkar & Prophetic Duas', body: 'The sun is setting. Safeguard your soul and family with the evening remembrance and forgiveness prayers.', actionUrl: '/resources?tab=adhkar&section=evening' },
+      { id: 3003, hour: 22, minute: 0, title: '🌌 Bedtime Adhkar & Surat Al-Mulk', body: 'Prepare for peaceful rest with Surah Al-Mulk and bedtime remembrance. Sleep in the state of purity and Wudu.', actionUrl: '/resources?tab=adhkar&section=sleep' }
+    ];
+
+    const nativeAdhkarList: any[] = [];
+    const now = new Date();
+
+    for (let dayOffset = 0; dayOffset <= 3; dayOffset++) {
+      for (const rem of reminders) {
+        const schedDate = new Date();
+        schedDate.setDate(now.getDate() + dayOffset);
+        schedDate.setHours(rem.hour, rem.minute, 0, 0);
+
+        if (schedDate.getTime() > Date.now()) {
+          nativeAdhkarList.push({
+            id: rem.id + (dayOffset * 10),
+            title: rem.title,
+            body: rem.body,
+            channelId: 'adhkar',
+            schedule: { at: schedDate },
+            extra: { actionUrl: rem.actionUrl }
+          });
+        }
+      }
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const pending = await LocalNotifications.getPending();
+        const existingAdhkar = pending.notifications
+          .filter(n => n.id >= 3000 && n.id <= 3100)
+          .map(n => ({ id: n.id }));
+        
+        if (existingAdhkar.length > 0) {
+          await LocalNotifications.cancel({ notifications: existingAdhkar });
+        }
+
+        if (nativeAdhkarList.length > 0) {
+          await LocalNotifications.schedule({ notifications: nativeAdhkarList });
+          console.log(`Scheduled ${nativeAdhkarList.length} daily Adhkar & Dua native reminders.`);
+        }
+      } catch (err) {
+        console.warn("Failed to schedule native daily Adhkar alarms:", err);
       }
     }
   }
@@ -507,6 +894,12 @@ class NotificationService {
     } catch (e) {
       console.warn("Could not play notification sound", e);
     }
+  }
+
+  async sendDirectPushNotification(userId: string, title: string, body: string, actionUrl?: string) {
+    // Send standard in-app heads-up and persistent notification
+    await this.notify(title, body, 'system', actionUrl);
+    console.log(`[NotificationService] Direct push alert sent to user ${userId}:`, title);
   }
 
   private vibrate() {

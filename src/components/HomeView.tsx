@@ -24,10 +24,21 @@ import {
   Heart,
   Target,
   Crown,
-  Star
+  Star,
+  CheckCircle2,
+  Check,
+  CheckSquare,
+  Award,
+  Activity,
+  RotateCcw,
+  Plus,
+  HeartHandshake,
+  Volume2,
+  Pause
 } from 'lucide-react';
 import { getDailyHadith } from '../data/hadiths.ts';
 import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerService.ts';
+import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import DailyVirtues from './DailyVirtues.tsx';
 import RamadanHub from './RamadanHub.tsx';
 import salamSoulBg from '../assets/images/salam_soul_bg_1783445291609.jpg';
@@ -68,6 +79,14 @@ export default function HomeView({
   const [prayerData, setPrayerData] = useState<PrayerTimeData | null>(null);
   const [notifiedPrayers, setNotifiedPrayers] = useState<Set<string>>(new Set());
   const [lastRead, setLastRead] = useState<any>(null);
+  const [voicePlayback, setVoicePlayback] = useState<VoicePlaybackState>(VoiceService.getState());
+
+  useEffect(() => {
+    const unsub = VoiceService.subscribe(setVoicePlayback);
+    return () => {
+      unsub();
+    };
+  }, []);
 
   // Force Ramadan Mode State & Listener
   const [forceRamadan, setForceRamadan] = useState(() => {
@@ -98,6 +117,118 @@ export default function HomeView({
       onNavigate('quran');
     }
   };
+
+  // Daily Vigor Trackers State (Persisted per calendar day)
+  const todayKey = new Date().toDateString();
+
+  const [prayersCompleted, setPrayersCompleted] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`daily_vigor_prayers_${todayKey}`);
+      return saved ? JSON.parse(saved) : { Fajr: false, Dhuhr: false, Asr: false, Maghrib: false, Isha: false };
+    } catch {
+      return { Fajr: false, Dhuhr: false, Asr: false, Maghrib: false, Isha: false };
+    }
+  });
+
+  const [hadithReflected, setHadithReflected] = useState<boolean>(() => {
+    return localStorage.getItem(`daily_vigor_hadith_${todayKey}`) === 'true';
+  });
+
+  const [quranAyahsRead, setQuranAyahsRead] = useState<number>(() => {
+    return parseInt(localStorage.getItem(`daily_vigor_quran_${todayKey}`) || '0', 10);
+  });
+
+  const [dhikrCount, setDhikrCount] = useState<number>(() => {
+    return parseInt(localStorage.getItem(`daily_vigor_dhikr_${todayKey}`) || '33', 10);
+  });
+
+  const [dhikrPhraseIdx, setDhikrPhraseIdx] = useState<number>(0);
+  const dhikrPhrases = [
+    { ar: 'سُبْحَانَ اللَّهِ', en: 'SubhanAllah', tr: 'Glory be to Allah' },
+    { ar: 'الْحَمْدُ لِلَّهِ', en: 'Alhamdulillah', tr: 'Praise be to Allah' },
+    { ar: 'اللَّهُ أَكْبَرُ', en: 'Allahu Akbar', tr: 'Allah is the Greatest' },
+    { ar: 'أَسْتَغْفِرُ اللَّهَ', en: 'Astaghfirullah', tr: 'I seek Allah\'s forgiveness' },
+    { ar: 'لَا إِلَهَ إِلَّا اللَّهُ', en: 'La ilaha illallah', tr: 'None worthy of worship but Allah' }
+  ];
+
+  const [isFastingToday, setIsFastingToday] = useState<boolean>(() => {
+    return localStorage.getItem(`daily_vigor_fasting_${todayKey}`) === 'true';
+  });
+
+  const [sadaqahGiven, setSadaqahGiven] = useState<boolean>(() => {
+    return localStorage.getItem(`daily_vigor_sadaqah_${todayKey}`) === 'true';
+  });
+
+  // Trackers Handlers
+  const togglePrayerCompleted = (prayerName: string) => {
+    const nextState = !prayersCompleted[prayerName];
+    const updated = { ...prayersCompleted, [prayerName]: nextState };
+    setPrayersCompleted(updated);
+    localStorage.setItem(`daily_vigor_prayers_${todayKey}`, JSON.stringify(updated));
+    if (nextState && addHasanat) {
+      addHasanat(15);
+    }
+  };
+
+  const toggleHadithReflected = () => {
+    const next = !hadithReflected;
+    setHadithReflected(next);
+    localStorage.setItem(`daily_vigor_hadith_${todayKey}`, String(next));
+    if (next && addHasanat) {
+      addHasanat(20);
+    }
+  };
+
+  const incrementQuranAyahs = (amount: number) => {
+    const next = quranAyahsRead + amount;
+    setQuranAyahsRead(next);
+    localStorage.setItem(`daily_vigor_quran_${todayKey}`, String(next));
+    if (addHasanat) {
+      addHasanat(amount * 5);
+    }
+  };
+
+  const incrementDhikr = (amount: number = 1) => {
+    const next = dhikrCount + amount;
+    setDhikrCount(next);
+    localStorage.setItem(`daily_vigor_dhikr_${todayKey}`, String(next));
+    if (addHasanat && amount >= 33) {
+      addHasanat(25);
+    } else if (addHasanat && next % 33 === 0) {
+      addHasanat(10);
+    }
+  };
+
+  const toggleFastingToday = () => {
+    const next = !isFastingToday;
+    setIsFastingToday(next);
+    localStorage.setItem(`daily_vigor_fasting_${todayKey}`, String(next));
+    if (next && addHasanat) {
+      addHasanat(35);
+    }
+  };
+
+  const toggleSadaqah = () => {
+    const next = !sadaqahGiven;
+    setSadaqahGiven(next);
+    localStorage.setItem(`daily_vigor_sadaqah_${todayKey}`, String(next));
+    if (next && addHasanat) {
+      addHasanat(30);
+    }
+  };
+
+  const completedPrayersCount = Object.values(prayersCompleted).filter(Boolean).length;
+  
+  // Calculate Daily Vigor Score out of 6 total spiritual pillars
+  const totalCompletedPillars = 
+    (completedPrayersCount === 5 ? 1 : completedPrayersCount > 0 ? 0.5 : 0) +
+    (hadithReflected ? 1 : 0) +
+    (quranAyahsRead >= 5 ? 1 : quranAyahsRead > 0 ? 0.5 : 0) +
+    (dhikrCount >= 33 ? 1 : 0) +
+    (isFastingToday ? 1 : 0) +
+    (sadaqahGiven ? 1 : 0);
+  
+  const vigorPercentage = Math.min(100, Math.round((totalCompletedPillars / 6) * 100));
 
   const handleHadithClick = () => {
     // Navigate to shared hadith view
@@ -462,39 +593,7 @@ export default function HomeView({
         />
       )}
 
-      {/* 2. PROGRESS STRIP */}
-      <div id="tour-progress-stats" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          { label: 'Verses Read', val: versesRead, icon: BookOpen, color: 'text-purple-400', bg: 'bg-purple-400/10', total: 6236, action: () => onNavigate('quran') },
-          { label: 'Hadith Streak', val: streak, icon: Flame, color: 'text-orange-400', bg: 'bg-orange-400/10', unit: 'Days', action: handleHadithClick },
-          { label: 'Spiritual Rank', val: rank, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-400/10', sub: `Level ${level}`, action: () => onNavigate('profile') }
-        ].map((item) => (
-          <div 
-            key={item.label}
-            onClick={item.action}
-            className="glass-panel p-8 rounded-[2.5rem] border-white/5 bg-white/[0.02] flex items-center gap-6 group cursor-pointer transition-colors duration-300 hover:border-brand-primary/30"
-          >
-            <div className={`w-16 h-16 rounded-[1.5rem] ${item.bg} flex items-center justify-center ${item.color} transition-all shadow-inner`}>
-              <item.icon size={28} />
-            </div>
-            <div className="flex-1">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{item.label}</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white tabular-nums">{item.val}</span>
-                {item.unit && <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>}
-                {item.sub && <span className="text-[10px] font-bold text-slate-400 uppercase">{item.sub}</span>}
-              </div>
-              {item.total && (
-                <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden p-[1px]">
-                  <div className={`h-full ${item.color.replace('text', 'bg')} rounded-full`} style={{ width: `${Math.min((versesRead/item.total)*100, 100)}%` }} />
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 3. THE CENTERPIECE: SPIRITUAL REVELATION */}
+      {/* 2. THE CENTERPIECE: SPIRITUAL REVELATION */}
       <div id="tour-daily-centerpiece" className="relative">
         <div 
           onClick={() => onNavigate(dailyRevelation.link.tab, dailyRevelation.link.extra)}
@@ -527,7 +626,36 @@ export default function HomeView({
               </p>
             </div>
 
-            <div className="pt-6">
+            <div className="pt-6 flex flex-wrap items-center justify-center gap-4">
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   const id = 'home-daily-revelation';
+                   if (voicePlayback.isPlaying && voicePlayback.activeId === id) {
+                     VoiceService.stop();
+                   } else {
+                     VoiceService.speakBoth(dailyRevelation.arabic, dailyRevelation.translation, id);
+                   }
+                 }}
+                 className={`px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest flex items-center gap-3 transition-all cursor-pointer shadow-xl active:scale-95 ${
+                   voicePlayback.isPlaying && voicePlayback.activeId === 'home-daily-revelation'
+                     ? 'bg-amber-500 hover:bg-amber-600 text-black shadow-amber-500/20'
+                     : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                 }`}
+               >
+                 {voicePlayback.isPlaying && voicePlayback.activeId === 'home-daily-revelation' ? (
+                   <>
+                     <Pause size={16} className="fill-current" />
+                     <span>Stop Voice</span>
+                   </>
+                 ) : (
+                   <>
+                     <Volume2 size={16} />
+                     <span>Recite Voice</span>
+                   </>
+                 )}
+               </button>
+
                <button className="px-10 py-4 bg-white text-black font-black rounded-full hover:bg-slate-100 active:scale-95 transition-all text-xs uppercase tracking-widest shadow-white/20 shadow-2xl flex items-center gap-3 cursor-pointer">
                   {dailyRevelation.type === 'quran' ? 'Open Quran' : 'Learn Wisdom'} <ArrowRight size={16} />
                </button>
@@ -560,76 +688,431 @@ export default function HomeView({
          ))}
       </div>
 
-      {/* MOMENTUM & QIBLA SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Momentum */}
-        <div className="lg:col-span-8 glass-panel p-8 md:p-12 rounded-[3.5rem] border-white/5 bg-gradient-to-br from-brand-primary/5 to-transparent space-y-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-1 text-center md:text-left">
-              <h3 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter">Daily Vigor</h3>
-              <p className="text-slate-400 font-medium text-xs tracking-wide">Sync your soul with the divine rhythm</p>
+      {/* MOMENTUM & DAILY VIGOR SECTION */}
+      <div id="tour-daily-vigor" className="glass-panel p-8 md:p-14 rounded-[3.5rem] border-white/10 bg-gradient-to-br from-brand-primary/15 via-brand-sidebar to-black/60 space-y-10 shadow-2xl">
+        {/* Header & Vitality Score */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 pb-6 border-b border-white/10">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black uppercase tracking-[0.35em] text-brand-primary flex items-center gap-1.5">
+                <Sparkles size={14} /> Spiritual Vitality & Tracker
+              </span>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black font-mono">
+                {vigorPercentage}% Completed
+              </span>
             </div>
-            <div className="flex gap-4">
-               {[
-                 { label: 'Prayers', val: '5/5', color: 'text-emerald-400' },
-                 { label: 'Dhikr', val: '330', color: 'text-blue-400' }
-               ].map(stat => (
-                 <div key={stat.label} className="text-center px-5 py-3 bg-white/5 rounded-2xl border border-white/5">
-                    <p className={`text-xl font-black ${stat.color}`}>{stat.val}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{stat.label}</p>
-                 </div>
-               ))}
+            <h3 className="text-3xl sm:text-4xl md:text-5xl font-black text-white italic tracking-tight">
+              Daily Vigor
+            </h3>
+            <p className="text-slate-300 font-normal text-sm md:text-base leading-relaxed">
+              Cultivate consistency in your worship. Track your 5 daily prayers, Quran recitation, prophetic hadith reflection, tasbih beads, fasting, and charity.
+            </p>
+          </div>
+
+          {/* Quick Counter Badges */}
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+            <div className="text-center px-5 py-3.5 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-md">
+              <p className="text-xl font-black text-emerald-400 font-mono">{completedPrayersCount}/5</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Prayers</p>
+            </div>
+            <div className="text-center px-5 py-3.5 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-md">
+              <p className="text-xl font-black text-blue-400 font-mono">{dhikrCount}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dhikr Beads</p>
+            </div>
+            <div className="text-center px-5 py-3.5 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-md">
+              <p className="text-xl font-black text-amber-400 font-mono">{quranAyahsRead}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Ayahs Read</p>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-7 bg-white/[0.02] rounded-[2.5rem] border border-white/5 space-y-4 group hover:border-orange-500/30 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                  <Flame size={20} />
-                </div>
-                <h4 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Growth Task</h4>
+        </div>
+
+        {/* Spacious Overall Progress Bar */}
+        <div className="space-y-2.5">
+          <div className="flex justify-between text-xs font-black uppercase tracking-wider text-slate-300">
+            <span>Daily Spiritual Disciplines ({totalCompletedPillars} of 6 Completed)</span>
+            <span className="text-brand-primary font-mono text-sm">{vigorPercentage}%</span>
+          </div>
+          <div className="h-3 w-full bg-black/60 rounded-full overflow-hidden border border-white/10 p-[1.5px]">
+            <div 
+              className="h-full bg-gradient-to-r from-brand-primary via-emerald-400 to-amber-300 rounded-full transition-all duration-700 shadow-[0_0_16px_rgba(168,85,247,0.6)]"
+              style={{ width: `${vigorPercentage}%` }}
+            />
+          </div>
+        </div>
+        
+        {/* TRACKER 1: 5 DAILY PRAYERS TRACKER (SPACIOUS & INTERACTIVE) */}
+        <div className="p-8 md:p-10 rounded-[2.5rem] bg-black/50 border border-white/10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black shadow-lg">
+                <Sunrise size={22} />
               </div>
-              <p className="text-sm text-slate-200 font-bold leading-relaxed">Consider fasting tomorrow for the sake of Allah (Sunnah).</p>
-              <button className="w-full py-3 bg-orange-500 text-orange-950 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-orange-500/15 cursor-pointer">Challenge Myself</button>
+              <div>
+                <h4 className="text-base font-black text-white uppercase tracking-wider">5 Daily Prayers Tracker</h4>
+                <p className="text-xs text-slate-400">Tap prayer cards upon completion to claim +15 Hasanat each</p>
+              </div>
             </div>
-            
-            <div className="p-7 bg-indigo-500/5 rounded-[2.5rem] border border-indigo-500/10 space-y-4 group hover:border-indigo-500/40 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-pink-300">
-                  <Sparkles size={20} />
+            <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border self-start sm:self-auto ${
+              completedPrayersCount === 5 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-slate-300 border-white/10'
+            }`}>
+              {completedPrayersCount === 5 ? 'All 5 Prayers Completed ✓' : `${5 - completedPrayersCount} Remaining Today`}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[
+              { name: 'Fajr', icon: Sunrise, time: prayerData ? formatTime(prayerData.fajr) : '05:15 AM' },
+              { name: 'Dhuhr', icon: Sun, time: prayerData ? formatTime(prayerData.dhuhr) : '12:30 PM' },
+              { name: 'Asr', icon: CloudSun, time: prayerData ? formatTime(prayerData.asr) : '03:45 PM' },
+              { name: 'Maghrib', icon: Sunset, time: prayerData ? formatTime(prayerData.maghrib) : '06:40 PM' },
+              { name: 'Isha', icon: Moon, time: prayerData ? formatTime(prayerData.isha) : '08:05 PM' }
+            ].map((p) => {
+              const isDone = !!prayersCompleted[p.name];
+              return (
+                <button
+                  key={p.name}
+                  onClick={() => togglePrayerCompleted(p.name)}
+                  className={`p-5 rounded-3xl border transition-all flex flex-col items-center text-center gap-3 cursor-pointer relative overflow-hidden group hover:scale-[1.02] active:scale-[0.98] ${
+                    isDone 
+                      ? 'bg-gradient-to-b from-emerald-500/25 to-emerald-950/40 border-emerald-500/60 text-white shadow-xl shadow-emerald-500/15' 
+                      : 'bg-white/[0.03] border-white/10 text-slate-300 hover:border-white/20 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <p.icon size={18} className={isDone ? 'text-emerald-400' : 'text-slate-400'} />
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all ${
+                      isDone ? 'bg-emerald-400 text-black font-black shadow-md' : 'border border-slate-600 group-hover:border-slate-400'
+                    }`}>
+                      {isDone && <Check size={14} />}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-black text-sm text-white tracking-wide">{p.name}</p>
+                    <p className="text-xs font-mono text-slate-400">{p.time}</p>
+                  </div>
+                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                    isDone ? 'bg-emerald-400/20 text-emerald-300' : 'text-slate-500'
+                  }`}>
+                    {isDone ? 'Prayed +15' : '+15 Hasanat'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* TRACKER 2 & 3: DAILY HADITH TRACKER & QURAN RECITATION TRACKER (ROOMY DUAL GRID) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Hadith Reflection Tracker */}
+          <div className="p-8 rounded-[2.5rem] bg-black/40 border border-white/10 space-y-6 flex flex-col justify-between hover:border-brand-primary/40 transition-all">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 shadow-md">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white uppercase tracking-wider">Daily Hadith Reflection</h4>
+                    <p className="text-xs text-slate-400">Prophetic Wisdom of the Day</p>
+                  </div>
                 </div>
-                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">AI Reflection</h4>
+                {hadithReflected && (
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/30">
+                    Reflected ✓
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-slate-200 font-bold leading-relaxed">Seek deeper understanding from your Spiritual AI Companion.</p>
+
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                <p className="text-xs font-black text-brand-primary uppercase tracking-widest">{dailyHadith.narrator}</p>
+                <p className="text-sm text-slate-200 font-medium leading-relaxed italic">
+                  "{dailyHadith.english}"
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
               <button 
-                onClick={() => onNavigate('companion')} 
-                className="w-full py-3 bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-indigo-500/15 cursor-pointer"
+                onClick={toggleHadithReflected}
+                className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer ${
+                  hadithReflected 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30' 
+                    : 'bg-brand-primary text-brand-depth hover:bg-brand-primary/90 shadow-xl shadow-brand-primary/25'
+                }`}
               >
-                Spark Discussion
+                {hadithReflected ? 'Reflected Today ✓ (+20 Hasanat)' : 'Mark Reflected (+20 Hasanat)'}
+              </button>
+              <button 
+                onClick={handleHadithClick}
+                className="px-5 py-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl text-xs font-black uppercase tracking-wider border border-white/10 transition-colors flex items-center gap-2 cursor-pointer"
+                title="Explore All Hadiths"
+              >
+                <BookOpen size={16} />
+                <span>Library</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quran Recitation Tracker */}
+          <div className="p-8 rounded-[2.5rem] bg-black/40 border border-white/10 space-y-6 flex flex-col justify-between hover:border-amber-500/40 transition-all">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-md">
+                    <BookOpen size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white uppercase tracking-wider">Quran Recitation Tracker</h4>
+                    <p className="text-xs text-slate-400">Daily Recitation Goal: 10 Ayahs</p>
+                  </div>
+                </div>
+                <span className="text-sm font-mono font-black text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-2xl border border-amber-400/20">
+                  {quranAyahsRead} Ayahs
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                <div className="flex justify-between text-xs font-bold text-slate-300 uppercase">
+                  <span>Today's Recitation Progress</span>
+                  <span className="text-amber-400 font-mono">{Math.min(100, Math.round((quranAyahsRead / 10) * 100))}%</span>
+                </div>
+                <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden border border-white/5">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-500 to-amber-300 rounded-full transition-all duration-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                    style={{ width: `${Math.min(100, (quranAyahsRead / 10) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button 
+                onClick={() => incrementQuranAyahs(1)}
+                className="flex-1 py-4 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all cursor-pointer"
+              >
+                +1 Ayah
+              </button>
+              <button 
+                onClick={() => incrementQuranAyahs(5)}
+                className="flex-1 py-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-black rounded-2xl text-xs uppercase tracking-widest active:scale-95 transition-all cursor-pointer"
+              >
+                +5 Ayahs
+              </button>
+              <button 
+                onClick={() => onNavigate('quran')}
+                className="px-5 py-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl text-xs font-black uppercase tracking-wider border border-white/10 transition-colors cursor-pointer flex items-center gap-2"
+                title="Open Quran Reader"
+              >
+                <BookOpen size={16} />
+                <span>Read</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Qibla Card */}
-        <div className="lg:col-span-4 glass-panel p-8 md:p-10 rounded-[3.5rem] border-white/5 bg-black/40 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden">
-           <div className="w-28 h-28 rounded-full border-2 border-brand-primary/20 flex items-center justify-center relative">
-              <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-[0_0_30px_rgba(168,85,247,0.2)]">
-                 <Compass size={36} />
+        {/* TRACKER 4, 5 & 6: DIGITAL TASBIH DHIKR, FASTING (SAWM) & SADAQAH */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Dhikr Tasbih Tracker */}
+          <div className="p-7 bg-black/40 rounded-[2.5rem] border border-white/10 space-y-5 flex flex-col justify-between hover:border-blue-500/40 transition-all">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                  <Sparkles size={14} /> Dhikr Counter
+                </span>
+                <button
+                  onClick={() => setDhikrPhraseIdx((prev) => (prev + 1) % dhikrPhrases.length)}
+                  className="text-[9px] font-black uppercase text-slate-300 hover:text-white px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 cursor-pointer transition-colors"
+                >
+                  Switch ⟳
+                </button>
               </div>
-           </div>
-           <div className="space-y-2 relative z-10">
-              <h4 className="text-xl font-black text-white italic">Qibla Path</h4>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Align yourself towards the Holy Kaaba in Makkah.</p>
-           </div>
-           <button 
-             onClick={() => onNavigate('resources', { resId: 'qibla' })}
-             className="px-8 py-3.5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-slate-100 active:scale-95 transition-all shadow-lg shadow-white/10 cursor-pointer"
-           >
-             Open Finder
-           </button>
+
+              <div className="text-center py-4 px-3 bg-white/[0.02] rounded-2xl border border-white/5 space-y-1">
+                <p className="arabic-text text-xl text-white font-bold">{dhikrPhrases[dhikrPhraseIdx].ar}</p>
+                <p className="text-xs text-blue-300 font-bold">{dhikrPhrases[dhikrPhraseIdx].en}</p>
+                <p className="text-3xl font-black text-white font-mono pt-1">{dhikrCount}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => incrementDhikr(1)}
+                className="flex-1 py-3.5 bg-blue-500 hover:bg-blue-400 text-blue-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all cursor-pointer"
+              >
+                +1 Bead
+              </button>
+              <button
+                onClick={() => incrementDhikr(33)}
+                className="px-4 py-3.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 font-black rounded-2xl text-xs uppercase tracking-wider cursor-pointer"
+              >
+                +33 Set
+              </button>
+            </div>
+          </div>
+
+          {/* Fasting / Sawm Tracker */}
+          <div className="p-7 bg-black/40 rounded-[2.5rem] border border-white/10 space-y-5 flex flex-col justify-between hover:border-orange-500/40 transition-all">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-widest text-orange-400 flex items-center gap-2">
+                  <Flame size={14} /> Sawm Tracker
+                </span>
+                {isFastingToday && (
+                  <span className="text-[9px] font-black uppercase text-orange-400 bg-orange-500/20 px-2.5 py-1 rounded-full border border-orange-500/30">
+                    Fasting Logged
+                  </span>
+                )}
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                <p className="text-sm font-bold text-white leading-tight">Sunnah & Voluntary Fast</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {isFastingToday ? "Mubarak! Fasting today for the sake of Allah (+35 Hasanat)." : "Log fasting for Mondays, Thursdays, or White Days (13, 14, 15)."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={toggleFastingToday}
+              className={`w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                isFastingToday 
+                  ? 'bg-orange-500 text-orange-950 shadow-lg font-black' 
+                  : 'bg-white/5 text-slate-200 border border-white/10 hover:bg-white/10'
+              }`}
+            >
+              {isFastingToday ? 'Fasting Logged ✓ (+35 Hasanat)' : 'Log Fasting Today (+35 Hasanat)'}
+            </button>
+          </div>
+
+          {/* Sadaqah & Good Deed Tracker */}
+          <div className="p-7 bg-black/40 rounded-[2.5rem] border border-white/10 space-y-5 flex flex-col justify-between hover:border-pink-500/40 transition-all">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-widest text-pink-400 flex items-center gap-2">
+                  <HeartHandshake size={14} /> Sadaqah Tracker
+                </span>
+                {sadaqahGiven && (
+                  <span className="text-[9px] font-black uppercase text-pink-300 bg-pink-500/20 px-2.5 py-1 rounded-full border border-pink-500/30">
+                    Completed
+                  </span>
+                )}
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                <p className="text-sm font-bold text-white leading-tight">Charity & Good Deed</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {sadaqahGiven ? "Deed recorded! A smile or charity expiates sins (+30 Hasanat)." : "Give charity, help someone, or smile as Sunnah."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={toggleSadaqah}
+              className={`w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                sadaqahGiven 
+                  ? 'bg-pink-500 text-pink-950 shadow-lg font-black' 
+                  : 'bg-white/5 text-slate-200 border border-white/10 hover:bg-white/10'
+              }`}
+            >
+              {sadaqahGiven ? 'Charity Logged ✓ (+30 Hasanat)' : 'Log Good Deed Today (+30 Hasanat)'}
+            </button>
+          </div>
+
+        </div>
+
+        {/* Spiritual Shortcuts Bar: Tahajjud, White Days, Hijri Calendar, Qibla Compass, Daily Adhkar */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-4 border-t border-white/10">
+          <button
+            onClick={() => onNavigate('prayer_times')}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-purple-500/20 flex flex-col justify-between transition-all group text-left cursor-pointer"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 group-hover:scale-105 transition-transform">
+                <Moon size={18} />
+              </div>
+              <span className="text-[9px] font-black uppercase text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                Alarms
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-wide">Tahajjud Qiyam</p>
+              <p className="text-[10px] text-slate-400">Night Vigil Alarm</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('prayer_times')}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-amber-500/20 flex flex-col justify-between transition-all group text-left cursor-pointer"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 group-hover:scale-105 transition-transform">
+                <Flame size={18} />
+              </div>
+              <span className="text-[9px] font-black uppercase text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                13, 14, 15
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-wide">White Days</p>
+              <p className="text-[10px] text-slate-400">Sunnah Fasting</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('resources', { resId: 'calendar' })}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 flex flex-col justify-between transition-all group text-left cursor-pointer"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30 group-hover:scale-105 transition-transform">
+                <Calendar size={18} />
+              </div>
+              <span className="text-[9px] font-black uppercase text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                Hijri
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-wide">Hijri Calendar</p>
+              <p className="text-[10px] text-slate-400 font-mono">{hDay} {hMonth}</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('resources', { resId: 'qibla' })}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 flex flex-col justify-between transition-all group text-left cursor-pointer"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 group-hover:scale-105 transition-transform">
+                <Compass size={18} />
+              </div>
+              <span className="text-[9px] font-black uppercase text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                Makkah
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-wide">Qibla Compass</p>
+              <p className="text-[10px] text-slate-400">Sacred Kaaba</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('resources', { resId: 'adhkar' })}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 flex flex-col justify-between transition-all group text-left cursor-pointer col-span-2 md:col-span-1"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 group-hover:scale-105 transition-transform">
+                <Sparkles size={18} />
+              </div>
+              <span className="text-[9px] font-black uppercase text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                Adhkar
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-wide">Daily Duas</p>
+              <p className="text-[10px] text-slate-400">Morning & Evening</p>
+            </div>
+          </button>
         </div>
       </div>
 

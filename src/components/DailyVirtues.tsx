@@ -1,10 +1,35 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Star, Heart, ShieldCheck, Quote, BookOpen, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Star, Heart, ShieldCheck, Quote, BookOpen, CheckCircle2, Volume2, Pause } from 'lucide-react';
 import { getVirtueForToday } from '../data/dailyVirtues.ts';
+import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 
 export default function DailyVirtues() {
   const virtue = getVirtueForToday();
   const isFriday = new Date().getDay() === 5;
+  const [playbackState, setPlaybackState] = useState<VoicePlaybackState>(VoiceService.getState());
+
+  useEffect(() => {
+    const unsub = VoiceService.subscribe(setPlaybackState);
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const isPlayingVirtue = playbackState.isPlaying && playbackState.activeId === 'daily-virtue-card';
+
+  const handleToggleVoice = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isPlayingVirtue) {
+      VoiceService.stop();
+    } else {
+      if (virtue.arabicContent) {
+        VoiceService.speakBoth(virtue.arabicContent, virtue.translation, 'daily-virtue-card');
+      } else {
+        VoiceService.speakEnglish(virtue.translation, 'daily-virtue-card');
+      }
+    }
+  };
 
   return (
     <section className="space-y-6">
@@ -50,8 +75,21 @@ export default function DailyVirtues() {
               <div className="px-4 py-1 bg-brand-primary/10 border border-brand-primary/20 rounded-lg text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">
                 {virtue.title}
               </div>
-              <div className="p-3 bg-white/5 rounded-2xl border border-white/10 group-hover:bg-brand-secondary group-hover:text-white transition-colors">
-                <Heart size={24} />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleToggleVoice}
+                  className={`p-2.5 rounded-2xl border transition-all ${
+                    isPlayingVirtue 
+                      ? 'bg-amber-500 border-amber-500 text-black shadow-lg shadow-amber-500/20' 
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                  }`}
+                  title="Listen to recitation"
+                >
+                  {isPlayingVirtue ? <Pause size={18} className="fill-current" /> : <Volume2 size={18} />}
+                </button>
+                <div className="p-2.5 bg-white/5 rounded-2xl border border-white/10 group-hover:bg-brand-secondary group-hover:text-white transition-colors">
+                  <Heart size={18} />
+                </div>
               </div>
             </div>
 
@@ -98,16 +136,10 @@ export default function DailyVirtues() {
                      <div className="mt-1 w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center group-hover/task:border-brand-primary transition-colors">
                         <CheckCircle2 size={12} className="opacity-0 group-hover/task:opacity-100 text-brand-primary transition-opacity" />
                      </div>
-                     <span className="text-xs md:text-sm text-slate-400 group-hover/task:text-slate-200 font-medium transition-colors">{task}</span>
+                     <p className="text-xs font-medium text-slate-300 leading-snug">{task}</p>
                    </motion.div>
                  ))}
               </div>
-           </div>
-
-           <div className="mt-8 pt-6 border-t border-white/5">
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
-                Small consistently good deeds are more beloved to Allah than large inconsistent ones.
-              </p>
            </div>
         </motion.div>
       </div>

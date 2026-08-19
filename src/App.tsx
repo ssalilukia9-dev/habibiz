@@ -94,12 +94,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [lastNotification, setLastNotification] = useState<any>(null);
   const [activeAdhanAlert, setActiveAdhanAlert] = useState<{ prayerName: string; prayerTime?: string; preferredAdhanId?: string } | null>(null);
   const [showTrial, setShowTrial] = useState(true);
-  const [showNotificationPopup, setShowNotificationPopup] = useState(() => {
-    return !sessionStorage.getItem('dismissed_notification_popup');
-  });
   const [topUserId, setTopUserId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -159,6 +155,16 @@ export default function App() {
       }
     }
   }, [currentUser, needsOnboarding, authLoading]);
+
+  // Auto-dismiss trial info pill after 6 seconds on entry so it never obstructs charts or main content
+  useEffect(() => {
+    if (currentUser && showTrial) {
+      const timer = setTimeout(() => {
+        setShowTrial(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser, showTrial]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -231,6 +237,9 @@ export default function App() {
         if (data.data && data.data.timings) {
           setPrayerTimes(data.data.timings);
           notificationService.schedulePrayerNotifications(data.data.timings);
+          notificationService.scheduleDailyAdhkarAndDuaReminders();
+          notificationService.scheduleTahajjudNotifications(data.data.timings);
+          notificationService.scheduleWhiteDaysNotifications();
         }
       } catch (e) {
         console.warn("Global prayer sync failed", e);
@@ -492,15 +501,25 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Daily login reward: Triggered strictly once per calendar day on entering the app
   useEffect(() => {
-    const handleNewNotification = (e: any) => {
-      setLastNotification(e.detail);
-      // Auto close toast
-      setTimeout(() => setLastNotification(null), 6000);
-    };
-    window.addEventListener('notification_received', handleNewNotification);
-    return () => window.removeEventListener('notification_received', handleNewNotification);
-  }, []);
+    if (!currentUser) return;
+    const todayStr = new Date().toDateString();
+    const lastDailyLoginKey = `last_daily_login_bonus_${currentUser.uid}`;
+    const lastBonusDate = localStorage.getItem(lastDailyLoginKey);
+
+    if (lastBonusDate !== todayStr) {
+      localStorage.setItem(lastDailyLoginKey, todayStr);
+      addHasanat(25);
+      setTimeout(() => {
+        notificationService.notify(
+          'Daily Sanctuary Barakah 🌿',
+          'Assalamu Alaikum! +25 Daily Login Hasanat awarded for returning to your Sanctuary.',
+          'system'
+        );
+      }, 1500);
+    }
+  }, [currentUser]);
   
   // App State
   const [theme, setTheme] = useState(() => {
@@ -1439,102 +1458,63 @@ export default function App() {
       <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-brand-depth via-brand-depth/40 to-brand-depth/60 z-0" />
 
       <HeadsUpNotification />
-      <AnimatePresence>
-        {('Notification' in window) && Notification.permission === 'default' && currentUser && showNotificationPopup && (
-          <motion.div 
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 20 }}
-            className="fixed inset-0 flex items-center justify-center z-[9999] px-6 pointer-events-none"
-          >
-            <div className="glass-panel-purple p-6 md:p-8 rounded-[2.5rem] border-brand-primary/30 flex flex-col items-center gap-6 shadow-2xl shadow-brand-primary/20 max-w-sm w-full pointer-events-auto text-center">
-               <div className="w-16 h-16 bg-brand-primary/20 rounded-2xl flex items-center justify-center text-brand-primary border border-brand-primary/30">
-                  <Bell size={32} />
-               </div>
-               <div>
-                  <p className="text-xs font-black text-brand-primary uppercase tracking-[0.2em] mb-2">Sacred Signal</p>
-                  <p className="text-xl font-bold text-white mb-2 leading-tight">Stay Connected to the Sanctuary</p>
-                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest leading-relaxed">Enable signals to receive daily revelations and prayer reminders.</p>
-               </div>
-               <div className="flex flex-col w-full gap-3">
-                 <button 
-                   onClick={() => {
-                     Notification.requestPermission().then(permission => {
-                       if (permission === 'granted') {
-                         notificationService.notify('Sanctuary Synced', 'Your device is now receiving sacred signals.', 'system');
-                         setShowNotificationPopup(false);
-                         sessionStorage.setItem('dismissed_notification_popup', 'true');
-                       }
-                     });
-                   }}
-                   className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                 >
-                   Connect Signals
-                 </button>
-                 <button 
-                   onClick={() => {
-                     setShowNotificationPopup(false);
-                     sessionStorage.setItem('dismissed_notification_popup', 'true');
-                   }}
-                   className="text-[10px] font-bold text-slate-500 uppercase tracking-widest py-2 hover:text-brand-primary transition-colors"
-                 >
-                   Maybe Later
-                 </button>
-               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       {/* Background Glow */}
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[800px] max-h-[800px] bg-brand-primary/5 blur-[120px] md:blur-[150px] rounded-full pointer-events-none z-0"></div>
-<div id="trial-info" className="fixed top-20 md:top-24 left-1/2 -translate-x-1/2 z-[100] pointer-events-none w-full flex justify-center px-6">
+<div id="trial-info" className="fixed top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md flex justify-center px-4">
 <AnimatePresence>
 {currentUser && !isPremium && !trialExpired && showTrial && (
   <motion.div 
-    initial={{ opacity: 0, y: -20 }}
+    initial={{ opacity: 0, y: -25 }}
     animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.9 }}
-    className="bg-brand-sidebar/90 md:bg-amber-500/20 backdrop-blur-xl border border-amber-500/30 px-4 md:px-6 py-3 md:py-2 rounded-[2rem] md:rounded-full shadow-2xl flex items-center gap-3"
+    exit={{ opacity: 0, y: -25, scale: 0.95 }}
+    className="pointer-events-auto bg-brand-sidebar/95 backdrop-blur-xl border border-amber-500/30 px-4 py-1.5 rounded-full shadow-2xl flex items-center gap-2.5"
   >
-           <div className="w-8 h-8 md:w-6 md:h-6 bg-amber-500/20 rounded-xl md:rounded-lg flex items-center justify-center text-amber-500 shrink-0">
-             <Sparkles size={14} className="animate-pulse" />
+           <div className="w-5 h-5 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-400 shrink-0">
+             <Sparkles size={11} className="animate-pulse" />
            </div>
-           <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-3 leading-none">
-             <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1 md:mb-0">3-Day Trial Active</p>
-             <div className="hidden md:block w-[1px] h-3 bg-amber-500/30" />
-             <p className="text-[9px] font-bold text-white/40">
-                {Math.ceil((3 * 24 * 60 * 60 * 1000 - (Date.now() - (userJoinedAt?.getTime() || 0))) / (1000 * 60 * 60))} Hours Left
+           <div className="flex items-center gap-2 leading-none">
+             <p className="text-[9px] font-black text-amber-400 uppercase tracking-wider">3-Day Trial</p>
+             <div className="w-[1px] h-2.5 bg-amber-500/30" />
+             <p className="text-[9px] font-bold text-slate-300 font-mono">
+                {Math.ceil((3 * 24 * 60 * 60 * 1000 - (Date.now() - (userJoinedAt?.getTime() || 0))) / (1000 * 60 * 60))}h Left
              </p>
            </div>
+           <button
+             onClick={() => setShowTrial(false)}
+             className="ml-1 text-slate-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors"
+           >
+             <X size={11} />
+           </button>
   </motion.div>
 )}
 {currentUser && isPremium && premiumActivatedAt && showTrial && (
   <motion.div 
-    initial={{ opacity: 0, y: -20 }}
+    initial={{ opacity: 0, y: -25 }}
     animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.9 }}
-    className="bg-brand-sidebar/90 md:bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/30 px-4 md:px-6 py-3 md:py-2 rounded-[2rem] md:rounded-full shadow-2xl flex items-center gap-3"
+    exit={{ opacity: 0, y: -25, scale: 0.95 }}
+    className="pointer-events-auto bg-brand-sidebar/95 backdrop-blur-xl border border-emerald-500/30 px-4 py-1.5 rounded-full shadow-2xl flex items-center gap-2.5"
   >
-           <div className="w-8 h-8 md:w-6 md:h-6 bg-emerald-500/20 rounded-xl md:rounded-lg flex items-center justify-center text-emerald-500 shrink-0">
-             <Crown size={14} className="animate-pulse text-emerald-400" />
+           <div className="w-5 h-5 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shrink-0">
+             <Crown size={11} className="animate-pulse" />
            </div>
-           <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-3 leading-none">
-             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 md:mb-0">Premium Active</p>
-             <div className="hidden md:block w-[1px] h-3 bg-emerald-500/30" />
-             <p className="text-[9px] font-bold text-white/70">
+           <div className="flex items-center gap-2 leading-none">
+             <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Premium Active</p>
+             <div className="w-[1px] h-2.5 bg-emerald-500/30" />
+             <p className="text-[9px] font-bold text-emerald-300 font-mono">
                 {(() => {
                   const elapsed = Date.now() - premiumActivatedAt.getTime();
                   const remainingMs = 30 * 24 * 60 * 60 * 1000 - elapsed;
                   const daysLeft = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-                  const hoursLeft = Math.ceil(remainingMs / (1000 * 60 * 60));
-                  if (daysLeft > 1) {
-                    return `${daysLeft} Days Left`;
-                  } else {
-                    return `${hoursLeft > 0 ? hoursLeft : 0} Hours Left`;
-                  }
+                  return daysLeft > 1 ? `${daysLeft}d Left` : `<1d Left`;
                 })()}
              </p>
            </div>
+           <button
+             onClick={() => setShowTrial(false)}
+             className="ml-1 text-slate-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors"
+           >
+             <X size={11} />
+           </button>
   </motion.div>
 )}
 </AnimatePresence>
@@ -1821,7 +1801,53 @@ export default function App() {
           </AnimatePresence>
         </div>
 
-        {/* Header */}
+        {/* Mobile Top Header (Optimized for Mobile Screens) */}
+        <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-brand-sidebar/95 backdrop-blur-2xl border-b border-white/10 px-4 flex items-center justify-between z-40">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-white/5 border border-white/5 active:scale-95 transition-all cursor-pointer"
+              title="Open Navigation Menu"
+            >
+              <Menu size={20} className="text-brand-primary" />
+            </button>
+            <div className="flex items-center gap-2" onClick={() => navigate('/home')}>
+              <div className="w-7 h-7 bg-brand-primary/20 border border-brand-primary/30 rounded-lg flex items-center justify-center text-brand-primary">
+                <BookOpen size={14} />
+              </div>
+              <span className="text-sm font-black text-white uppercase tracking-tight">HABIBI</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Mobile Tour Guide Button */}
+            <button 
+              id="tour-mobile-guide-btn"
+              onClick={() => setShowTour(true)}
+              className="px-2.5 py-1.5 rounded-full bg-brand-primary/15 border border-brand-primary/30 flex items-center gap-1.5 text-brand-primary hover:bg-brand-primary hover:text-brand-depth font-black text-[10px] uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-brand-primary/10 cursor-pointer"
+              title="Launch In-App Guided Tour"
+            >
+              <HelpCircle size={14} className="animate-pulse" />
+              <span>Tour</span>
+            </button>
+
+            {/* Dark Mode Toggle */}
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-slate-300 active:scale-95 transition-all"
+            >
+              {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-400" />}
+            </button>
+
+            {/* Hasanat Badge */}
+            <div className="flex items-baseline gap-1 px-2.5 py-1 bg-brand-primary/10 rounded-full border border-brand-primary/25">
+              <span className="text-[9px] font-black text-brand-primary uppercase">★</span>
+              <span className="text-xs font-black text-white font-mono">{hasanat.toLocaleString()}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Desktop Header */}
         <header className="hidden md:flex h-20 items-center justify-between px-6 md:px-10 border-b border-brand-border bg-brand-depth/80 backdrop-blur-md">
           <div className="flex items-center gap-6 flex-1">
              <div className="lg:hidden p-2 text-brand-primary" onClick={() => setIsSidebarOpen(true)}>
@@ -2047,85 +2073,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {lastNotification && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[999998]"
-              onClick={() => setLastNotification(null)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
-              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-              exit={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
-              className="fixed top-1/2 left-1/2 w-[95%] max-w-sm z-[999999]"
-            >
-            {/* System Notification: Centered Focus System */}
-            <div 
-              className="bg-[#1C1C1E]/95 backdrop-blur-3xl border border-white/5 p-4 rounded-[2.5rem] shadow-[0_40px_80px_rgba(0,0,0,0.7)] flex flex-col gap-4 cursor-pointer active:scale-98 transition-all group overflow-hidden relative"
-              onClick={() => {
-                if (lastNotification.actionUrl) {
-                  if (lastNotification.actionUrl.startsWith('#')) {
-                    navigate(`/${lastNotification.actionUrl.substring(1)}`);
-                  } else {
-                    navigate(lastNotification.actionUrl);
-                  }
-                }
-                setLastNotification(null);
-              }}
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16" />
-              
-              <div className="flex items-start gap-4">
-                <div className={`w-14 h-14 rounded-[1.4rem] flex items-center justify-center shrink-0 shadow-2xl ${
-                  lastNotification.type === 'prayer' ? 'bg-amber-500 text-white shadow-amber-500/20' :
-                  lastNotification.type === 'community' ? 'bg-emerald-500 text-white shadow-emerald-500/20' :
-                  'bg-brand-primary text-white shadow-brand-primary/20'
-                }`}>
-                  {lastNotification.type === 'prayer' ? <Clock size={28} /> :
-                   lastNotification.type === 'community' ? <MessageCircle size={28} /> :
-                   <Bell size={28} />}
-                </div>
-
-                <div className="flex-1 min-w-0 pr-4 mt-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                      {lastNotification.type === 'prayer' ? 'Prayer Alert' : 
-                       lastNotification.type === 'community' ? 'Ummah Hub' : 
-                       'Sanctuary OS'}
-                    </p>
-                    <span className="text-[9px] text-slate-600 font-bold uppercase">Now</span>
-                  </div>
-                  <h5 className="text-base font-black text-white leading-tight mb-1">{lastNotification.title}</h5>
-                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-medium">{lastNotification.body}</p>
-                </div>
-              </div>
-
-              {/* Quick Actions Bar */}
-              <div className="flex gap-2 pt-1">
-                {lastNotification.type === 'community' && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); navigate('/chat'); setLastNotification(null); }}
-                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-emerald-500 transition-colors"
-                  >
-                    Reply
-                  </button>
-                )}
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setLastNotification(null); }}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-      </AnimatePresence>
+      {/* Heads-up Top Notification Toast Banner (Non-intrusive, sleek top banner) */}
+      <HeadsUpNotification />
 
       <WalkthroughTour 
         isOpen={showTour} 

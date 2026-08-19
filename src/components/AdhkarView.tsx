@@ -30,21 +30,9 @@ import {
 import { db, auth } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
+import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
 
-const NAMES_OF_ALLAH = [
-  { id: 1, arabic: "الرَّحْمَنُ", transliteration: "Ar-Rahman", english: "The Most Merciful" },
-  { id: 2, arabic: "الرَّحِيمُ", transliteration: "Ar-Raheem", english: "The Especially Merciful" },
-  { id: 3, arabic: "الْمَلِكُ", transliteration: "Al-Malik", english: "The Sovereign Lord" },
-  { id: 4, arabic: "الْقُدُّوسُ", transliteration: "Al-Quddus", english: "The Holy" },
-  { id: 5, arabic: "السَّلَامُ", transliteration: "As-Salam", english: "The Source of Peace" },
-  { id: 6, arabic: "الْمُؤْمِنُ", transliteration: "Al-Mu'min", english: "The Guardian of Faith" },
-  { id: 7, arabic: "الْمُهَيْمِنُ", transliteration: "Al-Muhaymin", english: "The Protector" },
-  { id: 8, arabic: "الْعَزِيزُ", transliteration: "Al-Aziz", english: "The Mighty" },
-  { id: 9, arabic: "الْجَبَّارُ", transliteration: "Al-Jabbar", english: "The Compeller" },
-  { id: 10, arabic: "الْمُتَكَبِّرُ", transliteration: "Al-Mutakabbir", english: "The Supreme, The Majestic" },
-  { id: 11, arabic: "الْخَالِقُ", transliteration: "Al-Khaliq", english: "The Creator" },
-  { id: 12, arabic: "الْبَارِئُ", transliteration: "Al-Bari'", english: "The Evolver" }
-];
+const NAMES_OF_ALLAH = ALL_NAMES_OF_ALLAH;
 
 export interface DhikrItem {
   id: string;
