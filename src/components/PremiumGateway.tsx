@@ -1,89 +1,196 @@
-import { motion } from 'motion/react';
-import { Crown, Smartphone, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Crown, 
+  Smartphone, 
+  ShieldCheck, 
+  ArrowRight, 
+  CheckCircle2, 
+  X, 
+  Sparkles, 
+  Zap, 
+  Video, 
+  Volume2, 
+  BookOpen, 
+  Check 
+} from 'lucide-react';
 
 interface PremiumGatewayProps {
   onActivate: () => void;
+  onClose?: () => void;
 }
 
-export default function PremiumGateway({ onActivate }: PremiumGatewayProps) {
+export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayProps) {
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual' | 'lifetime'>('annual');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  const handleConfirm = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      onActivate();
+      setIsProcessing(false);
+    }, 600);
+  };
+
   return (
-    <div className="fixed inset-0 z-[200] bg-brand-depth flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-      <div className="z-0 absolute inset-0 islamic-pattern opacity-10"></div>
+    <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-2xl flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+      <div className="z-0 absolute inset-0 islamic-pattern opacity-10 pointer-events-none" />
       
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative z-10 w-full max-w-2xl bg-brand-sidebar border border-white/10 rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-[0_0_100px_rgba(245,158,11,0.1)] flex flex-col md:flex-row"
+        exit={{ opacity: 0, scale: 0.92, y: 20 }}
+        className="relative z-10 w-full max-w-4xl bg-brand-sidebar/95 border border-amber-500/30 rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-[0_0_120px_rgba(245,158,11,0.15)] flex flex-col md:flex-row"
       >
-        {/* Left Side: Features */}
-        <div className="flex-1 p-8 md:p-12 bg-gradient-to-br from-amber-500/10 to-transparent border-b md:border-b-0 md:border-r border-white/10 space-y-8">
-           <div className="space-y-4">
-              <div className="w-16 h-16 bg-amber-500/20 text-amber-500 rounded-3xl flex items-center justify-center shadow-2xl">
-                 <Crown size={32} />
-              </div>
-              <div>
-                <h2 className="text-3xl font-black text-white">Premium Sanctuary</h2>
-                <p className="text-xs font-black text-amber-400 uppercase tracking-[0.2em]">Ascend to Excellence</p>
-              </div>
-           </div>
+        {/* Close Button if applicable */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 z-20 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+          >
+            <X size={18} />
+          </button>
+        )}
 
-           <div className="space-y-4">
-              {[
-                { label: 'Unlimited Ummah Access', desc: 'Join all public and private groups' },
-                { label: 'Verified Global Badge', desc: 'Your mark of authenticity' },
-                { label: 'Priority Support', desc: 'Direct access to community leaders' },
-                { label: 'Ad-Free Experience', desc: 'Clean, distraction-free worship' }
-              ].map((f, i) => (
-                <div key={i} className="flex gap-3">
-                   <div className="mt-1">
-                      <CheckCircle2 size={16} className="text-brand-primary" />
-                   </div>
-                   <div>
-                      <p className="text-sm font-bold text-white">{f.label}</p>
-                      <p className="text-[10px] text-slate-500">{f.desc}</p>
-                   </div>
+        {/* Left Side: VIP Features Showcase */}
+        <div className="flex-1 p-8 md:p-12 bg-gradient-to-br from-amber-500/15 via-brand-depth to-transparent border-b md:border-b-0 md:border-r border-white/10 space-y-8">
+          <div className="space-y-3">
+            <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-orange-500 text-brand-depth rounded-[2rem] flex items-center justify-center shadow-xl shadow-amber-500/20">
+              <Crown size={32} />
+            </div>
+            <div>
+              <span className="text-[10px] font-black text-amber-400 uppercase tracking-[0.3em]">Sacred VIP Ascension</span>
+              <h2 className="text-2xl md:text-3xl font-black text-white italic">Sanctuary Elite Pass</h2>
+            </div>
+          </div>
+
+          <div className="space-y-3.5">
+            {[
+              { label: '24/7 Haramain 4K Live Streams', desc: 'Direct Kaaba & Al-Nabawi broadcasts', icon: Video },
+              { label: 'Sacred Ambient Soundscapes', desc: 'Kaaba rain & Tawaf murmurs for meditation', icon: Volume2 },
+              { label: '2X Hasanat Spiritual Velocity', desc: 'Double reward points across all app interactions', icon: Zap },
+              { label: 'Word-by-Word Quran Analyzer', desc: 'Arabic root words & Ibn Kathir Tafseer', icon: BookOpen },
+              { label: 'Ad-Free Sacred Immersion', desc: 'Pure, peaceful and distraction-free devotion', icon: Sparkles }
+            ].map((f, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                  <f.icon size={14} />
                 </div>
-              ))}
-           </div>
+                <div>
+                  <p className="text-xs font-black text-white">{f.label}</p>
+                  <p className="text-[10px] text-slate-400 leading-tight">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
+            <ShieldCheck size={20} className="text-amber-400 shrink-0" />
+            <p className="text-[10px] text-amber-200/80 leading-relaxed font-medium">
+              100% Satisfaction Guarantee. Easily managed and backed by cloud sync.
+            </p>
+          </div>
         </div>
 
-        {/* Right Side: Payment Instructions */}
-        <div className="flex-1 p-8 md:p-12 space-y-8 bg-black/20">
-           <div className="space-y-6">
-              <div className="flex items-center gap-3 text-amber-400">
-                 <Smartphone size={20} />
-                 <p className="text-[10px] font-black uppercase tracking-[0.2em]">Payment Instruction</p>
-              </div>
+        {/* Right Side: Tier Selector & Instant Activation */}
+        <div className="flex-1 p-8 md:p-12 space-y-6 bg-black/30 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Spiritual Pass</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase font-mono">
+                INSTANT UNLOCK
+              </span>
+            </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
-                 <p className="text-xs text-slate-400 leading-relaxed">
-                   To unlock the full sanctuary experience, please send a <span className="text-white font-bold">$3 subscription</span> contribution via <span className="text-white font-bold">Sendwave</span>.
-                 </p>
-                 
-                 <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Recipient Mobile Number</p>
-                    <div className="bg-brand-depth p-4 rounded-2xl flex items-center justify-between border border-amber-500/20">
-                       <p className="text-lg font-black text-amber-400">+256 708515639</p>
-                    </div>
-                 </div>
-
-                 <div className="flex items-center gap-3 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                    <ShieldCheck size={16} className="text-amber-500 shrink-0" />
-                    <p className="text-[9px] text-amber-200/70 leading-tight">After payment, click activate below. Our team verifies all contributions manually.</p>
-                 </div>
-              </div>
-           </div>
-
-           <div className="space-y-4 pt-4">
-              <button 
-                onClick={onActivate}
-                className="w-full bg-amber-500 text-brand-depth font-black py-5 rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            {/* Tier Selectors */}
+            <div className="space-y-3">
+              {/* Annual (Best Value) */}
+              <div
+                onClick={() => setSelectedPlan('annual')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex items-center justify-between ${
+                  selectedPlan === 'annual'
+                    ? 'border-amber-400 bg-amber-500/15 shadow-xl shadow-amber-500/10'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                }`}
               >
-                 ACTIVATE ACCESS
-                 <ArrowRight size={20} />
-              </button>
-              <p className="text-[8px] text-center text-slate-600 uppercase font-black tracking-widest">Secure • Private • Spiritual</p>
-           </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-white uppercase tracking-wider">Annual Pass</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-brand-depth text-[8px] font-black uppercase tracking-widest">
+                      SAVE 45%
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">+5,000 Hasanat Treasury Bonus</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-base font-black text-amber-400 font-mono">$20.00</span>
+                  <span className="text-[9px] text-slate-400 block font-medium">/year</span>
+                </div>
+              </div>
+
+              {/* Monthly */}
+              <div
+                onClick={() => setSelectedPlan('monthly')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                  selectedPlan === 'monthly'
+                    ? 'border-amber-400 bg-amber-500/15 shadow-xl'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                }`}
+              >
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-white uppercase tracking-wider">Monthly Pass</span>
+                  <p className="text-[10px] text-slate-400">Cancel anytime</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-base font-black text-white font-mono">$3.00</span>
+                  <span className="text-[9px] text-slate-400 block font-medium">/month</span>
+                </div>
+              </div>
+
+              {/* Lifetime */}
+              <div
+                onClick={() => setSelectedPlan('lifetime')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                  selectedPlan === 'lifetime'
+                    ? 'border-purple-400 bg-purple-500/15 shadow-xl'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                }`}
+              >
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-purple-300 uppercase tracking-wider">Lifetime Patron</span>
+                  <p className="text-[10px] text-slate-400">+15,000 Hasanat + VIP Badge</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-base font-black text-purple-300 font-mono">$79.99</span>
+                  <span className="text-[9px] text-slate-400 block font-medium">/one-time</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile / Sendwave instructions */}
+            <div className="p-3.5 bg-white/5 border border-white/5 rounded-2xl space-y-1 text-[10px] text-slate-400">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                <Smartphone size={12} />
+                <span>Sendwave / Direct Mobile Number</span>
+              </div>
+              <p>Recipient: <strong className="text-white font-mono">+256 708515639</strong></p>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button 
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Crown size={16} />
+              <span>{isProcessing ? 'Activating VIP Pass...' : 'Unlock Sanctuary Elite Now'}</span>
+              <ArrowRight size={16} />
+            </button>
+            <p className="text-[9px] text-center text-slate-500 uppercase font-bold tracking-widest">
+              Instant Cloud Activation • Sacred Devotion
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

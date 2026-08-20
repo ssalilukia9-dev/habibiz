@@ -102,134 +102,71 @@ export const ALL_ADHKAR_CATEGORIES: DhikrCategory[] = [
       {
         id: "e2",
         arabic: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ",
-        transliteration: "A'oodhu bi-kalimatil-lahit-tammati min sharri ma khalaq.",
+        transliteration: "A'oodhu bi-kalimatillahit-tammati min sharri ma khalaq.",
         english: "I seek refuge in the perfect words of Allah from the evil of what He has created.",
-        benefit: "Recited 3 times: Shield against stings, bites, evil spirits, and nocturnal harm.",
+        benefit: "Recited 3 times: Protects against stings, venomous creatures, and unseen perils throughout the night.",
         targetCount: 3
       },
       {
         id: "e3",
-        arabic: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ",
-        transliteration: "Hasbiyallahu la ilaha illa Huwa, 'alayhi tawakkaltu wa Huwa Rabbul-'Arshil-'Azeem.",
-        english: "Allah is sufficient for me. None has the right to be worshipped but He. In Him I put my trust and He is the Lord of the Mighty Throne.",
-        benefit: "Recited 7 times: Allah suffices all burdens, anxiety, and concerns of this world and the next.",
-        targetCount: 7
+        arabic: "اللَّهُمَّ بِكَ أَمْسَيْنَا، وَبِكَ أَصْبَحْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ",
+        transliteration: "Allahumma bika amsayna, wa bika asbahna, wa bika nahya, wa bika namootu, wa ilaykal-maseer.",
+        english: "O Allah, by You we enter the evening, by You we enter the morning, by You we live, by You we die, and unto You is our final return.",
+        benefit: "Deep consciousness of the soul's fragility and ultimate journey to the Creator.",
+        targetCount: 1
       },
       {
         id: "e4",
-        arabic: "اللَّهُمَّ بِكَ أَمْسَيْنَا، وَبِكَ أَصْبَحْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ",
-        transliteration: "Allahumma bika amsayna, wa bika asbahna, wa bika nahya, wa bika namootu wa ilaykal-maseer.",
-        english: "O Allah, by You we reach the evening and by You we reach the morning, by You we live and die, and to You is our ultimate return.",
-        benefit: "Surrendering one's mortal timeline into Allah's gentle custody.",
-        targetCount: 1
-      },
-      {
-        id: "e5",
-        arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ، اللَّهُمَّ اسْتُرْ عَوْرَاتِي وَآمِنْ رَوْعَاتِي",
-        transliteration: "Allahumma innee as'alukal-'afwa wal-'afiyata fid-dunya wal-akhirah. Allahummastur 'awratee wa amin raw'atee.",
-        english: "O Allah, I ask You for pardon and well-being in this world and the Hereafter. O Allah, conceal my faults and reassure my fears.",
-        benefit: "Comprehensive fortification shielding from all directions.",
-        targetCount: 1
+        arabic: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ",
+        transliteration: "Hasbiyallahu la ilaha illa Huwa 'alayhi tawakkaltu wa Huwa Rabbul-'Arshil-'Azeem.",
+        english: "Allah is sufficient for me; there is no deity except Him. On Him I rely, and He is the Lord of the Great Throne.",
+        benefit: "Recited 7 times morning & evening: Allah relieves every anxiety and distress of worldly and hereafter matters.",
+        targetCount: 7
       }
     ]
   },
   {
     id: "sleep",
-    category: "Sleeping & Waking (النوم والاستيقاظ)",
-    iconName: "Shield",
+    category: "Sleep & Night Adhkar (أذكار النوم والليل)",
+    iconName: "Moon",
     items: [
       {
-        id: "s1",
-        arabic: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا",
-        transliteration: "Bismika Allahumma amootu wa ahya.",
-        english: "In Your name, O Allah, I die and I live.",
-        benefit: "Sunnah dua before resting to invite peace into sleep.",
-        targetCount: 1
-      },
-      {
-        id: "s2",
-        arabic: "الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ",
-        transliteration: "Alhamdu lillahil-ladhee ahyana ba'da ma amatana wa ilayhin-nushoor.",
-        english: "Praise is to Allah Who gives us life after He has caused us to die and unto Him is the resurrection.",
-        benefit: "The very first consciousness of gratitude upon opening eyes.",
-        targetCount: 1
-      },
-      {
-        id: "s3",
+        id: "sl1",
         arabic: "بِاسْمِكَ رَبِّي وَضَعْتُ جَنْبِي، وَبِكَ أَرْفَعُهُ، فَإِنْ أَمْسَكْتَ نَفْسِي فَارْحَمْهَا، وَإِنْ أَرْسَلْتَهَا فَاحْفَظْهَا بِمَا تَحْفَظُ بِهِ عِبَادَكَ الصَّالِحِينَ",
-        transliteration: "Bismika Rabbee wada'tu janbee, wa bika arfa'uh, fa in amsakta nafsee farhamha, wa in arsaltaha fahfadh-ha bima tahfadhu bihi 'ibadakas-saliheen.",
-        english: "In Your name my Lord, I lay my side down and in Your name I raise it up. If You retain my soul, show it mercy, and if You release it, preserve it as You preserve Your righteous servants.",
-        benefit: "Angelic bodyguard stationed over the sleeper all night.",
+        transliteration: "Bismika Rabbi wada'tu janbee, wa bika arfa'uh, fa in amsakta nafsee farhamha, wa in arsaltaha fahfadh-ha bima tahfadhu bihi 'ibadakas-saliheen.",
+        english: "In Your name my Lord, I lie down, and in Your name I rise. If You take my soul, have mercy upon it, and if You release it, protect it as You protect Your righteous servants.",
+        benefit: "Angel protection assigned through the night until waking.",
         targetCount: 1
       },
       {
-        id: "s4",
-        arabic: "اللَّهُمَّ قِنِي عَذَابَكَ يَوْمَ تَبْعَثُ عِبَادَكَ",
-        transliteration: "Allahumma qinee 'adhabaka yawma tab'athu 'ibadak.",
-        english: "O Allah, protect me from Your punishment on the Day You resurrect Your servants.",
-        benefit: "Recited 3 times placing the right hand under the right cheek.",
-        targetCount: 3
+        id: "sl2",
+        arabic: "اللَّهُمَّ إِنَّكَ خَلَقْتَ نَفْسِي وَأَنْتَ تَوَفَّاهَا، لَكَ مَمَاتُهَا وَمَحْيَاهَا، إِنْ أَحْيَيْتَهَا فَاحْفَظْهَا، وَإِنْ أَمَتَّهَا فَاغْفِرْ لَهَا. اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَافِيَةَ",
+        transliteration: "Allahumma innaka khalaqta nafsee wa Anta tawaffaha, laka mamatuha wa mahyaha, in ahyaytaha fahfadh-ha wa in amattaha faghfir laha. Allahumma innee as'alukal-'afiyah.",
+        english: "O Allah, You created my soul and You take it. To You belongs its life and death. If You grant it life, protect it; and if You cause it to die, forgive it. O Allah, I ask You for well-being.",
+        benefit: "Peaceful rest with the soul entrusted directly to Allah.",
+        targetCount: 1
       },
       {
-        id: "s5",
+        id: "sl3",
         arabic: "سُبْحَانَ اللَّهِ (33x)، الْحَمْدُ لِلَّهِ (33x)، اللَّهُ أَكْبَرُ (34x)",
         transliteration: "Subhanallah (33x), Alhamdulillah (33x), Allahu Akbar (34x).",
-        english: "Glory be to Allah (33), Praise be to Allah (33), Allah is the Greatest (34).",
-        benefit: "Tasbih Fatimah: Bestowed by the Prophet ﷺ to Fatima and Ali (RA) - grants spiritual energy superior to a servant.",
-        targetCount: 100
-      }
-    ]
-  },
-  {
-    id: "forgiveness",
-    category: "Praise & Forgiveness (الاستغفار والتسبيح)",
-    iconName: "Award",
-    items: [
-      {
-        id: "pf1",
-        arabic: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ",
-        transliteration: "Astaghfirullaha wa atoobu ilayh.",
-        english: "I seek Allah's forgiveness and turn to Him in sincere repentance.",
-        benefit: "Cleanses the heart and invites rain, strength, and children (100x daily).",
-        targetCount: 100
-      },
-      {
-        id: "pf2",
-        arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ",
-        transliteration: "Subhanallahi wa bihamdihi.",
-        english: "Glory be to Allah and all praise is due to Him.",
-        benefit: "Minor sins forgiven even if they equal the foam of the boundless sea (100x).",
-        targetCount: 100
-      },
-      {
-        id: "pf3",
-        arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ، وَأَبُوءُ بِذَنْبِي فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ",
-        transliteration: "Allahumma Anta Rabbi la ilaha illa Ant, khalaqtani wa ana 'abduk, wa ana 'ala 'ahdika wa wa'dika mastata't, a'oodhu bika min sharri ma sana't, aboo'u laka bi ni'matika 'alayya wa aboo'u bi dhanbi faghfir lee fa innahu la yaghfirudh-dhunooba illa Ant.",
-        english: "O Allah, You are my Lord, none has the right to be worshipped but You. You created me and I am Your servant...",
-        benefit: "Sayyid al-Istighfar (Chief of Repentance): Whoever recites with conviction and dies enters Paradise.",
+        english: "Tasbih of Fatimah (RA): Glory be to Allah 33 times, Praise be to Allah 33 times, Allah is the Greatest 34 times before sleeping.",
+        benefit: "Better and more revitalizing for physical stamina than having a helper or servant.",
         targetCount: 1
       },
       {
-        id: "pf4",
-        arabic: "لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ",
-        transliteration: "La hawla wa la quwwata illa billah.",
-        english: "There is no power and no might except by Allah.",
-        benefit: "A treasure stored beneath the Throne of Ar-Rahman in Jannah.",
-        targetCount: 33
-      },
-      {
-        id: "pf5",
-        arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ سُبْحَانَ اللَّهِ الْعَظِيمِ",
-        transliteration: "Subhanallahi wa bihamdihi, Subhanallahil-'Azeem.",
-        english: "Glory be to Allah and His is the praise; Glory be to Allah the Supreme.",
-        benefit: "Two phrases beloved to the Most Merciful and heaviest on the Scales.",
-        targetCount: 33
+        id: "sl4",
+        arabic: "آمَنَ الرَّسُولُ بِمَا أُنزِلَ إِلَيْهِ مِن رَّبِّهِ وَالْمُؤْمِنُونَ ۚ كُلٌّ آمَنَ بِاللَّهِ وَمَلَائِكَتِهِ وَكُتُبِهِ وَرُسُلِهِ...",
+        transliteration: "Amanar-Rasoolu bima unzila ilayhi mir-Rabbihi wal-mu'minoon...",
+        english: "The Messenger has believed in what was revealed to him from his Lord, and so have the believers... (Last 2 verses of Surah Al-Baqarah 285-286).",
+        benefit: "Whoever recites the last two verses of Surah Al-Baqarah at night, they will be sufficient for him against every evil.",
+        targetCount: 1
       }
     ]
   },
   {
     id: "prayer_dhikr",
-    category: "After Obligatory Swalah (أذكار بعد الصلاة)",
+    category: "After Obligatory Salah (أذكار بعد الصلاة)",
     iconName: "Sparkles",
     items: [
       {
@@ -258,9 +195,9 @@ export const ALL_ADHKAR_CATEGORIES: DhikrCategory[] = [
       },
       {
         id: "ps4",
-        arabic: "آيَةُ الْكُرْسِيِّ: اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ...",
-        transliteration: "Ayat al-Kursi: Allahu la ilaha illa Huwal-Hayyul-Qayyoom...",
-        english: "Allah! There is no deity except Him, the Ever-Living, the Sustainer of existence...",
+        arabic: "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ...",
+        transliteration: "Allahu la ilaha illa Huwal-Hayyul-Qayyoom...",
+        english: "Ayat al-Kursi (2:255): Allah! There is no deity except Him, the Ever-Living, the Sustainer of existence...",
         benefit: "Whoever recites Ayat al-Kursi after every obligatory prayer, nothing stands between him and entering Paradise except death.",
         targetCount: 1
       }
@@ -294,6 +231,115 @@ export const ALL_ADHKAR_CATEGORIES: DhikrCategory[] = [
         english: "O Ever-Living, O Sustainer, by Your mercy I seek relief.",
         benefit: "Uttered by the Prophet ﷺ whenever distressed by a grave circumstance.",
         targetCount: 10
+      },
+      {
+        id: "d4",
+        arabic: "لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ الْعَلِيِّ الْعَظِيمِ",
+        transliteration: "La hawla wa la quwwata illa billahil-'Aliyyil-'Azeem.",
+        english: "There is no might nor power except with Allah, the Most High, the Most Great.",
+        benefit: "A medicine for 99 spiritual diseases, the least of which is anxiety.",
+        targetCount: 33
+      }
+    ]
+  },
+  {
+    id: "healing",
+    category: "Healing & Ruqyah Shifa (أدعية الشفاء والرقية)",
+    iconName: "Shield",
+    items: [
+      {
+        id: "h1",
+        arabic: "أَذْهِبِ الْبَاسَ رَبَّ النَّاسِ، وَاشْفِ أَنْتَ الشَّافِي، لَا شِفَاءَ إِلَّا شِفَاؤُكَ، شِفَاءً لَا يُغَادِرُ سَقَمًا",
+        transliteration: "Adhhibil-ba'sa Rabban-nas, washfi Antash-Shafi, la shifa'a illa shifa'uk, shifa'an la yughadiru saqama.",
+        english: "Remove the disease, O Lord of humanity, and cure; You are the Healer. There is no cure but Your cure, a cure that leaves behind no ailment.",
+        benefit: "Prophetic Dua for curing bodily pain, illness, and fever.",
+        targetCount: 3
+      },
+      {
+        id: "h2",
+        arabic: "بِسْمِ اللَّهِ أَرْقِيكَ، مِنْ كُلِّ شَيْءٍ يُؤْذِيكَ، مِنْ شَرِّ كُلِّ نَفْسٍ أَوْ عَيْنِ حَاسِدٍ، اللَّهُ يَشْفِيكَ، بِسْمِ اللَّهِ أَرْقِيكَ",
+        transliteration: "Bismillahi arqeek, min kulli shay'in yu'dheek, min sharri kulli nafsin aw 'ayni hasidin, Allahu yashfeek, bismillahi arqeek.",
+        english: "In the name of Allah I perform ruqyah for you, from everything that harms you, from the evil of every soul or envious eye. May Allah cure you; in the name of Allah I perform ruqyah for you.",
+        benefit: "The Ruqyah recited by Jibril (AS) upon the Prophet Muhammad ﷺ.",
+        targetCount: 3
+      },
+      {
+        id: "h3",
+        arabic: "أَسْأَلُ اللَّهَ الْعَظِيمَ رَبَّ الْعَرْشِ الْعَظِيمِ أَنْ يَشْفِيَكَ",
+        transliteration: "As'alullahal-'Azeema Rabbal-'Arshil-'Azeemi an yashfiyak.",
+        english: "I ask Allah the Almighty, Lord of the Magnificent Throne, to cure you.",
+        benefit: "Recited 7 times for any sick person whose appointed time has not arrived; Allah grants recovery.",
+        targetCount: 7
+      }
+    ]
+  },
+  {
+    id: "forgiveness",
+    category: "Tawbah & Chief of Repentance (سيد الاستغفار والتوبة)",
+    iconName: "Award",
+    items: [
+      {
+        id: "f1",
+        arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ، وَأَبُوءُ بِذَنْبِي فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ",
+        transliteration: "Allahumma Anta Rabbi la ilaha illa Ant, khalaqtani wa ana 'abduk, wa ana 'ala 'ahdika wa wa'dika mastata't, a'oodhu bika min sharri ma sana't, aboo'u laka bi ni'matika 'alayya wa aboo'u bi dhanbi faghfir lee fa innahu la yaghfirudh-dhunooba illa Ant.",
+        english: "Sayyid al-Istighfar (The Master Supplication for Forgiveness): O Allah, You are my Lord, none has the right to be worshipped but You. You created me and I am Your servant...",
+        benefit: "Whoever recites this with conviction by day and dies before evening, or by night and dies before morning, enters Jannah directly.",
+        targetCount: 1
+      },
+      {
+        id: "f2",
+        arabic: "أَسْتَغْفِرُ اللَّهَ الَّذِي لَا إِلَهَ إِلَّا هُوَ الْحَيَّ الْقَيُّومَ وَأَتُوبُ إِلَيْهِ",
+        transliteration: "Astaghfirullahalladhi la ilaha illa Huwal-Hayyul-Qayyoomu wa atoobu ilayh.",
+        english: "I seek the forgiveness of Allah, other than Whom there is no deity, the Ever-Living, the Sustainer of all existence, and I repent unto Him.",
+        benefit: "Whoever says this, his sins are forgiven even if he had fled from the battlefield.",
+        targetCount: 3
+      },
+      {
+        id: "f3",
+        arabic: "رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ إِنَّكَ أَنْتَ التَّوَّابُ الرَّحِيمُ",
+        transliteration: "Rabbigh-fir lee wa tub 'alayya innaka Antat-Tawwabur-Raheem.",
+        english: "My Lord, forgive me and accept my repentance, for You are the Acceptor of Repentance, the Most Merciful.",
+        benefit: "The companions counted the Prophet ﷺ reciting this over 100 times in a single gathering.",
+        targetCount: 100
+      }
+    ]
+  },
+  {
+    id: "daily_life",
+    category: "Daily Life & Transitions (أذكار الدخول والخروج والبركة)",
+    iconName: "Sun",
+    items: [
+      {
+        id: "dl1",
+        arabic: "بِسْمِ اللَّهِ ، تَوَكَّلْتُ عَلَى اللَّهِ ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ",
+        transliteration: "Bismillahi, tawakkaltu 'alallah, wa la hawla wa la quwwata illa billah.",
+        english: "In the name of Allah, I place my trust in Allah, and there is no power nor might except with Allah (Leaving home).",
+        benefit: "It is said to him: 'You are guided, defended, and protected,' and the shaytan distances himself from him.",
+        targetCount: 1
+      },
+      {
+        id: "dl2",
+        arabic: "اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ",
+        transliteration: "Allahummaf-tah lee abwaba rahmatik.",
+        english: "O Allah, open for me the gates of Your mercy (Entering the Masjid).",
+        benefit: "Invokes divine mercy while stepping into the house of Allah.",
+        targetCount: 1
+      },
+      {
+        id: "dl3",
+        arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ",
+        transliteration: "Allahumma innee as'aluka min fadlik.",
+        english: "O Allah, I ask You from Your bounty (Exiting the Masjid).",
+        benefit: "Prepares for seeking halal livelihood with divine barakah upon stepping out.",
+        targetCount: 1
+      },
+      {
+        id: "dl4",
+        arabic: "الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنِي هَذَا وَرَزَقَنِيهِ مِنْ غَيْرِ حَوْلٍ مِنِّي وَلَا قُوَّةٍ",
+        transliteration: "Alhamdu lillahilladhi at'amanee hadha wa razaqaneehi min ghayri hawlin minnee wa la quwwah.",
+        english: "Praise is to Allah Who has fed me this and provided it for me without any might or power from myself (After eating).",
+        benefit: "Whoever recites this after finishing a meal has all his past minor sins forgiven.",
+        targetCount: 1
       }
     ]
   }

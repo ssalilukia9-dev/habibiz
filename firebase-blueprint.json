@@ -194,9 +194,54 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "message", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Real-time system activity event records including user registrations, hasanat redemptions, and spiritual milestones",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["registration", "redemption", "hasanat", "streak", "quran", "dhikr", "admin", "prayer"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "amount": { "type": "number" },
+        "badge": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "message", "createdAt"]
+    },
+    "AdminConfig": {
+      "title": "AdminConfig",
+      "description": "Secure administration and overseer access configuration",
+      "type": "object",
+      "properties": {
+        "allowedAdminEmails": { "type": "array", "items": { "type": "string" } },
+        "allowedAdminUids": { "type": "array", "items": { "type": "string" } },
+        "adminPasscode": { "type": "string" },
+        "superAdminEmails": { "type": "array", "items": { "type": "string" } },
+        "maintenanceMode": { "type": "boolean" },
+        "allowGuestRegistrations": { "type": "boolean" },
+        "requireSubscriptionForUmmah": { "type": "boolean" },
+        "systemBroadcastNotice": { "type": "string" },
+        "securityRoles": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastUpdatedBy": { "type": "string" }
+      },
+      "required": ["allowedAdminEmails", "adminPasscode"]
     }
   },
   "firestore": {
+    "/admin_config/{configId}": {
+      "schema": "AdminConfig",
+      "description": "Secure admin configuration and overseer authorization settings"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Real-time system activity logs and event feeds"
+    },
     "/announcements/{announcementId}": {
       "schema": "Announcement",
       "description": "Global broadcasts sent to app users"

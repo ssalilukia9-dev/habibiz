@@ -328,6 +328,82 @@ export default function HadithLibraryView({
                   </button>
                 )}
               </div>
+
+              {/* Continuous Hadith Narration Player Console */}
+              <div className="glass-panel p-4 sm:p-5 rounded-2xl border-white/10 bg-brand-sidebar/80 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                    playbackState.isContinuous && playbackState.isPlaying
+                      ? 'bg-brand-primary/20 border-brand-primary text-brand-primary animate-pulse'
+                      : 'bg-white/5 border-white/10 text-slate-400'
+                  }`}>
+                    <Volume2 size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-white uppercase tracking-wider">
+                        Continuous Hadith Narrator
+                      </span>
+                      {playbackState.isContinuous && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Active ({filteredHadith.length} items)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Auto-play through current collection with authentic Arabic & English translations
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                  <button
+                    onClick={() => {
+                      if (playbackState.isContinuous) {
+                        VoiceService.togglePauseContinuous();
+                      } else {
+                        const items = filteredHadith.map(h => ({
+                          id: h.id,
+                          arabic: h.arabic,
+                          english: `${h.english} — Narrated by ${h.narrator} in ${h.collection}`,
+                          title: h.topic
+                        }));
+                        VoiceService.startContinuousPlay(items, {
+                          mode: 'both',
+                          intervalMs: 800,
+                          loop: true
+                        });
+                      }
+                    }}
+                    className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg active:scale-95 ${
+                      playbackState.isContinuous && playbackState.isPlaying && !playbackState.isPaused
+                        ? 'bg-amber-500 text-black shadow-amber-500/20'
+                        : 'bg-brand-primary hover:bg-brand-primary/90 text-white shadow-brand-primary/20'
+                    }`}
+                  >
+                    {playbackState.isContinuous && playbackState.isPlaying && !playbackState.isPaused ? (
+                      <>
+                        <Pause size={13} className="fill-current" />
+                        <span>Pause Playlist</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={13} className="fill-current" />
+                        <span>{playbackState.isContinuous ? 'Resume Playlist' : 'Play All Hadiths'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {playbackState.isContinuous && (
+                    <button
+                      onClick={() => VoiceService.stop()}
+                      className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Hadith Cards Grid */}

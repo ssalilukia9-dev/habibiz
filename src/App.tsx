@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
@@ -83,6 +83,8 @@ import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 import WalkthroughTour from './components/WalkthroughTour.tsx';
 import AdminView from './components/AdminView.tsx';
+import AdminRouteGuard from './components/AdminRouteGuard.tsx';
+import { AdminConfigService } from './services/adminConfigService.ts';
 import AdhanCallerModal from './components/AdhanCallerModal.tsx';
 import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
@@ -467,38 +469,74 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUser]);
 
+  const lastSeenDirectAlertRef = useRef<string | null>(null);
+
+  // Real-time Current User Profile Sync (Updates immediately when Admin modifies user)
   useEffect(() => {
-    // Sync hasanat if changed from Firestore/LocalStorage
-    if (currentUser) {
-      if (currentUser.uid.startsWith('local_')) {
-        const key = `sanctuary_profile_${currentUser.uid}`;
-        const existingData = localStorage.getItem(key);
-        if (existingData) {
-          const data = JSON.parse(existingData);
-          if (data.hasanat) setHasanat(data.hasanat);
-        }
-      } else {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const syncHasanat = async () => {
-          try {
-            const snap = await getDoc(userRef);
-            if (snap.exists()) {
-               const data = snap.data();
-               if (data.hasanat) setHasanat(data.hasanat);
-            }
-          } catch (e) {
-            console.warn("Sync Hasanat fallback enabled:", e);
-            const cacheKey = `sanctuary_cache_profile_${currentUser.uid}`;
-            const existingData = localStorage.getItem(cacheKey);
-            if (existingData) {
-              const data = JSON.parse(existingData);
-              if (data.hasanat) setHasanat(data.hasanat);
-            }
+    if (!currentUser || !currentUser.uid) return;
+
+    let unsubFirestore: (() => void) | null = null;
+
+    if (!currentUser.uid.startsWith('local_')) {
+      const userRef = doc(db, 'users', currentUser.uid);
+      unsubFirestore = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.hasanat !== undefined) setHasanat(Number(data.hasanat) || 0);
+          if (data.streak !== undefined) setStreak(Number(data.streak) || 0);
+          if (data.versesRead !== undefined) setVersesRead(Number(data.versesRead) || 0);
+          if (data.duaCount !== undefined) setDuaCount(Number(data.duaCount) || 0);
+          if (data.isPremium !== undefined) setIsPremium(!!data.isPremium);
+          if (data.rank) setRank(data.rank);
+
+          if (data.directAlert && data.directAlert !== lastSeenDirectAlertRef.current) {
+            lastSeenDirectAlertRef.current = data.directAlert;
+            notificationService.notify(
+              'Message from Sanctuary Admin',
+              data.directAlert,
+              'system',
+              '/home'
+            );
           }
-        };
-        syncHasanat();
-      }
+        }
+      }, (e) => {
+        console.warn("User live sync stream warning:", e);
+      });
     }
+
+    // Local window event listener for instantaneous UI reactivity
+    const handleLocalUserUpdate = (e: any) => {
+      const { uid, hasanat: newH, streak: newS, versesRead: newV, duaCount: newD, isPremium: newP, rank: newR } = e.detail || {};
+      if (uid === currentUser.uid) {
+        if (newH !== undefined) setHasanat(newH);
+        if (newS !== undefined) setStreak(newS);
+        if (newV !== undefined) setVersesRead(newV);
+        if (newD !== undefined) setDuaCount(newD);
+        if (newP !== undefined) setIsPremium(newP);
+        if (newR !== undefined) setRank(newR);
+      }
+    };
+
+    const handleDirectAlertEvent = (e: any) => {
+      const { uid, message } = e.detail || {};
+      if (uid === currentUser.uid && message) {
+        notificationService.notify(
+          'Message from Sanctuary Admin',
+          message,
+          'system',
+          '/home'
+        );
+      }
+    };
+
+    window.addEventListener('sanctuary_user_updated', handleLocalUserUpdate);
+    window.addEventListener('sanctuary_direct_alert', handleDirectAlertEvent);
+
+    return () => {
+      if (unsubFirestore) unsubFirestore();
+      window.removeEventListener('sanctuary_user_updated', handleLocalUserUpdate);
+      window.removeEventListener('sanctuary_direct_alert', handleDirectAlertEvent);
+    };
   }, [currentUser]);
 
   // Daily login reward: Triggered strictly once per calendar day on entering the app
@@ -1411,10 +1449,24 @@ export default function App() {
     }
   };
 
-  const tabsWithCompanion = [
-    ...NAVIGATION_TABS,
-    { id: 'companion', label: 'Companion', icon: 'Sparkles' }
-  ];
+  const isAdmin = AdminConfigService.isAdminUser(currentUser) || localStorage.getItem('sanctuary_admin_logged_in') === 'true';
+
+  const tabsWithCompanion = useMemo(() => {
+    const base = [
+      ...NAVIGATION_TABS.filter(t => t.id !== 'admin'),
+      { id: 'companion', label: 'Companion', icon: 'Sparkles' }
+    ];
+    if (isAdmin) {
+      base.push({ id: 'admin', label: 'Admin Console', icon: 'Shield' });
+    }
+    // Guarantee unique IDs across all tabs
+    const seen = new Set<string>();
+    return base.filter(tab => {
+      if (seen.has(tab.id)) return false;
+      seen.add(tab.id);
+      return true;
+    });
+  }, [isAdmin]);
 
   if (showSplash) {
     return <SplashScreen onEnter={() => setShowSplash(false)} />;
@@ -1970,7 +2022,11 @@ export default function App() {
                         currentUser={currentUser}
                       />
                     } />
-                    <Route path="/admin" element={<AdminView currentUser={currentUser} addHasanat={addHasanat} />} />
+                    <Route path="/admin" element={
+                      <AdminRouteGuard currentUser={currentUser} onAdminAuthenticated={(authPayload) => setCurrentUser(authPayload)}>
+                        <AdminView currentUser={currentUser} addHasanat={addHasanat} />
+                      </AdminRouteGuard>
+                    } />
                     <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
@@ -2044,7 +2100,7 @@ export default function App() {
                    }}
                    className="space-y-2"
                  >
-                   {NAVIGATION_TABS.map((tab) => (
+                   {tabsWithCompanion.map((tab) => (
                      <motion.button
                        key={tab.id}
                        variants={{

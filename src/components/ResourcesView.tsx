@@ -56,6 +56,7 @@ import DownloadAppView from './DownloadAppView.tsx';
 import NearbyMosquesMap from './NearbyMosquesMap.tsx';
 import QiblaView from './QiblaView.tsx';
 import HijriCalendarView from './HijriCalendarView.tsx';
+import HifzMemorizeView from './HifzMemorizeView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
@@ -159,7 +160,7 @@ export default function ResourcesView({
         { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
         { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
         { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
-        { id: 'memorise', title: 'Hifz Companion', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
+        { id: 'memorise', title: 'Tarteel Hifz AI', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
         { id: 'market', title: 'Halal Market', icon: ShoppingBag, image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=800' },
         { id: 'names', title: '99 Names', icon: Sparkles, image: 'https://images.unsplash.com/photo-1583000212006-7e23730e625a?auto=format&fit=crop&q=80&w=800' },
         { id: 'zakat', title: 'Zakat Calculator', icon: Calculator, image: 'https://images.unsplash.com/photo-1611974717482-aa389182069e?auto=format&fit=crop&q=80&w=800' },
@@ -812,6 +813,14 @@ export default function ResourcesView({
                   {activeRes === 'hajj_game' && <HajjGame3D onClose={() => setActiveRes(null)} addHasanat={addHasanat} />}
                  {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
+                 {activeRes === 'memorise' && (
+                   <HifzMemorizeView
+                     onBack={() => setActiveRes(null)}
+                     addHasanat={addHasanat}
+                     isPremium={isPremium}
+                     onShowPremium={onShowPremium}
+                   />
+                 )}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} currentUser={currentUser} />}
                  {activeRes === 'mobile' && <DownloadAppView />}
                  {(activeRes === 'calendar' || (activeRes as string) === 'calendar_view') && (
@@ -840,7 +849,7 @@ export default function ResourcesView({
                        </button>
                     </div>
                  )}
-                 {['mirror', 'immerse', 'memorise', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
+                 {['mirror', 'immerse', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
                    <div className="flex flex-col items-center justify-center py-20 md:py-40 text-center space-y-6 bg-white/[0.02] rounded-[3rem] border border-white/5 mx-auto max-w-2xl px-8">
                       <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
                          <Sparkles size={32} className="animate-pulse" />
