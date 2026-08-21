@@ -28,7 +28,7 @@ export default function AdminRouteGuard({
 }: AdminRouteGuardProps) {
   const navigate = useNavigate();
   const [adminConfig, setAdminConfig] = useState<AdminConfig>(AdminConfigService.getConfig());
-  const [adminIdentifier, setAdminIdentifier] = useState<string>(currentUser?.email || currentUser?.uid || 'hamloria');
+  const [adminIdentifier, setAdminIdentifier] = useState<string>(currentUser?.email || currentUser?.uid || '');
   const [adminPasscode, setAdminPasscode] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -133,7 +133,7 @@ export default function AdminRouteGuard({
                   type="text"
                   value={adminIdentifier}
                   onChange={(e) => setAdminIdentifier(e.target.value)}
-                  placeholder="e.g. ssalilukia9@gmail.com or hamloria"
+                  placeholder="Enter Overseer Identifier or Email"
                   className="w-full bg-white/5 border border-white/10 focus:border-brand-primary/60 focus:bg-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none transition-all"
                   required
                 />
@@ -149,7 +149,7 @@ export default function AdminRouteGuard({
                   type="password"
                   value={adminPasscode}
                   onChange={(e) => setAdminPasscode(e.target.value)}
-                  placeholder="Enter 4-digit Security Key (2214)"
+                  placeholder="••••••••"
                   className="w-full bg-white/5 border border-white/10 focus:border-brand-primary/60 focus:bg-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none tracking-widest transition-all"
                   required
                 />
@@ -181,9 +181,9 @@ export default function AdminRouteGuard({
           <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-500 font-mono">
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={12} className="text-brand-primary" />
-              Verified via Firestore /admin_config
+              Protected by Firestore Role Validation
             </span>
-            <span>Security ID: 2214 • Auto-Locked</span>
+            <span>Security Guard • Multi-Factor Active</span>
           </div>
         </div>
       </motion.div>

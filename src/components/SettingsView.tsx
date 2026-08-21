@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame, Palette, Sliders } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
+import { CURATED_THEMES, ThemeService } from '../services/themeService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SettingsViewProps {
@@ -16,6 +18,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, onLogout, language, setLanguage }: SettingsViewProps) {
+  const navigate = useNavigate();
   // Custom client-side Gemini API Key State
   const [customGeminiKey, setCustomGeminiKey] = useState(() => {
     return localStorage.getItem('custom_gemini_api_key') || '';
@@ -267,9 +270,58 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
 
       {/* Appearance & Theme Previewer Section */}
       <section className="space-y-6">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-primary/60 flex items-center gap-3">
-          <Moon size={14} /> Global Appearance & Live Theme Previewer
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-primary/60 flex items-center gap-3">
+            <Moon size={14} /> Global Appearance & Spiritual Atmosphere
+          </h3>
+          <button
+            type="button"
+            onClick={() => navigate('/settings/theme')}
+            className="text-xs font-bold text-brand-primary hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span>Open Advanced Studio</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+
+        {/* Dedicated Spiritual Studio Launch Banner */}
+        <div 
+          onClick={() => navigate('/settings/theme')}
+          className="glass-panel p-6 sm:p-7 rounded-[2.5rem] border border-brand-primary/30 bg-gradient-to-r from-brand-sidebar via-brand-primary/10 to-brand-depth hover:border-brand-primary/60 transition-all cursor-pointer group shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/15 rounded-full blur-3xl group-hover:scale-110 transition-transform pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary text-black flex items-center justify-center font-black shadow-lg shadow-brand-primary/30 shrink-0 group-hover:scale-105 transition-transform">
+                <Palette size={22} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-brand-primary/20 text-brand-primary text-[9px] font-black uppercase tracking-widest border border-brand-primary/30">
+                    Spiritual Mood & Aesthetics
+                  </span>
+                </div>
+                <h4 className="text-lg font-black text-white group-hover:text-brand-primary transition-colors">
+                  Customize Sanctuary Theme Colors
+                </h4>
+                <p className="text-xs text-slate-300 max-w-lg leading-relaxed">
+                  Tailor primary brand colors, midnight depth tones, ambient spiritual glow, and match colors to your heart's mood (Peace, Tahajjud, Fajr, Dua).
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="px-5 py-3 bg-brand-primary text-black font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-brand-primary/30 flex items-center justify-center gap-2 group-hover:gap-3 transition-all shrink-0 cursor-pointer"
+            >
+              <Sliders size={14} />
+              <span>Customize Colors</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+
         <div className="bg-white/5 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl space-y-px">
           {/* Theme Selector with Swatches & Live Preview Card */}
           <div className="p-8 border-b border-white/5 space-y-6">
@@ -278,32 +330,27 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                  <div className="w-1.5 h-5 bg-brand-primary rounded-full" />
                  <div>
                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Sanctuary Essence</p>
-                   <h4 className="text-lg font-black text-white">Live Color Palette & Theme Previewer</h4>
+                   <h4 className="text-lg font-black text-white">Quick Color Palette Swatches</h4>
                  </div>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 w-fit">
-                Instant System Re-skin
-              </span>
+              <button
+                onClick={() => navigate('/settings/theme')}
+                className="text-[10px] font-mono text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 px-3 py-1.5 rounded-full border border-brand-primary/30 w-fit flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <Sliders size={10} /> Full Theme Customizer Page
+              </button>
             </div>
 
             {/* Interactive Color Swatches Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { id: 'emerald', label: 'Imperial Emerald', desc: 'Rawdah & Gold', icon: Sparkles, color: 'bg-emerald-500', border: 'border-emerald-500', hex: '#10b981', glow: 'shadow-emerald-500/25' },
-                { id: 'amber', label: 'Desert Amber', desc: 'Makkah Sunset', icon: Sun, color: 'bg-amber-500', border: 'border-amber-500', hex: '#f59e0b', glow: 'shadow-amber-500/25' },
-                { id: 'sapphire', label: 'Sultani Sapphire', desc: 'Andalusian Twilight', icon: Waves, color: 'bg-sky-500', border: 'border-sky-500', hex: '#0ea5e9', glow: 'shadow-sky-500/25' },
-                { id: 'crimson', label: 'Velvet Kiswah', desc: 'Ottoman Ruby Glow', icon: Heart, color: 'bg-rose-500', border: 'border-rose-500', hex: '#f43f5e', glow: 'shadow-rose-500/25' },
-                { id: 'purple', label: 'Ethereal Noor', desc: 'Celestial Lavender', icon: Moon, color: 'bg-purple-500', border: 'border-purple-500', hex: '#a855f7', glow: 'shadow-purple-500/25' },
-                { id: 'dark', label: 'Midnight Obsidian', desc: 'Kaaba Deep Night', icon: Compass, color: 'bg-slate-700', border: 'border-slate-500', hex: '#64748b', glow: 'shadow-slate-500/25' }
-              ].map((t) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {CURATED_THEMES.slice(0, 8).map((t) => {
                 const isSelected = theme === t.id;
                 return (
                   <button
                     key={t.id}
                     onClick={() => {
                       setTheme(t.id);
-                      localStorage.setItem('sanctuary-theme', t.id);
-                      window.dispatchEvent(new CustomEvent('app_theme_changed', { detail: { theme: t.id } }));
+                      ThemeService.applyTheme(t.id);
                     }}
                     className={`p-4 rounded-3xl border transition-all flex flex-col items-center text-center gap-2.5 relative overflow-hidden group cursor-pointer ${
                       isSelected 
@@ -312,21 +359,24 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                     }`}
                   >
                     {/* Color Swatch Circle */}
-                    <div className={`w-11 h-11 rounded-2xl ${t.color} flex items-center justify-center text-white shadow-lg ${t.glow} group-hover:scale-110 group-active:scale-95 transition-transform relative`}>
-                      <t.icon size={20} />
+                    <div 
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-black shadow-lg group-hover:scale-110 group-active:scale-95 transition-transform relative"
+                      style={{ backgroundColor: t.colors.primary }}
+                    >
+                      <Sparkles size={18} />
                       {isSelected && (
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-white text-black rounded-full flex items-center justify-center shadow-md">
-                          <CheckCircle2 size={12} className="text-brand-depth" />
+                          <CheckCircle2 size={12} className="text-black" />
                         </div>
                       )}
                     </div>
                     <div>
-                      <p className="font-black text-white text-xs whitespace-nowrap">{t.label}</p>
-                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{t.desc}</p>
+                      <p className="font-black text-white text-xs whitespace-nowrap">{t.name}</p>
+                      <p className="text-[8px] text-brand-primary font-bold uppercase tracking-widest mt-0.5">{t.mood}</p>
                     </div>
                     {/* Swatch hex badge */}
-                    <span className="text-[8px] font-mono text-slate-500 px-2 py-0.5 rounded-md bg-black/40 border border-white/5">
-                      {t.hex}
+                    <span className="text-[8px] font-mono text-slate-400 px-2 py-0.5 rounded-md bg-black/40 border border-white/5">
+                      {t.colors.primary}
                     </span>
                   </button>
                 );

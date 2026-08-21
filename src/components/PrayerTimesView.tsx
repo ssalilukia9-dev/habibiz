@@ -34,6 +34,7 @@ import { getAudioStreamUrl } from '../lib/api.ts';
 import { GLOBAL_ADHAN_LIST } from '../constants.ts';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
 import { calculateTahajjudTimings, getUpcomingWhiteDays, TahajjudTiming, WhiteDayInfo } from '../services/islamicScheduleService.ts';
+import { TahajjudAlarmService, TahajjudAlarmSettings } from '../services/tahajjudAlarmService.ts';
 
 interface PrayerTime {
   name: string;
@@ -95,15 +96,12 @@ export default function PrayerTimesView() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Tahajjud & Night Vigil State
-  const [tahajjudAlarmEnabled, setTahajjudAlarmEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('tahajjud-reminder-settings');
-    return saved ? JSON.parse(saved).enabled !== false : true;
-  });
-  const [tahajjudOffset, setTahajjudOffset] = useState<string>(() => {
-    const saved = localStorage.getItem('tahajjud-reminder-settings');
-    return saved ? JSON.parse(saved).offset || 'last_third' : 'last_third';
-  });
+  const [tahajjudSettings, setTahajjudSettings] = useState<TahajjudAlarmSettings>(() => TahajjudAlarmService.getSettings());
+  const [tahajjudAlarmEnabled, setTahajjudAlarmEnabled] = useState<boolean>(() => TahajjudAlarmService.getSettings().enabled);
+  const [tahajjudOffset, setTahajjudOffset] = useState<string>(() => TahajjudAlarmService.getSettings().offset);
+  const [tahajjudSound, setTahajjudSound] = useState<string>(() => TahajjudAlarmService.getSettings().sound);
   const [testingTahajjud, setTestingTahajjud] = useState(false);
+  const [isPlayingChimePreview, setIsPlayingChimePreview] = useState(false);
 
   // White Days (Ayyam al-Beed) State
   const [whiteDaysAlarmEnabled, setWhiteDaysAlarmEnabled] = useState<boolean>(() => {
@@ -344,12 +342,10 @@ export default function PrayerTimesView() {
   const handleToggleTahajjudAlarm = async () => {
     const nextState = !tahajjudAlarmEnabled;
     setTahajjudAlarmEnabled(nextState);
-    const newSettings = { enabled: nextState, offset: tahajjudOffset };
-    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(newSettings));
+    TahajjudAlarmService.saveSettings({ enabled: nextState, offset: tahajjudOffset as any, sound: tahajjudSound as any });
     
     if (nextState) {
       await notificationService.requestPermission();
-      // Re-schedule
       const maghrib = prayerData.find(p => p.id === 'Maghrib')?.time || '18:40';
       const fajr = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
       notificationService.scheduleTahajjudNotifications({ Maghrib: maghrib, Fajr: fajr });
@@ -358,17 +354,40 @@ export default function PrayerTimesView() {
 
   const handleChangeTahajjudOffset = (offset: string) => {
     setTahajjudOffset(offset);
-    const newSettings = { enabled: tahajjudAlarmEnabled, offset };
-    localStorage.setItem('tahajjud-reminder-settings', JSON.stringify(newSettings));
+    TahajjudAlarmService.saveSettings({ enabled: tahajjudAlarmEnabled, offset: offset as any });
     const maghrib = prayerData.find(p => p.id === 'Maghrib')?.time || '18:40';
     const fajr = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
     notificationService.scheduleTahajjudNotifications({ Maghrib: maghrib, Fajr: fajr });
   };
 
+  const handleChangeTahajjudSound = (sound: string) => {
+    setTahajjudSound(sound);
+    TahajjudAlarmService.saveSettings({ sound: sound as any });
+  };
+
+  const handlePreviewTahajjudSound = (sound: string) => {
+    setIsPlayingChimePreview(true);
+    TahajjudAlarmService.playAlarmChime(sound, 0.9);
+    setTimeout(() => setIsPlayingChimePreview(false), 2500);
+  };
+
   const handleTestTahajjud = async () => {
     setTestingTahajjud(true);
-    await notificationService.triggerTestTahajjudAlarm(2);
-    setTimeout(() => setTestingTahajjud(false), 3000);
+    await notificationService.triggerTestTahajjudAlarm(1);
+    
+    // Also trigger audio alarm and full wake modal via TahajjudAlarmService
+    const maghrib = prayerData.find(p => p.id === 'Maghrib')?.time || '18:40';
+    const fajr = prayerData.find(p => p.id === 'Fajr')?.time || '05:15';
+    const target = TahajjudAlarmService.getNextAlarmTarget(maghrib, fajr);
+
+    setTimeout(() => {
+      TahajjudAlarmService.triggerAlarm({
+        timeStr: target.displayTime,
+        label: target.label,
+        message: "Test Nocturnal Alarm: The Lord descends to the lowest heaven in the last third of the night."
+      });
+      setTestingTahajjud(false);
+    }, 1200);
   };
 
   const handleToggleWhiteDaysAlarm = async () => {
@@ -892,6 +911,7 @@ export default function PrayerTimesView() {
               
               {/* Card 1: Tahajjud (Night Vigil & Last Third of Night) */}
               <motion.div
+                id="tour-tahajjud-hub"
                 whileHover={{ y: -3 }}
                 className="relative overflow-hidden rounded-[2.5rem] border border-purple-500/25 bg-gradient-to-br from-purple-950/40 via-slate-900/60 to-black/60 p-6 md:p-8 backdrop-blur-xl shadow-2xl space-y-6"
               >
@@ -966,6 +986,42 @@ export default function PrayerTimesView() {
                   </div>
                 </div>
 
+                {/* Alarm Tone Sound Selector */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Wake Sound Tone</label>
+                    <button
+                      onClick={() => handlePreviewTahajjudSound(tahajjudSound)}
+                      className="text-[10px] text-purple-300 hover:text-purple-200 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Volume2 size={12} className={isPlayingChimePreview ? 'animate-bounce' : ''} />
+                      <span>{isPlayingChimePreview ? 'Playing Tone...' : 'Preview Tone'}</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'noor_chime', label: 'Noor Chime 🔔' },
+                      { id: 'madinah_melody', label: 'Madinah 🌙' },
+                      { id: 'gentle_breeze', label: 'Serene Breeze 🍃' }
+                    ].map((tone) => (
+                      <button
+                        key={tone.id}
+                        onClick={() => {
+                          handleChangeTahajjudSound(tone.id);
+                          handlePreviewTahajjudSound(tone.id);
+                        }}
+                        className={`py-2 px-2 rounded-xl text-[10px] font-bold text-center transition-all border ${
+                          tahajjudSound === tone.id
+                            ? 'bg-purple-500/30 text-white border-purple-400'
+                            : 'bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {tone.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="p-3.5 rounded-2xl bg-purple-500/5 border border-purple-500/15 flex items-start gap-3">
                   <Quote size={16} className="text-purple-400 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-purple-200/80 italic leading-relaxed">
@@ -977,12 +1033,14 @@ export default function PrayerTimesView() {
                   <button
                     onClick={handleTestTahajjud}
                     disabled={testingTahajjud}
-                    className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                    className="px-4 py-2.5 bg-purple-500/15 hover:bg-purple-500/25 text-purple-200 border border-purple-500/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-md cursor-pointer"
                   >
                     {testingTahajjud ? <Loader2 size={13} className="animate-spin" /> : <Smartphone size={13} />}
-                    {testingTahajjud ? 'Testing Alarm...' : 'Test Tahajjud Lockscreen Alert'}
+                    {testingTahajjud ? 'Triggering Alarm...' : 'Test Tahajjud Wake Alarm'}
                   </button>
-                  <span className="text-[10px] text-slate-500 font-bold">Lockscreen Ready</span>
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                    <Sparkles size={11} /> Ready & Armed
+                  </span>
                 </div>
               </motion.div>
 

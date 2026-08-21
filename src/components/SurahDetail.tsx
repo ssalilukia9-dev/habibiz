@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { SURAH_LIST, RECITERS, TRANSLATIONS } from '../constants.ts';
+import { SURAH_LIST, RECITERS, TRANSLATIONS, getAyahAudioUrl } from '../constants.ts';
 import { Surah, Ayah } from '../types.ts';
 import { 
   ChevronLeft, 
@@ -29,6 +29,7 @@ import { notificationService } from '../services/notificationService';
 import { getAudioStreamUrl } from '../lib/api';
 import VerseShareModal from './VerseShareModal.tsx';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
+import { QuranAudioService, QuranTrack, QuranAudioState } from '../services/quranAudioService.ts';
 
 interface SurahDetailProps {
   surah: Surah;
@@ -129,7 +130,7 @@ export default function SurahDetail({
   }, [ayahs]);
 
   const prefetchSingleAyah = (nextAyah: any) => {
-    if (nextAyah.audioBlob || prefetchedAyahsRef.current.has(nextAyah.number)) return;
+    if (!nextAyah || nextAyah.audioBlob || prefetchedAyahsRef.current.has(nextAyah.number)) return;
     
     prefetchedAyahsRef.current.add(nextAyah.number);
     const streamUrl = getAudioStreamUrl(nextAyah.audio);
@@ -150,7 +151,8 @@ export default function SurahDetail({
 
   const prefetchNextAyahs = (currentAyahNumber: number) => {
     const currentAyahs = ayahsRef.current;
-    const currentIndex = currentAyahs.findIndex(a => a.number === currentAyahNumber);
+    if (!Array.isArray(currentAyahs)) return;
+    const currentIndex = currentAyahs.findIndex(a => a && a.number === currentAyahNumber);
     if (currentIndex === -1) return;
 
     // Prefetch next 2 verses ahead lightly
@@ -159,7 +161,7 @@ export default function SurahDetail({
     for (const idx of nextIndices) {
       if (idx < currentAyahs.length) {
         const nextAyah = currentAyahs[idx];
-        if (nextAyah.audio && !nextAyah.audioBlob && downloadingAyah !== nextAyah.number) {
+        if (nextAyah && nextAyah.audio && !nextAyah.audioBlob && downloadingAyah !== nextAyah.number) {
           prefetchSingleAyah(nextAyah);
         }
       }
@@ -235,31 +237,31 @@ export default function SurahDetail({
       }
 
       try {
-        // Fetch Arabic text + Audio
-        const resArabic = await fetch(`/api/proxy/alquran/surah/${surah.number}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
+        // Fetch Authentic Arabic text (Uthmani)
+        const resArabic = await fetch(`/api/proxy/alquran/surah/${surah.number}/quran-uthmani`, { signal: controller.signal });
         const dataArabic = await resArabic.json();
         
-        // Fetch English translation
+        // Fetch translation
         const resTrans = await fetch(`/api/proxy/alquran/surah/${surah.number}/${selectedTranslation}`, { signal: controller.signal });
         const dataTrans = await resTrans.json();
 
-        if (dataArabic.data && dataTrans.data) {
+        if (dataArabic?.data?.ayahs && Array.isArray(dataArabic.data.ayahs) && dataTrans?.data) {
           const combined = dataArabic.data.ayahs.map((a: any, idx: number) => {
-            const cached = cachedAyahs?.find(ca => ca.number === a.number);
-            const secureAudio = a.audio ? a.audio.replace(/^http:/, 'https:') : undefined;
+            const ayahAudio = getAyahAudioUrl(selectedReciter, surah.number, a.numberInSurah, a.number);
+            const cached = Array.isArray(cachedAyahs) ? cachedAyahs.find(ca => ca && ca.number === a?.number) : undefined;
             return {
               ...a,
-              audio: secureAudio,
+              audio: ayahAudio,
               translation: dataTrans.data?.ayahs?.[idx]?.text || "",
-              // Persist audio blob if URLs match
-              audioBlob: cached?.audio === secureAudio ? cached.audioBlob : undefined
+              // Persist audio blob if cached
+              audioBlob: (cached && cached.audioBlob) ? cached.audioBlob : undefined
             };
           });
           setAyahs(combined);
         }
       } catch (err: any) {
         if (err.name === 'AbortError' || controller.signal.aborted) {
-          // Igore expected cleanup abort
+          // Ignore expected cleanup abort
           return;
         }
         console.error("Failed to fetch surah data", err);
@@ -278,130 +280,57 @@ export default function SurahDetail({
     return () => controller.abort();
   }, [surah.number, selectedReciter, selectedTranslation]);
 
+  const [audioState, setAudioState] = useState<QuranAudioState>(QuranAudioService.getState());
+
+  useEffect(() => {
+    const unsub = QuranAudioService.subscribe((s) => {
+      setAudioState(s);
+      if (s.currentTrack && s.currentTrack.surahNumber === surah.number) {
+        setPlayingAyah(s.isPlaying ? s.currentTrack.number : null);
+      } else if (!s.isPlaying) {
+        setPlayingAyah(null);
+      }
+    });
+    return unsub;
+  }, [surah.number]);
+
   const togglePlay = (ayah: any) => {
-    if (playingAyah === ayah.number) {
-      audioRef.current?.pause();
+    if (audioState.isPlaying && audioState.currentTrack?.number === ayah.number) {
+      QuranAudioService.pause();
       setPlayingAyah(null);
+    } else if (!audioState.isPlaying && audioState.currentTrack?.number === ayah.number) {
+      QuranAudioService.resume();
+      setPlayingAyah(ayah.number);
     } else {
       playAyah(ayah);
     }
   };
 
   const playAyah = async (ayah: any) => {
-    if (audioRef.current) {
-      try {
-        audioRef.current.pause();
-        audioRef.current.onended = null;
-        audioRef.current.onerror = null;
-        audioRef.current.oncanplaythrough = null;
-        audioRef.current.onprogress = null;
-      } catch (e) {}
-    }
-    
-    const rawAudioUrl = ayah.audioBlob ? URL.createObjectURL(ayah.audioBlob) : getAudioStreamUrl(ayah.audio);
-    const currentAyahs = ayahsRef.current;
-    
-    if (!rawAudioUrl) {
-      console.warn(`No audio URL found for ayah ${ayah.number}. Skipping or stopping.`);
-      if (autoPlay) {
-        const currentIndex = currentAyahs.findIndex(a => a.number === ayah.number);
-        if (currentIndex < currentAyahs.length - 1) {
-          playAyah(currentAyahs[currentIndex + 1]);
-        } else {
-          setPlayingAyah(null);
-        }
-      } else {
-        setPlayingAyah(null);
-      }
-      return;
-    }
-    
-    setIsAudioLoading(ayah.number);
-    setBufferingProgress(0);
-    
-    // Lightly prefetch the next verses ahead
-    prefetchNextAyahs(ayah.number);
-    
-    try {
-      let audio: HTMLAudioElement;
+    if (!ayahs || ayahs.length === 0) return;
 
-      // Reuse preloaded audio instance if available for instant playback without buffer lag
-      const preloadedAudio = !ayah.audioBlob ? preloadedAudioElementsRef.current.get(ayah.number) : undefined;
-      if (preloadedAudio) {
-        audio = preloadedAudio;
-        preloadedAudioElementsRef.current.delete(ayah.number);
-      } else {
-        audio = new Audio();
-        audio.preload = 'auto';
-        audio.src = rawAudioUrl;
-      }
-      
-      audioRef.current = audio;
+    const tracks: QuranTrack[] = ayahs.map(a => ({
+      number: a.number,
+      numberInSurah: a.numberInSurah,
+      surahNumber: surah.number,
+      surahName: surah.name,
+      surahEnglishName: surah.englishName,
+      textArabic: a.text,
+      textTranslation: a.translation,
+      audioUrl: a.audioBlob ? URL.createObjectURL(a.audioBlob) : getAudioStreamUrl(a.audio)
+    }));
 
-      // Buffering progress handler
-      audio.onprogress = () => {
-        if (audio.buffered.length > 0) {
-          const duration = audio.duration || 1;
-          const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
-          const progress = Math.min(100, Math.round((bufferedEnd / duration) * 100));
-          setBufferingProgress(progress);
-        }
-      };
-      
-      const onCanPlay = () => {
-        setIsAudioLoading(null);
-        setBufferingProgress(100);
-        audio.play().catch(e => {
-          console.warn("Audio play blocked or waiting on user touch:", e);
-          setIsAudioLoading(null);
-          setPlayingAyah(null);
-        });
-        setPlayingAyah(ayah.number);
-      };
+    const startIndex = ayahs.findIndex(a => a.number === ayah.number);
+    QuranAudioService.setPlaylist(
+      tracks,
+      surah,
+      selectedReciter,
+      Math.max(0, startIndex),
+      true
+    );
 
-      audio.oncanplaythrough = onCanPlay;
-
-      audio.onended = () => {
-        handleRead(ayah.number);
-        if (autoPlay) {
-          const freshAyahs = ayahsRef.current;
-          const currentIndex = freshAyahs.findIndex(a => a.number === ayah.number);
-          if (currentIndex < freshAyahs.length - 1) {
-            playAyah(freshAyahs[currentIndex + 1]);
-          } else {
-            setPlayingAyah(null);
-          }
-        } else {
-          setPlayingAyah(null);
-        }
-      };
-
-      audio.onerror = (e) => {
-        console.error("Audio failed to load directly", e);
-        // Fallback: If blob URL or specific stream failed, attempt direct fallback URL
-        if (audio.src.startsWith('blob:') && ayah.audio) {
-          audio.src = getAudioStreamUrl(ayah.audio);
-          audio.play().catch(() => {
-            setPlayingAyah(null);
-            setIsAudioLoading(null);
-          });
-        } else {
-          setPlayingAyah(null);
-          setIsAudioLoading(null);
-        }
-      };
-
-      // If audio already ready, play immediately for snappy response
-      if (audio.readyState >= 3) {
-        onCanPlay();
-      } else {
-        audio.load();
-      }
-
-    } catch (error) {
-      console.error("Failed to initialize audio ayah", error);
-      setIsAudioLoading(null);
-    }
+    setPlayingAyah(ayah.number);
+    handleRead(ayah.number);
   };
 
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
@@ -874,8 +803,8 @@ export default function SurahDetail({
            {/* Real-time D3 Waveform Visualizer */}
            <div className="px-4 pt-1 pb-1">
              <WaveformVisualizer 
-               audioElement={audioRef.current} 
-               isPlaying={!!playingAyah && !audioRef.current?.paused} 
+               audioElement={QuranAudioService.getAudioElement()} 
+               isPlaying={audioState.isPlaying && audioState.currentTrack?.surahNumber === surah.number} 
                theme="quran" 
                height={32} 
              />
@@ -885,15 +814,11 @@ export default function SurahDetail({
              {/* Current Ayah / Status */}
             <div className="flex items-center gap-3 px-2 md:px-4 border-r border-white/10">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-brand-primary rounded-2xl flex items-center justify-center text-brand-depth relative overflow-hidden">
-                 {isAudioLoading ? (
+                 {audioState.isLoading ? (
                    <>
                     <Loader2 size={24} className="animate-spin relative z-10" />
-                    <div 
-                      className="absolute bottom-0 left-0 w-full bg-black/20 transition-all duration-300"
-                      style={{ height: `${bufferingProgress}%` }}
-                    />
                    </>
-                 ) : playingAyah ? (
+                 ) : (audioState.isPlaying && audioState.currentTrack?.surahNumber === surah.number) ? (
                    <Volume2 size={24} className="animate-pulse" />
                  ) : (
                    <BookOpen size={24} />
@@ -901,10 +826,10 @@ export default function SurahDetail({
               </div>
               <div className="hidden xs:block">
                  <p className="text-[8px] font-black text-brand-primary uppercase tracking-[0.2em] mb-0.5">
-                   {isAudioLoading ? `Buffering ${bufferingProgress}%` : playingAyah ? 'Now Reciting' : 'Ready'}
+                   {audioState.isLoading ? 'Loading Audio...' : (audioState.isPlaying && audioState.currentTrack?.surahNumber === surah.number) ? 'Now Reciting' : 'Ready'}
                  </p>
                  <p className="text-[10px] md:text-xs font-bold text-white truncate max-w-[80px] md:max-w-[120px]">
-                   {playingAyah ? `Ayah #${ayahs.find(a => a.number === playingAyah)?.numberInSurah}` : `${surah.englishName}`}
+                   {(audioState.currentTrack && audioState.currentTrack.surahNumber === surah.number) ? `Ayah #${audioState.currentTrack.numberInSurah}` : `${surah.englishName}`}
                  </p>
               </div>
            </div>
@@ -913,10 +838,9 @@ export default function SurahDetail({
            <div className="flex-1 flex items-center justify-center gap-2 md:gap-6">
               <button 
                 onClick={() => {
-                  const currentIndex = ayahs.findIndex(a => a.number === (playingAyah || ayahs[0].number));
-                  if (currentIndex > 0) playAyah(ayahs[currentIndex - 1]);
+                  QuranAudioService.playPrevious();
                 }}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
+                className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title="Previous Ayah"
               >
                 <SkipBack size={20} fill="currentColor" />
@@ -924,19 +848,18 @@ export default function SurahDetail({
 
               <button 
                 onClick={() => {
-                  if (playingAyah) {
-                    audioRef.current?.pause();
-                    setPlayingAyah(null);
+                  if (audioState.currentTrack && audioState.currentTrack.surahNumber === surah.number) {
+                    QuranAudioService.togglePlay();
                   } else {
                     const toPlay = playingAyah ? ayahs.find(a => a.number === playingAyah) : ayahs[0];
-                    playAyah(toPlay);
+                    if (toPlay) playAyah(toPlay);
                   }
                 }}
-                className="w-12 h-12 md:w-14 md:h-14 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-brand-primary/30"
+                className="w-12 h-12 md:w-14 md:h-14 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-brand-primary/30 cursor-pointer"
               >
-                {isAudioLoading ? (
+                {audioState.isLoading ? (
                   <Loader2 size={24} className="animate-spin" />
-                ) : playingAyah ? (
+                ) : (audioState.isPlaying && audioState.currentTrack?.surahNumber === surah.number) ? (
                   <Pause fill="currentColor" size={24} />
                 ) : (
                   <Play fill="currentColor" size={24} />
@@ -945,10 +868,9 @@ export default function SurahDetail({
 
               <button 
                 onClick={() => {
-                  const currentIndex = ayahs.findIndex(a => a.number === (playingAyah || ayahs[0].number));
-                  if (currentIndex < ayahs.length - 1) playAyah(ayahs[currentIndex + 1]);
+                  QuranAudioService.playNext();
                 }}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
+                className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title="Next Ayah"
               >
                 <SkipForward size={20} fill="currentColor" />

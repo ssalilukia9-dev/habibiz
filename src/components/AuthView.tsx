@@ -404,7 +404,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between pl-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {showAdminMode ? 'Admin User ID (hamloria / 0207 / 0214)' : 'Fast Email / Admin ID'}
+                {showAdminMode ? 'Overseer Identifier / Email' : 'Fast Email / Account ID'}
               </label>
               <button 
                 type="button" 
@@ -415,7 +415,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                 className="text-[9px] font-black text-brand-primary uppercase hover:underline cursor-pointer flex items-center gap-1"
               >
                 <Lock size={10} />
-                <span>{showAdminMode ? 'Switch to Email' : 'Admin Login'}</span>
+                <span>{showAdminMode ? 'Switch to Standard' : 'Overseer Portal'}</span>
               </button>
             </div>
             
@@ -430,7 +430,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                 type="text" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={showAdminMode ? "Enter hamloria, 0207, or 0214" : "name@domain.com (or Admin ID)"}
+                placeholder={showAdminMode ? "Enter Overseer ID / Email" : "name@domain.com"}
                 className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-white placeholder-slate-500 font-medium outline-none focus:border-brand-primary transition-all text-xs"
               />
             </div>
@@ -444,7 +444,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
               className="space-y-1.5"
             >
               <label className="text-[10px] font-bold text-amber-400 uppercase tracking-widest pl-1">
-                Admin Security Password / Key (2214)
+                Overseer Security Key / Passcode
               </label>
               <div className="relative group">
                 <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400" size={16} />
@@ -453,7 +453,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter Password"
+                  placeholder="••••••••"
                   className="w-full bg-black/40 border border-amber-500/30 rounded-2xl py-3.5 pl-11 pr-4 text-white placeholder-slate-500 font-medium outline-none focus:border-amber-400 transition-all text-xs font-mono"
                 />
               </div>

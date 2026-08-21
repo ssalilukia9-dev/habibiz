@@ -24,16 +24,16 @@
 }
 
 @layer base {
-  :root:not([data-theme]), :root[data-theme="dark"] {
-    --color-brand-primary: #a855f7; /* Purple 500 */
-    --color-brand-secondary: #fbbf24; /* Warm Gold */
-    --color-brand-accent: #e2e8f0;
-    --color-brand-depth: #070913; /* Midnight Starlit Obsidian */
-    --color-brand-sidebar: #04050b;
-    --color-brand-border: rgba(255, 255, 255, 0.08);
-    --color-app-text: #f8fafc;
-    --color-app-text-muted: #94a3b8;
-    --color-app-text-dim: #64748b;
+  :root:not([data-theme]), :root[data-theme="aloha"], :root[data-theme="dark"] {
+    --color-brand-primary: #c58f54; /* Aloha Bronze Gold */
+    --color-brand-secondary: #1b4d6e; /* Aloha Oceanic Navy */
+    --color-brand-accent: #e2b789; /* Aloha Warm Champagne */
+    --color-brand-depth: #0a1c2a; /* Aloha Deep Oceanic Obsidian */
+    --color-brand-sidebar: #06121c; /* Aloha Night Abyss */
+    --color-brand-border: rgba(197, 143, 84, 0.22);
+    --color-app-text: #fdfbf7;
+    --color-app-text-muted: #cbd5e1;
+    --color-app-text-dim: #94a3b8;
   }
 
   :root[data-theme="emerald"] {
@@ -87,12 +87,73 @@
   :root[data-theme="purple"] {
     --color-brand-primary: #a855f7; /* Purple 500 */
     --color-brand-secondary: #f472b6; /* Pink 400 */
+    --color-brand-accent: #d8b4fe;
     --color-brand-depth: #090314; /* Ethereal Lavender Night */
     --color-brand-sidebar: #05010c;
     --color-brand-border: rgba(168, 85, 247, 0.18);
     --color-app-text: #faf5ff;
     --color-app-text-muted: #d8b4fe;
     --color-app-text-dim: #a855f7;
+  }
+
+  :root[data-theme="fajr"] {
+    --color-brand-primary: #fb923c; /* Coral Orange */
+    --color-brand-secondary: #f43f5e; /* Rose 500 */
+    --color-brand-accent: #fed7aa;
+    --color-brand-depth: #180a06; /* Dawn Obsidian */
+    --color-brand-sidebar: #100503;
+    --color-brand-border: rgba(251, 146, 60, 0.22);
+    --color-app-text: #fff7ed;
+    --color-app-text-muted: #ffedd5;
+    --color-app-text-dim: #fdba74;
+  }
+
+  :root[data-theme="olive"] {
+    --color-brand-primary: #84cc16; /* Lime Olive */
+    --color-brand-secondary: #65a30d; /* Deep Sage */
+    --color-brand-accent: #bef264;
+    --color-brand-depth: #0d1506; /* Forest Olive */
+    --color-brand-sidebar: #070c03;
+    --color-brand-border: rgba(132, 204, 22, 0.22);
+    --color-app-text: #f7fee7;
+    --color-app-text-muted: #d9f99d;
+    --color-app-text-dim: #bef264;
+  }
+
+  :root[data-theme="samarkand"] {
+    --color-brand-primary: #06b6d4; /* Cyan Turquoise */
+    --color-brand-secondary: #0284c7; /* Sky Blue */
+    --color-brand-accent: #67e8f9;
+    --color-brand-depth: #04151b; /* Silk Road Obsidian */
+    --color-brand-sidebar: #020d12;
+    --color-brand-border: rgba(6, 182, 212, 0.22);
+    --color-app-text: #ecfeff;
+    --color-app-text-muted: #a5f3fc;
+    --color-app-text-dim: #67e8f9;
+  }
+
+  :root[data-theme="cordoba"] {
+    --color-brand-primary: #e11d48; /* Terracotta Rose */
+    --color-brand-secondary: #c026d3; /* Fuchsia */
+    --color-brand-accent: #fda4af;
+    --color-brand-depth: #1a0610; /* Andalusian Dusk */
+    --color-brand-sidebar: #10030a;
+    --color-brand-border: rgba(225, 29, 72, 0.22);
+    --color-app-text: #fff1f2;
+    --color-app-text-muted: #fecdd3;
+    --color-app-text-dim: #fda4af;
+  }
+
+  :root[data-theme="aqsa"] {
+    --color-brand-primary: #eab308; /* Radiant Sunbeam Gold */
+    --color-brand-secondary: #ca8a04; /* Deep Gold */
+    --color-brand-accent: #fef08a;
+    --color-brand-depth: #151205; /* Sacred Night */
+    --color-brand-sidebar: #0d0b02;
+    --color-brand-border: rgba(234, 179, 8, 0.25);
+    --color-app-text: #fefce8;
+    --color-app-text-muted: #fef08a;
+    --color-app-text-dim: #fde047;
   }
 
   body {

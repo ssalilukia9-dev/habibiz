@@ -411,7 +411,7 @@ export default function FeedView({
     if (activeUser.isRest) {
       try {
         const added = await restDbClient.addPost(newPost, postCategory, imagePreview, pollData);
-        if (addHasanat) addHasanat(50);
+        if (addHasanat) addHasanat(5);
         setPosts([
           {
             ...optimisticPost,
@@ -428,7 +428,7 @@ export default function FeedView({
         setTimeout(() => setPublishSuccessMessage(null), 4000);
       } catch (e) {
         console.warn("Failed to submit REST post, using local persistence:", e);
-        if (addHasanat) addHasanat(50);
+        if (addHasanat) addHasanat(5);
         setPosts([optimisticPost, ...posts]);
         setNewPost('');
         setImagePreview(null);
@@ -465,7 +465,7 @@ export default function FeedView({
         // Guest / Local user fallback
         await restDbClient.addPost(newPost, postCategory, imagePreview, pollData);
       }
-      if (addHasanat) addHasanat(50);
+      if (addHasanat) addHasanat(5);
       setPosts([optimisticPost, ...posts]);
       setNewPost('');
       setImagePreview(null);
@@ -476,7 +476,7 @@ export default function FeedView({
       setTimeout(() => setPublishSuccessMessage(null), 4000);
     } catch (e) {
       console.warn("Firestore write error, falling back locally:", e);
-      if (addHasanat) addHasanat(50);
+      if (addHasanat) addHasanat(5);
       setPosts([optimisticPost, ...posts]);
       setNewPost('');
       setImagePreview(null);
@@ -521,7 +521,7 @@ export default function FeedView({
 
       if (activeUser.isRest) {
         setPosts(posts.map(p => p.id === postId ? { ...p, poll: updatedPoll } : p));
-        if (addHasanat) addHasanat(10);
+        if (addHasanat) addHasanat(1);
         return;
       }
 
@@ -532,7 +532,7 @@ export default function FeedView({
           'poll.options': newOptions,
           [`poll.userSelections.${userId}`]: optionId
         });
-        if (addHasanat) addHasanat(10);
+        if (addHasanat) addHasanat(1);
       } catch (e) {
         handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/poll`);
       }
@@ -669,7 +669,7 @@ export default function FeedView({
           setPosts(posts.map(p => p.id === postId ? { ...p, comments: updatedComments } : p));
         }
         await restDbClient.commentPost(postId, activePostComment.text);
-        if (addHasanat) addHasanat(20);
+        if (addHasanat) addHasanat(2);
         setActivePostComment(null);
       } catch (e) {
         console.warn("Failed to submit REST comment:", e);
@@ -685,7 +685,7 @@ export default function FeedView({
           comments: [...post.comments, newComment]
         });
       }
-      if (addHasanat) addHasanat(20);
+      if (addHasanat) addHasanat(2);
       setActivePostComment(null);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/comments`);

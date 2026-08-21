@@ -47,6 +47,7 @@ import AdhkarView from './AdhkarView.tsx';
 import ZakatCalculator from './ZakatCalculator.tsx';
 import IslamicGuides from './IslamicGuides.tsx';
 import NamesOfAllahView from './NamesOfAllahView.tsx';
+import BabyNamesView from './BabyNamesView.tsx';
 import GamesView from './GamesView.tsx';
 import HajjUmrahHub from './HajjUmrahHub.tsx';
 import HajjGame3D from './HajjGame3D.tsx';
@@ -60,6 +61,7 @@ import HifzMemorizeView from './HifzMemorizeView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
+import NotificationsView from './NotificationsView.tsx';
 
 interface ResourcesViewProps {
   selectedSurah: Surah | null;
@@ -179,7 +181,7 @@ export default function ResourcesView({
     {
       title: 'PREMIUM',
       cards: [
-        { id: 'companion', title: 'Holy Aliyah AI', icon: Sparkles, image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', premium: true },
+        { id: 'companion', title: 'Habibi Aliyah AI', icon: Sparkles, image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', premium: true },
         { id: 'finance', title: 'Islamic Finance', icon: BarChart3, image: 'https://images.unsplash.com/photo-1454165833221-d8d8b66455db?auto=format&fit=crop&q=80&w=800', premium: true },
         { id: 'hadith', title: 'Hadith Library', icon: Library, image: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=800', premium: true },
         { id: 'calendar', title: 'Hijri Calendar', icon: CalendarDays, image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800', premium: false },
@@ -196,9 +198,8 @@ export default function ResourcesView({
     {
       title: 'SYSTEM ARCHITECTURE',
       cards: [
-        { id: 'anatomy', title: 'Grand Architect Map', icon: Terminal, image: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&q=80&w=800', premium: false },
-        { id: 'system', title: 'Sanctuary OS Core', icon: Activity, image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=800', premium: false },
-        { id: 'mobile', title: 'Download Source Code & App', icon: Smartphone, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=800', premium: false }
+        { id: 'activity', title: 'Activity', icon: Activity, image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800', premium: false },
+        { id: 'system', title: 'Sanctuary OS Core', icon: Terminal, image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=800', premium: false }
       ]
     }
   ];
@@ -210,6 +211,8 @@ export default function ResourcesView({
       navigate('/companion');
     } else if (id === 'market') {
       navigate('/market');
+    } else if (id === 'activity' || id === 'notifications') {
+      setActiveRes('activity' as any);
     } else if (id === 'tasbih') {
       setActiveRes('tools');
     } else {
@@ -811,7 +814,7 @@ export default function ResourcesView({
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'hajj_umrah' && <HajjUmrahHub onNavigate={(view) => setActiveRes(view as TabType)} addHasanat={addHasanat} incrementDua={incrementDua} />}
                   {activeRes === 'hajj_game' && <HajjGame3D onClose={() => setActiveRes(null)} addHasanat={addHasanat} />}
-                 {activeRes === 'babynames' && <IslamicGuides initialTab="names" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
+                 {activeRes === 'babynames' && <BabyNamesView onBack={() => setActiveRes(null)} addHasanat={addHasanat} />}
                  {activeRes === 'games' && <GamesView addHasanat={addHasanat} />}
                  {activeRes === 'memorise' && (
                    <HifzMemorizeView
@@ -822,7 +825,11 @@ export default function ResourcesView({
                    />
                  )}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} currentUser={currentUser} />}
-                 {activeRes === 'mobile' && <DownloadAppView />}
+                 {((activeRes as string) === 'activity' || (activeRes as string) === 'notifications') && (
+                   <div className="space-y-6">
+                     <NotificationsView />
+                   </div>
+                 )}
                  {(activeRes === 'calendar' || (activeRes as string) === 'calendar_view') && (
                    <HijriCalendarView onNavigate={(tab, extra) => {
                      if (tab === 'resources') {

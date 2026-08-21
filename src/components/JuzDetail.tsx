@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RECITERS, TRANSLATIONS, SURAH_LIST } from '../constants.ts';
+import { RECITERS, TRANSLATIONS, SURAH_LIST, getAyahAudioUrl } from '../constants.ts';
 import { Ayah } from '../types.ts';
 import { 
   ChevronLeft, 
@@ -124,28 +124,29 @@ export default function JuzDetail({
       const isOfflineMode = localStorage.getItem('offline-mode') === 'true';
 
       try {
-        // Fetch Juz content
-        const resArabic = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${reciter?.slug || 'ar.alafasy'}`, { signal: controller.signal });
+        // Fetch Juz content (Authentic Uthmani text)
+        const resArabic = await fetch(`/api/proxy/alquran/juz/${juzIndex}/quran-uthmani`, { signal: controller.signal });
         const dataArabic = await resArabic.json();
         
         const resTrans = await fetch(`/api/proxy/alquran/juz/${juzIndex}/${selectedTranslation}`, { signal: controller.signal });
         const dataTrans = await resTrans.json();
 
-        if (dataArabic.data && dataTrans.data) {
+        if (dataArabic?.data?.ayahs && Array.isArray(dataArabic.data.ayahs) && dataTrans?.data) {
           const combined = await Promise.all(dataArabic.data.ayahs.map(async (a: any, idx: number) => {
-            const surahInfo = SURAH_LIST.find(s => s.number === a.surah.number);
-            const secureAudio = a.audio ? a.audio.replace(/^http:/, 'https:') : undefined;
+            const surahNumber = a?.surah?.number || 1;
+            const surahInfo = SURAH_LIST.find(s => s.number === surahNumber);
+            const ayahAudio = getAyahAudioUrl(selectedReciter, surahNumber, a.numberInSurah, a.number);
             
             // Check cache for this specific ayah
-            const cachedAyahsForSurah = await offlineService.getAyahs(a.surah.number, selectedReciter);
-            const cached = cachedAyahsForSurah?.find(ca => ca.number === a.number);
+            const cachedAyahsForSurah = await offlineService.getAyahs(surahNumber, selectedReciter);
+            const cached = Array.isArray(cachedAyahsForSurah) ? cachedAyahsForSurah.find(ca => ca && ca.number === a?.number) : undefined;
 
             return {
               ...a,
-              audio: secureAudio,
-              surahName: surahInfo?.englishName || a.surah.englishName,
+              audio: ayahAudio,
+              surahName: surahInfo?.englishName || a?.surah?.englishName || '',
               translation: dataTrans.data?.ayahs?.[idx]?.text || "",
-              audioBlob: cached?.audio === secureAudio ? cached.audioBlob : undefined
+              audioBlob: (cached && cached.audioBlob) ? cached.audioBlob : undefined
             };
           }));
           setAyahs(combined);

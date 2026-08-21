@@ -121,7 +121,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     return localStorage.getItem('sanctuary_admin_logged_in') === 'true' || AdminConfigService.isAdminUser(currentUser);
   });
-  const [adminInputId, setAdminInputId] = useState<string>(currentUser?.email || currentUser?.uid || 'hamloria');
+  const [adminInputId, setAdminInputId] = useState<string>(currentUser?.email || currentUser?.uid || '');
   const [adminInputPass, setAdminInputPass] = useState<string>('');
   const [passError, setPassError] = useState<string | null>(null);
 
@@ -811,7 +811,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-400">Security Gate</span>
             <h2 className="text-3xl font-black text-white italic tracking-tight uppercase">Super Admin Portal</h2>
             <p className="text-xs text-slate-400 font-medium">
-              Enter authorized administrator ID & security key (2214) to access live analytics and user controls.
+              Enter authorized administrator credentials and security key to access live analytics and user controls.
             </p>
           </div>
 
@@ -825,7 +825,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
           <form onSubmit={handleVerifyPasscode} className="space-y-4 text-left">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                Admin ID (hamloria / 0207 / 0214)
+                Overseer Identifier / Email
               </label>
               <div className="relative">
                 <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -833,7 +833,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                   type="text" 
                   value={adminInputId}
                   onChange={(e) => setAdminInputId(e.target.value)}
-                  placeholder="hamloria"
+                  placeholder="Enter Overseer ID / Email"
                   className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-white text-xs font-mono outline-none focus:border-amber-400 transition-all"
                 />
               </div>
@@ -841,7 +841,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                Security Password (2214)
+                Security Passcode
               </label>
               <div className="relative">
                 <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400" size={16} />
@@ -850,7 +850,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                   type="password" 
                   value={adminInputPass}
                   onChange={(e) => setAdminInputPass(e.target.value)}
-                  placeholder="Enter 2214"
+                  placeholder="••••••••"
                   className="w-full bg-black/40 border border-amber-500/30 rounded-2xl py-3 pl-11 pr-4 text-white text-xs font-mono outline-none focus:border-amber-400 transition-all"
                 />
               </div>
@@ -906,7 +906,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
               Habibi Sanctuary Central Command
             </h1>
             <p className="text-xs text-slate-400 font-medium">
-              Administrator ID: <span className="text-white font-mono font-bold">hamloria</span> • Real-Time Database Latency: <span className="text-emerald-400 font-mono font-bold">18ms</span>
+              Administrator: <span className="text-white font-mono font-bold">{currentUser?.displayName || currentUser?.email || 'Authorized Overseer'}</span> • Real-Time Database Latency: <span className="text-emerald-400 font-mono font-bold">18ms</span>
             </p>
           </div>
         </div>

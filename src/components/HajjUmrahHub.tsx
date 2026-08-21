@@ -368,7 +368,7 @@ export default function HajjUmrahHub({ onNavigate, addHasanat, incrementDua }: H
   const handleClaimDua = (id: string) => {
     if (!completedDuas[id]) {
       setCompletedDuas(prev => ({ ...prev, [id]: true }));
-      addHasanat(50);
+      addHasanat(5);
       incrementDua();
       window.dispatchEvent(new CustomEvent('hasanat_earned_popup', {
         detail: { amount: 50, reason: "Sacred Pilgrimage Du'a Completed! +50 Hasanat" }

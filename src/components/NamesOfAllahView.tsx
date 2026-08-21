@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -7,25 +7,32 @@ import {
   Play, 
   FastForward, 
   Rewind, 
-  Check, 
   RotateCcw, 
-  Languages,
-  BookOpen,
-  Heart,
-  Repeat,
-  Sliders,
-  CheckCircle2,
-  ListOrdered
+  BookOpen, 
+  Heart, 
+  Sliders, 
+  CheckCircle2, 
+  ListOrdered,
+  Share2,
+  ExternalLink,
+  VolumeX,
+  Music2,
+  Radio,
+  Clock,
+  Sparkle,
+  Check
 } from 'lucide-react';
-import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
-import { VoiceService, VoicePlaybackState, ContinuousPlayItem } from '../services/voiceService.ts';
+import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData';
+import { NAMES_OF_ALLAH_AUDIO_MAP, getNameOfAllahAudioUrl } from '../data/namesOfAllahAudio';
+import { YoutubeNamesService, YoutubeNamesState, YOUTUBE_NAMES_VIDEO_ID } from '../services/youtubeNamesService';
 
 export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: string }) {
-  const [playbackState, setPlaybackState] = useState<VoicePlaybackState>(VoiceService.getState());
-  const [recitationMode, setRecitationMode] = useState<'arabic' | 'english' | 'both'>('both');
-  const [isLooping, setIsLooping] = useState<boolean>(true);
+  const [ytState, setYtState] = useState<YoutubeNamesState>(YoutubeNamesService.getState());
   const [speed, setSpeed] = useState<number>(1.0);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [playingSingleId, setPlayingSingleId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const singleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [learnedMap, setLearnedMap] = useState<Record<number, boolean>>(() => {
     try {
@@ -35,24 +42,25 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
     }
   });
 
+  // Subscribe to YouTube Continuous 99 Names Recitation
   useEffect(() => {
-    const unsub = VoiceService.subscribe((state) => {
-      setPlaybackState(state);
-      // Auto-scroll to active card in continuous playlist
-      if (state.isContinuous && state.currentIndex >= 0 && state.currentIndex < ALL_NAMES_OF_ALLAH.length) {
-        const activeName = ALL_NAMES_OF_ALLAH[state.currentIndex];
-        if (activeName && cardRefs.current[activeName.id]) {
-          cardRefs.current[activeName.id]?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
+    const unsub = YoutubeNamesService.subscribe((state) => {
+      setYtState(state);
+      // Auto-scroll to active card when continuous recitation is playing
+      if (state.isPlaying && cardRefs.current[state.activeNameId]) {
+        cardRefs.current[state.activeNameId]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
       }
     });
 
     return () => {
       unsub();
-      VoiceService.stop();
+      if (singleAudioRef.current) {
+        singleAudioRef.current.pause();
+        singleAudioRef.current = null;
+      }
     };
   }, []);
 
@@ -64,70 +72,109 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
     });
   };
 
-  const handlePlayArabic = (n: NameOfAllah, e?: React.MouseEvent) => {
+  /**
+   * Play single individual name using the authentic dedicated voice (previous voice)
+   */
+  const handlePlaySingleName = (n: NameOfAllah, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const id = `name-ar-${n.id}`;
-    if (playbackState.isPlaying && playbackState.activeId === id) {
-      VoiceService.stop();
-    } else {
-      VoiceService.speakArabic(n.arabic, id);
+
+    // 1. If currently playing this single name, stop it
+    if (playingSingleId === n.id) {
+      if (singleAudioRef.current) {
+        singleAudioRef.current.pause();
+        singleAudioRef.current = null;
+      }
+      setPlayingSingleId(null);
+      return;
     }
+
+    // 2. Pause global 99 Names audio if running so single name audio is crystal clear
+    if (ytState.isPlaying) {
+      YoutubeNamesService.pause();
+    }
+
+    // 3. Stop any existing single audio instance
+    if (singleAudioRef.current) {
+      singleAudioRef.current.pause();
+      singleAudioRef.current = null;
+    }
+
+    setPlayingSingleId(n.id);
+
+    // Audio URL priorities: Dedicated high-clarity vocal CDN -> Secondary CDN -> Web Speech fallback
+    const primaryUrl = NAMES_OF_ALLAH_AUDIO_MAP[n.id] || getNameOfAllahAudioUrl(n.id);
+    const audio = new Audio(primaryUrl);
+    singleAudioRef.current = audio;
+
+    audio.onended = () => {
+      setPlayingSingleId(null);
+    };
+
+    audio.onerror = () => {
+      // Fallback to secondary CDN
+      const backupUrl = getNameOfAllahAudioUrl(n.id);
+      const backupAudio = new Audio(backupUrl);
+      singleAudioRef.current = backupAudio;
+
+      backupAudio.onended = () => setPlayingSingleId(null);
+      backupAudio.onerror = () => {
+        // Ultimate fallback: Web Speech API with Arabic voice
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(n.arabic || n.transliteration);
+          utterance.lang = 'ar-SA';
+          utterance.rate = 0.85;
+          utterance.onend = () => setPlayingSingleId(null);
+          utterance.onerror = () => setPlayingSingleId(null);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setPlayingSingleId(null);
+        }
+      };
+
+      backupAudio.play().catch(() => {
+        setPlayingSingleId(null);
+      });
+    };
+
+    audio.play().catch((err) => {
+      console.warn("Audio play prevented, falling back to Web Speech:", err);
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(n.arabic || n.transliteration);
+        utterance.lang = 'ar-SA';
+        utterance.rate = 0.85;
+        utterance.onend = () => setPlayingSingleId(null);
+        utterance.onerror = () => setPlayingSingleId(null);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setPlayingSingleId(null);
+      }
+    });
   };
 
-  const handlePlayEnglish = (n: NameOfAllah, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const id = `name-en-${n.id}`;
-    if (playbackState.isPlaying && playbackState.activeId === id) {
-      VoiceService.stop();
-    } else {
-      const enText = `${n.transliteration}. ${n.english}. ${n.meaning}`;
-      VoiceService.speakEnglish(enText, id);
+  /**
+   * Toggle Global 99 Names Recitation Audio (continuous playback with card synchronizer)
+   */
+  const handleToggleGlobalPlay = () => {
+    // Stop any single audio note
+    if (singleAudioRef.current) {
+      singleAudioRef.current.pause();
+      singleAudioRef.current = null;
     }
-  };
+    setPlayingSingleId(null);
 
-  const handlePlayBoth = (n: NameOfAllah, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const id = `name-both-${n.id}`;
-    if (playbackState.isPlaying && playbackState.activeId === id) {
-      VoiceService.stop();
-    } else {
-      const enText = `${n.transliteration}. ${n.english}. ${n.meaning}`;
-      VoiceService.speakBoth(n.arabic, enText, id);
-    }
-  };
-
-  // Convert Names array into Continuous Queue format
-  const continuousItems: ContinuousPlayItem[] = ALL_NAMES_OF_ALLAH.map(n => ({
-    id: n.id,
-    arabic: n.arabic,
-    transliteration: n.transliteration,
-    english: `${n.english}. ${n.meaning}`,
-    title: `${n.id}. ${n.transliteration}`
-  }));
-
-  const startContinuousRecitation = (startIndex: number = 0) => {
-    VoiceService.startContinuousPlay(
-      continuousItems,
-      {
-        mode: recitationMode,
-        intervalMs: 650,
-        loop: isLooping
-      },
-      startIndex
-    );
-  };
-
-  const toggleContinuousPlay = () => {
-    if (playbackState.isContinuous) {
-      VoiceService.togglePauseContinuous();
-    } else {
-      startContinuousRecitation(0);
-    }
+    YoutubeNamesService.togglePlay();
   };
 
   const handleSpeedChange = (newSpeed: number) => {
     setSpeed(newSpeed);
-    VoiceService.setRate(newSpeed);
+    YoutubeNamesService.setSpeed(newSpeed);
+  };
+
+  const handleCopyName = (n: NameOfAllah, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    navigator.clipboard.writeText(`${n.id}. ${n.arabic} - ${n.transliteration} (${n.english}): ${n.meaning}`);
+    setCopiedId(n.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const query = searchQuery.toLowerCase().trim();
@@ -142,33 +189,56 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
   const learnedCount = Object.values(learnedMap).filter(Boolean).length;
   const progressPercent = Math.round((learnedCount / 99) * 100);
 
-  const activeIndex = playbackState.isContinuous ? playbackState.currentIndex : -1;
-  const currentActiveName = activeIndex >= 0 ? ALL_NAMES_OF_ALLAH[activeIndex] : null;
+  const currentActiveName = ALL_NAMES_OF_ALLAH.find(n => n.id === ytState.activeNameId) || ALL_NAMES_OF_ALLAH[0];
+
+  const formatSecs = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 pb-24">
+    <div className="space-y-8 animate-in fade-in duration-300 pb-28">
       
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-brand-sidebar via-brand-primary/10 to-brand-sidebar border border-brand-primary/20 p-6 md:p-8 shadow-2xl">
+      {/* Header Banner with Sacred Calligraphy & Recitation Details */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-brand-sidebar via-brand-primary/10 to-[#061828] border border-brand-primary/30 p-6 md:p-8 shadow-2xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
+          <div className="space-y-2 max-w-2xl">
             <div className="flex items-center gap-2 text-brand-primary text-xs font-black uppercase tracking-[0.25em]">
               <Sparkles size={14} className="animate-spin" style={{ animationDuration: '8s' }} />
-              <span>Divine Attributes • Asma-ul-Husna (أسماء الله الحسنى)</span>
+              <span>Divine Attributes • Asmā' Allāh al-Ḥusnā (أسماء الله الحسنى)</span>
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-white italic tracking-tight">
               The 99 Names of Allah
             </h2>
-            <p className="text-xs md:text-sm text-slate-300 font-light max-w-xl">
-              "To Allah belong the Most Beautiful Names, so call on Him by them." (Surah Al-A'raf 7:180). Listen continuously in authentic Arabic, English translation, or dual mode.
+            <p className="text-xs md:text-sm text-slate-300 font-light leading-relaxed">
+              "To Allah belong the Most Beautiful Names, so call on Him by them." (Surah Al-A'raf 7:180). Press any single card to hear its individual pronunciation, or tap <strong>Play 99 Names Audio</strong> for continuous synchronized recitation across all cards.
             </p>
+
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <a 
+                href={`https://www.youtube.com/watch?v=${YOUTUBE_NAMES_VIDEO_ID}`}
+                target="_blank" 
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-wider transition-all"
+              >
+                <Music2 size={12} />
+                <span>Original Recitation Audio</span>
+                <ExternalLink size={10} />
+              </a>
+
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400/10 text-amber-300 border border-amber-400/20 text-[10px] font-bold">
+                <Radio size={12} />
+                <span>Speed Sync Active: Cards adapt to {speed}x</span>
+              </span>
+            </div>
           </div>
 
           {/* Memorization Progress Tracker */}
-          <div className="bg-black/50 border border-white/10 p-4 rounded-2xl min-w-[220px] space-y-2">
+          <div className="bg-black/60 border border-white/10 p-5 rounded-2xl min-w-[240px] space-y-2.5 shadow-xl">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-400">Names Learned</span>
-              <span className="font-mono font-black text-brand-primary">{learnedCount} / 99</span>
+              <span className="font-bold text-slate-400">Names Learned</span>
+              <span className="font-mono font-black text-brand-primary text-sm">{learnedCount} / 99</span>
             </div>
             <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
               <motion.div 
@@ -184,285 +254,353 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
         </div>
       </div>
 
-      {/* CONTINUOUS AUDIO CONSOLE & CONTROLS */}
-      <div className="glass-panel p-5 md:p-6 rounded-[2rem] border-white/10 bg-brand-sidebar/80 shadow-2xl relative overflow-hidden space-y-4">
-        {/* Top Console Bar */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      {/* CONTINUOUS 99 NAMES AUDIO DOCK & REAL-TIME CARDS SYNCHRONIZER */}
+      <div className="glass-panel p-5 md:p-6 rounded-[2.2rem] border border-amber-400/30 bg-gradient-to-b from-[#061828]/95 via-[#03101C]/95 to-black shadow-2xl relative overflow-hidden space-y-5">
+        
+        {/* Ambient Glow */}
+        <div className="absolute top-0 right-1/4 w-80 h-80 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Top Info Row */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all ${
-              playbackState.isContinuous && playbackState.isPlaying
-                ? 'bg-brand-primary/20 border-brand-primary text-brand-primary animate-pulse'
+              ytState.isPlaying
+                ? 'bg-amber-400/20 border-amber-400 text-amber-300 shadow-lg shadow-amber-400/20 animate-pulse'
                 : 'bg-white/5 border-white/10 text-slate-400'
             }`}>
               <Volume2 size={22} />
             </div>
-            <div>
+
+            <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black text-white uppercase tracking-wider">
-                  Continuous Asma-ul-Husna Player
+                  Continuous 99 Names Recitation Track
                 </span>
-                {playbackState.isContinuous && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                    Live Playing
+                {ytState.isPlaying && (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    Live Syncing ({speed}x)
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-300">
-                {currentActiveName ? (
-                  <span>
-                    Playing <strong className="text-brand-primary font-mono">#{currentActiveName.id} {currentActiveName.transliteration}</strong> ({currentActiveName.arabic}) - {currentActiveName.english}
-                  </span>
-                ) : (
-                  <span>Auto-advance recitation of all 99 Sacred Names sequentially</span>
-                )}
+                Current Position: <strong className="text-amber-300 font-bold font-mono">#{currentActiveName.id} {currentActiveName.transliteration}</strong> ({currentActiveName.arabic}) &bull; <span className="text-slate-400">{currentActiveName.english}</span>
               </p>
             </div>
           </div>
 
-          {/* Mode Selector (Arabic / English / Both) */}
-          <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl self-stretch sm:self-auto justify-center">
-            <button
-              onClick={() => {
-                setRecitationMode('both');
-                if (playbackState.isContinuous) {
-                  startContinuousRecitation(playbackState.currentIndex);
+          {/* Quick Jump Dropdown */}
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+            <select
+              value={ytState.activeNameId}
+              onChange={(e) => {
+                const id = parseInt(e.target.value, 10);
+                YoutubeNamesService.seekToName(id);
+                if (cardRefs.current[id]) {
+                  cardRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                recitationMode === 'both'
-                  ? 'bg-brand-primary text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              aria-label="Select a Name of Allah to jump to"
+              className="bg-black/60 border border-white/15 text-slate-200 text-xs rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-brand-primary"
             >
-              Arabic + English
-            </button>
-            <button
-              onClick={() => {
-                setRecitationMode('arabic');
-                if (playbackState.isContinuous) {
-                  startContinuousRecitation(playbackState.currentIndex);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                recitationMode === 'arabic'
-                  ? 'bg-brand-primary text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Arabic Only
-            </button>
-            <button
-              onClick={() => {
-                setRecitationMode('english');
-                if (playbackState.isContinuous) {
-                  startContinuousRecitation(playbackState.currentIndex);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                recitationMode === 'english'
-                  ? 'bg-brand-primary text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              English Only
-            </button>
+              {ALL_NAMES_OF_ALLAH.map((n) => (
+                <option key={n.id} value={n.id} className="bg-slate-900 text-white">
+                  #{n.id} {n.transliteration} - {n.arabic}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Player Transport Controls & Speed Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-white/5">
-          {/* Main Play / Prev / Next / Pause / Stop Buttons */}
-          <div className="flex items-center gap-2">
+        {/* Real-time Timeline Progress Bar */}
+        <div className="space-y-1.5 relative z-10">
+          <div 
+            className="relative w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-pointer group"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickPct = (e.clientX - rect.left) / rect.width;
+              const targetTime = clickPct * (ytState.duration || 240);
+              YoutubeNamesService.seekToTime(targetTime);
+            }}
+          >
+            <div 
+              className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-brand-primary transition-all duration-150"
+              style={{ width: `${((ytState.currentTime || 0) / (ytState.duration || 240)) * 100}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span>{formatSecs(ytState.currentTime)}</span>
+            <span className="text-amber-300 font-bold uppercase tracking-wider">
+              Card {ytState.activeNameId} of 99 Active
+            </span>
+            <span>{formatSecs(ytState.duration || 240)}</span>
+          </div>
+        </div>
+
+        {/* Master Player Controls: Prev, Play/Pause, Next, -10s, +10s, Speed Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-white/10 relative z-10">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => VoiceService.prevInContinuous()}
-              disabled={!playbackState.isContinuous}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 disabled:opacity-40"
+              onClick={() => YoutubeNamesService.skipSeconds(-10)}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+              title="Rewind 10 Seconds"
+            >
+              -10s
+            </button>
+
+            <button
+              onClick={() => {
+                YoutubeNamesService.prevName();
+                const prev = Math.max(1, ytState.activeNameId - 1);
+                cardRefs.current[prev]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer"
               title="Previous Name"
             >
               <Rewind size={16} />
             </button>
 
+            {/* Play 99 Names Audio Master Button */}
             <button
-              onClick={toggleContinuousPlay}
-              className={`px-6 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all shadow-xl active:scale-95 ${
-                playbackState.isContinuous && playbackState.isPlaying && !playbackState.isPaused
-                  ? 'bg-amber-500 hover:bg-amber-600 text-black shadow-amber-500/20'
-                  : 'bg-brand-primary hover:bg-brand-primary/90 text-white shadow-brand-primary/30'
+              onClick={handleToggleGlobalPlay}
+              className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all shadow-xl active:scale-95 cursor-pointer ${
+                ytState.isPlaying
+                  ? 'bg-amber-400 hover:bg-amber-500 text-black shadow-amber-400/25'
+                  : 'bg-brand-primary hover:bg-brand-primary/90 text-brand-depth shadow-brand-primary/30'
               }`}
             >
-              {playbackState.isContinuous && playbackState.isPlaying && !playbackState.isPaused ? (
+              {ytState.isPlaying ? (
                 <>
                   <Pause size={15} className="fill-current" />
-                  <span>Pause Continuous</span>
+                  <span>Pause 99 Names Audio</span>
                 </>
               ) : (
                 <>
                   <Play size={15} className="fill-current" />
-                  <span>{playbackState.isContinuous ? 'Resume Continuous' : 'Play All 99 Names'}</span>
+                  <span>Play 99 Names Audio</span>
                 </>
               )}
             </button>
 
             <button
-              onClick={() => VoiceService.nextInContinuous()}
-              disabled={!playbackState.isContinuous}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 disabled:opacity-40"
+              onClick={() => {
+                YoutubeNamesService.nextName();
+                const next = Math.min(99, ytState.activeNameId + 1);
+                cardRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer"
               title="Next Name"
             >
               <FastForward size={16} />
             </button>
 
-            {playbackState.isContinuous && (
+            <button
+              onClick={() => YoutubeNamesService.skipSeconds(10)}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+              title="Forward 10 Seconds"
+            >
+              +10s
+            </button>
+
+            {ytState.isPlaying && (
               <button
-                onClick={() => VoiceService.stop()}
-                className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all active:scale-95"
+                onClick={() => YoutubeNamesService.stop()}
+                className="px-3 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/20 text-xs font-bold transition-all cursor-pointer"
               >
                 Stop
               </button>
             )}
           </div>
 
-          {/* Speed Selector and Loop Option */}
-          <div className="flex items-center gap-3">
-            {/* Speed Pills */}
-            <div className="flex items-center gap-1 bg-black/40 border border-white/10 p-1 rounded-xl">
-              {[0.75, 1.0, 1.25, 1.5].map((s) => (
+          {/* Speed Selection Pills (Dynamic Card Sync Speed) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <Sliders size={12} className="text-amber-400" />
+              Recitation Speed:
+            </span>
+            <div className="flex items-center gap-1 bg-black/50 border border-white/10 p-1 rounded-xl">
+              {[0.75, 1.0, 1.25, 1.5, 2.0].map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSpeedChange(s)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
+                  className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
                     speed === s
-                      ? 'bg-white/20 text-white shadow-sm'
+                      ? 'bg-amber-400 text-black shadow-sm'
                       : 'text-slate-400 hover:text-white'
                   }`}
+                  title={`Change playback & card sync speed to ${s}x`}
                 >
                   {s}x
                 </button>
               ))}
             </div>
-
-            {/* Loop Toggle */}
-            <button
-              onClick={() => setIsLooping(!isLooping)}
-              className={`p-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-bold ${
-                isLooping
-                  ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary'
-                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-              }`}
-              title="Repeat Playlist"
-            >
-              <Repeat size={15} />
-              <span className="hidden sm:inline">Repeat</span>
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Grid of All 99 Names of Allah */}
+      {/* 99 NAMES GRID WITH DUAL AUDIO BEHAVIOR & REAL-TIME SPEED SYNC */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredNames.map((n, idx) => {
-          const isItemActiveInContinuous = playbackState.isContinuous && playbackState.currentIndex === (n.id - 1);
-          const isArPlaying = playbackState.isPlaying && playbackState.activeId === `name-ar-${n.id}`;
-          const isBothPlaying = playbackState.isPlaying && playbackState.activeId === `name-both-${n.id}`;
-          const isEnPlaying = playbackState.isPlaying && playbackState.activeId === `name-en-${n.id}`;
-          const isActive = isItemActiveInContinuous || isArPlaying || isBothPlaying || isEnPlaying;
-          const isLearned = Boolean(learnedMap[n.id]);
+        {filteredNames.map((n) => {
+          const isLearned = !!learnedMap[n.id];
+          const isCurrentActiveInGlobal = ytState.activeNameId === n.id;
+          const isGlobalPlayingThis = isCurrentActiveInGlobal && ytState.isPlaying;
+          const isSinglePlayingThis = playingSingleId === n.id;
+          const isHighlighted = isGlobalPlayingThis || isSinglePlayingThis || isCurrentActiveInGlobal;
 
           return (
-            <motion.div 
+            <motion.div
               key={n.id}
-              ref={el => { cardRefs.current[n.id] = el; }}
+              ref={(el) => { cardRefs.current[n.id] = el; }}
+              layout
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(idx * 0.015, 0.3) }}
-              className={`p-6 rounded-[2rem] border transition-all relative overflow-hidden flex flex-col justify-between space-y-4 shadow-xl ${
-                isActive
-                  ? 'bg-gradient-to-br from-brand-primary/25 via-brand-sidebar to-brand-depth border-brand-primary shadow-brand-primary/30 scale-[1.02] ring-2 ring-brand-primary/40'
+              transition={{ duration: 0.2 }}
+              onClick={(e) => handlePlaySingleName(n, e)}
+              className={`p-6 rounded-[2rem] border transition-all duration-300 relative overflow-hidden flex flex-col justify-between group cursor-pointer ${
+                isGlobalPlayingThis
+                  ? 'bg-gradient-to-b from-amber-500/25 via-[#061828]/95 to-black border-amber-400 ring-2 ring-amber-400/60 shadow-2xl shadow-amber-400/25 scale-[1.03]'
+                  : isSinglePlayingThis
+                  ? 'bg-gradient-to-b from-emerald-500/25 via-[#061828]/95 to-black border-emerald-400 ring-2 ring-emerald-400/60 shadow-2xl shadow-emerald-400/25 scale-[1.02]'
+                  : isCurrentActiveInGlobal
+                  ? 'bg-[#061828]/90 border-amber-400/50 ring-1 ring-amber-400/30'
                   : isLearned
-                  ? 'bg-emerald-950/20 border-emerald-500/30'
-                  : 'glass-panel border-white/5 hover:border-white/20'
+                  ? 'bg-[#061828]/70 border-emerald-500/30 hover:border-emerald-500/60'
+                  : 'bg-[#061828]/60 border-white/10 hover:border-brand-primary/40 hover:bg-[#072238]'
               }`}
             >
-              {/* Header: ID, Badge, Learned Check */}
-              <div className="flex items-center justify-between gap-2">
-                <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 text-xs font-mono font-bold text-slate-400 flex items-center justify-center">
-                  #{n.id}
-                </span>
+              {/* Active Soundwave Animation Background */}
+              {(isGlobalPlayingThis || isSinglePlayingThis) && (
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(245,158,11,0.18)_0%,transparent_70%)] pointer-events-none" />
+              )}
 
-                <button
-                  onClick={() => toggleLearned(n.id)}
-                  className={`p-1.5 rounded-xl border transition-all ${
-                    isLearned
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
-                      : 'border-white/10 text-slate-500 hover:text-white hover:bg-white/5'
-                  }`}
-                  title={isLearned ? "Marked as Learned" : "Mark as Learned"}
-                >
-                  <Check size={14} />
-                </button>
+              {/* Card Top Row: Number, Active Wave Badge, Learn Check, Share */}
+              <div className="flex items-center justify-between gap-2 relative z-10">
+                <div className="flex items-center gap-2">
+                  <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
+                    isGlobalPlayingThis
+                      ? 'bg-amber-400 text-black font-black'
+                      : isSinglePlayingThis
+                      ? 'bg-emerald-400 text-black font-black'
+                      : isCurrentActiveInGlobal
+                      ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                      : 'bg-white/5 border border-white/10 text-slate-400'
+                  }`}>
+                    {n.id}
+                  </span>
+
+                  {isGlobalPlayingThis && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[9px] font-black uppercase tracking-wider animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                      <span>99 Recitation ({speed}x)</span>
+                    </span>
+                  )}
+
+                  {isSinglePlayingThis && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[9px] font-black uppercase tracking-wider animate-pulse">
+                      <Volume2 size={10} />
+                      <span>Speaking Name Voice</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => handleCopyName(n, e)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-colors cursor-pointer"
+                    title="Copy Name"
+                  >
+                    {copiedId === n.id ? <Check size={13} className="text-emerald-400" /> : <Share2 size={13} />}
+                  </button>
+
+                  <button
+                    onClick={() => toggleLearned(n.id)}
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                      isLearned
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                    title={isLearned ? 'Mark as Not Learned' : 'Mark as Learned'}
+                  >
+                    <CheckCircle2 size={14} className={isLearned ? 'fill-emerald-500/30' : ''} />
+                  </button>
+                </div>
               </div>
 
-              {/* Arabic Calligraphy & Transliteration */}
-              <div className="text-center space-y-2 py-2">
-                <p className="text-4xl md:text-5xl font-arabic font-bold text-white tracking-wide leading-relaxed selection:bg-brand-primary/30">
+              {/* Card Center: Arabic Calligraphy */}
+              <div className="py-5 text-center relative z-10 space-y-2">
+                <p className={`arabic-text text-4xl sm:text-5xl font-arabic font-bold transition-all drop-shadow-md ${
+                  isGlobalPlayingThis
+                    ? 'text-amber-300 scale-105'
+                    : isSinglePlayingThis
+                    ? 'text-emerald-300 scale-105'
+                    : 'text-white group-hover:text-amber-200'
+                }`}>
                   {n.arabic}
                 </p>
-                <h3 className="text-lg font-black text-brand-primary tracking-tight">
-                  {n.transliteration}
-                </h3>
+
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black text-white tracking-tight group-hover:text-brand-primary transition-colors">
+                    {n.transliteration}
+                  </h3>
+                  <p className="text-xs font-bold text-amber-400/90 uppercase tracking-wider">
+                    {n.english}
+                  </p>
+                </div>
               </div>
 
-              {/* English & Meaning */}
-              <div className="space-y-1.5 text-center">
-                <p className="text-sm font-bold text-white">
-                  {n.english}
-                </p>
-                <p className="text-xs text-slate-400 font-light leading-relaxed">
+              {/* Card Bottom: Meaning & Individual Voice Play Button */}
+              <div className="space-y-3 pt-3 border-t border-white/5 relative z-10">
+                <p className="text-xs text-slate-300 font-normal leading-relaxed line-clamp-2">
                   {n.meaning}
                 </p>
-              </div>
 
-              {/* Action Buttons: Play Arabic, Play Dual, Start Sequence From Here */}
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
-                <button
-                  onClick={(e) => handlePlayArabic(n, e)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-                    isArPlaying
-                      ? 'bg-brand-primary text-white shadow-md'
-                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-                  }`}
-                  title="Listen in Arabic"
-                >
-                  <Volume2 size={14} />
-                  <span>Arabic</span>
-                </button>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {isLearned ? 'Learned ✓' : 'Tap to hear voice'}
+                  </span>
 
-                <button
-                  onClick={(e) => handlePlayBoth(n, e)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-                    isBothPlaying
-                      ? 'bg-brand-primary text-white shadow-md'
-                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-                  }`}
-                  title="Listen Arabic + English"
-                >
-                  <Languages size={14} />
-                  <span>Dual</span>
-                </button>
-
-                <button
-                  onClick={() => startContinuousRecitation(n.id - 1)}
-                  className="p-2 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/20 transition-all active:scale-95"
-                  title={`Start continuous recitation from #${n.id} ${n.transliteration}`}
-                >
-                  <Play size={14} className="fill-current" />
-                </button>
+                  {/* Individual Name Audio Play Button */}
+                  <button
+                    onClick={(e) => handlePlaySingleName(n, e)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                      isSinglePlayingThis
+                        ? 'bg-emerald-400 text-black shadow-md shadow-emerald-400/30 animate-pulse'
+                        : isGlobalPlayingThis
+                        ? 'bg-amber-400 text-black shadow-md'
+                        : 'bg-white/5 hover:bg-amber-400 hover:text-black text-slate-300 border border-white/10 group-hover:border-amber-400/40'
+                    }`}
+                    title={`Listen to previous individual voice for ${n.transliteration}`}
+                  >
+                    {isSinglePlayingThis ? (
+                      <>
+                        <Pause size={12} className="fill-current" />
+                        <span>Speaking</span>
+                      </>
+                    ) : isGlobalPlayingThis ? (
+                      <>
+                        <Volume2 size={12} />
+                        <span>Reciting</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={12} className="fill-current" />
+                        <span>Play Voice</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           );
         })}
       </div>
 
+      {filteredNames.length === 0 && (
+        <div className="text-center py-16 space-y-3">
+          <p className="text-slate-400 text-sm">No Names of Allah found matching "{searchQuery}".</p>
+        </div>
+      )}
     </div>
   );
 }

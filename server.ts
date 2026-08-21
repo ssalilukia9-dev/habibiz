@@ -699,6 +699,93 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     }
   });
 
+  // Dynamic AI Daily Banner Image & Spiritual Theme Endpoint
+  app.get("/api/ai/daily-banner-image", async (req, res) => {
+    try {
+      const dateStr = (req.query.date as string) || new Date().toISOString().split('T')[0];
+      const attributeId = parseInt((req.query.attributeId as string) || '1', 10);
+      const category = (req.query.category as string) || 'mercy';
+      const variation = parseInt((req.query.variation as string) || '0', 10);
+
+      const THEME_IMAGE_MAP: Record<string, string[]> = {
+        mercy: [
+          'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=1920&q=85'
+        ],
+        majesty: [
+          'https://images.unsplash.com/photo-1590076215667-875d4ef2d7ee?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1587974928442-77dc3e0dba72?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1920&q=85'
+        ],
+        light: [
+          'https://images.unsplash.com/photo-1564769625624-9a9ec2b10091?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1565552645632-d725f8bfc19a?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=1920&q=85'
+        ],
+        abundance: [
+          'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1920&q=85'
+        ],
+        wisdom: [
+          'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1518709779341-56cf4535e94b?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=85'
+        ],
+        protection: [
+          'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=1920&q=85'
+        ],
+        friday: [
+          'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1920&q=85',
+          'https://images.unsplash.com/photo-1590076215667-875d4ef2d7ee?auto=format&fit=crop&w=1920&q=85'
+        ],
+        ramadan: [
+          'https://images.unsplash.com/photo-1564769625624-9a9ec2b10091?auto=format&fit=crop&w=1920&q=85'
+        ]
+      };
+
+      const images = THEME_IMAGE_MAP[category] || THEME_IMAGE_MAP.mercy;
+      const imageUrl = images[(variation + attributeId) % images.length];
+
+      // Optional AI reflection enhancement using Gemini
+      let aiReflection = "Embody this divine light in every action and thought throughout your day.";
+      const apiKey = process.env.GEMINI_API_KEY;
+
+      if (apiKey) {
+        try {
+          const client = new GoogleGenAI({
+            apiKey,
+            httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+          });
+
+          const resp = await client.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: `Write a brief, inspirational 1-sentence spiritual meditation (max 18 words) for today reflecting the Divine Name #${attributeId} (category: ${category}). Date: ${dateStr}. Focus on peace, hope, and connection to Allah.`,
+          });
+
+          if (resp && resp.text) {
+            aiReflection = resp.text.trim().replace(/^["']|["']$/g, '');
+          }
+        } catch (e) {
+          // fallback gracefully
+        }
+      }
+
+      res.json({
+        date: dateStr,
+        attributeId,
+        themeCategory: category,
+        imageUrl,
+        aiReflection
+      });
+    } catch (err: any) {
+      console.error("Daily banner image error:", err);
+      res.status(500).json({ error: "Failed to generate daily banner image", details: err?.message });
+    }
+  });
+
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
@@ -788,7 +875,9 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
           "translate.google.com",
           "translate.google.co.uk",
           "islamicfinder.org",
-          "www.islamicfinder.org"
+          "www.islamicfinder.org",
+          "raw.githubusercontent.com",
+          "github.com"
         ];
         isAllowed = allowedHosts.some(h => host === h || host.endsWith("." + h));
       } catch (e) {

@@ -9,6 +9,7 @@ import {
   ArrowRight, 
   ArrowLeft, 
   Compass, 
+  ShoppingBag,
   Flame, 
   Crown, 
   Users, 
@@ -25,7 +26,9 @@ import {
   Smartphone,
   Layers,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Menu,
+  Bell
 } from 'lucide-react';
 
 interface WalkthroughTourProps {
@@ -33,6 +36,8 @@ interface WalkthroughTourProps {
   onClose: () => void;
   onNavigate: (tab: string, extra?: any) => void;
   addHasanat?: (amount: number) => void;
+  onOpenDrawer?: (open: boolean) => void;
+  isDrawerOpen?: boolean;
 }
 
 export interface TourStep {
@@ -47,183 +52,333 @@ export interface TourStep {
   badge: string;
   icon: any;
   preferredPosition?: 'top' | 'bottom' | 'center';
+  requiresDrawerOpen?: boolean;
 }
 
-export const COMPLETE_TOUR_STEPS: TourStep[] = [
-  // 1. WELCOME TO SANCTUARY
+// 📱 MOBILE-OPTIMIZED TOUR STEPS (Involves Mobile Drawer, Floating Dock & Mobile Touch Gestures)
+export const MOBILE_TOUR_STEPS: TourStep[] = [
   {
-    id: "welcome",
+    id: "m-welcome",
     targetId: "",
     targetTab: "home",
     title: "Welcome to Sanctuary 🌟",
-    subtitle: "Your Mobile Spiritual Companion",
-    description: "Assalamu Alaikum! Sanctuary is your all-in-one Islamic digital companion designed for your daily worship, Quran recitations, prayer precision, and spiritual growth.",
-    mobileTip: "Swipe left or tap 'Next' to explore every button, instrument, and feature of the app.",
-    badge: "Sanctuary Tour • 1/16",
+    subtitle: "Your Mobile Spiritual Haven",
+    description: "Assalamu Alaikum! Sanctuary is crafted specifically for seamless mobile worship—offering precise prayer times, Quran recitations, Tahajjud alarms, and spiritual companion Habibi Aliyah.",
+    mobileTip: "Swipe left or tap 'Next' to embark on this quick interactive tour.",
+    badge: "Mobile Tour • 1/14",
+    icon: Smartphone,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-drawer",
+    targetId: "tour-mobile-drawer-content",
+    targetTab: "home",
+    requiresDrawerOpen: true,
+    title: "Mobile Navigation Drawer 📋",
+    subtitle: "All Sacred Features & Sacred Tools",
+    description: "Open the navigation drawer anytime to access everything: Sacred Resources, Qibla Compass, Tahajjud Alarms, Zakat Calculator, 99 Names of Allah, and our community sponsors.",
+    mobileTip: "Tap the top-left menu icon to open this comprehensive directory at any time.",
+    badge: "Navigation Drawer • 2/14",
+    icon: Menu,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-salam-banner",
+    targetId: "tour-salam-soul",
+    targetTab: "home",
+    requiresDrawerOpen: false,
+    title: "Daily Sanctuary Banner 🌅",
+    subtitle: "Hijri Dates & 1-Tap Quran Resume",
+    description: "Updates every morning with uplifting quotes, current Hijri calendar date, and a one-tap button to resume your exact Holy Quran reading progress.",
+    mobileTip: "Tap 'Resume' anytime on your home screen to jump back to your last recited Ayah.",
+    badge: "Home Hub • 3/14",
+    icon: Flame,
+    preferredPosition: 'bottom'
+  },
+  {
+    id: "m-prayer-console",
+    targetId: "tour-prayer-console",
+    targetTab: "home",
+    title: "Prayer Console & Adhan 🕋",
+    subtitle: "Live Countdown & Sacred Callers",
+    description: "Calculates precise prayer times via GPS with an animated live countdown. Configure Adhan callers from Makkah, Madinah, Al-Aqsa, and Cairo.",
+    mobileTip: "Receive full Adhan audio notifications even when your phone screen is locked or the app is closed.",
+    badge: "Salah Precision • 4/14",
+    icon: Moon,
+    preferredPosition: 'top'
+  },
+  {
+    id: "m-tahajjud-vigil",
+    targetId: "tour-tahajjud-hub",
+    targetTab: "prayer_times",
+    title: "Tahajjud Vigil & Wake Alarms 🌌",
+    subtitle: "Last 1/3 of the Night & Gentle Wake Tones",
+    description: "Automatic calculation for the last third of the night. Features functional lockscreen alarms and soothing spiritual wake chimes (Noor Chime, Madinah Melody).",
+    mobileTip: "Set your wake-up window (Last 1/3 start, 30m/45m/60m before Fajr) and test the audio alarm anytime.",
+    badge: "Night Vigil • 5/14",
+    icon: Bell,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-streak-fire",
+    targetId: "tour-streak-fire",
+    targetTab: "home",
+    title: "Hasanat Ledger & Streaks ⚡",
+    subtitle: "Track Deeds, Hadith Streaks & Ranks",
+    description: "Every verse you recite, daily Hadith you study, and prayer you log mints Hasanat to advance you from Seeker to Habibi King.",
+    mobileTip: "Maintain daily consistency to keep your fiery streak burning and earn rank badges.",
+    badge: "Spiritual Growth • 6/14",
+    icon: Crown,
+    preferredPosition: 'top'
+  },
+  {
+    id: "m-daily-centerpiece",
+    targetId: "tour-daily-centerpiece",
+    targetTab: "home",
+    title: "Daily Sacred Revelation 📖",
+    subtitle: "Quranic Verses & Prophetic Hadiths",
+    description: "Immerse yourself daily in authentic Quranic verses and Sahih Hadiths, complete with rich Arabic typography, audio recitations, and English translations.",
+    mobileTip: "Tap this centerpiece card anytime to open the full chapter with verse commentary.",
+    badge: "Daily Wisdom • 7/14",
+    icon: BookOpen,
+    preferredPosition: 'top'
+  },
+  {
+    id: "m-shortcuts",
+    targetId: "tour-shortcuts",
+    targetTab: "home",
+    title: "Quick Action Launchers 🔮",
+    subtitle: "Adhkar, Rankings & Sacred Tools",
+    description: "One-tap direct shortcuts to launch your morning/evening supplications, view global rankings, or explore the sacred Hajj pilgrimage map.",
+    mobileTip: "These quick tiles give you instant access to your most frequently used worship tools.",
+    badge: "Quick Launch • 8/14",
+    icon: Zap,
+    preferredPosition: 'top'
+  },
+  {
+    id: "m-mobile-dock",
+    targetId: "tour-mobile-dock",
+    targetTab: "home",
+    title: "Mobile Floating Bottom Dock 📱",
+    subtitle: "Fast 1-Thumb Switching",
+    description: "The sleek bottom navigation bar keeps your Home, Resources, Market, Habibi Aliyah, Ummah Hub, and Profile right at your fingertips wherever you are in the app.",
+    mobileTip: "Easily switch between features with a single thumb tap on the bottom dock.",
+    badge: "Bottom Dock • 9/14",
+    icon: Smartphone,
+    preferredPosition: 'top'
+  },
+  {
+    id: "m-quran-conservatory",
+    targetId: "",
+    targetTab: "resources",
+    extraNav: { resId: 'quran' },
+    title: "Holy Quran Conservatory 📚",
+    subtitle: "114 Surahs, 30 Juz & Persistent Audio",
+    description: "Read the entire Holy Quran in pristine Uthmani typography. Enjoy persistent background Quran audio that continues uninterrupted as you browse across the app.",
+    mobileTip: "Tap any Surah or Ayah to play audio recitations from Alafasy, Sudais, and Minshawi.",
+    badge: "Holy Quran • 10/14",
+    icon: BookOpen,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-halal-market",
+    targetId: "",
+    targetTab: "market",
+    title: "Sanctuary Halal Market 🛍️",
+    subtitle: "Sacred Marketplace & Waqf Goods",
+    description: "Explore curated spiritual artifacts, luxury prayer mats, authentic timepieces from ISIS WRISTS, halal goods, and waqf charity contributions.",
+    mobileTip: "Browse verified vendors, Islamic timepieces, and community offerings.",
+    badge: "Halal Market • 11/14",
+    icon: ShoppingBag,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-habibi-aliyah",
+    targetId: "",
+    targetTab: "companion",
+    title: "Habibi Aliyah Spiritual Companion ✨",
+    subtitle: "Scripture-Grounded Islamic Nur AI",
+    description: "Consult Habibi Aliyah anytime on Salah rulings, Fiqh questions, Quranic reflections, and authentic Duas. Backed by references to Quranic Surahs and verified Hadith.",
+    mobileTip: "You can type or speak questions using voice input to receive instant, compassionate guidance.",
+    badge: "Habibi Aliyah • 12/14",
     icon: Sparkles,
     preferredPosition: 'center'
   },
-  // 2. DAILY SOUL BANNER & HIJRI DATE
   {
-    id: "salam-banner",
+    id: "m-ummah-hub",
+    targetId: "",
+    targetTab: "ummah",
+    title: "Global Ummah Hub & NoorTalk 🤝",
+    subtitle: "Community Reflections & Group Duas",
+    description: "Connect with brothers and sisters across the globe. Share reflections on the NoorTalk feed, participate in community polls, and request heartfelt Duas.",
+    mobileTip: "Post daily reflections or encourage fellow pilgrims on their spiritual journeys.",
+    badge: "Global Ummah • 13/14",
+    icon: Users,
+    preferredPosition: 'center'
+  },
+  {
+    id: "m-profile",
+    targetId: "",
+    targetTab: "profile",
+    title: "Pilgrim Passport & Themes 🎨",
+    subtitle: "Your Badges, Themes & Audio Caches",
+    description: "View your earned achievements, customize visual color themes (Emerald, Gold, Kaaba Black), manage offline audio caches, and switch languages.",
+    mobileTip: "Personalize your app's typography, reciters, and adhan preferences in your profile.",
+    badge: "Pilgrim Profile • 14/14",
+    icon: User,
+    preferredPosition: 'center'
+  }
+];
+
+// 💻 DESKTOP-OPTIMIZED TOUR STEPS (Focuses on Desktop Side Rail, Banners, Hall of Fame & Admin Tools)
+export const DESKTOP_TOUR_STEPS: TourStep[] = [
+  {
+    id: "d-welcome",
+    targetId: "",
+    targetTab: "home",
+    title: "Welcome to Sanctuary 🌟",
+    subtitle: "Your Comprehensive Islamic Sanctuary",
+    description: "Assalamu Alaikum! Sanctuary is your all-in-one digital companion for daily worship, Holy Quran recitations, prayer precision, and spiritual growth.",
+    mobileTip: "Use arrow keys or click 'Next' to tour each console and feature.",
+    badge: "Sanctuary Tour • 1/15",
+    icon: Sparkles,
+    preferredPosition: 'center'
+  },
+  {
+    id: "d-rail",
+    targetId: "tour-desktop-rail",
+    targetTab: "home",
+    title: "Navigation Rail 🚀",
+    subtitle: "Instant Access to All Modules",
+    description: "The sleek sidebar rail gives you one-click access across Home, Sacred Resources, Halal Market, Habibi Aliyah AI, Ummah Hub, Leaderboards, and Pilgrim Profile.",
+    mobileTip: "Hover over any icon to view quick tooltips and keyboard shortcuts.",
+    badge: "Navigation Rail • 2/15",
+    icon: Layers,
+    preferredPosition: 'top'
+  },
+  {
+    id: "d-salam-banner",
     targetId: "tour-salam-soul",
     targetTab: "home",
     title: "Daily Sanctuary Banner 🌅",
     subtitle: "Hijri Dates & 1-Tap Quran Resume",
     description: "Updates every morning with inspiring quotes, current Hijri calendar date, and a one-tap button to resume your exact Holy Quran reading progress.",
-    mobileTip: "Tap 'Resume' anytime on your home screen to instantly jump back to your last recited Ayah.",
-    badge: "Home Hub • 2/16",
+    mobileTip: "Click 'Resume' anytime on your home screen to instantly jump back to your last recited Ayah.",
+    badge: "Home Hub • 3/15",
     icon: Flame,
     preferredPosition: 'bottom'
   },
-  // 3. HOLY MAKKAH PRAYER CONSOLE & ADHAN
   {
-    id: "prayer-console",
+    id: "d-prayer-console",
     targetId: "tour-prayer-console",
     targetTab: "home",
     title: "Prayer Console & Adhan 🕋",
     subtitle: "Real-time Countdown & Sacred Callers",
     description: "Calculates precise prayer times via GPS with an animated live countdown ring. Tap the Bell to configure Adhan callers from Makkah, Madinah, Al-Aqsa, and Cairo.",
     mobileTip: "Receive full Adhan audio notifications even when your phone screen is locked or the app is closed.",
-    badge: "Salah Precision • 3/16",
+    badge: "Salah Precision • 4/15",
     icon: Moon,
     preferredPosition: 'top'
   },
-  // 4. SPIRITUAL HASANAT LEDGER & STREAKS
   {
-    id: "progress-stats",
-    targetId: "tour-progress-stats",
+    id: "d-streak-fire",
+    targetId: "tour-streak-fire",
     targetTab: "home",
     title: "Hasanat Ledger & Streaks ⚡",
     subtitle: "Track Deeds, Hadith Streaks & Ranks",
     description: "Every verse you recite, daily Hadith you study, and Dhikr you complete mints Hasanat to advance you from Seeker to Habibi King.",
     mobileTip: "Maintain daily consistency to keep your streak burning and unlock milestone rewards.",
-    badge: "Spiritual Growth • 4/17",
+    badge: "Spiritual Growth • 5/15",
     icon: Crown,
     preferredPosition: 'top'
   },
-  // 5. DAILY VIGOR TRACKERS SUITE (PRAYERS, HADITH, QURAN, DHIKR, SAWM, SADAQAH)
   {
-    id: "daily-vigor",
-    targetId: "tour-daily-vigor",
-    targetTab: "home",
-    title: "Daily Vigor Tracker Suite ⚡",
-    subtitle: "5 Prayers, Hadith, Quran Ayahs & Dhikr",
-    description: "Your daily spiritual workout: check off your 5 daily prayers (+15 Hasanat each), mark the daily Hadith reflected (+20), log Quran ayahs recited (+10), count digital Dhikr tasbih beads, and log voluntary fasts & Sadaqah deeds.",
-    mobileTip: "Tap each prayer pill as soon as you pray to keep your Daily Vitality score at 100%!",
-    badge: "Discipline Hub • 5/17",
-    icon: CheckCircle2,
-    preferredPosition: 'top'
-  },
-  // 6. CELESTIAL REVELATION (AYAH & HADITH)
-  {
-    id: "daily-centerpiece",
+    id: "d-daily-centerpiece",
     targetId: "tour-daily-centerpiece",
     targetTab: "home",
     title: "Daily Sacred Revelation 📖",
     subtitle: "Quranic Verses & Prophetic Hadiths",
     description: "Immerse yourself daily in authentic Quranic verses and Sahih Hadiths, complete with rich Arabic typography, audio recitations, and English translations.",
-    mobileTip: "Tap this centerpiece card anytime to open the full chapter with verse-by-verse commentary.",
-    badge: "Daily Wisdom • 6/17",
+    mobileTip: "Click this centerpiece card anytime to open the full chapter with verse-by-verse commentary.",
+    badge: "Daily Wisdom • 6/15",
     icon: BookOpen,
     preferredPosition: 'top'
   },
-  // 6. QUICK ACTION UTILITIES
   {
-    id: "shortcuts",
+    id: "d-shortcuts",
     targetId: "tour-shortcuts",
     targetTab: "home",
     title: "Quick Action Launchers 🔮",
     subtitle: "Adhkar, Rankings & AI Counselor",
-    description: "One-tap direct shortcuts to launch your morning/evening supplications, view global rankings, consult Habibi AI, or explore the sacred Hajj pilgrimage map.",
-    mobileTip: "These 4 quick tiles give you instant access to your most frequently used worship tools.",
-    badge: "Smart Utilities • 6/16",
+    description: "One-tap direct shortcuts to launch your morning/evening supplications, view global rankings, consult Habibi Aliyah, or explore the sacred Hajj pilgrimage map.",
+    mobileTip: "These quick tiles give you instant access to your most frequently used worship tools.",
+    badge: "Smart Utilities • 7/15",
     icon: Zap,
     preferredPosition: 'top'
   },
-  // 7. HOLY QURAN CONSERVATORY
   {
-    id: "nav-resources-quran",
+    id: "d-resources-quran",
     targetId: "tour-nav-resources",
     targetTab: "resources",
     extraNav: { resId: 'quran' },
     title: "Holy Quran Conservatory 📚",
     subtitle: "114 Surahs, 30 Juz & Audio Recitations",
-    description: "Read the entire Holy Quran in pristine Uthmani typography. Listen to world-renowned Qaris (Alafasy, Sudais, Minshawi), bookmark verses, and study translations.",
+    description: "Read the entire Holy Quran in pristine Uthmani typography. Listen to world-renowned Qaris (Alafasy, Sudais, Minshawi), bookmark verses, and study translations with persistent background audio player.",
     mobileTip: "Supports page-by-page Mushaf reader, search by Ayah or keyword, and offline audio downloads.",
-    badge: "Holy Quran • 7/16",
+    badge: "Holy Quran • 8/15",
     icon: BookOpen,
     preferredPosition: 'top'
   },
-  // 8. REAL-TIME GPS QIBLA COMPASS
   {
-    id: "nav-qibla",
-    targetId: "tour-nav-qibla",
-    targetTab: "qibla",
-    title: "3D GPS Qibla Compass 🧭",
-    subtitle: "Direct Gyroscope Pointer to Kaaba",
-    description: "Calculates the exact direction of the Kaaba in Makkah from anywhere on Earth using your phone's built-in gyroscope and GPS coordinates.",
-    mobileTip: "Hold your phone flat and rotate until the compass needle locks into the golden Kaaba beam.",
-    badge: "Sacred Direction • 8/16",
-    icon: Compass,
+    id: "d-market",
+    targetId: "tour-nav-market",
+    targetTab: "market",
+    title: "Sanctuary Halal Market 🛍️",
+    subtitle: "Sacred Islamic Marketplace & Waqf",
+    description: "Explore curated spiritual artifacts, luxury prayer mats, authentic timepieces from ISIS WRISTS, halal goods, and waqf contributions.",
+    mobileTip: "Browse verified vendors, Islamic timepieces from ISIS WRISTS, and community offerings.",
+    badge: "Halal Market • 9/15",
+    icon: ShoppingBag,
     preferredPosition: 'top'
   },
-  // 9. HABIBI AI (HOLY ALIYAH) COMPANION
   {
-    id: "nav-companion",
+    id: "d-companion",
     targetId: "tour-nav-companion",
     targetTab: "companion",
-    title: "Habibi AI Spiritual Counselor 🤖",
-    subtitle: "Scripture-Grounded Islamic AI",
-    description: "Consult Habibi AI anytime on Salah rulings, Fiqh questions, Quranic reflections, and authentic Duas. Backed by references to Quranic Surahs and verified Hadith.",
+    title: "Habibi Aliyah Spiritual Companion ✨",
+    subtitle: "Scripture-Grounded Islamic Nur AI",
+    description: "Consult Habibi Aliyah anytime on Salah rulings, Fiqh questions, Quranic reflections, and authentic Duas. Backed by references to Quranic Surahs and verified Hadith.",
     mobileTip: "You can type or speak questions using voice input to receive instant, compassionate guidance.",
-    badge: "Habibi AI • 9/16",
-    icon: MessageCircle,
+    badge: "Habibi Aliyah • 10/15",
+    icon: Sparkles,
     preferredPosition: 'top'
   },
-  // 10. GLOBAL UMMAH HUB & NOORTALK
   {
-    id: "nav-ummah",
+    id: "d-ummah",
     targetId: "tour-nav-ummah",
     targetTab: "ummah",
     title: "Global Ummah Hub & NoorTalk 🤝",
     subtitle: "Community Reflections & Group Duas",
     description: "Connect with brothers and sisters across the globe. Share reflections on the NoorTalk feed, participate in community polls, and request heartfelt Duas.",
     mobileTip: "Post daily reflections or encourage fellow pilgrims on their spiritual journeys.",
-    badge: "Global Ummah • 10/16",
+    badge: "Global Ummah • 11/15",
     icon: Users,
     preferredPosition: 'top'
   },
-  // 11. HALL OF FAME & LEADERBOARDS
   {
-    id: "leaderboard-page",
+    id: "d-leaderboard",
     targetId: "",
     targetTab: "leaderboard",
     title: "Spiritual Hall of Fame 🏆",
     subtitle: "Global Seeker Rankings & Leagues",
     description: "Track your standing among dedicated seekers worldwide. Climb through Bronze, Silver, Gold, and Diamond tiers to claim the revered Habibi King crown.",
     mobileTip: "Earn bonus Hasanat by reading Quran, keeping daily streaks, and completing Tasbih Dhikr.",
-    badge: "Hall of Fame • 11/16",
+    badge: "Hall of Fame • 12/15",
     icon: Trophy,
     preferredPosition: 'center'
   },
-  // 12. SACRED ADHKAR & DIGITAL TASBIH
   {
-    id: "adhkar-tasbih",
-    targetId: "tour-shortcuts",
-    targetTab: "resources",
-    extraNav: { resId: 'adhkar' },
-    title: "Sacred Adhkar & Digital Tasbih 📿",
-    subtitle: "Morning/Evening Dhikr & Bead Counters",
-    description: "Complete your daily morning, evening, and after-prayer supplications with authentic arabic text, virtue explanations, and tactile haptic vibration counters.",
-    mobileTip: "Tap anywhere on screen to count SubhanAllah, Alhamdulillah, and Allahu Akbar with haptic feedback.",
-    badge: "Sacred Adhkar • 12/16",
-    icon: Moon,
-    preferredPosition: 'top'
-  },
-  // 13. 3D INTERACTIVE HAJJ & UMRAH MAP
-  {
-    id: "hajj-map",
+    id: "d-hajj-map",
     targetId: "",
     targetTab: "resources",
     extraNav: { resId: 'hajj_umrah' },
@@ -231,52 +386,44 @@ export const COMPLETE_TOUR_STEPS: TourStep[] = [
     subtitle: "Explore Makkah, Mina, Arafat & Muzdalifah",
     description: "Interactive sacred pilgrimage map highlighting key historical locations, step-by-step rituals (Tawaf, Sa'i, Jamarat), and custom navigation markers.",
     mobileTip: "Tap any landmark marker on the map to view historical background, Duas, and walking routes.",
-    badge: "Pilgrimage Hub • 13/16",
+    badge: "Pilgrimage Hub • 13/15",
     icon: MapPin,
     preferredPosition: 'center'
   },
-  // 14. PILGRIM PASSPORT & PROFILE CUSTOMIZATION
   {
-    id: "nav-profile",
+    id: "d-profile",
     targetId: "tour-nav-profile",
     targetTab: "profile",
     title: "Pilgrim Passport & Themes 🎨",
     subtitle: "Your Badges, Theme Customizers & Stats",
     description: "View your earned achievements, customize visual color themes (Emerald, Gold, Kaaba Black), manage offline audio caches, and switch languages.",
     mobileTip: "Personalize your app's typography, reciters, and adhan preferences in your profile.",
-    badge: "Pilgrim Profile • 14/16",
+    badge: "Pilgrim Profile • 14/15",
     icon: User,
     preferredPosition: 'top'
   },
-  // 15. MOBILE FLOATING NAVIGATION DOCK
   {
-    id: "mobile-nav-dock",
-    targetId: "tour-nav-home",
-    targetTab: "home",
-    title: "Mobile Floating Navigation Dock 📱",
-    subtitle: "One-Tap Access on Any Phone",
-    description: "The sleek bottom navigation bar keeps your Home, Quran, Qibla Compass, Habibi AI, Ummah Hub, and Profile right at your fingertips wherever you are in the app.",
-    mobileTip: "Easily switch between features with a single thumb tap on the bottom dock.",
-    badge: "Mobile Navigation • 15/16",
-    icon: Smartphone,
-    preferredPosition: 'top'
-  },
-  // 16. ADMIN HUB & REAL-TIME TELEMETRY ENGINE
-  {
-    id: "admin-hub",
+    id: "d-admin-hub",
     targetId: "",
     targetTab: "admin",
     title: "Admin Hub & Telemetry Engine 🛡️",
-    subtitle: "Live Graphs, Telemetry & Auto-Mailing",
-    description: "Private administrative console featuring real-time interactive time-series charts, Habibi AI query inspector, user Hasanat controls, and 7-day inactivity push & email automations.",
+    subtitle: "Live Telemetry, User Hasanat & Automations",
+    description: "Private administrative console featuring interactive time-series charts, Habibi Aliyah query inspector, user Hasanat controls, and background automations.",
     mobileTip: "Equipped with live graphs, real-time query streams, and automated background lifecycle tools.",
-    badge: "Admin Hub • 16/16",
+    badge: "Admin Hub • 15/15",
     icon: ShieldCheck,
     preferredPosition: 'center'
   }
 ];
 
-export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasanat }: WalkthroughTourProps) {
+export default function WalkthroughTour({ 
+  isOpen, 
+  onClose, 
+  onNavigate, 
+  addHasanat,
+  onOpenDrawer,
+  isDrawerOpen
+}: WalkthroughTourProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [windowDimensions, setWindowDimensions] = useState({
@@ -286,9 +433,10 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
   const [isPulsing, setIsPulsing] = useState(false);
   const touchStartX = useRef<number>(0);
 
-  const currentStep = COMPLETE_TOUR_STEPS[currentStepIndex] || COMPLETE_TOUR_STEPS[0];
-  const isLastStep = currentStepIndex === COMPLETE_TOUR_STEPS.length - 1;
   const isMobile = windowDimensions.width < 768;
+  const activeSteps = isMobile ? MOBILE_TOUR_STEPS : DESKTOP_TOUR_STEPS;
+  const currentStep = activeSteps[currentStepIndex] || activeSteps[0];
+  const isLastStep = currentStepIndex === activeSteps.length - 1;
 
   // Window resize handler
   useEffect(() => {
@@ -302,14 +450,23 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Sync navigation tab when step changes so target element is visible
+  // Sync navigation tab and drawer when step changes
   useEffect(() => {
     if (!isOpen) return;
+
+    // Manage mobile drawer open/close state based on step requirements
+    if (isMobile && onOpenDrawer) {
+      if (currentStep.requiresDrawerOpen) {
+        onOpenDrawer(true);
+      } else {
+        onOpenDrawer(false);
+      }
+    }
 
     if (currentStep.targetTab) {
       onNavigate(currentStep.targetTab, currentStep.extraNav);
     }
-  }, [isOpen, currentStepIndex, currentStep, onNavigate]);
+  }, [isOpen, currentStepIndex, currentStep, onNavigate, onOpenDrawer, isMobile]);
 
   // Update target rect based on current step
   const updateSpotlightPosition = useCallback(() => {
@@ -322,7 +479,6 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
 
     const element = document.getElementById(currentStep.targetId);
     if (element) {
-      // Auto-scroll target into viewport smoothly
       element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
       
       const timeout = setTimeout(() => {
@@ -357,7 +513,7 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentStepIndex]);
+  }, [isOpen, currentStepIndex, activeSteps]);
 
   // Mobile Touch Gestures (Swipe left to advance, swipe right to go back)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -369,16 +525,14 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
     const diff = touchStartX.current - touchEndX;
 
     if (diff > 50) {
-      // Swiped left -> Next
       handleNext();
     } else if (diff < -50) {
-      // Swiped right -> Back
       handlePrev();
     }
   };
 
   const handleNext = () => {
-    if (currentStepIndex < COMPLETE_TOUR_STEPS.length - 1) {
+    if (currentStepIndex < activeSteps.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
       triggerPulse();
     } else {
@@ -404,8 +558,11 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
   };
 
   const handleFinish = () => {
+    if (isMobile && onOpenDrawer) {
+      onOpenDrawer(false);
+    }
     if (addHasanat) {
-      addHasanat(50);
+      addHasanat(10);
       window.dispatchEvent(new CustomEvent('hasanat_earned_popup', { 
         detail: { amount: 50, reason: "In-App Tour Completed! +50 Hasanat!" } 
       }));
@@ -419,14 +576,12 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
 
   const Icon = currentStep.icon;
 
-  // Calculate tooltip placement dynamically
   const padding = isMobile ? 6 : 10;
   const spotlightX = targetRect ? Math.max(0, targetRect.left - padding) : 0;
   const spotlightY = targetRect ? Math.max(0, targetRect.top - padding) : 0;
   const spotlightWidth = targetRect ? targetRect.width + padding * 2 : 0;
   const spotlightHeight = targetRect ? targetRect.height + padding * 2 : 0;
 
-  // Decide if coach mark tooltip should be above or below target
   const showAbove = targetRect ? (targetRect.top > windowDimensions.height / 2) : false;
 
   return (
@@ -436,221 +591,175 @@ export default function WalkthroughTour({ isOpen, onClose, onNavigate, addHasana
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* SVG Spotlight Mask with Pitch Dark Overlay */}
+        {/* SVG Spotlight Mask with Dark Overlay */}
         <svg 
           className="absolute inset-0 w-full h-full pointer-events-none transition-all duration-300 ease-out"
           style={{ filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.85))' }}
         >
           <defs>
             <mask id="spotlight-mask">
-              {/* White background = completely visible dark overlay */}
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
-              {/* Black cutout = transparent hole where spotlight focuses */}
               {targetRect && (
                 <rect 
-                  x={spotlightX}
-                  y={spotlightY}
-                  width={spotlightWidth}
-                  height={spotlightHeight}
-                  rx="20"
-                  ry="20"
-                  fill="black"
+                  x={spotlightX} 
+                  y={spotlightY} 
+                  width={spotlightWidth} 
+                  height={spotlightHeight} 
+                  rx={isMobile ? 18 : 24} 
+                  ry={isMobile ? 18 : 24} 
+                  fill="black" 
                   className="transition-all duration-300 ease-out"
                 />
               )}
             </mask>
           </defs>
-
-          {/* Dark backdrop with hole cutout */}
           <rect 
             x="0" 
             y="0" 
             width="100%" 
             height="100%" 
-            fill="rgba(4, 6, 12, 0.88)" 
-            mask="url(#spotlight-mask)"
-            className="pointer-events-auto cursor-pointer"
-            onClick={handleNext}
+            fill="rgba(0, 0, 0, 0.82)" 
+            mask="url(#spotlight-mask)" 
           />
         </svg>
 
-        {/* Dynamic Glowing Spotlight Focus Ring around target element */}
+        {/* Pulsing Highlight Target Frame */}
         {targetRect && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ 
               opacity: 1, 
-              scale: isPulsing ? 1.04 : 1,
+              scale: isPulsing ? 1.03 : 1,
               x: spotlightX,
               y: spotlightY,
               width: spotlightWidth,
               height: spotlightHeight
             }}
-            transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="absolute pointer-events-none rounded-[20px] border-2 border-brand-primary shadow-[0_0_35px_rgba(245,158,11,0.6)] z-[99992]"
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute pointer-events-none rounded-[1.5rem] border-2 border-brand-primary/80 shadow-[0_0_35px_rgba(168,85,247,0.7)]"
+            style={{
+              boxShadow: '0 0 0 4px rgba(168,85,247,0.25), 0 0 30px rgba(168,85,247,0.5)'
+            }}
           >
-            {/* Coach mark corner reticles */}
-            <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-white rounded-tl-md" />
-            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-white rounded-tr-md" />
-            <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-white rounded-bl-md" />
-            <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-white rounded-br-md" />
-
-            {/* Glowing beacon pulse ring */}
-            <div className="absolute inset-0 rounded-[20px] border border-brand-primary animate-ping opacity-60 pointer-events-none" />
-
-            {/* Target Label pill */}
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute -top-6 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-brand-primary text-brand-depth font-black text-[8px] uppercase tracking-widest rounded-full shadow-lg whitespace-nowrap flex items-center gap-1"
-            >
-              <LocateFixed size={9} className="animate-spin" />
-              <span>Target Focused</span>
-            </motion.div>
+            {/* Corner Accent Sparkle */}
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-brand-primary rounded-full flex items-center justify-center text-brand-depth shadow-lg animate-bounce">
+              <Sparkles size={12} />
+            </div>
           </motion.div>
         )}
 
-        {/* Coach Mark / Walkthrough Tooltip Card (Mobile Responsive Anchor) */}
-        <div className={`absolute inset-0 flex items-center justify-center p-3 md:p-6 pointer-events-none z-[99995] ${
-          isMobile && targetRect 
-            ? (showAbove ? 'items-start pt-4' : 'items-end pb-16') 
-            : 'items-center'
-        }`}>
+        {/* Top Header Bar with Progress Indicator and Exit */}
+        <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex items-center justify-between z-50 pointer-events-auto bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-brand-primary/20 border border-brand-primary/40 flex items-center justify-center text-brand-primary">
+              <Sparkles size={16} />
+            </div>
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-white">
+                {isMobile ? 'Mobile Interactive Tour' : 'Sanctuary Interactive Tour'}
+              </span>
+              <p className="text-[10px] text-brand-primary font-bold">
+                Step {currentStepIndex + 1} of {activeSteps.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleFinish}
+              className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Skip Tour</span>
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Coach-Mark Card */}
+        <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6 pointer-events-none z-50">
           <motion.div
             key={currentStep.id}
-            initial={{ opacity: 0, scale: 0.92, y: showAbove ? 20 : -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 20 }}
-            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-            className={`pointer-events-auto w-full max-w-lg bg-brand-sidebar/95 backdrop-blur-3xl border border-brand-primary/40 rounded-[2rem] md:rounded-[2.8rem] p-5 md:p-8 shadow-[0_30px_70px_rgba(0,0,0,0.9)] relative overflow-hidden space-y-4 md:space-y-6 max-h-[75vh] md:max-h-[85vh] overflow-y-auto ${
-              targetRect && !isMobile ? (
-                showAbove 
-                  ? 'mb-auto mt-6' 
-                  : 'mt-auto mb-6'
-              ) : ''
+            initial={{ opacity: 0, y: showAbove ? -20 : 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: showAbove ? -15 : 15, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className={`pointer-events-auto w-full max-w-md bg-gradient-to-b from-brand-sidebar via-brand-depth to-black border-2 border-brand-primary/40 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_0_60px_rgba(0,0,0,0.95)] backdrop-blur-2xl space-y-6 ${
+              targetRect && !isMobile
+                ? showAbove ? 'mb-auto mt-24' : 'mt-auto mb-24'
+                : ''
             }`}
           >
-            {/* Top decorative gradient glow */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-primary via-amber-400 to-brand-primary animate-pulse" />
-
-            {/* Header: Step info & Close */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-brand-primary/15 border border-brand-primary/30 flex items-center justify-center text-brand-primary shrink-0 shadow-lg shadow-brand-primary/10">
-                  <Icon size={isMobile ? 20 : 24} />
+            {/* Step Header with Badge */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 border border-brand-primary/40 flex items-center justify-center text-brand-primary shadow-inner shrink-0">
+                  <Icon size={24} />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-brand-primary">
-                      {currentStep.badge}
-                    </span>
-                    <span className="text-[8px] font-bold text-slate-500">•</span>
-                    <span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                      {currentStepIndex + 1} of {COMPLETE_TOUR_STEPS.length}
-                    </span>
-                  </div>
-                  <h3 className="text-lg md:text-2xl font-black text-white italic uppercase tracking-tight mt-0.5 leading-snug">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary px-2.5 py-0.5 rounded-full bg-brand-primary/10 border border-brand-primary/20">
+                    {currentStep.badge}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
                     {currentStep.title}
                   </h3>
                 </div>
               </div>
-
-              <button
-                onClick={handleFinish}
-                className="p-1.5 md:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/10 cursor-pointer shrink-0"
-                title="Exit Tour"
-              >
-                <X size={15} />
-              </button>
             </div>
 
             {/* Subtitle & Description */}
-            <div className="p-3.5 md:p-4 rounded-2xl bg-black/40 border border-white/5 space-y-2">
-              <h4 className="text-[11px] md:text-xs font-black text-amber-300 uppercase tracking-wider">
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
                 {currentStep.subtitle}
               </h4>
-              <p className="text-xs md:text-sm text-slate-200 font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300/90 font-medium leading-relaxed">
                 {currentStep.description}
               </p>
-              {currentStep.mobileTip && (
-                <div className="pt-2 border-t border-white/5 flex items-center gap-2 text-[10px] md:text-[11px] text-emerald-300 font-semibold">
-                  <Smartphone size={12} className="shrink-0 text-emerald-400" />
-                  <span>{currentStep.mobileTip}</span>
-                </div>
-              )}
             </div>
 
-            {/* Interactive Step Timeline Dots (Fast Jump) */}
-            <div className="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar py-1">
-              {COMPLETE_TOUR_STEPS.map((step, idx) => (
+            {/* Mobile / Interaction Tip Box */}
+            <div className="p-3.5 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-start gap-3">
+              <Sparkles size={16} className="text-brand-primary shrink-0 mt-0.5" />
+              <p className="text-[11px] text-brand-primary/90 font-medium leading-normal">
+                {currentStep.mobileTip}
+              </p>
+            </div>
+
+            {/* Progress Dots Bar */}
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              {activeSteps.map((step, idx) => (
                 <button
                   key={step.id}
                   onClick={() => handleJumpToStep(idx)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    idx === currentStepIndex 
-                      ? 'w-6 bg-brand-primary' 
-                      : idx < currentStepIndex 
-                      ? 'w-2 bg-brand-primary/50' 
-                      : 'w-2 bg-white/15'
+                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                    idx === currentStepIndex
+                      ? 'w-6 bg-brand-primary'
+                      : idx < currentStepIndex
+                      ? 'w-2 bg-brand-primary/40'
+                      : 'w-1.5 bg-white/20 hover:bg-white/40'
                   }`}
                   title={step.title}
                 />
               ))}
             </div>
 
-            {/* Visual Step Progress Bar */}
-            <div className="space-y-1">
-              <div className="flex justify-between items-center text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                <span>Sanctuary Walkthrough</span>
-                <span className="text-brand-primary font-mono font-bold">
-                  {Math.round(((currentStepIndex + 1) / COMPLETE_TOUR_STEPS.length) * 100)}% Complete
-                </span>
-              </div>
-              <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden p-[1px]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${((currentStepIndex + 1) / COMPLETE_TOUR_STEPS.length) * 100}%` }}
-                  transition={{ duration: 0.25 }}
-                  className="h-full bg-gradient-to-r from-brand-primary via-amber-400 to-amber-500 rounded-full"
-                />
-              </div>
-            </div>
-
-            {/* Interactive Step Navigation Controls */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/10 gap-2">
+            {/* Navigation Action Buttons */}
+            <div className="flex items-center gap-3 pt-1">
               <button
-                onClick={handleFinish}
-                className="text-[10px] md:text-xs font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors py-2 cursor-pointer"
+                onClick={handlePrev}
+                disabled={currentStepIndex === 0}
+                className="px-4 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:hover:bg-white/5 font-bold text-xs uppercase tracking-wider transition-all border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Skip
+                <ArrowLeft size={16} />
+                <span className="hidden sm:inline">Back</span>
               </button>
 
-              <div className="flex items-center gap-2">
-                {currentStepIndex > 0 && (
-                  <button
-                    onClick={handlePrev}
-                    className="px-3.5 md:px-4 py-2.5 md:py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 font-black text-[10px] md:text-xs uppercase tracking-widest flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                  >
-                    <ArrowLeft size={13} /> Back
-                  </button>
-                )}
-
-                {isLastStep ? (
-                  <button
-                    onClick={handleFinish}
-                    className="px-5 md:px-7 py-2.5 md:py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-brand-depth font-black text-[10px] md:text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer animate-bounce"
-                  >
-                    Finish (+50 Hasanat) <CheckCircle2 size={15} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleNext}
-                    className="px-5 md:px-7 py-2.5 md:py-3.5 rounded-2xl bg-brand-primary text-brand-depth font-black text-[10px] md:text-xs uppercase tracking-widest shadow-xl shadow-brand-primary/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next Feature <ArrowRight size={14} />
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={handleNext}
+                className="flex-1 py-3.5 rounded-2xl bg-brand-primary hover:bg-brand-primary/90 text-brand-depth font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-brand-primary/25 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>{isLastStep ? 'Complete (+50 Hasanat)' : 'Next Step'}</span>
+                {isLastStep ? <CheckCircle2 size={16} /> : <ArrowRight size={16} />}
+              </button>
             </div>
           </motion.div>
         </div>

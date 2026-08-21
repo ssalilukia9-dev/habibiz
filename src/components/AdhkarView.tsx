@@ -182,7 +182,7 @@ export default function AdhkarView({
 
     if (targetState) {
       triggerHaptic();
-      addHasanat(15);
+      addHasanat(2);
       incrementDua();
     }
 
@@ -223,7 +223,7 @@ export default function AdhkarView({
           playSessionItem(items, nextIdx);
         } else {
           setIsSessionActive(false);
-          addHasanat(50);
+          addHasanat(5);
         }
       }, 1000);
     });

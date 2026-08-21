@@ -119,7 +119,7 @@ export default function HadithLibraryView({
     setSelectedHadith(h);
     const viewedKey = `viewed-hadith-${h.id}`;
     if (!localStorage.getItem(viewedKey)) {
-      addHasanat(20);
+      addHasanat(3);
       localStorage.setItem(viewedKey, 'true');
     }
   };

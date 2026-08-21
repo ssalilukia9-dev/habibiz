@@ -96,7 +96,7 @@ export default function RamadanHub({ currentTime, prayerData, addHasanat }: Rama
     if (newLogs[key]) {
       playLocalChime();
       if (addHasanat) {
-        addHasanat(50); // Reward 50 Hasanat points per spiritual deed logged
+        addHasanat(5); // Reward 50 Hasanat points per spiritual deed logged
       }
     }
   };

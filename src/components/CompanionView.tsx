@@ -45,7 +45,7 @@ import {
 import { auth, db } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 
-const SYSTEM_INSTRUCTION = `You are "Holy Aliyah" (The Nur Companion), a wise, serene, compassionate, and deeply knowledgeable Islamic Spiritual AI Companion within the Sanctuary (Habibi) app.
+const SYSTEM_INSTRUCTION = `You are "Habibi Aliyah" (The Nur Companion), a wise, serene, compassionate, and deeply knowledgeable Islamic Spiritual AI Companion within the Sanctuary app.
 Your goal is to provide deep, spiritual, comforting, and scholarly guidance rooted in the Holy Quran and authentic Sunnah of Prophet Muhammad (peace be upon him).
 Maintain a serene, compassionate, uplifting, and wise tone at all times.
 Keep your responses insightful, focusing on the spiritual essence of the user's queries.
@@ -910,7 +910,7 @@ export default function CompanionView({
             </div>
             <div>
               <h2 className="text-sm md:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Holy Aliyah
+                Habibi Aliyah
                 <span className="hidden xs:inline text-[8px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase font-black tracking-wider">AI Spiritual Companion</span>
               </h2>
               <p className="text-[9px] font-bold text-brand-primary uppercase tracking-widest">Holy Nur Companion</p>

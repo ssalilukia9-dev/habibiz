@@ -83,9 +83,16 @@ import HeadsUpNotification from './components/HeadsUpNotification.tsx';
 import { notificationService } from './services/notificationService.ts';
 import WalkthroughTour from './components/WalkthroughTour.tsx';
 import AdminView from './components/AdminView.tsx';
+import SponsorsDrawerSection from './components/SponsorsDrawerSection.tsx';
 import AdminRouteGuard from './components/AdminRouteGuard.tsx';
 import { AdminConfigService } from './services/adminConfigService.ts';
 import AdhanCallerModal from './components/AdhanCallerModal.tsx';
+import TahajjudAlarmModal from './components/TahajjudAlarmModal.tsx';
+import UniversalSearchModal from './components/UniversalSearchModal.tsx';
+import { TahajjudAlarmService } from './services/tahajjudAlarmService.ts';
+import GlobalQuranPlayerBar from './components/GlobalQuranPlayerBar.tsx';
+import ThemeCustomizerView from './components/ThemeCustomizerView.tsx';
+import { ThemeService } from './services/themeService.ts';
 import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
 export default function App() {
@@ -94,9 +101,25 @@ export default function App() {
   const activeTab = location.pathname.substring(1) || 'home';
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showUniversalSearch, setShowUniversalSearch] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeAdhanAlert, setActiveAdhanAlert] = useState<{ prayerName: string; prayerTime?: string; preferredAdhanId?: string } | null>(null);
+  const [activeTahajjudAlert, setActiveTahajjudAlert] = useState<{ timeStr?: string; label?: string; message?: string } | null>(null);
+
+  // Subscribe to Tahajjud Alarm Service
+  useEffect(() => {
+    const unsubscribe = TahajjudAlarmService.subscribe((ringing, info) => {
+      if (ringing) {
+        setActiveTahajjudAlert(info || { timeStr: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+      } else {
+        setActiveTahajjudAlert(null);
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   const [showTrial, setShowTrial] = useState(true);
   const [topUserId, setTopUserId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -339,7 +362,7 @@ export default function App() {
         }
 
         if (claimedPrayer) {
-          addHasanat(50);
+          addHasanat(5);
           notificationService.notify('Prayer Claimed', `Masha'Allah! You earned +50 Hasanat for completing ${claimedPrayer} prayer on time.`, 'system');
           window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -359,7 +382,7 @@ export default function App() {
         if (action === 'open_qibla') {
           navigate('/qibla');
         } else if (action === 'mark_prayed') {
-          addHasanat(50);
+          addHasanat(5);
           notificationService.notify('Prayer Claimed', `Masha'Allah! You earned +50 Hasanat for completing ${prayerName} prayer.`, 'system');
         } else {
           setActiveAdhanAlert({
@@ -548,7 +571,7 @@ export default function App() {
 
     if (lastBonusDate !== todayStr) {
       localStorage.setItem(lastDailyLoginKey, todayStr);
-      addHasanat(25);
+      addHasanat(3);
       setTimeout(() => {
         notificationService.notify(
           'Daily Sanctuary Barakah 🌿',
@@ -559,19 +582,17 @@ export default function App() {
     }
   }, [currentUser]);
   
-  // App State
+  // App State - Default to Aloha Oceanic Gold theme
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('app-theme') || 'dark';
+    const saved = localStorage.getItem('app-theme') || 'aloha';
     if (saved === 'blue' || saved === 'light') return 'sapphire';
     if (saved === 'green' || saved === 'light-green') return 'emerald';
     return saved;
   });
 
   useEffect(() => {
-    localStorage.setItem('app-theme', theme);
-    document.documentElement.setAttribute('data-theme', theme);
-    // All sanctuary themes are designed with deep, rich contrast
-    document.documentElement.classList.add('dark');
+    const customConfig = theme === 'custom' ? ThemeService.getActiveCustomThemeData() : undefined;
+    ThemeService.applyTheme(theme, customConfig);
   }, [theme]);
 
   // Derived for components that still expect boolean
@@ -764,6 +785,18 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUser]);
 
+  
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowUniversalSearch(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, []);
+
   const [pointPopups, setPointPopups] = useState<{id: number, amount: number}[]>([]);
   const popupId = useRef(0);
 
@@ -803,12 +836,12 @@ export default function App() {
 
   const incrementDua = () => {
     setDuaCount(prev => prev + 1);
-    addHasanat(15);
+    addHasanat(2);
   };
 
   const updateStreak = () => {
     setStreak(prev => prev + 1);
-    addHasanat(100);
+    addHasanat(1);
     if (currentUser) {
       if (currentUser.uid.startsWith('local_')) {
         const key = `sanctuary_profile_${currentUser.uid}`;
@@ -1442,7 +1475,7 @@ export default function App() {
           createdAt: serverTimestamp()
         });
         notificationService.notify('Sanctuary Expanded', 'Verse added to your curated wisdom.', 'system', '#bookmarks');
-        addHasanat(50);
+        addHasanat(5);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${currentUser.uid}/ayahBookmarks/${bookmarkId}`);
@@ -1453,12 +1486,9 @@ export default function App() {
 
   const tabsWithCompanion = useMemo(() => {
     const base = [
-      ...NAVIGATION_TABS.filter(t => t.id !== 'admin'),
-      { id: 'companion', label: 'Companion', icon: 'Sparkles' }
+      ...NAVIGATION_TABS.filter(t => t.id !== 'admin' && t.id !== 'leaderboard' && t.id !== 'notifications' && t.id !== 'profile' && t.id !== 'ummah'),
+      { id: 'companion', label: 'Habibi Aliyah', icon: 'Sparkles' }
     ];
-    if (isAdmin) {
-      base.push({ id: 'admin', label: 'Admin Console', icon: 'Shield' });
-    }
     // Guarantee unique IDs across all tabs
     const seen = new Set<string>();
     return base.filter(tab => {
@@ -1466,7 +1496,7 @@ export default function App() {
       seen.add(tab.id);
       return true;
     });
-  }, [isAdmin]);
+  }, []);
 
   if (showSplash) {
     return <SplashScreen onEnter={() => setShowSplash(false)} />;
@@ -1636,18 +1666,21 @@ export default function App() {
         </div>
       </div>
 
-      {/* Desktop/Tablet Navigation Rail (Narrow Sidebar) with Staggered Entrance */}
+      {/* Desktop/Tablet Navigation Rail (Narrow Sidebar) Glued to the screen */}
       <motion.aside 
+        id="tour-desktop-rail"
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="hidden md:flex w-16 h-full bg-brand-sidebar border-r border-brand-border flex-col items-center py-8 gap-6 z-40 flex-shrink-0"
+        className="hidden md:flex w-16 h-screen sticky top-0 left-0 bg-brand-sidebar/95 backdrop-blur-2xl border-r border-brand-border flex-col items-center justify-between py-5 z-40 flex-shrink-0 select-none overflow-hidden"
       >
         <motion.div 
           initial={{ opacity: 0, scale: 0.6, rotate: -20 }}
           animate={{ opacity: 1, scale: 1, rotate: 0 }}
           transition={{ duration: 0.5, delay: 0.1, type: 'spring', stiffness: 400, damping: 20 }}
-          className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 mb-4 group cursor-pointer"
+          onClick={() => navigate('/home')}
+          className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 shrink-0 group cursor-pointer"
+          title="Sanctuary Home"
         >
           <BookOpen size={20} className="text-brand-depth group-hover:scale-110 transition-transform" />
         </motion.div>
@@ -1664,7 +1697,7 @@ export default function App() {
               }
             }
           }}
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-2 my-auto overflow-y-auto no-scrollbar py-2 w-full items-center"
         >
           {tabsWithCompanion.map((tab) => {
             const Icon = { 
@@ -1732,7 +1765,7 @@ export default function App() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.45 }}
-          className="mt-auto flex flex-col items-center gap-4"
+          className="flex flex-col items-center gap-3 shrink-0 pt-2"
         >
            {currentUser ? (
              <div className="group relative">
@@ -1756,7 +1789,11 @@ export default function App() {
                 <UserIcon size={20} className="group-hover:text-brand-depth" />
              </button>
            )}
-           <button className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-brand-primary hover:bg-white/5 transition-all cursor-pointer">
+           <button 
+             onClick={() => setIsSidebarOpen(true)}
+             className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-brand-primary hover:bg-white/5 transition-all cursor-pointer"
+             title="More Navigation"
+           >
               <LayoutGrid size={20} />
            </button>
         </motion.div>
@@ -1857,6 +1894,7 @@ export default function App() {
         <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-brand-sidebar/95 backdrop-blur-2xl border-b border-white/10 px-4 flex items-center justify-between z-40">
           <div className="flex items-center gap-3">
             <button 
+              id="tour-mobile-drawer-toggle"
               onClick={() => setIsSidebarOpen(true)}
               className="p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-white/5 border border-white/5 active:scale-95 transition-all cursor-pointer"
               title="Open Navigation Menu"
@@ -1909,7 +1947,8 @@ export default function App() {
                 <Search className="absolute left-4 text-brand-primary/40" size={16} />
                 <input 
                   type="text" 
-                  placeholder="Deep search through the wisdom..."
+                  placeholder="Search Surah, Hadith, Adhkar, Duas, Names (Ctrl+K)..."
+                  onClick={() => setShowUniversalSearch(true)}
                   className="w-full bg-white/5 border border-white/5 rounded-full pl-11 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -2005,10 +2044,35 @@ export default function App() {
                         currentUser={currentUser}
                       />
                     } />
-                    <Route path="/market" element={<MarketView searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
-                    <Route path="/market/:productId" element={<MarketView detailMode searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+                    <Route path="/market" element={
+                      <MarketView 
+                        searchQuery={searchQuery} 
+                        setSearchQuery={setSearchQuery} 
+                        currentUser={currentUser}
+                        currentHasanat={hasanat}
+                        onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                      />
+                    } />
+                    <Route path="/market/:productId" element={
+                      <MarketView 
+                        detailMode 
+                        searchQuery={searchQuery} 
+                        setSearchQuery={setSearchQuery} 
+                        currentUser={currentUser}
+                        currentHasanat={hasanat}
+                        onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                      />
+                    } />
                     <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
-                    <Route path="/leaderboard" element={<LeaderboardView searchQuery={searchQuery} setSearchQuery={setSearchQuery} currentUser={currentUser} currentHasanat={hasanat} />} />
+                    <Route path="/leaderboard" element={
+                      <LeaderboardView 
+                        searchQuery={searchQuery} 
+                        setSearchQuery={setSearchQuery} 
+                        currentUser={currentUser} 
+                        currentHasanat={hasanat}
+                        onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                      />
+                    } />
                     <Route path="/profile" element={
                       <ProfileView 
                         theme={theme}
@@ -2028,6 +2092,8 @@ export default function App() {
                       </AdminRouteGuard>
                     } />
                     <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} darkMode={darkMode} setDarkMode={setDarkMode} onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
+                    <Route path="/settings/theme" element={<ThemeCustomizerView theme={theme} setTheme={setTheme} onBack={() => navigate('/settings')} />} />
+                    <Route path="/themes" element={<ThemeCustomizerView theme={theme} setTheme={setTheme} onBack={() => navigate('/home')} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
                     <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
                     <Route path="/premium" element={<PremiumView />} />
@@ -2046,10 +2112,15 @@ export default function App() {
       {/* Right Rail: Quick Actions - Desktop */}
       <aside className="hidden xl:flex w-20 bg-brand-sidebar border-l border-brand-border flex-col items-center py-8 gap-8 z-30">
         {[
-          { icon: LayoutGrid, color: 'text-brand-primary', bg: 'bg-brand-primary/10' },
-          { icon: SettingsIcon, color: 'text-slate-500', bg: 'bg-white/5' }
+          { icon: LayoutGrid, color: 'text-brand-primary', bg: 'bg-brand-primary/10', title: 'Dashboard', action: () => navigate('/home') },
+          { icon: SettingsIcon, color: 'text-slate-400', bg: 'bg-white/5', title: 'Atmosphere Studio', action: () => navigate('/settings/theme') }
         ].map((item, i) => (
-          <button key={i} className={`w-12 h-12 rounded-full ${item.bg} flex items-center justify-center ${item.color} cursor-pointer hover:border hover:border-brand-primary/20 hover:scale-110 transition-all active:scale-95`}>
+          <button 
+            key={i} 
+            onClick={item.action}
+            title={item.title}
+            className={`w-12 h-12 rounded-full ${item.bg} flex items-center justify-center ${item.color} cursor-pointer hover:border hover:border-brand-primary/20 hover:scale-110 transition-all active:scale-95`}
+          >
             <item.icon size={20} />
           </button>
         ))}
@@ -2070,6 +2141,7 @@ export default function App() {
               className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
             />
             <motion.div 
+              id="tour-mobile-drawer-content"
               initial={{ x: '-100%' }} 
               animate={{ x: 0 }} 
               exit={{ x: '-100%' }}
@@ -2117,13 +2189,7 @@ export default function App() {
                  </motion.nav>
                </div>
 
-               <div className="mt-8 pt-6 border-t border-white/10">
-                 <div className="p-5 rounded-3xl bg-white/5 border border-white/5 text-center">
-                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] mb-1">Partner</p>
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm">ISIS WRISTS</h4>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Aloha Group Sponsorship</p>
-                 </div>
-               </div>
+               <SponsorsDrawerSection onCloseDrawer={() => setIsSidebarOpen(false)} />
             </motion.div>
           </>
         )}
@@ -2137,6 +2203,8 @@ export default function App() {
         onClose={() => setShowTour(false)} 
         onNavigate={handleNavigate} 
         addHasanat={addHasanat} 
+        onOpenDrawer={setIsSidebarOpen}
+        isDrawerOpen={isSidebarOpen}
       />
 
       {/* Adhan Caller Modal with sacred caller voice, dynamic imagery & Du'a */}
@@ -2153,16 +2221,55 @@ export default function App() {
         }}
       />
 
+      {/* Tahajjud Vigil & Night Alarm Modal with Audio Chime & Du'a */}
+      <TahajjudAlarmModal
+        isOpen={!!activeTahajjudAlert}
+        onClose={() => {
+          TahajjudAlarmService.stopAlarm();
+          setActiveTahajjudAlert(null);
+        }}
+        onNavigateToAdhkar={() => {
+          navigate('/resources');
+          setInitialResId('adhkar');
+        }}
+        addHasanat={addHasanat}
+        alarmInfo={activeTahajjudAlert || undefined}
+      />
+
+      {/* Persistent Global Quran Audio Floating Player */}
+      
+      {/* Universal Search Modal (Surahs, Hadiths, Adhkar, Duas, Names) */}
+      <UniversalSearchModal
+        isOpen={showUniversalSearch}
+        onClose={() => setShowUniversalSearch(false)}
+        initialQuery={searchQuery}
+        onNavigate={(tab, extra) => {
+          if (tab === "resources") {
+            navigate("/resources", { state: extra });
+            if (extra?.resId) setInitialResId(extra.resId);
+            if (extra?.selectedSurah) setSelectedSurah(extra.selectedSurah);
+          } else {
+            navigate("/" + tab, { state: extra });
+          }
+        }}
+      />
+
+      <GlobalQuranPlayerBar 
+        isInSurahView={activeTab === 'resources' && !!selectedSurah}
+        currentViewingSurahNumber={selectedSurah?.number || null}
+      />
+
       {/* Mobile Floating Bottom Navigation Dock (Optimized for all phone screen sizes) */}
       <nav 
+        id="tour-mobile-dock"
         aria-label="Mobile Navigation"
         className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-brand-sidebar/90 backdrop-blur-2xl border border-white/10 rounded-2xl px-2 py-2 shadow-2xl shadow-black/80 flex items-center justify-around"
       >
         {[
           { id: 'home', label: 'Home', icon: Home },
-          { id: 'resources', label: 'Quran/Adhkar', icon: BookOpen },
-          { id: 'qibla', label: 'Qibla/Salah', icon: Compass },
-          { id: 'companion', label: 'AI Habib', icon: Sparkles },
+          { id: 'resources', label: 'Resources', icon: BookOpen },
+          { id: 'market', label: 'Market', icon: ShoppingBag },
+          { id: 'companion', label: 'Habibi Aliyah', icon: Sparkles },
           { id: 'ummah', label: 'Ummah', icon: Users },
           { id: 'profile', label: 'Profile', icon: UserIcon }
         ].map((tab) => {

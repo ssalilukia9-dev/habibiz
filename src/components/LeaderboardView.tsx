@@ -29,10 +29,13 @@ import {
   Bot,
   ShoppingBag,
   Database,
-  ShieldAlert
+  ShieldAlert,
+  Coins,
+  CreditCard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/utils';
+import CoinShopModal, { getStoredCoins } from './CoinShopModal';
 
 interface LeaderboardUser {
   uid: string;
@@ -47,16 +50,30 @@ export default function LeaderboardView({
   searchQuery, 
   setSearchQuery, 
   currentUser, 
-  currentHasanat 
+  currentHasanat,
+  onHasanatDeducted
 }: { 
   searchQuery: string, 
   setSearchQuery: (q: string) => void,
   currentUser?: any,
-  currentHasanat?: number
+  currentHasanat?: number,
+  onHasanatDeducted?: (amount: number) => void
 }) {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'kings'>('all');
+  const [isCoinShopOpen, setIsCoinShopOpen] = useState(false);
+  const [userCoins, setUserCoins] = useState<number>(getStoredCoins());
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e.detail?.coins !== undefined) {
+        setUserCoins(e.detail.coins);
+      }
+    };
+    window.addEventListener('sanctuary_coins_updated', handleSync);
+    return () => window.removeEventListener('sanctuary_coins_updated', handleSync);
+  }, []);
   
   // Find current user's rank in the fetched list
   const currentUserRank = users.findIndex(u => u.uid === currentUser?.uid) + 1;
@@ -116,8 +133,39 @@ export default function LeaderboardView({
             Hall of <span className="text-brand-primary">Souls</span>
           </h1>
           <p className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[9px] md:text-[10px] font-sans">The Digital Sanctuary Leaders & Engineering Specs</p>
+
+          {/* Quick Coin Shop Action Card */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => setIsCoinShopOpen(true)}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-xl shadow-amber-500/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <Coins size={16} />
+              <span>Open Coin Shop</span>
+              <span className="px-2 py-0.5 rounded-lg bg-black/20 text-brand-depth text-[10px] font-mono font-black">
+                {userCoins.toLocaleString()} Coins
+              </span>
+            </button>
+
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-xs text-slate-300">
+              <Sparkles size={14} className="text-amber-400" />
+              <span>Exchange Hasanat or Buy with Real Money to Trade in Market</span>
+            </div>
+          </div>
         </div>
       </header>
+
+      {/* Coin Shop Modal */}
+      <CoinShopModal
+        isOpen={isCoinShopOpen}
+        onClose={() => setIsCoinShopOpen(false)}
+        currentUser={currentUser}
+        currentHasanat={currentHasanat}
+        onHasanatDeducted={onHasanatDeducted}
+        onCoinsPurchased={(gained) => {
+          setUserCoins(getStoredCoins());
+        }}
+      />
 
       {/* Leaderboard Area */}
       {/* Top Seeker Spotlight */}
@@ -311,7 +359,16 @@ export default function LeaderboardView({
                 </div>
              </div>
 
-             <div className="flex items-center gap-6 md:gap-10">
+             <div className="flex items-center gap-4 md:gap-6">
+                <button
+                  onClick={() => setIsCoinShopOpen(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer shadow-md"
+                  title="Open Noor Coin Shop"
+                >
+                  <Coins size={14} className="text-amber-400" />
+                  <span className="font-mono font-black">{userCoins.toLocaleString()}</span>
+                  <span className="text-[9px] uppercase tracking-wider text-amber-400/80 hidden sm:inline">Coins</span>
+                </button>
                 <div className="text-right">
                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Total Points</p>
                    <p className="text-sm md:text-lg font-black text-brand-primary font-mono leading-none">{(currentHasanat || 0).toLocaleString()}</p>

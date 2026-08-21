@@ -37,6 +37,7 @@ class OfflineService {
   }
 
   async saveAyahs(surahNumber: number, ayahs: Ayah[], reciterId?: number) {
+    if (!Array.isArray(ayahs)) return;
     const key = reciterId ? `surah_${surahNumber}_reciter_${reciterId}_ayahs` : `surah_${surahNumber}_ayahs`;
     await quranStore.setItem(key, ayahs);
     
@@ -44,7 +45,7 @@ class OfflineService {
     const downloadedKey = `download_metadata`;
     const metadata: any = await quranStore.getItem(downloadedKey) || {};
     const metaKey = `${surahNumber}_${reciterId || 'default'}`;
-    const isFullyCached = ayahs.every(a => !!a.audioBlob);
+    const isFullyCached = ayahs.length > 0 && ayahs.every(a => !!(a && a.audioBlob));
     metadata[metaKey] = {
       timestamp: Date.now(),
       ayahCount: ayahs.length,
@@ -71,14 +72,15 @@ class OfflineService {
 
   async getAyahs(surahNumber: number, reciterId?: number): Promise<Ayah[] | null> {
     const key = reciterId ? `surah_${surahNumber}_reciter_${reciterId}_ayahs` : `surah_${surahNumber}_ayahs`;
-    return await quranStore.getItem<Ayah[]>(key);
+    const data = await quranStore.getItem<Ayah[]>(key);
+    return Array.isArray(data) ? data : null;
   }
 
   async getDownloadStatus(surahNumber: number, reciterId: number): Promise<{ isDownloaded: boolean; progress: number }> {
     const ayahs = await this.getAyahs(surahNumber, reciterId);
-    if (!ayahs) return { isDownloaded: false, progress: 0 };
+    if (!ayahs || !Array.isArray(ayahs) || ayahs.length === 0) return { isDownloaded: false, progress: 0 };
     
-    const cachedCount = ayahs.filter(a => !!a.audioBlob).length;
+    const cachedCount = ayahs.filter(a => !!(a && a.audioBlob)).length;
     return {
       isDownloaded: cachedCount === ayahs.length,
       progress: Math.round((cachedCount / ayahs.length) * 100)

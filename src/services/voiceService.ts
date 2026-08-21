@@ -21,6 +21,7 @@ export interface ContinuousPlayItem {
   english?: string;
   transliteration?: string;
   title?: string;
+  audioUrl?: string;
   repetitionCount?: number;
 }
 
@@ -169,10 +170,10 @@ export class VoiceService {
   }
 
   /**
-   * Play high-clarity Arabic recitation text
+   * Play high-clarity Arabic recitation text or dedicated studio audio recording
    */
-  static speakArabic(text: string, id?: string | number, onEnd?: () => void) {
-    this.speak(text, 'ar', id, onEnd, 'arabic');
+  static speakArabic(text: string, id?: string | number, onEnd?: () => void, customAudioUrl?: string) {
+    this.speak(text, 'ar', id, onEnd, 'arabic', customAudioUrl);
   }
 
   /**
@@ -183,9 +184,9 @@ export class VoiceService {
   }
 
   /**
-   * Seamless combo: Recites Arabic first, followed by English explanation
+   * Seamless combo: Recites Arabic first (or authentic audio), followed by English explanation
    */
-  static speakBoth(arabicText: string, englishText: string, id?: string | number, onEnd?: () => void) {
+  static speakBoth(arabicText: string, englishText: string, id?: string | number, onEnd?: () => void, customAudioUrl?: string) {
     this.init();
     this.stopAudioInternal();
     const sessionId = ++this.sessionCounter;
@@ -208,7 +209,7 @@ export class VoiceService {
           this.handlePlaybackComplete();
         }, 'both', sessionId);
       }, 400);
-    }, 'both', sessionId);
+    }, 'both', sessionId, customAudioUrl);
   }
 
   /**
@@ -219,7 +220,8 @@ export class VoiceService {
     lang: VoiceLanguage = 'ar', 
     id?: string | number, 
     onEnd?: () => void,
-    mode: 'arabic' | 'english' | 'both' = lang === 'ar' ? 'arabic' : 'english'
+    mode: 'arabic' | 'english' | 'both' = lang === 'ar' ? 'arabic' : 'english',
+    customAudioUrl?: string
   ) {
     this.init();
     this.stopAudioInternal();
@@ -232,7 +234,7 @@ export class VoiceService {
     this.onEndCallback = onEnd || null;
     this.notifyListeners();
 
-    this.speakInternal(text, lang, id, onEnd, mode, sessionId);
+    this.speakInternal(text, lang, id, onEnd, mode, sessionId, customAudioUrl);
   }
 
   private static speakInternal(
@@ -241,9 +243,24 @@ export class VoiceService {
     id: string | number | undefined,
     onEnd: (() => void) | undefined,
     mode: 'arabic' | 'english' | 'both',
-    sessionId: number
+    sessionId: number,
+    customAudioUrl?: string
   ) {
     if (this.activeSessionId !== sessionId) return;
+
+    // If a direct high-quality studio audio URL is provided, play it directly with fallback to TTS
+    if (customAudioUrl) {
+      const streamUrls = [
+        customAudioUrl,
+        `${getApiBaseUrl()}/api/proxy/audio?url=${encodeURIComponent(customAudioUrl)}`
+      ];
+      this.tryAudioStreams(streamUrls, 0, text, lang, sessionId, () => {
+        if (this.activeSessionId !== sessionId) return;
+        if (onEnd) onEnd();
+        else this.handlePlaybackComplete();
+      });
+      return;
+    }
 
     const cleaned = this.cleanText(text);
     if (!cleaned) {
@@ -540,14 +557,14 @@ export class VoiceService {
     };
 
     if (mode === 'arabic') {
-      this.speakArabic(item.arabic, `cont-${item.id}`, onFinishCurrent);
+      this.speakArabic(item.arabic, `cont-${item.id}`, onFinishCurrent, item.audioUrl);
     } else if (mode === 'english') {
       const enText = item.english || item.transliteration || '';
       this.speakEnglish(enText, `cont-${item.id}`, onFinishCurrent);
     } else {
       // Both: Arabic recitation followed by English meaning
       const enText = `${item.transliteration ? item.transliteration + '. ' : ''}${item.english || ''}`;
-      this.speakBoth(item.arabic, enText, `cont-${item.id}`, onFinishCurrent);
+      this.speakBoth(item.arabic, enText, `cont-${item.id}`, onFinishCurrent, item.audioUrl);
     }
   }
 

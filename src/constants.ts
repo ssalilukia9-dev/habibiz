@@ -126,10 +126,6 @@ export const NAVIGATION_TABS = [
   { id: 'resources', label: 'Resources', icon: 'BookOpen' },
   { id: 'chat', label: 'Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
-  { id: 'notifications', label: 'Activity', icon: 'Bell' },
-  { id: 'leaderboard', label: 'Hall of Fame', icon: 'Trophy' },
-  { id: 'ummah', label: 'Ummah Hub', icon: 'Users' },
-  { id: 'profile', label: 'Profile & Settings', icon: 'User' },
   { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
   { id: 'premium', label: 'Premium', icon: 'Sparkles' }
 ];
@@ -154,16 +150,68 @@ export const TRANSLATIONS = [
   { id: 'ur.maududi', name: 'Maududi', lang: 'ur' }
 ];
 
-export const RECITERS = [
-  { id: 7, name: 'Mishary Rashid Alafasy', slug: 'ar.alafasy', sub: 'Soulful melody' },
-  { id: 3, name: 'Abdur-Rahman as-Sudais', slug: 'ar.abdurrahmaansudais', sub: 'Imam of Grand Mosque' },
-  { id: 6, name: 'Maher Al-Muaiqly', slug: 'ar.mahermuaiqly', sub: 'Distinctive clear tone' },
-  { id: 8, name: 'Saud Al-Shuraim', slug: 'ar.saoodshuraym', sub: 'Deep resonate voice' },
-  { id: 1, name: 'AbdulBaset AbdulSamad', slug: 'ar.abdulsamad', sub: 'Legendary resonance' },
-  { id: 5, name: 'Saad Al-Ghamidi', slug: 'ar.saadalgahmadi', sub: 'Smooth and rhythmic' },
-  { id: 12, name: 'Hani ar-Rifai', slug: 'ar.hanirifai', sub: 'Emotional delivery' },
-  { id: 11, name: 'Abdul Bari Ath-Thubaity', slug: 'ar.thubaity', sub: 'Steady and powerful' }
+export interface ReciterInfo {
+  id: number;
+  name: string;
+  slug: string;
+  sub: string;
+  everyAyahFolder?: string;
+}
+
+export const RECITERS: ReciterInfo[] = [
+  { id: 7, name: 'Mishary Rashid Alafasy', slug: 'ar.alafasy', everyAyahFolder: 'Alafasy_128kbps', sub: 'Soulful & crystal clear melody' },
+  { id: 3, name: 'Abdur-Rahman as-Sudais', slug: 'ar.abdurrahmaansudais', everyAyahFolder: 'Abdurrahmaan_As-Sudais_192kbps', sub: 'Imam & Khateeb of Masjid Al-Haram' },
+  { id: 6, name: 'Maher Al-Muaiqly', slug: 'ar.mahermuaiqly', everyAyahFolder: 'MaherAlMuaiqly128kbps', sub: 'Distinctive clear tone, Imam of Makkah' },
+  { id: 8, name: 'Saud Al-Shuraim', slug: 'ar.saoodshuraym', everyAyahFolder: 'Saood_ash-Shuraym_128kbps', sub: 'Deep resonant voice, Masjid Al-Haram' },
+  { id: 1, name: 'AbdulBaset AbdulSamad (Murattal)', slug: 'ar.abdulsamad', everyAyahFolder: 'Abdul_Basit_Murattal_192kbps', sub: 'Legendary resonance & breath control' },
+  { id: 2, name: 'AbdulBaset AbdulSamad (Mujawwad)', slug: 'ar.abdulsamadmujawwad', everyAyahFolder: 'Abdul_Basit_Mujawwad_128kbps', sub: 'Majestic traditional Egyptian maqamat' },
+  { id: 4, name: 'Mohamed Siddiq El-Minshawi (Murattal)', slug: 'ar.minshawi', everyAyahFolder: 'Minshawy_Murattal_128kbps', sub: 'Incomparable humility & emotion' },
+  { id: 14, name: 'Mohamed Siddiq El-Minshawi (Mujawwad)', slug: 'ar.minshawimujawwad', everyAyahFolder: 'Minshawy_Mujawwad_192kbps', sub: 'Heart-touching classical Mujawwad' },
+  { id: 15, name: 'Mahmoud Khalil Al-Husary', slug: 'ar.husary', everyAyahFolder: 'Husary_128kbps', sub: 'Master of Tajweed & precision' },
+  { id: 30, name: 'Mahmoud Khalil Al-Husary (Mujawwad)', slug: 'ar.husarymujawwad', everyAyahFolder: 'Husary_128kbps_Mujawwad', sub: 'Slow, pedagogical Mujawwad style' },
+  { id: 5, name: 'Saad Al-Ghamidi', slug: 'ar.saadalgahmadi', everyAyahFolder: 'Ghamadi_40kbps', sub: 'Smooth, rhythmic & peaceful cadence' },
+  { id: 12, name: 'Hani ar-Rifai', slug: 'ar.hanirifai', everyAyahFolder: 'Hani_Rifai_192kbps', sub: 'Emotional & tearful heartfelt delivery' },
+  { id: 16, name: 'Yasser Al-Dosari', slug: 'ar.dossari', everyAyahFolder: 'Yasser_Ad-Dussary_128kbps', sub: 'Grand Imam of Masjid Al-Haram' },
+  { id: 17, name: 'Abu Bakr Al-Shatri', slug: 'ar.shaatree', everyAyahFolder: 'Abu_Bakr_Ash-Shaatree_128kbps', sub: 'Serene, rhythmic & meditative pace' },
+  { id: 18, name: 'Ahmed ibn Ali al-Ajamy', slug: 'ar.ahmedajamy', everyAyahFolder: 'Ahmed_ibn_Ali_al-Ajamy_128kbps_KetabAllah.net', sub: 'Powerful, moving & vibrant acoustics' },
+  { id: 19, name: 'Muhammad Ayyub', slug: 'ar.ayyoub', everyAyahFolder: 'Muhammad_Ayyoub_128kbps', sub: 'Legendary Imam of Masjid An-Nabawi' },
+  { id: 20, name: 'Abdullah Awad Al-Juhany', slug: 'ar.juhany', everyAyahFolder: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', sub: 'Melodic & swift Imam of Makkah' },
+  { id: 21, name: 'Nasser Al-Qatami', slug: 'ar.nasserqatami', everyAyahFolder: 'Nasser_Alqatami_128kbps', sub: 'Deeply expressive modern Riyadh style' },
+  { id: 22, name: 'Ali Al-Huthaify', slug: 'ar.hudhaify', everyAyahFolder: 'Hudhaify_128kbps', sub: 'Senior Imam of Prophet’s Mosque Madinah' },
+  { id: 23, name: 'Fares Abbad', slug: 'ar.faresabbad', everyAyahFolder: 'Fares_Abbad_64kbps', sub: 'Distinct Yemeni melodic tone' },
+  { id: 24, name: 'Abdullah Basfar', slug: 'ar.abdullahbasfar', everyAyahFolder: 'Basfar_192kbps', sub: 'Clear didactic pronunciation' },
+  { id: 25, name: 'Muhammad Jibreel', slug: 'ar.muhammadjibreel', everyAyahFolder: 'Muhammad_Jibreel_128kbps', sub: 'World-renowned Tarawih master' },
+  { id: 11, name: 'Abdul Bari Ath-Thubaity', slug: 'ar.thubaity', everyAyahFolder: 'Thubaity_32kbps', sub: 'Steady, poignant and dignified' },
+  { id: 31, name: 'Ibrahim Akhdar', slug: 'ar.ibrahimakhbar', everyAyahFolder: 'Ibrahim_Akhdar_32kbps', sub: 'Madinah classical style' },
+  { id: 32, name: 'Salah Al-Budair', slug: 'ar.budair', everyAyahFolder: 'Salah_Al_Budair_128kbps', sub: 'Imam of Prophet’s Mosque' },
+  { id: 33, name: 'Ali Jaber', slug: 'ar.alijaber', everyAyahFolder: 'Ali_Jaber_64kbps', sub: 'Former Grand Imam of Makkah' },
+  { id: 26, name: 'Islam Sobhi', slug: 'ar.islamsobhi', everyAyahFolder: 'Alafasy_128kbps', sub: 'Calming, soothing recitation' },
+  { id: 27, name: 'Raad Al-Kurdi', slug: 'ar.raadalkurdi', everyAyahFolder: 'Minshawy_Murattal_128kbps', sub: 'Kurdish soulful vocal warmth' },
+  { id: 28, name: 'Hazza Al-Balushi', slug: 'ar.hazzaalbalushi', everyAyahFolder: 'Abdul_Basit_Murattal_192kbps', sub: 'Soothing Omani melodic delivery' },
+  { id: 29, name: 'Mansour Al-Salimi', slug: 'ar.mansoursalimi', everyAyahFolder: 'Hani_Rifai_192kbps', sub: 'Moving motivational recitation' }
 ];
+
+export function getAyahAudioUrl(
+  reciterIdentifier: number | string | ReciterInfo,
+  surahNumber: number,
+  ayahNumberInSurah: number,
+  globalAyahNumber: number
+): string {
+  const reciterObj: ReciterInfo = typeof reciterIdentifier === 'number'
+    ? (RECITERS.find(r => r.id === reciterIdentifier) || RECITERS[0])
+    : typeof reciterIdentifier === 'string'
+    ? (RECITERS.find(r => r.slug === reciterIdentifier || String(r.id) === reciterIdentifier) || RECITERS[0])
+    : (reciterIdentifier || RECITERS[0]);
+
+  const surahPad = String(surahNumber).padStart(3, '0');
+  const ayahPad = String(ayahNumberInSurah).padStart(3, '0');
+
+  if (reciterObj.everyAyahFolder) {
+    return `https://everyayah.com/data/${reciterObj.everyAyahFolder}/${surahPad}${ayahPad}.mp3`;
+  }
+
+  return `https://cdn.islamic.network/quran/audio/128/${reciterObj.slug || 'ar.alafasy'}/${globalAyahNumber}.mp3`;
+}
 
 export const GLOBAL_ADHAN_LIST = [
   {
