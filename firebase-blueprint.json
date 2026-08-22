@@ -231,9 +231,33 @@
         "lastUpdatedBy": { "type": "string" }
       },
       "required": ["allowedAdminEmails", "adminPasscode"]
+    },
+    "KhatamVideo": {
+      "title": "KhatamVideo",
+      "description": "A video resource for the Khatam Journey",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "embedUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "speaker": { "type": "string" },
+        "description": { "type": "string" },
+        "duration": { "type": "string" },
+        "juzNumber": { "type": "number" },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "addedBy": { "type": "string" }
+      },
+      "required": ["title", "url", "createdAt"]
     }
   },
   "firestore": {
+    "/khatam_videos/{videoId}": {
+      "schema": "KhatamVideo",
+      "description": "Curated videos for the Khatam Journey"
+    },
     "/admin_config/{configId}": {
       "schema": "AdminConfig",
       "description": "Secure admin configuration and overseer authorization settings"

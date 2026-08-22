@@ -660,12 +660,17 @@ export default function ProfileView({
 
           <div className="flex-1 text-center md:text-left space-y-4">
             <div>
-              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-1 flex-wrap">
                 <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.4em]">Spirit Seeker Profile</span>
-                {userData.isPremium && (
+                {(currentUser?.email === 'ssalilukia9@gmail.com' || userData?.role === 'superadmin' || userData?.isPremium || isHabibiKing) && (
+                  <span className="bg-gradient-to-r from-amber-500/20 to-emerald-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg shadow-amber-500/10">
+                    <Crown size={12} className="text-amber-400" /> Google Pro • Super Admin
+                  </span>
+                )}
+                {userData.isPremium && !(currentUser?.email === 'ssalilukia9@gmail.com') && (
                   <span className="bg-brand-primary/10 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Premium Elite</span>
                 )}
-                {isHabibiKing && (
+                {isHabibiKing && !(currentUser?.email === 'ssalilukia9@gmail.com') && (
                   <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
                     <Crown size={8} /> Habibi King
                   </span>

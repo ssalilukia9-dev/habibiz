@@ -15,7 +15,10 @@ import {
   WifiOff, 
   Layers, 
   FileText,
-  Compass
+  Compass,
+  Search,
+  X,
+  Filter
 } from 'lucide-react';
 import SurahDetail from './SurahDetail';
 import JuzDetail from './JuzDetail';
@@ -50,6 +53,15 @@ export default function QuranView({
   onShowPremium
 }: QuranViewProps & { isPremium: boolean; onShowPremium: () => void }) {
   const location = useLocation();
+  const [searchTerm, setSearchTerm] = useState(searchQuery || '');
+  const [revelationFilter, setRevelationFilter] = useState<'all' | 'Meccan' | 'Medinan'>('all');
+
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setSearchTerm(searchQuery);
+    }
+  }, [searchQuery]);
+
   const [viewMode, setViewMode] = useState<'surah' | 'juz' | 'mushaf'>(() => {
     if (location.state?.page) return 'mushaf';
     if (location.state?.juzIndex) return 'juz';
@@ -144,17 +156,34 @@ export default function QuranView({
     );
   }
 
-  const filteredSurahs = SURAH_LIST.filter(s => 
-    s.englishName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.name.includes(searchQuery) ||
-    s.number.toString() === searchQuery
-  );
+  const cleanQuery = searchTerm.toLowerCase().trim();
+
+  const filteredSurahs = SURAH_LIST.filter(s => {
+    // 1. Search Query Match
+    const matchesSearch = !cleanQuery || (
+      s.englishName.toLowerCase().includes(cleanQuery) ||
+      (s.englishNameTranslation && s.englishNameTranslation.toLowerCase().includes(cleanQuery)) ||
+      s.name.includes(cleanQuery) ||
+      s.number.toString() === cleanQuery ||
+      cleanQuery === `surah ${s.number}` ||
+      cleanQuery === `surah ${s.englishName.toLowerCase()}`
+    );
+    if (!matchesSearch) return false;
+
+    // 2. Revelation Type Filter
+    if (revelationFilter !== 'all' && s.revelationType !== revelationFilter) {
+      return false;
+    }
+
+    return true;
+  });
 
   const filteredJuzList = JUZ_LIST.filter(j => 
-    j.index.toString().includes(searchQuery) ||
-    j.nameArabic.includes(searchQuery) ||
-    j.nameTransliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    j.surahs.some(s => s.surahEnglishName.toLowerCase().includes(searchQuery.toLowerCase()) || s.surahName.includes(searchQuery))
+    !cleanQuery ||
+    j.index.toString().includes(cleanQuery) ||
+    j.nameArabic.includes(cleanQuery) ||
+    j.nameTransliteration.toLowerCase().includes(cleanQuery) ||
+    j.surahs.some(s => s.surahEnglishName.toLowerCase().includes(cleanQuery) || s.surahName.includes(cleanQuery))
   );
 
   const activeReciter = RECITERS.find(r => r.id === selectedReciter);
@@ -247,39 +276,149 @@ export default function QuranView({
 
       {/* VIEW 1: SURAH LIST */}
       {viewMode === 'surah' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-          {filteredSurahs.map((surah, idx) => (
-            <motion.button
-              key={surah.number}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: Math.min(idx * 0.02, 0.3) }}
-              whileHover={{ y: -4, scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onSelectSurah(surah)}
-              className="group bg-white/5 p-4 md:p-5 rounded-[1.8rem] border border-white/5 hover:border-brand-primary/30 hover:bg-brand-primary/10 transition-all text-left flex items-center justify-between cursor-pointer"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 bg-white/5 rounded-xl flex items-center justify-center text-brand-primary font-bold group-hover:bg-brand-primary transition-all group-hover:text-brand-depth shadow-lg text-sm">
-                  {surah.number}
+        <div className="space-y-5">
+          {/* Dedicated Surah Search & Quick Filter Hub */}
+          <div className="glass-panel p-4 md:p-5 rounded-[2rem] border border-white/10 bg-slate-950/70 backdrop-blur-xl space-y-4">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Surah Search Input */}
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                  <Search size={18} className="text-amber-400" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-200 text-sm md:text-base group-hover:text-brand-primary transition-colors">{surah.englishName}</h3>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">{surah.revelationType} • {surah.numberOfAyahs} Ayahs</p>
-                    {downloadedSurahs.has(surah.number) && (
-                      <div className="flex items-center gap-1 text-[7px] text-emerald-400 font-black uppercase tracking-widest bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
-                        <WifiOff size={8} /> Offline
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search Surah by name (e.g. Al-Baqarah, Yasin, Kahf), Arabic (الكهف), or # number (e.g. 18)..."
+                  className="w-full bg-black/50 border border-white/10 hover:border-amber-400/40 focus:border-amber-400 rounded-2xl py-3 pl-11 pr-10 text-xs sm:text-sm text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Surah Counter Badge */}
+              <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                <span className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 font-bold">
+                  Found <strong className="text-amber-300 font-mono">{filteredSurahs.length}</strong> of 114 Surahs
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Surah Filter Chips */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 shrink-0 mr-1 flex items-center gap-1">
+                <Filter size={11} className="text-amber-400" /> Filter:
+              </span>
+
+              {[
+                { id: 'all', label: 'All 114 Surahs' },
+                { id: 'Meccan', label: 'Makki (86)' },
+                { id: 'Medinan', label: 'Madani (28)' },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => setRevelationFilter(pill.id as any)}
+                  className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                    revelationFilter === pill.id
+                      ? 'bg-amber-400 text-black border-amber-400 font-black shadow-sm'
+                      : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+
+              <span className="text-slate-600 px-1">|</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 shrink-0">Popular:</span>
+
+              {[
+                { label: 'Al-Fatiha (1)', query: '1' },
+                { label: 'Al-Baqarah (2)', query: '2' },
+                { label: 'Al-Kahf (18)', query: '18' },
+                { label: 'Yasin (36)', query: '36' },
+                { label: 'Ar-Rahman (55)', query: '55' },
+                { label: 'Al-Waqi\'ah (56)', query: '56' },
+                { label: 'Al-Mulk (67)', query: '67' },
+                { label: 'Al-Ikhlas (112)', query: '112' },
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  onClick={() => {
+                    setSearchTerm(chip.query);
+                    setRevelationFilter('all');
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-amber-400/20 text-slate-300 hover:text-amber-300 border border-white/10 text-[11px] whitespace-nowrap transition-all cursor-pointer font-medium"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredSurahs.length === 0 ? (
+            <div className="p-12 text-center rounded-[2.5rem] bg-slate-900/60 border border-white/10 space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                <Search size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">No Surahs found for "{searchTerm}"</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                  Try searching by Surah name (e.g. Al-Kahf), translation (e.g. The Cave), Arabic (الكهف), or number (18).
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setRevelationFilter('all');
+                }}
+                className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+              >
+                Reset Search & Show All Surahs
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+              {filteredSurahs.map((surah, idx) => (
+                <motion.button
+                  key={surah.number}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: Math.min(idx * 0.02, 0.3) }}
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onSelectSurah(surah)}
+                  className="group bg-white/5 p-4 md:p-5 rounded-[1.8rem] border border-white/5 hover:border-brand-primary/30 hover:bg-brand-primary/10 transition-all text-left flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 bg-white/5 rounded-xl flex items-center justify-center text-brand-primary font-bold group-hover:bg-brand-primary transition-all group-hover:text-brand-depth shadow-lg text-sm">
+                      {surah.number}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-200 text-sm md:text-base group-hover:text-brand-primary transition-colors">{surah.englishName}</h3>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">{surah.revelationType} • {surah.numberOfAyahs} Ayahs</p>
+                        {downloadedSurahs.has(surah.number) && (
+                          <div className="flex items-center gap-1 text-[7px] text-emerald-400 font-black uppercase tracking-widest bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                            <WifiOff size={8} /> Offline
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="arabic-text text-xl md:text-2xl font-bold text-brand-primary">{surah.name}</p>
-              </div>
-            </motion.button>
-          ))}
+                  <div className="text-right">
+                    <p className="arabic-text text-xl md:text-2xl font-bold text-brand-primary">{surah.name}</p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { HADITH_DATABASE, HadithEntry } from '../data/hadiths.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
+import { shareService } from '../services/shareService.ts';
 
 const COLLECTIONS = [
   { id: 'all', name: 'All Collections', count: HADITH_DATABASE.length },
@@ -177,23 +178,18 @@ export default function HadithLibraryView({
     });
   };
 
-  const handleShare = async (h: HadithEntry, e?: React.MouseEvent) => {
+  const handleShare = (h: HadithEntry, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const shareData = {
-      title: `Hadith: ${h.topic} - ${h.collection}`,
-      text: `"${h.arabic}"\n\n"${h.english}"\n\n— Reported by ${h.narrator} (${h.collection})`,
+    shareService.open({
+      title: `Hadith on ${h.topic}`,
+      badge: h.collection,
+      text: h.english,
+      arabic: h.arabic,
+      source: h.collection,
+      author: `Narrated by ${h.narrator}`,
+      category: h.topic,
       url: window.location.href
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // Ignored if user dismissed share dialog
-      }
-    } else {
-      handleCopy(h);
-    }
+    });
   };
 
   const clearFilters = () => {

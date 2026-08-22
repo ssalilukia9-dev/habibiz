@@ -18,6 +18,7 @@ import {
   DollarSign,
   User as UserIcon,
   Trash2,
+  Edit3,
   Video,
   Phone,
   LayoutGrid,
@@ -41,11 +42,17 @@ import {
   FileText,
   FileCheck,
   FolderArchive,
-  Music
+  Music,
+  Share2,
+  Flag,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import CoinShopModal, { getStoredCoins, deductStoredCoins } from './CoinShopModal';
 import { STARTER_MARKET_LISTINGS } from '../data/marketData';
+import { shareService } from '../services/shareService';
+import { ActivityLoggerService } from '../services/activityLoggerService';
 import { 
   collection, 
   addDoc, 
@@ -97,6 +104,10 @@ export interface Listing {
   downloadFileName?: string;
   downloadSize?: string;
   downloadCount?: number;
+  isFlagged?: boolean;
+  flagReason?: string;
+  flaggedBy?: string;
+  flaggedAt?: string;
   reviews?: {
     id: string;
     reviewerName: string;
@@ -201,6 +212,196 @@ export default function MarketView({
   });
 
   const activeUser = currentUser || auth.currentUser;
+  const isAdmin = currentUser?.email === 'admin@habibisanctuary.com' || 
+                  currentUser?.email === 'ssalilukia9@gmail.com' ||
+                  currentUser?.role === 'admin' || 
+                  currentUser?.role === 'superadmin' || 
+                  (typeof localStorage !== 'undefined' && localStorage.getItem('sanctuary_admin_mode') === 'true') ||
+                  (typeof localStorage !== 'undefined' && localStorage.getItem('sanctuary_admin_logged_in') === 'true');
+
+  const [flaggingListing, setFlaggingListing] = useState<Listing | null>(null);
+  const [flagReasonText, setFlagReasonText] = useState<string>('Inappropriate content or non-halal item');
+  const [isFlagSubmitting, setIsFlagSubmitting] = useState<boolean>(false);
+
+  // Edit Product State
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editProductForm, setEditProductForm] = useState<{
+    title: string;
+    description: string;
+    price: number;
+    coinPrice: number;
+    category: string;
+    brand: string;
+    condition: string;
+    cityLocation: string;
+    halalCertified: boolean;
+    isDigital: boolean;
+    downloadUrl: string;
+    downloadFormat: string;
+  }>({
+    title: '',
+    description: '',
+    price: 0,
+    coinPrice: 0,
+    category: 'Worship',
+    brand: '',
+    condition: 'New',
+    cityLocation: '',
+    halalCertified: true,
+    isDigital: false,
+    downloadUrl: '',
+    downloadFormat: 'PDF'
+  });
+
+  const handleOpenEditListing = (product: Listing, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingListing(product);
+    setEditProductForm({
+      title: product.title || '',
+      description: product.description || '',
+      price: product.price || 0,
+      coinPrice: product.coinPrice || Math.round((product.price || 0) * 100),
+      category: product.category || 'Worship',
+      brand: product.brand || '',
+      condition: product.condition || 'New',
+      cityLocation: product.cityLocation || '',
+      halalCertified: product.halalCertified !== false,
+      isDigital: !!product.isDigital,
+      downloadUrl: product.downloadUrl || '',
+      downloadFormat: product.downloadFormat || 'PDF'
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveListingEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingListing) return;
+
+    const numPrice = Number(editProductForm.price) || 0;
+    const numCoins = Number(editProductForm.coinPrice) || Math.round(numPrice * 100);
+
+    const updatedData: Partial<Listing> = {
+      title: editProductForm.title.trim(),
+      description: editProductForm.description.trim(),
+      price: numPrice,
+      coinPrice: numCoins,
+      category: editProductForm.category,
+      brand: editProductForm.brand.trim(),
+      condition: editProductForm.condition as any,
+      cityLocation: editProductForm.cityLocation.trim(),
+      halalCertified: editProductForm.halalCertified,
+      isDigital: editProductForm.isDigital,
+      downloadUrl: editProductForm.downloadUrl.trim(),
+      downloadFormat: editProductForm.downloadFormat
+    };
+
+    try {
+      // 1. Update local state
+      setListings(prev => prev.map(p => p.id === editingListing.id ? { ...p, ...updatedData } : p));
+      if (activeProduct?.id === editingListing.id) {
+        setActiveProduct(prev => prev ? { ...prev, ...updatedData } : null);
+      }
+
+      const localKey = 'sanctuary_local_market_listings';
+      const stored = localStorage.getItem(localKey);
+      if (stored) {
+        const parsed = JSON.parse(stored).map((p: any) => p.id === editingListing.id ? { ...p, ...updatedData } : p);
+        localStorage.setItem(localKey, JSON.stringify(parsed));
+      }
+
+      // 2. Update Firestore
+      if (activeUser && !activeUser.uid?.startsWith('local_') && !activeUser.uid?.startsWith('rest_')) {
+        try {
+          await updateDoc(doc(db, 'listings', editingListing.id), {
+            ...updatedData,
+            updatedAt: serverTimestamp(),
+            lastEditedBy: activeUser?.displayName || activeUser?.email || 'Admin/Seller'
+          });
+        } catch (e) {
+          console.warn("Firestore updateDoc fallback:", e);
+        }
+      }
+
+      // 3. Log to Firestore /activity_logs
+      await ActivityLoggerService.logProductEdit({
+        id: editingListing.id,
+        title: editProductForm.title,
+        price: numPrice,
+        coinPrice: numCoins,
+        category: editProductForm.category
+      }, isAdmin ? (currentUser?.displayName || 'Admin') : (currentUser?.displayName || 'Seller'));
+
+      setPurchaseSuccessToast(`✓ Updated listing "${editProductForm.title}"`);
+      setTimeout(() => setPurchaseSuccessToast(null), 3500);
+      setIsEditModalOpen(false);
+      setEditingListing(null);
+    } catch (err) {
+      console.warn("Error editing listing:", err);
+      setIsEditModalOpen(false);
+      setEditingListing(null);
+    }
+  };
+
+  const handleShareListing = (product: Listing, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    shareService.open({
+      title: `${product.title} • Suq Al-Mubaraki`,
+      badge: product.category,
+      text: `${product.title} - ${product.pricingMode === 'coins' ? `${(product.coinPrice || 100).toLocaleString()} Noor Coins` : `$${product.price}`}\n${product.description}`,
+      source: `Listed by ${product.sellerName}`,
+      author: 'Suq Al-Mubaraki',
+      category: product.category,
+      imageUrl: product.imageUrl,
+      url: `${window.location.origin}/market`
+    });
+  };
+
+  const handleOpenFlagModal = (product: Listing, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setFlaggingListing(product);
+    setFlagReasonText('Inappropriate content or non-halal item');
+  };
+
+  const handleSubmitFlag = async () => {
+    if (!flaggingListing) return;
+    setIsFlagSubmitting(true);
+    try {
+      const updatedListings = listings.map(p => {
+        if (p.id === flaggingListing.id) {
+          return {
+            ...p,
+            isFlagged: true,
+            flagReason: flagReasonText,
+            flaggedBy: activeUser?.displayName || activeUser?.email || 'Community Member',
+            flaggedAt: new Date().toISOString()
+          };
+        }
+        return p;
+      });
+      setListings(updatedListings);
+      const localKey = 'sanctuary_local_market_listings';
+      localStorage.setItem(localKey, JSON.stringify(updatedListings));
+
+      if (activeUser && !activeUser.uid?.startsWith('local_') && !activeUser.uid?.startsWith('rest_')) {
+        await updateDoc(doc(db, 'listings', flaggingListing.id), {
+          isFlagged: true,
+          flagReason: flagReasonText,
+          flaggedBy: activeUser?.displayName || activeUser?.email || 'Community Member',
+          flaggedAt: serverTimestamp()
+        });
+      }
+
+      setPurchaseSuccessToast('🚩 Listing flagged and reported for admin review.');
+      setTimeout(() => setPurchaseSuccessToast(null), 4000);
+      setFlaggingListing(null);
+    } catch (err) {
+      console.warn('Flagging error:', err);
+      setFlaggingListing(null);
+    } finally {
+      setIsFlagSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -369,8 +570,22 @@ export default function MarketView({
   useEffect(() => {
     // Load local storage first or merge with STARTER_MARKET_LISTINGS
     const localKey = 'sanctuary_local_market_listings';
+    const deletedKey = 'sanctuary_deleted_market_ids';
+    
+    // Get deleted IDs
+    let deletedIds = new Set<string>();
+    try {
+      const storedDeleted = localStorage.getItem(deletedKey);
+      if (storedDeleted) {
+        const parsedDeleted = JSON.parse(storedDeleted);
+        if (Array.isArray(parsedDeleted)) {
+          deletedIds = new Set(parsedDeleted);
+        }
+      }
+    } catch (e) {}
+
     const stored = localStorage.getItem(localKey);
-    let initialListings: Listing[] = STARTER_MARKET_LISTINGS as Listing[];
+    let initialListings: Listing[] = (STARTER_MARKET_LISTINGS as Listing[]).filter(s => !deletedIds.has(s.id));
     
     if (stored) {
       try {
@@ -378,12 +593,12 @@ export default function MarketView({
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Merge user-created local items on top of starter listings
           const starterIds = new Set(STARTER_MARKET_LISTINGS.map(s => s.id));
-          const customLocal = parsed.filter((p: Listing) => !starterIds.has(p.id));
-          initialListings = [...customLocal, ...STARTER_MARKET_LISTINGS as Listing[]];
+          const customLocal = parsed.filter((p: Listing) => !starterIds.has(p.id) && !deletedIds.has(p.id));
+          initialListings = [...customLocal, ...(STARTER_MARKET_LISTINGS as Listing[]).filter(s => !deletedIds.has(s.id))];
         }
       } catch (e) {}
     } else {
-      localStorage.setItem(localKey, JSON.stringify(STARTER_MARKET_LISTINGS));
+      localStorage.setItem(localKey, JSON.stringify(initialListings));
     }
 
     setListings(initialListings);
@@ -403,15 +618,27 @@ export default function MarketView({
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      })) as Listing[];
+      // Reload deleted IDs
+      let currentDeleted = new Set<string>();
+      try {
+        const storedDel = localStorage.getItem(deletedKey);
+        if (storedDel) currentDeleted = new Set(JSON.parse(storedDel));
+      } catch (e) {}
+
+      const docs = snapshot.docs
+        .map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }))
+        .filter((d: any) => !currentDeleted.has(d.id)) as Listing[];
       
       if (docs.length > 0) {
-        // Merge starter items if not present
+        // Merge starter items if not present and not deleted
         const firestoreIds = new Set(docs.map(d => d.id));
-        const merged = [...docs, ...(STARTER_MARKET_LISTINGS as Listing[]).filter(s => !firestoreIds.has(s.id))];
+        const merged = [
+          ...docs,
+          ...(STARTER_MARKET_LISTINGS as Listing[]).filter(s => !firestoreIds.has(s.id) && !currentDeleted.has(s.id))
+        ];
         setListings(merged);
         if (productId) {
           const found = merged.find(p => p.id === productId);
@@ -584,9 +811,24 @@ export default function MarketView({
 
   const handleDeleteListing = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm('Are you certain you want to permanently remove this listing from Suq Al-Mubaraki?')) return;
+    const itemToDelete = listings.find(p => p.id === id) || activeProduct;
+    const itemTitle = itemToDelete?.title || 'Market Item';
+
+    if (!confirm(`Are you certain you want to permanently remove "${itemTitle}" from Suq Al-Mubaraki?`)) return;
     
     try {
+      // 1. Mark as permanently deleted so it NEVER respawns
+      const deletedKey = 'sanctuary_deleted_market_ids';
+      try {
+        const storedDeleted = localStorage.getItem(deletedKey);
+        const parsed = storedDeleted ? JSON.parse(storedDeleted) : [];
+        if (!parsed.includes(id)) {
+          parsed.push(id);
+          localStorage.setItem(deletedKey, JSON.stringify(parsed));
+        }
+      } catch (e) {}
+
+      // 2. Remove from active state & local storage
       setListings(prev => prev.filter(p => p.id !== id));
       if (activeProduct?.id === id) {
         setActiveProduct(null);
@@ -600,14 +842,24 @@ export default function MarketView({
         localStorage.setItem(localKey, JSON.stringify(parsed));
       }
 
-      if (activeUser && !activeUser.uid?.startsWith('local_') && !activeUser.uid?.startsWith('rest_')) {
+      // 3. Delete from Firestore collection
+      try {
         await deleteDoc(doc(db, 'listings', id));
+      } catch (e) {
+        console.warn("Firestore listing delete fallback:", e);
       }
+
+      // 4. Log administrative / seller action to Firestore activity_logs
+      await ActivityLoggerService.logProductDeletion({
+        id,
+        title: itemTitle,
+        sellerName: itemToDelete?.sellerName
+      }, isAdmin ? (currentUser?.displayName || 'Admin') : (currentUser?.displayName || 'Seller'));
       
-      setPurchaseSuccessToast('🗑️ Listing successfully deleted.');
-      setTimeout(() => setPurchaseSuccessToast(null), 3000);
+      setPurchaseSuccessToast('🗑️ Listing permanently deleted from Suq Al-Mubaraki.');
+      setTimeout(() => setPurchaseSuccessToast(null), 3500);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `listings/${id}`);
+      console.warn("Error deleting listing:", error);
     }
   };
 
@@ -739,16 +991,28 @@ export default function MarketView({
             </div>
           </div>
 
-          {/* Quick Action: Delete if Owner, or Coin Shop */}
-          <div className="flex items-center gap-3">
-            {isOwner && (
-              <button
-                onClick={(e) => handleDeleteListing(activeProduct.id, e)}
-                className="px-4 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
-              >
-                <Trash2 size={14} />
-                <span className="hidden sm:inline">Delete My Listing</span>
-              </button>
+          {/* Quick Action: Edit & Delete if Owner/Admin, or Coin Shop */}
+          <div className="flex items-center gap-2.5">
+            {(isOwner || isAdmin) && (
+              <>
+                <button
+                  onClick={(e) => handleOpenEditListing(activeProduct, e)}
+                  className="px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                  title="Edit product details in Firestore"
+                >
+                  <Edit3 size={14} />
+                  <span className="hidden sm:inline">Edit</span>
+                </button>
+
+                <button
+                  onClick={(e) => handleDeleteListing(activeProduct.id, e)}
+                  className="px-3.5 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-red-500/10"
+                  title="Permanently remove item from Firestore"
+                >
+                  <Trash2 size={14} />
+                  <span className="hidden sm:inline">{isAdmin && !isOwner ? 'Admin Delete' : 'Delete Listing'}</span>
+                </button>
+              </>
             )}
 
             <button
@@ -990,18 +1254,65 @@ export default function MarketView({
                       <MessageCircle size={16} className="text-amber-400" />
                       <span>Send Direct Message to Seller</span>
                     </button>
+
+                    {/* Quick Action Grid: Share & Report */}
+                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                      <button
+                        onClick={(e) => handleShareListing(activeProduct, e)}
+                        className="w-full py-3 px-3 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                        title="Share this product across platforms"
+                      >
+                        <Share2 size={14} />
+                        <span>Share Item</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => handleOpenFlagModal(activeProduct, e)}
+                        className="w-full py-3 px-3 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                        title="Flag or report this product"
+                      >
+                        <Flag size={14} />
+                        <span>Report / Flag</span>
+                      </button>
+                    </div>
+
+                    {/* Admin Delete Action for non-owner Admins */}
+                    {isAdmin && (
+                      <div className="p-3 rounded-2xl bg-red-950/40 border border-red-500/40 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-red-300 text-xs">
+                          <AlertTriangle size={15} className="shrink-0" />
+                          <span className="font-bold">Admin Moderation Action</span>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteListing(activeProduct.id, e)}
+                          className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-red-600/30"
+                        >
+                          <Trash2 size={13} />
+                          <span>Admin Delete</span>
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-2">
                     <p className="text-xs font-black text-amber-300 uppercase tracking-widest">Your Active Listing</p>
                     <p className="text-[11px] text-slate-400">Buyers can download your digital resources, contact via WhatsApp, or pay using Noor coins.</p>
-                    <button
-                      onClick={(e) => handleDeleteListing(activeProduct.id, e)}
-                      className="mt-2 px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-2"
-                    >
-                      <Trash2 size={13} />
-                      <span>Delete This Listing</span>
-                    </button>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        onClick={(e) => handleShareListing(activeProduct, e)}
+                        className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Share2 size={13} />
+                        <span>Share</span>
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteListing(activeProduct.id, e)}
+                        className="px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-2"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete Listing</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1387,19 +1698,61 @@ export default function MarketView({
                   </div>
 
                   {/* Top Right Action Tags */}
-                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
-                    {/* Delete listing button for Owner */}
-                    {isOwner && (
-                      <button 
-                        type="button"
-                        onClick={(e) => handleDeleteListing(p.id, e)}
-                        className="w-8 h-8 bg-red-600/80 backdrop-blur-xl hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg cursor-pointer"
-                        title="Delete this listing"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {/* Share Button */}
+                    <button 
+                      type="button"
+                      onClick={(e) => handleShareListing(p, e)}
+                      className="w-8 h-8 bg-black/70 backdrop-blur-xl hover:bg-amber-400 hover:text-black text-white rounded-xl flex items-center justify-center transition-all shadow-lg cursor-pointer border border-white/10"
+                      title="Share this listing"
+                    >
+                      <Share2 size={13} />
+                    </button>
+
+                    {/* Flag / Report Button */}
+                    <button 
+                      type="button"
+                      onClick={(e) => handleOpenFlagModal(p, e)}
+                      className={`w-8 h-8 backdrop-blur-xl rounded-xl flex items-center justify-center transition-all shadow-lg cursor-pointer border ${
+                        p.isFlagged 
+                          ? 'bg-rose-600 text-white border-rose-400' 
+                          : 'bg-black/70 hover:bg-rose-500 hover:text-white text-slate-300 border-white/10'
+                      }`}
+                      title={p.isFlagged ? `Flagged: ${p.flagReason || 'Under Review'}` : 'Flag or report item'}
+                    >
+                      <Flag size={13} />
+                    </button>
+
+                    {/* Edit & Delete listing buttons for Owner or Admin */}
+                    {(isOwner || isAdmin) && (
+                      <>
+                        <button 
+                          type="button"
+                          onClick={(e) => handleOpenEditListing(p, e)}
+                          className="w-8 h-8 bg-amber-500/85 backdrop-blur-xl hover:bg-amber-400 text-black font-black rounded-xl flex items-center justify-center transition-all shadow-lg cursor-pointer"
+                          title={isAdmin && !isOwner ? "Admin: Edit listing details" : "Edit listing"}
+                        >
+                          <Edit3 size={13} />
+                        </button>
+
+                        <button 
+                          type="button"
+                          onClick={(e) => handleDeleteListing(p.id, e)}
+                          className="w-8 h-8 bg-red-600/85 backdrop-blur-xl hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg cursor-pointer"
+                          title={isAdmin && !isOwner ? "Admin: Delete item from Firestore" : "Delete this listing"}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
                     )}
                   </div>
+
+                  {/* Flagged Status Banner on Card */}
+                  {p.isFlagged && (
+                    <div className="absolute bottom-3.5 right-3.5 bg-rose-600/95 text-white px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md border border-rose-400/40">
+                      <AlertTriangle size={10} /> Flagged
+                    </div>
+                  )}
                 </div>
                 
                 {/* Content Card Body */}
@@ -1885,6 +2238,248 @@ export default function MarketView({
             <Sparkles size={18} />
             <span>{purchaseSuccessToast}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Listing Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingListing && (
+          <div className="fixed inset-0 z-[125] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-xl bg-slate-950 border border-amber-500/40 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
+                <div>
+                  <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Suq Al-Mubaraki Management</span>
+                  <h3 className="text-lg md:text-xl font-black text-white">Edit Marketplace Listing</h3>
+                </div>
+                <button 
+                  onClick={() => setIsEditModalOpen(false)} 
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <X size={18}/>
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <div className="overflow-y-auto p-6 md:p-8 no-scrollbar space-y-6">
+                <form onSubmit={handleSaveListingEdit} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Product Title *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={editProductForm.title}
+                      onChange={(e) => setEditProductForm({...editProductForm, title: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/60 font-bold"
+                    />
+                  </div>
+
+                  {/* Pricing Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest px-1">Cash Price ($ USD)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.01"
+                        value={editProductForm.price}
+                        onChange={(e) => setEditProductForm({...editProductForm, price: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-emerald-400/60 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest px-1">Noor Coins Price</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="1"
+                        value={editProductForm.coinPrice}
+                        onChange={(e) => setEditProductForm({...editProductForm, coinPrice: parseInt(e.target.value, 10) || 0})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/60 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category & Condition & City */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Category</label>
+                      <select 
+                        value={editProductForm.category}
+                        onChange={(e) => setEditProductForm({...editProductForm, category: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
+                      >
+                        {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Condition</label>
+                      <select 
+                        value={editProductForm.condition}
+                        onChange={(e) => setEditProductForm({...editProductForm, condition: e.target.value as any})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
+                      >
+                        {['New', 'Like New', 'Good', 'Fair'].map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">City / Region</label>
+                      <input 
+                        type="text" 
+                        value={editProductForm.cityLocation}
+                        onChange={(e) => setEditProductForm({...editProductForm, cityLocation: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Halal Certified Checkbox */}
+                  <label className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.halalCertified}
+                      onChange={(e) => setEditProductForm(prev => ({ ...prev, halalCertified: e.target.checked }))}
+                      className="rounded accent-emerald-400"
+                    />
+                    <span className="text-xs text-emerald-300 font-bold">✓ Halal Certified & Ethically Sourced Standard</span>
+                  </label>
+
+                  {/* Digital download fields if digital */}
+                  {editProductForm.isDigital && (
+                    <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-cyan-300 uppercase tracking-wider">
+                          Download URL *
+                        </label>
+                        <input
+                          type="url"
+                          value={editProductForm.downloadUrl}
+                          onChange={(e) => setEditProductForm(prev => ({ ...prev, downloadUrl: e.target.value }))}
+                          className="w-full bg-black/60 border border-cyan-500/30 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-cyan-400 font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Description *</label>
+                    <textarea 
+                      required
+                      rows={3}
+                      value={editProductForm.description}
+                      onChange={(e) => setEditProductForm({...editProductForm, description: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/50 resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4 border-t border-white/10">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEditModalOpen(false)}
+                      className="flex-1 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-400/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Check size={16} />
+                      <span>Save Changes</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Report / Flag Listing Modal */}
+      <AnimatePresence>
+        {flaggingListing && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-slate-900 border border-rose-500/30 rounded-3xl p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-rose-400">
+                  <div className="p-2 rounded-xl bg-rose-500/20">
+                    <Flag size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white">Report Listing</h3>
+                    <p className="text-[11px] text-slate-400">Submit for admin review and moderation</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setFlaggingListing(null)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                <p className="text-xs font-bold text-white line-clamp-1">{flaggingListing.title}</p>
+                <p className="text-[10px] text-slate-400">Seller: {flaggingListing.sellerName} &bull; Category: {flaggingListing.category}</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300">Reason for Reporting:</label>
+                <select
+                  value={flagReasonText}
+                  onChange={(e) => setFlagReasonText(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-rose-400"
+                >
+                  <option value="Non-Halal / Forbidden Content">Non-Halal / Forbidden Item</option>
+                  <option value="Fraud / Scam / Misleading Information">Fraud / Scam / Misleading Information</option>
+                  <option value="Inappropriate Images or Description">Inappropriate Images or Description</option>
+                  <option value="Counterfeit / Unauthorized Product">Counterfeit / Unauthorized Product</option>
+                  <option value="Defective / Broken Download File">Defective / Broken Download File</option>
+                  <option value="Other Policy Violation">Other Policy Violation</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFlaggingListing(null)}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isFlagSubmitting}
+                  onClick={handleSubmitFlag}
+                  className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-rose-600/30 flex items-center justify-center gap-1.5"
+                >
+                  <Flag size={14} />
+                  <span>{isFlagSubmitting ? 'Submitting...' : 'Submit Flag'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

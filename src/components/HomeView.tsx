@@ -40,6 +40,10 @@ import {
 } from 'lucide-react';
 import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
 import { getDailyHadith } from '../data/hadiths.ts';
+import { DAILY_ISLAMIC_QUOTES, getDailyQuoteForDate, DailyQuoteItem } from '../data/dailyQuotesData.ts';
+import { getDailyAyahForDate } from '../data/dailyAyahsData.ts';
+import { dailyWisdomService, WisdomMode, DailyWisdomSummary } from '../services/dailyWisdomService.ts';
+import { shareService } from '../services/shareService.ts';
 import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerService.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import { YoutubeNamesService, YoutubeNamesState } from '../services/youtubeNamesService.ts';
@@ -301,7 +305,7 @@ export default function HomeView({
 
   const dailyHadith = getDailyHadith();
 
-  // 1. CALCULATE DAILY ROTATING SACRED ATTRIBUTE OF ALLAH (Changes every single day)
+  // Calculate Day of the Year
   const dayOfYear = useMemo(() => {
     const start = new Date(currentTime.getFullYear(), 0, 0);
     const diff = currentTime.getTime() - start.getTime();
@@ -309,10 +313,62 @@ export default function HomeView({
     return Math.floor(diff / oneDay);
   }, [currentTime.toDateString()]);
 
+  const dailyQuote: DailyQuoteItem = useMemo(() => {
+    return getDailyQuoteForDate(currentTime);
+  }, [currentTime.toDateString()]);
+
+  // Interchanging Daily Wisdom Mode (Ayah of the Day, Hadith of the Day, Quote of the Day)
+  const [wisdomMode, setWisdomMode] = useState<WisdomMode>(() => {
+    const saved = localStorage.getItem('sanctuary_wisdom_mode');
+    return (saved as WisdomMode) || 'ayah';
+  });
+
+  const handleSelectWisdomMode = (mode: WisdomMode) => {
+    setWisdomMode(mode);
+    localStorage.setItem('sanctuary_wisdom_mode', mode);
+  };
+
+  const currentWisdom: DailyWisdomSummary = useMemo(() => {
+    return dailyWisdomService.getWisdomSummary(wisdomMode, currentTime);
+  }, [wisdomMode, currentTime.toDateString()]);
+
+  // Daily Wisdom Notification State
+  const [isWisdomNotifEnabled, setIsWisdomNotifEnabled] = useState<boolean>(() => {
+    return dailyWisdomService.isNotificationEnabled(wisdomMode);
+  });
+  const [wisdomNotifToast, setWisdomNotifToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsWisdomNotifEnabled(dailyWisdomService.isNotificationEnabled(wisdomMode));
+  }, [wisdomMode]);
+
+  const handleToggleWisdomNotif = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const current = isWisdomNotifEnabled;
+    if (!current) {
+      const ok = await dailyWisdomService.requestPermissionAndEnable(wisdomMode);
+      if (ok) {
+        setIsWisdomNotifEnabled(true);
+        setWisdomNotifToast(`🔔 Push alerts active for ${wisdomMode.toUpperCase()} of the Day! Sent a test preview.`);
+      } else {
+        setWisdomNotifToast(`⚠️ Please allow notification permission in your browser to receive daily reminders.`);
+      }
+    } else {
+      dailyWisdomService.setNotificationEnabled(wisdomMode, false);
+      setIsWisdomNotifEnabled(false);
+      setWisdomNotifToast(`🔕 Muted daily notifications for ${wisdomMode.toUpperCase()} of the Day.`);
+    }
+    setTimeout(() => setWisdomNotifToast(null), 4500);
+  };
+
   const dailyAttribute: NameOfAllah = useMemo(() => {
     const idx = dayOfYear % ALL_NAMES_OF_ALLAH.length;
     return ALL_NAMES_OF_ALLAH[idx] || ALL_NAMES_OF_ALLAH[0];
   }, [dayOfYear]);
+
+  // Quote / Wisdom audio & copy state
+  const [isPlayingQuoteVoice, setIsPlayingQuoteVoice] = useState(false);
+  const [copiedQuote, setCopiedQuote] = useState(false);
 
   // Daily AI Banner Image & Spiritual Atmosphere State
   const [bannerVariation, setBannerVariation] = useState<number>(() => {
@@ -344,6 +400,47 @@ export default function HomeView({
     setBannerVariation(nextVar);
     setIsBannerImageLoaded(false);
     localStorage.setItem('sanctuary_banner_variation', String(nextVar));
+  };
+
+  const handlePlayQuoteVoice = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if ('speechSynthesis' in window) {
+      if (isPlayingQuoteVoice) {
+        window.speechSynthesis.cancel();
+        setIsPlayingQuoteVoice(false);
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const textToSpeak = `${currentWisdom.arabic ? currentWisdom.arabic + '. ' : ''}${currentWisdom.mainText}. ${currentWisdom.source}.`;
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.onstart = () => setIsPlayingQuoteVoice(true);
+      utterance.onend = () => setIsPlayingQuoteVoice(false);
+      utterance.onerror = () => setIsPlayingQuoteVoice(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleCopyQuote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const textToCopy = `✨ ${currentWisdom.badge}\n${currentWisdom.arabic ? currentWisdom.arabic + '\n' : ''}"${currentWisdom.mainText}"\n— ${currentWisdom.source}\n\n💡 Reflection: ${currentWisdom.reflection}\n📲 Shared via Aloha Sanctuary`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedQuote(true);
+    setTimeout(() => setCopiedQuote(false), 2200);
+  };
+
+  const handleShareQuote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    shareService.open({
+      title: currentWisdom.badge,
+      badge: currentWisdom.mode === 'ayah' ? 'Ayah of the Day' : currentWisdom.mode === 'hadith' ? 'Hadith of the Day' : 'Quote of the Day',
+      text: currentWisdom.mainText,
+      arabic: currentWisdom.arabic,
+      source: currentWisdom.source,
+      author: currentWisdom.author,
+      url: window.location.href
+    });
   };
 
   // Get User Location
@@ -484,7 +581,7 @@ export default function HomeView({
         </div>
       </div>
       
-      {/* 2. DYNAMIC DAILY HERO BANNER: ROTATING ATTRIBUTE OF THE DAY (High-Quality AI-Generated Theme & Atmosphere) */}
+      {/* 2. DYNAMIC DAILY HERO BANNER: ROTATING QUOTE OF THE DAY (High-Quality Daily Wisdom, Hadith & Quranic Gems) */}
       <div 
         id="tour-salam-soul"
         className={`relative overflow-hidden rounded-[2.2rem] md:rounded-[2.8rem] border ${dailyBanner.borderClass} p-6 sm:p-8 md:p-9 min-h-[230px] md:min-h-[260px] flex flex-col justify-between shadow-2xl transition-all duration-700 group`}
@@ -493,7 +590,7 @@ export default function HomeView({
         <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
           <img 
             src={dailyBanner.imageUrl || dailyBanner.fallbackImageUrl}
-            alt={dailyBanner.transliteration}
+            alt={dailyQuote.theme}
             referrerPolicy="no-referrer"
             onLoad={() => setIsBannerImageLoaded(true)}
             onError={(e) => {
@@ -513,29 +610,55 @@ export default function HomeView({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,0.18)_0%,rgba(16,185,129,0.1)_45%,transparent_75%)] z-0 pointer-events-none" />
         
         <div className="absolute top-0 right-0 p-8 opacity-[0.07] pointer-events-none scale-125 transform-gpu z-10">
-          <Sparkles size={160} style={{ color: dailyBanner.accentColor }} />
+          <Quote size={160} style={{ color: dailyQuote.accentColor || dailyBanner.accentColor }} />
         </div>
 
         <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
           
-          {/* Top Bar inside Banner: Daily Attribute of Allah Badge + Spiritual Aura & Theme Switcher */}
+          {/* Top Bar inside Banner: 3-Way Wisdom Interchange (Ayah / Hadith / Quote) + Notification Alert Toggle + Atmosphere */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className={`flex items-center gap-2 px-3.5 py-1 rounded-full ${dailyBanner.badgeBg} backdrop-blur-md`}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: dailyBanner.accentColor }} />
-                <span className={`text-[10px] font-black uppercase tracking-[0.25em] ${dailyBanner.badgeText}`}>
-                  Divine Attribute • #{dailyAttribute.id} of 99
-                </span>
-              </div>
-
-              {/* Dynamic AI Spiritual Atmosphere Badge */}
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold backdrop-blur-md">
-                <Sparkles size={11} className="text-amber-400" />
-                <span className="truncate max-w-[180px] sm:max-w-none">{dailyBanner.themeName}</span>
-              </div>
+            {/* 3-Way Wisdom Interchange Mode Tabs */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/60 border border-white/15 backdrop-blur-xl shadow-inner">
+              {[
+                { id: 'ayah', label: 'Ayah of Day', icon: BookOpen, color: 'text-emerald-400' },
+                { id: 'hadith', label: 'Hadith of Day', icon: Sparkles, color: 'text-amber-400' },
+                { id: 'quote', label: 'Quote of Day', icon: Quote, color: 'text-sky-400' }
+              ].map((tab) => {
+                const isActive = wisdomMode === tab.id;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleSelectWisdomMode(tab.id as WisdomMode)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-md shadow-amber-500/20 font-extrabold'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon size={12} className={isActive ? 'text-black' : tab.color} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
+            {/* Right Action Icons: Notification Bell & Theme Atmosphere Switcher */}
             <div className="flex items-center gap-2">
+              {/* Daily Push Notification Toggle */}
+              <button
+                onClick={handleToggleWisdomNotif}
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer backdrop-blur-md ${
+                  isWisdomNotifEnabled
+                    ? 'bg-amber-400/20 border border-amber-400/40 text-amber-300 hover:bg-amber-400/30'
+                    : 'bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+                title={`Toggle Daily ${wisdomMode.toUpperCase()} Push Notifications`}
+              >
+                <Bell size={12} className={isWisdomNotifEnabled ? 'text-amber-400 animate-bounce' : 'text-slate-500'} />
+                <span>{isWisdomNotifEnabled ? 'Alerts ON' : 'Enable Alerts'}</span>
+              </button>
+
               {/* Theme Atmosphere Switcher */}
               <button 
                 onClick={handleCycleBannerTheme}
@@ -546,47 +669,64 @@ export default function HomeView({
                 <span className="hidden sm:inline">Change Atmosphere</span>
               </button>
 
-              <div className="flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 backdrop-blur-md">
-                <span className="text-emerald-300 font-serif text-xs sm:text-sm font-bold font-arabic">
-                  {isFriday ? 'جُمُعَة مُبَارَكَة • أسماء الله الحسنى' : 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'}
+              <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 backdrop-blur-md">
+                <span className="text-emerald-300 font-serif text-xs font-bold font-arabic">
+                  {isFriday ? 'جُمُعَة مُبَارَكَة' : 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Main Attribute & Reflection Content */}
+          {/* Toast Notification Alert Feedback */}
+          <AnimatePresence>
+            {wisdomNotifToast && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs font-bold flex items-center gap-2 backdrop-blur-md"
+              >
+                <Bell size={14} className="text-amber-400 shrink-0" />
+                <span>{wisdomNotifToast}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Main Wisdom Gem Content (Minimized words & punchy clarity) */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
             <div className="md:col-span-8 space-y-2">
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-                  {dailyAttribute.transliteration} <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-emerald-400 font-normal">({dailyAttribute.english})</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span 
+                    className="px-2.5 py-0.5 rounded-lg text-black font-black text-[10px] uppercase tracking-wider shadow-sm"
+                    style={{ backgroundColor: currentWisdom.accentColor || '#f59e0b' }}
+                  >
+                    {currentWisdom.author}
+                  </span>
+                  <span className="text-slate-400 text-xs font-semibold">&bull; {currentWisdom.source}</span>
+                </div>
+                
+                {/* Minimized Punchy Main Text */}
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">
+                  "{currentWisdom.mainText}"
                 </h1>
               </div>
               
-              <p className="text-slate-300 text-xs sm:text-sm font-medium leading-relaxed max-w-2xl">
-                {dailyAttribute.meaning}
-              </p>
-
               <div className="pt-0.5 flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                <p className="text-[11px] font-semibold text-amber-300/90 italic bg-black/40 border border-white/10 px-3 py-1 rounded-xl inline-block shadow-sm">
-                  {dailyBanner.aiReflection ? `✨ "${dailyBanner.aiReflection}"` : '"To Allah belong the Most Beautiful Names, so call on Him by them." [7:180]'}
+                <p className="text-[11px] font-semibold text-amber-300/90 italic bg-black/40 border border-white/10 px-3 py-1.5 rounded-xl inline-block shadow-sm">
+                  ✨ {currentWisdom.reflection}
                 </p>
-                {dailyBanner.photographerCredit && (
-                  <span className="text-[9px] text-slate-500 font-medium hidden lg:inline">
-                    Visual: {dailyBanner.photographerCredit}
-                  </span>
-                )}
               </div>
             </div>
 
             {/* Arabic Calligraphy Pillar */}
             <div className="md:col-span-4 flex flex-col items-center md:items-end justify-center">
-              <div className="p-4 rounded-2xl bg-black/50 border border-white/15 text-center space-y-1 shadow-inner backdrop-blur-md">
-                <p className="arabic-text text-4xl sm:text-5xl font-arabic font-bold text-amber-300 drop-shadow-md">
-                  {dailyAttribute.arabic}
+              <div className="p-4 rounded-2xl bg-black/50 border border-white/15 text-center space-y-1.5 shadow-inner backdrop-blur-md max-w-xs w-full">
+                <p className="arabic-text text-xl sm:text-2xl font-arabic font-bold text-amber-300 drop-shadow-md leading-relaxed">
+                  {currentWisdom.arabic || 'حِكْمَةُ الْيَوْمِ وَنُورُ الْقَلْبِ'}
                 </p>
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  Daily Asma-ul-Husna
+                  {currentWisdom.mode === 'ayah' ? 'Sacred Quranic Verse' : currentWisdom.mode === 'hadith' ? 'Prophetic Wisdom' : 'Daily Islamic Wisdom'}
                 </p>
               </div>
             </div>
@@ -595,25 +735,34 @@ export default function HomeView({
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button 
-              onClick={handlePlayDailyAttributeAudio}
+              onClick={handlePlayQuoteVoice}
               className={`px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer ${
-                isPlayingDailyAttribute
+                isPlayingQuoteVoice
                   ? 'bg-amber-400 text-black shadow-amber-400/25 animate-pulse'
                   : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
               }`}
-              title="Listen to the authentic recitation audio for this Divine Name"
+              title={`Listen to this daily ${wisdomMode}`}
             >
-              {isPlayingDailyAttribute ? <Pause size={14} className="fill-current" /> : <Play size={14} className="fill-current" />}
-              <span>{isPlayingDailyAttribute ? 'Pause Voice' : 'Listen Voice'}</span>
+              {isPlayingQuoteVoice ? <Pause size={14} className="fill-current" /> : <Play size={14} className="fill-current" />}
+              <span>{isPlayingQuoteVoice ? 'Pause Voice' : 'Listen Audio'}</span>
             </button>
 
             <button 
-              onClick={() => onNavigate('resources', { resId: 'names' })}
+              onClick={handleShareQuote}
               className="px-5 py-2.5 bg-brand-primary text-brand-depth font-black rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-lg shadow-brand-primary/20 cursor-pointer"
+              title="Share across WhatsApp, Telegram, X, Facebook, and Email"
             >
-              <Sparkles size={14} />
-              <span>Explore 99 Names</span>
-              <ArrowRight size={14} />
+              <Share2 size={14} />
+              <span>Share {wisdomMode.toUpperCase()}</span>
+            </button>
+
+            <button 
+              onClick={handleCopyQuote}
+              className="px-4 py-2.5 bg-white/10 text-white font-bold rounded-2xl border border-white/15 hover:bg-white/15 hover:border-brand-primary/40 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider backdrop-blur-md cursor-pointer"
+              title="Copy wisdom text to clipboard"
+            >
+              {copiedQuote ? <Check size={14} className="text-emerald-400" /> : <Quote size={14} />}
+              <span>{copiedQuote ? 'Copied!' : 'Copy'}</span>
             </button>
 
             <button 

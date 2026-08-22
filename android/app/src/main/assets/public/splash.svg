@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#FBFDFE"/>
+      <stop offset="100%" stop-color="#F4F8FA"/>
+    </linearGradient>
+
+    <radialGradient id="blueSplashTop" cx="60%" cy="10%" r="60%">
+      <stop offset="0%" stop-color="#194569" stop-opacity="0.85"/>
+      <stop offset="35%" stop-color="#2D6A9F" stop-opacity="0.75"/>
+      <stop offset="70%" stop-color="#7CA3C7" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="blueSplashBottom" cx="30%" cy="90%" r="70%">
+      <stop offset="0%" stop-color="#0E2F44" stop-opacity="0.95"/>
+      <stop offset="30%" stop-color="#1B4965" stop-opacity="0.85"/>
+      <stop offset="60%" stop-color="#4C82A6" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="goldFoil" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4AF37"/>
+      <stop offset="25%" stop-color="#F3E5AB"/>
+      <stop offset="50%" stop-color="#AA771C"/>
+      <stop offset="75%" stop-color="#FED56A"/>
+      <stop offset="100%" stop-color="#8A5A00"/>
+    </linearGradient>
+
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="1200" fill="url(#bgGrad)"/>
+
+  <!-- Top Blue & Gold Watercolor Splash Art -->
+  <g opacity="0.9">
+    <path d="M 0,0 L 800,0 L 800,280 C 650,320 520,210 380,260 C 240,310 120,220 0,260 Z" fill="url(#blueSplashTop)" />
+    <circle cx="550" cy="180" r="14" fill="#D4AF37" opacity="0.6" />
+    <circle cx="620" cy="120" r="8" fill="#F3E5AB" opacity="0.8" />
+    <circle cx="480" cy="220" r="10" fill="#AA771C" opacity="0.5" />
+    <circle cx="390" cy="160" r="6" fill="#D4AF37" opacity="0.7" />
+    <path d="M 400,140 Q 480,100 560,190 T 700,220" stroke="#D4AF37" stroke-width="4" fill="none" opacity="0.55" stroke-linecap="round"/>
+  </g>
+
+  <!-- Bottom Blue & Gold Watercolor Splash Art -->
+  <g opacity="0.95">
+    <path d="M 0,920 C 140,880 260,980 420,910 C 580,840 700,960 800,890 L 800,1200 L 0,1200 Z" fill="url(#blueSplashBottom)" />
+    <path d="M 0,980 C 180,940 320,1040 480,970 C 640,900 740,1000 800,950 L 800,1200 L 0,1200 Z" fill="#0C2538" opacity="0.7" />
+    
+    <circle cx="280" cy="980" r="12" fill="#FED56A" opacity="0.7" />
+    <circle cx="360" cy="1040" r="8" fill="#D4AF37" opacity="0.6" />
+    <circle cx="180" cy="940" r="16" fill="#F3E5AB" opacity="0.5" />
+    <circle cx="460" cy="1010" r="6" fill="#AA771C" opacity="0.8" />
+    <path d="M 120,1020 Q 240,940 380,1000 T 580,960" stroke="#FED56A" stroke-width="5" fill="none" opacity="0.65" stroke-linecap="round"/>
+  </g>
+
+  <!-- Central Ayat Al-Kursi Sacred Calligraphic Seal -->
+  <g transform="translate(400, 560)">
+    <circle cx="0" cy="0" r="230" stroke="#D4AF37" stroke-width="2.5" fill="none" opacity="0.4" stroke-dasharray="8 6"/>
+    <circle cx="0" cy="0" r="222" stroke="#0E2F44" stroke-width="1.5" fill="none" opacity="0.7"/>
+    <circle cx="0" cy="0" r="215" stroke="#D4AF37" stroke-width="3" fill="#FFFFFF" opacity="0.95" filter="url(#goldGlow)"/>
+
+    <text x="0" y="-140" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="80" font-weight="bold" fill="#0B2336" text-anchor="middle">
+      اللَّهُ
+    </text>
+
+    <text x="0" y="-80" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="34" font-weight="bold" fill="#0E2F44" text-anchor="middle">
+      لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ
+    </text>
+    
+    <text x="0" y="-35" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="22" font-weight="600" fill="#1B4965" text-anchor="middle">
+      لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي السَّمَاوَاتِ
+    </text>
+
+    <text x="0" y="5" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="22" font-weight="600" fill="#0E2F44" text-anchor="middle">
+      وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ
+    </text>
+
+    <text x="0" y="45" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="22" font-weight="600" fill="#1B4965" text-anchor="middle">
+      يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ
+    </text>
+
+    <text x="0" y="85" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="21" font-weight="600" fill="#0E2F44" text-anchor="middle">
+      وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ
+    </text>
+
+    <text x="0" y="125" font-family="'Amiri', 'Scheherazade New', 'Traditional Arabic', serif" font-size="23" font-weight="bold" fill="#B8860B" text-anchor="middle">
+      وَهُوَ الْعَلِيُّ الْعَظِيمُ
+    </text>
+
+    <path d="M -160,0 C -190,-60 -190,60 -160,0 Z" fill="#D4AF37" opacity="0.75" />
+    <path d="M 160,0 C 190,-60 190,60 160,0 Z" fill="#D4AF37" opacity="0.75" />
+  </g>
+</svg>

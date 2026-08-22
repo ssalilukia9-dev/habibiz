@@ -58,6 +58,7 @@ import NearbyMosquesMap from './NearbyMosquesMap.tsx';
 import QiblaView from './QiblaView.tsx';
 import HijriCalendarView from './HijriCalendarView.tsx';
 import HifzMemorizeView from './HifzMemorizeView.tsx';
+import KhatamJourneyView from './KhatamJourneyView.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
@@ -162,7 +163,7 @@ export default function ResourcesView({
         { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
         { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
         { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
-        { id: 'memorise', title: 'Tarteel Hifz AI', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
+        { id: 'memorise', title: 'Aliyah Memorise', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
         { id: 'market', title: 'Halal Market', icon: ShoppingBag, image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=800' },
         { id: 'names', title: '99 Names', icon: Sparkles, image: 'https://images.unsplash.com/photo-1583000212006-7e23730e625a?auto=format&fit=crop&q=80&w=800' },
         { id: 'zakat', title: 'Zakat Calculator', icon: Calculator, image: 'https://images.unsplash.com/photo-1611974717482-aa389182069e?auto=format&fit=crop&q=80&w=800' },
@@ -822,6 +823,14 @@ export default function ResourcesView({
                      addHasanat={addHasanat}
                      isPremium={isPremium}
                      onShowPremium={onShowPremium}
+                   />
+                 )}
+                 {activeRes === 'khatam' && (
+                   <KhatamJourneyView
+                     onBack={() => setActiveRes(null)}
+                     addHasanat={addHasanat}
+                     currentUser={currentUser}
+                     onOpenAdmin={() => navigate('/admin')}
                    />
                  )}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} currentUser={currentUser} />}

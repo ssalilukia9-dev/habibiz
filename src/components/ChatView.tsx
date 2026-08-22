@@ -179,6 +179,229 @@ export default function ChatView({
   // Typing emulation indicator
   const [isTyping, setIsTyping] = useState(false);
 
+  // Sanctuary community members to explore and connect with as friends
+  const [communityMembers, setCommunityMembers] = useState<any[]>([
+    {
+      id: 'member_yasmin',
+      name: 'Sister Yasmin al-Farsi',
+      location: 'Istanbul, Turkey',
+      rank: 'Tajweed Instructor',
+      bio: 'Quran study leader, hosting weekly Surah Al-Kahf circles.',
+      avatarBg: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+      initial: 'Y',
+      online: true
+    },
+    {
+      id: 'member_imam_ahmed',
+      name: 'Imam Ahmed Al-Farooq',
+      location: 'Cairo, Egypt',
+      rank: 'Fiqh Scholar',
+      bio: 'Guidance on everyday Islamic rulings & spiritual purification.',
+      avatarBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+      initial: 'A',
+      online: true
+    },
+    {
+      id: 'member_tariq_malik',
+      name: 'Brother Tariq Malik',
+      location: 'London, UK',
+      rank: 'Community Organizer',
+      bio: 'Connecting Muslims across Europe for charity and networking.',
+      avatarBg: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+      initial: 'T',
+      online: false
+    },
+    {
+      id: 'member_fatima_zahra',
+      name: 'Sister Fatima Al-Zahra',
+      location: 'Medina, KSA',
+      rank: 'Hadith Researcher',
+      bio: 'Studying authentic prophetic traditions and prophetic character.',
+      avatarBg: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+      initial: 'F',
+      online: true
+    },
+    {
+      id: 'member_omar_salim',
+      name: 'Brother Omar Salim',
+      location: 'Kuala Lumpur, Malaysia',
+      rank: 'Halal Entrepreneur',
+      bio: 'Islamic finance advocate & Suq Al-Mubaraki trader.',
+      avatarBg: 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
+      initial: 'O',
+      online: true
+    },
+    {
+      id: 'member_zainab_khalil',
+      name: 'Sister Zainab Khalil',
+      location: 'Toronto, Canada',
+      rank: 'Youth Mentor',
+      bio: 'Hosting youth Halaqas & Quran memorization support.',
+      avatarBg: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
+      initial: 'Z',
+      online: true
+    }
+  ]);
+
+  // Explore search filter
+  const [exploreFilter, setExploreFilter] = useState('');
+
+  // Friends & Requests state
+  const [friends, setFriends] = useState<string[]>(() => {
+    try {
+      const uid = myUser?.uid || 'guest';
+      const saved = localStorage.getItem(`sanctuary_friends_${uid}`);
+      return saved ? JSON.parse(saved) : ['member_yasmin'];
+    } catch {
+      return ['member_yasmin'];
+    }
+  });
+
+  const [sentRequests, setSentRequests] = useState<string[]>(() => {
+    try {
+      const uid = myUser?.uid || 'guest';
+      const saved = localStorage.getItem(`sanctuary_sent_reqs_${uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Load / initialize pending requests
+  useEffect(() => {
+    const uid = myUser?.uid || 'guest';
+    const saved = localStorage.getItem(`sanctuary_received_reqs_${uid}`);
+    if (saved) {
+      try {
+        setPendingRequests(JSON.parse(saved));
+      } catch {
+        setPendingRequests([]);
+      }
+    } else {
+      // Starter friendly incoming request
+      const starterReqs: ChatRequest[] = [
+        {
+          id: 'req_imam_ahmed',
+          fromId: 'member_imam_ahmed',
+          fromName: 'Imam Ahmed Al-Farooq',
+          fromPhoto: '',
+          toId: uid,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        }
+      ];
+      setPendingRequests(starterReqs);
+      localStorage.setItem(`sanctuary_received_reqs_${uid}`, JSON.stringify(starterReqs));
+    }
+  }, [myUser?.uid]);
+
+  // Save friends & sent requests
+  const saveFriends = (newFriends: string[]) => {
+    setFriends(newFriends);
+    const uid = myUser?.uid || 'guest';
+    localStorage.setItem(`sanctuary_friends_${uid}`, JSON.stringify(newFriends));
+  };
+
+  const saveSentRequests = (newSent: string[]) => {
+    setSentRequests(newSent);
+    const uid = myUser?.uid || 'guest';
+    localStorage.setItem(`sanctuary_sent_reqs_${uid}`, JSON.stringify(newSent));
+  };
+
+  const saveReceivedRequests = (newReqs: ChatRequest[]) => {
+    setPendingRequests(newReqs);
+    const uid = myUser?.uid || 'guest';
+    localStorage.setItem(`sanctuary_received_reqs_${uid}`, JSON.stringify(newReqs));
+  };
+
+  // Send friend request
+  const handleSendFriendRequest = (member: any) => {
+    if (friends.includes(member.id) || sentRequests.includes(member.id)) return;
+    const nextSent = [...sentRequests, member.id];
+    saveSentRequests(nextSent);
+    if (addHasanat) addHasanat(3);
+  };
+
+  // Cancel sent request
+  const handleCancelSentRequest = (memberId: string) => {
+    const nextSent = sentRequests.filter(id => id !== memberId);
+    saveSentRequests(nextSent);
+  };
+
+  // Accept friend request
+  const handleAcceptRequest = (req: ChatRequest) => {
+    const nextFriends = Array.from(new Set([...friends, req.fromId]));
+    saveFriends(nextFriends);
+    
+    const nextReqs = pendingRequests.filter(r => r.id !== req.id);
+    saveReceivedRequests(nextReqs);
+
+    // Create or open private chat room with this new friend
+    const roomId = `private_${req.fromId}`;
+    let existingRoom = rooms.find(r => r.id === roomId || (r.type === 'private' && r.name === req.fromName));
+
+    if (!existingRoom) {
+      existingRoom = {
+        id: roomId,
+        name: req.fromName,
+        type: 'private',
+        isBusiness: false,
+        participants: [myUser?.uid || 'user', req.fromId],
+        participantNames: {
+          [req.fromId]: req.fromName,
+          [myUser?.uid || 'user']: myUser?.displayName || 'Seeker'
+        },
+        lastMessage: '🤝 Friend request accepted! You are now connected in Habibi Chat.',
+        updatedAt: new Date().toISOString()
+      };
+      const updatedRooms = [existingRoom, ...rooms];
+      setRooms(updatedRooms);
+      const localKey = `sanctuary_rooms_${myUser?.uid || 'guest'}`;
+      localStorage.setItem(localKey, JSON.stringify(updatedRooms));
+    }
+
+    setActiveRoom(existingRoom);
+    setActiveTab('messages');
+    setMobileViewState('chat');
+    if (addHasanat) addHasanat(10);
+  };
+
+  // Decline request
+  const handleDeclineRequest = (reqId: string) => {
+    const nextReqs = pendingRequests.filter(r => r.id !== reqId);
+    saveReceivedRequests(nextReqs);
+  };
+
+  // Start instant 1-on-1 private chat with any sanctuary member
+  const handleStartDirectChat = (member: any) => {
+    const roomId = `private_${member.id}`;
+    let existing = rooms.find(r => r.id === roomId || (r.type === 'private' && r.name === member.name));
+
+    if (!existing) {
+      existing = {
+        id: roomId,
+        name: member.name,
+        type: 'private',
+        isBusiness: false,
+        participants: [myUser?.uid || 'user', member.id],
+        participantNames: {
+          [member.id]: member.name,
+          [myUser?.uid || 'user']: myUser?.displayName || 'Seeker'
+        },
+        lastMessage: 'As-salamu alaykum habibi! Let us share barakah and reflections.',
+        updatedAt: new Date().toISOString()
+      };
+      const updatedRooms = [existing, ...rooms];
+      setRooms(updatedRooms);
+      const localKey = `sanctuary_rooms_${myUser?.uid || 'guest'}`;
+      localStorage.setItem(localKey, JSON.stringify(updatedRooms));
+    }
+
+    setActiveRoom(existing);
+    setActiveTab('messages');
+    setMobileViewState('chat');
+  };
+
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -894,29 +1117,47 @@ export default function ChatView({
   if (!myUser) return null;
 
   return (
-    <div className="flex h-[calc(100vh-140px)] min-h-[500px] md:h-[680px] bg-slate-950/80 rounded-[2rem] md:rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl backdrop-blur-2xl relative">
+    <div className="flex h-[calc(100vh-140px)] min-h-[520px] md:h-[700px] bg-[#0c1317] rounded-3xl md:rounded-[2.5rem] border border-[#222e35] overflow-hidden shadow-2xl relative font-sans">
       
-      {/* 1. Left Sidebar Panel (Rooms / Explore / Requests) */}
-      <div className={`w-full md:w-80 border-r border-white/10 flex flex-col transition-all duration-300 bg-slate-900/60 ${mobileViewState === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+      {/* 1. Left Sidebar Panel (WhatsApp Left Chats Panel) */}
+      <div className={`w-full md:w-84 border-r border-[#222e35] flex flex-col transition-all duration-300 bg-[#111b21] ${mobileViewState === 'chat' ? 'hidden md:flex' : 'flex'}`}>
         
-        {/* Sidebar Header */}
-        <div className="p-5 space-y-4 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Global Ummah</span>
-              <h2 className="text-xl font-black text-white tracking-tight">Sanctuary Hub</h2>
+        {/* Habibi Chat Sidebar Header */}
+        <div className="p-3.5 bg-[#202c33] flex items-center justify-between shrink-0 border-b border-[#222e35]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#00a884]/20 border border-[#00a884]/40 flex items-center justify-center text-[#00a884] font-bold text-sm overflow-hidden">
+              {myUser.photoURL ? (
+                <img src={myUser.photoURL} alt="" className="w-full h-full object-cover" />
+              ) : (
+                myUser.displayName?.[0] || 'U'
+              )}
             </div>
-            <button 
-              onClick={() => setShowCreateGroup(true)}
-              className="p-2.5 bg-amber-400/15 hover:bg-amber-400 text-amber-400 hover:text-black rounded-xl transition-all cursor-pointer border border-amber-400/30"
-              title="Create New Channel"
-            >
-              <Plus size={18} />
-            </button>
+            <div>
+              <h2 className="text-sm font-bold text-[#e9edef] leading-tight flex items-center gap-1.5">
+                <span>Habibi Chat</span>
+                <span className="text-[9px] px-1.5 py-0.5 bg-[#00a884]/20 text-[#00a884] rounded-full font-semibold border border-[#00a884]/30">Ummah</span>
+              </h2>
+              <p className="text-[10px] text-[#00a884] font-medium flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#00a884] inline-block animate-pulse" />
+                Online • {friends.length} Sanctuary Friends
+              </p>
+            </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex p-1 bg-black/50 rounded-2xl border border-white/10">
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setShowCreateGroup(true)}
+              className="p-2 text-[#aebac1] hover:text-[#00a884] hover:bg-[#111b21] rounded-full transition-all cursor-pointer"
+              title="New Channel / Group"
+            >
+              <Plus size={19} />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="p-2.5 bg-[#111b21] border-b border-[#222e35]">
+          <div className="flex p-1 bg-[#202c33] rounded-xl">
             {[
               { id: 'messages', label: 'Chats', icon: MessageCircle },
               { id: 'ummah', label: 'Explore', icon: Globe },
@@ -925,16 +1166,16 @@ export default function ChatView({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all cursor-pointer relative ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer relative ${
                   activeTab === tab.id 
-                    ? 'bg-amber-400 text-black font-black shadow-lg' 
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-[#00a884] text-white shadow-md' 
+                    : 'text-[#8696a0] hover:text-[#e9edef]'
                 }`}
               >
-                <tab.icon size={16} />
-                <span className="text-[9px] font-black uppercase mt-1 tracking-wider leading-none">{tab.label}</span>
+                <tab.icon size={14} />
+                <span className="text-[11px]">{tab.label}</span>
                 {tab.count ? (
-                  <span className="absolute top-1 right-2 w-4 h-4 text-[8px] bg-red-500 text-white rounded-full flex items-center justify-center font-bold">
+                  <span className="ml-1 px-1.5 py-0.2 bg-red-500 text-white rounded-full text-[9px] font-black">
                     {tab.count}
                   </span>
                 ) : null}
@@ -944,7 +1185,7 @@ export default function ChatView({
         </div>
 
         {/* Sidebar Chat List */}
-        <div className="flex-1 overflow-y-auto px-3 pb-6 space-y-1.5 no-scrollbar">
+        <div className="flex-1 overflow-y-auto divide-y divide-[#222e35]/50 no-scrollbar">
           {activeTab === 'messages' && (
             <>
               {rooms.map(room => {
@@ -957,42 +1198,46 @@ export default function ChatView({
                         setActiveRoom(room);
                         setMobileViewState('chat');
                       }}
-                      className={`w-full text-left p-3.5 pr-9 rounded-2xl transition-all flex items-center gap-3 cursor-pointer border ${
+                      className={`w-full text-left p-3.5 pr-10 transition-all flex items-center gap-3 cursor-pointer ${
                         isActive
-                          ? 'bg-amber-400 text-black border-amber-400 shadow-xl font-bold'
-                          : 'bg-black/30 border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
+                          ? 'bg-[#2a3942]'
+                          : 'hover:bg-[#202c33]/70 bg-transparent'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${
-                        isActive ? 'bg-black/20 text-black' : 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
-                      }`}>
+                      {/* WhatsApp Circle Avatar */}
+                      <div className="relative w-12 h-12 rounded-full bg-[#202c33] border border-[#222e35] flex items-center justify-center shrink-0 overflow-hidden text-[#00a884]">
                         {room.type === 'business' || isBiz ? (
-                          <Briefcase size={18} />
+                          <Briefcase size={20} className="text-[#00a884]" />
                         ) : room.type === 'group' ? (
-                          <Hash size={18} />
+                          <Users size={20} className="text-[#00a884]" />
                         ) : (
                           getRoomPhoto(room) ? (
                             <img src={getRoomPhoto(room)} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <UserIcon size={18} />
+                            <UserIcon size={20} className="text-[#8696a0]" />
                           )
                         )}
                       </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
-                          <p className="font-black text-xs truncate">{getRoomName(room)}</p>
-                          {isBiz && (
-                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
-                              isActive ? 'bg-black/30 text-black' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            }`}>
-                              Biz
-                            </span>
+                          <p className="font-semibold text-xs md:text-sm text-[#e9edef] truncate">{getRoomName(room)}</p>
+                          <span className="text-[10px] text-[#8696a0] shrink-0 font-medium">
+                            {isBiz ? (
+                              <span className="text-[9px] text-[#00a884] font-bold">💼 BIZ</span>
+                            ) : (
+                              'Now'
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 mt-0.5">
+                          <p className="text-xs text-[#8696a0] truncate">
+                            {room.lastMessage || 'Tap to send a message...'}
+                          </p>
+                          {isActive && (
+                            <span className="w-2 h-2 rounded-full bg-[#00a884] shrink-0" />
                           )}
                         </div>
-                        <p className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-black/80' : 'text-slate-400'}`}>
-                          {room.lastMessage || 'No messages yet'}
-                        </p>
                       </div>
                     </button>
 
@@ -1000,218 +1245,397 @@ export default function ChatView({
                     <button
                       type="button"
                       onClick={(e) => handleDeleteRoom(room, e)}
-                      title="Delete chat thread"
-                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover/room:opacity-100 transition-all cursor-pointer ${
-                        isActive ? 'text-black hover:bg-black/20' : 'text-slate-500 hover:text-red-400 hover:bg-white/10'
-                      }`}
+                      title="Delete conversation"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover/room:opacity-100 text-[#8696a0] hover:text-red-400 hover:bg-[#111b21] transition-all cursor-pointer"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 );
               })}
 
               {rooms.length === 0 && (
-                <div className="py-20 text-center text-slate-500">
-                  <MessageCircle size={36} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-xs uppercase font-bold tracking-widest">No active conversations</p>
+                <div className="py-20 text-center text-[#8696a0]">
+                  <MessageCircle size={36} className="mx-auto mb-2 opacity-30 text-[#00a884]" />
+                  <p className="text-xs font-semibold">No chats yet</p>
+                  <p className="text-[11px] opacity-70 mt-0.5">Click Explore to meet Habibi friends</p>
                 </div>
               )}
             </>
           )}
 
+          {/* Explore Sanctuary Community & Connect as Friends */}
           {activeTab === 'ummah' && (
-            <div className="p-2 space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Seeker Directory</p>
-              <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-xs text-slate-300 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-                    Y
-                  </div>
-                  <div>
-                    <p className="font-bold text-white">Yasmin al-Farsi</p>
-                    <p className="text-[9px] text-slate-400">Quran Study Leader • Istanbul</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    const room: Room = {
-                      id: 'seeker_yasmin',
-                      name: 'Yasmin al-Farsi',
-                      type: 'private',
-                      lastMessage: 'As-salamu alaykum!'
-                    };
-                    setRooms(prev => [room, ...prev]);
-                    setActiveRoom(room);
-                    setActiveTab('messages');
-                  }}
-                  className="w-full py-1.5 bg-amber-400 text-black font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-amber-300 transition-all"
-                >
-                  Send Direct Message
-                </button>
+            <div className="p-3 space-y-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8696a0]" />
+                <input
+                  type="text"
+                  value={exploreFilter}
+                  onChange={(e) => setExploreFilter(e.target.value)}
+                  placeholder="Search sanctuary members..."
+                  className="w-full bg-[#202c33] text-xs text-[#e9edef] pl-8 pr-3 py-2 rounded-xl border border-[#222e35] focus:outline-none focus:border-[#00a884] placeholder-[#8696a0]"
+                />
               </div>
 
-              <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-xs text-slate-300 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
-                    A
-                  </div>
-                  <div>
-                    <p className="font-bold text-white">Imam Ahmed Al-Farooq</p>
-                    <p className="text-[9px] text-slate-400">Scholar & Fiqh Guide • Cairo</p>
-                  </div>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
+                  Sanctuary Members ({communityMembers.length})
+                </p>
+                <span className="text-[10px] text-[#00a884] font-medium">Connect & Chat</span>
+              </div>
+              
+              <div className="space-y-2.5">
+                {communityMembers
+                  .filter(m => 
+                    !exploreFilter || 
+                    m.name.toLowerCase().includes(exploreFilter.toLowerCase()) ||
+                    m.bio.toLowerCase().includes(exploreFilter.toLowerCase()) ||
+                    m.location.toLowerCase().includes(exploreFilter.toLowerCase())
+                  )
+                  .map(member => {
+                    const isFriend = friends.includes(member.id);
+                    const isSent = sentRequests.includes(member.id);
+
+                    return (
+                      <div key={member.id} className="p-3 bg-[#202c33] rounded-2xl border border-[#222e35] text-xs text-[#d1d7db] space-y-2.5 transition-all hover:border-[#00a884]/40">
+                        <div className="flex items-start gap-2.5">
+                          <div className="relative">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${member.avatarBg}`}>
+                              {member.initial}
+                            </div>
+                            {member.online && (
+                              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#00a884] border-2 border-[#202c33]" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="font-bold text-[#e9edef] truncate">{member.name}</p>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#111b21] text-[#00a884] font-semibold shrink-0">
+                                {member.rank}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#8696a0]">{member.location}</p>
+                            <p className="text-[11px] text-[#aebac1] mt-1 line-clamp-2 leading-relaxed">
+                              {member.bio}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-[#111b21]/70">
+                          {isFriend ? (
+                            <button
+                              onClick={() => handleStartDirectChat(member)}
+                              className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <MessageCircle size={13} />
+                              <span>Message Habibi</span>
+                            </button>
+                          ) : isSent ? (
+                            <div className="flex-1 flex items-center gap-1.5">
+                              <span className="flex-1 py-1.5 bg-[#111b21] text-[#8696a0] text-center text-xs font-semibold rounded-xl border border-[#222e35]">
+                                ⏳ Request Sent
+                              </span>
+                              <button
+                                onClick={() => handleCancelSentRequest(member.id)}
+                                className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs rounded-xl font-semibold transition-all cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleSendFriendRequest(member)}
+                                className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                <Users size={13} />
+                                <span>Add Friend</span>
+                              </button>
+                              <button
+                                onClick={() => handleStartDirectChat(member)}
+                                className="px-3 py-1.5 bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] text-xs font-semibold rounded-xl border border-[#222e35] transition-all cursor-pointer"
+                              >
+                                Chat
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Requests Tab (Incoming & Outgoing & My Sanctuary Friends) */}
+          {activeTab === 'requests' && (
+            <div className="p-3 space-y-4">
+              {/* Incoming Requests */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
+                    Friend Requests ({pendingRequests.length})
+                  </p>
+                  <span className="text-[9px] text-[#00a884] font-semibold">Incoming</span>
                 </div>
-                <button
-                  onClick={() => {
-                    const room: Room = {
-                      id: 'seeker_imam',
-                      name: 'Imam Ahmed Al-Farooq',
-                      type: 'private',
-                      lastMessage: 'BarakAllahu Feek'
+
+                {pendingRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {pendingRequests.map(req => (
+                      <div key={req.id} className="p-3 bg-[#202c33] rounded-2xl border border-[#00a884]/30 space-y-2.5 text-xs text-[#d1d7db]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-full bg-[#00a884]/20 border border-[#00a884]/40 text-[#00a884] flex items-center justify-center font-bold text-sm">
+                            {req.fromName?.[0] || 'H'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-[#e9edef] truncate">{req.fromName}</p>
+                            <p className="text-[10px] text-[#8696a0]">Wants to connect on Habibi Chat</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 border-t border-[#111b21]">
+                          <button
+                            onClick={() => handleAcceptRequest(req)}
+                            className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          >
+                            <Check size={13} />
+                            <span>Accept</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeclineRequest(req.id)}
+                            className="px-3 py-1.5 bg-[#111b21] hover:bg-[#2a3942] text-[#8696a0] hover:text-red-400 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-[#202c33]/50 rounded-2xl border border-[#222e35] text-center text-[#8696a0] text-xs">
+                    <Inbox size={26} className="mx-auto mb-1.5 opacity-40 text-[#00a884]" />
+                    <p className="font-medium text-[#d1d7db]">No pending friend requests</p>
+                    <p className="text-[10px] mt-0.5 opacity-80">Use Explore to send requests to members</p>
+                  </div>
+                )}
+              </div>
+
+              {/* My Sanctuary Friends List */}
+              <div className="space-y-2 pt-2 border-t border-[#222e35]">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
+                    My Habibi Friends ({friends.length})
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  {friends.map(friendId => {
+                    const member = communityMembers.find(m => m.id === friendId) || {
+                      id: friendId,
+                      name: friendId.replace('member_', '').replace('_', ' '),
+                      location: 'Sanctuary Ummah',
+                      avatarBg: 'bg-[#00a884]/20 text-[#00a884]',
+                      initial: friendId[0]?.toUpperCase() || 'H'
                     };
-                    setRooms(prev => [room, ...prev]);
-                    setActiveRoom(room);
-                    setActiveTab('messages');
-                  }}
-                  className="w-full py-1.5 bg-amber-400 text-black font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-amber-300 transition-all"
-                >
-                  Send Direct Message
-                </button>
+
+                    return (
+                      <div key={friendId} className="p-2.5 bg-[#202c33] rounded-xl border border-[#222e35] flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${member.avatarBg || 'bg-[#00a884]/20 text-[#00a884]'}`}>
+                            {member.initial || 'H'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-xs text-[#e9edef] truncate">{member.name}</p>
+                            <p className="text-[9px] text-[#8696a0] truncate">{member.location}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleStartDirectChat(member)}
+                          className="px-2.5 py-1 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-[11px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <MessageCircle size={11} />
+                          <span>Chat</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* 2. Chat Window Area */}
-      <div className={`flex-1 flex flex-col relative transition-all duration-300 bg-slate-950/40 ${mobileViewState === 'list' ? 'hidden md:flex' : 'flex'}`}>
+      {/* 2. Chat Window Area (WhatsApp Authentic Chat Room) */}
+      <div className={`flex-1 flex flex-col relative transition-all duration-300 bg-[#0b141a] ${mobileViewState === 'list' ? 'hidden md:flex' : 'flex'}`}>
         {activeRoom ? (
           <>
-            {/* Active Room Top Bar */}
-            <div className="p-4 md:p-5 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl flex items-center justify-between shrink-0 sticky top-0 z-20">
+            {/* WhatsApp Chat Room Top Header Bar */}
+            <div className="p-3 px-4 bg-[#202c33] border-b border-[#222e35] flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-md">
               <div className="flex items-center gap-3 min-w-0">
                 <button 
                   onClick={() => {
                     setActiveRoom(null);
                     setMobileViewState('list');
                   }} 
-                  className="md:hidden p-2 text-amber-400 hover:bg-white/5 rounded-xl cursor-pointer"
+                  className="md:hidden p-1.5 text-[#aebac1] hover:text-white rounded-full cursor-pointer"
                 >
                   <ArrowLeft size={20} />
                 </button>
 
-                <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400 shrink-0">
-                  {isBusinessRoom(activeRoom) ? <Briefcase size={20} /> : <MessageCircle size={20} />}
+                {/* Contact Avatar with Online Dot */}
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-[#111b21] border border-[#222e35] flex items-center justify-center text-[#00a884] shrink-0 overflow-hidden font-bold">
+                    {isBusinessRoom(activeRoom) ? (
+                      <Briefcase size={20} className="text-[#00a884]" />
+                    ) : getRoomPhoto(activeRoom) ? (
+                      <img src={getRoomPhoto(activeRoom)} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <MessageCircle size={20} className="text-[#00a884]" />
+                    )}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#00a884] border-2 border-[#202c33]" />
                 </div>
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm md:text-base font-black text-white truncate">{getRoomName(activeRoom)}</h3>
+                    <h3 className="text-sm md:text-base font-bold text-[#e9edef] truncate">{getRoomName(activeRoom)}</h3>
                     {isBusinessRoom(activeRoom) ? (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-wider border border-emerald-500/30 shrink-0">
-                        💼 Business Record
+                      <span className="px-2 py-0.5 rounded bg-[#00a884]/20 text-[#00a884] text-[9px] font-bold border border-[#00a884]/30 shrink-0">
+                        💼 Business
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[8px] font-black uppercase tracking-wider border border-amber-400/30 shrink-0 flex items-center gap-1">
-                        <Clock size={9} /> 48h Disappearing
+                      <span className="px-1.5 py-0.2 rounded bg-[#182229] text-[#8696a0] text-[9px] font-medium border border-[#222e35] shrink-0 flex items-center gap-1">
+                        <Clock size={9} className="text-[#ffe082]" /> 48h Disappearing
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[10px] text-slate-400 truncate font-medium">
-                    {isBusinessRoom(activeRoom)
-                      ? 'Permanent records preserved for commerce and receipts.'
-                      : 'Ephemeral mode active: Non-business messages auto-expire after 2 days.'}
+                  <p className="text-[11px] text-[#8696a0] truncate">
+                    {isTyping ? (
+                      <span className="text-[#00a884] font-medium">typing...</span>
+                    ) : (
+                      'online • tap for info'
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* Chat Header Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Search in Chat Button */}
+              {/* WhatsApp Header Action Icons */}
+              <div className="flex items-center gap-1 shrink-0 text-[#aebac1]">
+                {/* Search In Chat */}
                 <button
                   onClick={() => setChatSearchOpen(!chatSearchOpen)}
-                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                    chatSearchOpen ? 'bg-amber-400 text-black border-amber-400' : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                  className={`p-2 rounded-full hover:bg-[#111b21] transition-all cursor-pointer ${
+                    chatSearchOpen ? 'text-[#00a884] bg-[#111b21]' : 'hover:text-[#e9edef]'
                   }`}
-                  title="Search inside this chat"
+                  title="Search messages"
                 >
-                  <Search size={15} />
+                  <Search size={18} />
                 </button>
 
-                {/* Business / Ephemeral Toggle Button */}
+                {/* Business / Ephemeral Toggle */}
                 <button
                   onClick={handleToggleRoomBusinessMode}
-                  className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
                     isBusinessRoom(activeRoom)
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                      : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                      ? 'bg-[#00a884]/20 text-[#00a884] border-[#00a884]/40 hover:bg-[#00a884]/30'
+                      : 'bg-[#111b21] text-[#8696a0] border-[#222e35] hover:text-[#e9edef]'
                   }`}
-                  title="Toggle Business mode (Permanent) vs Ephemeral (48h Disappearing)"
+                  title="Toggle Business mode"
                 >
-                  <Briefcase size={12} />
+                  <Briefcase size={13} />
                   <span className="hidden sm:inline">{isBusinessRoom(activeRoom) ? 'Business Mode' : 'Make Business'}</span>
                 </button>
 
-                {/* Clear Chat History Button */}
+                {/* Clear Chat Trash */}
                 <button
                   onClick={handleClearChatHistory}
-                  className="p-2 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 rounded-xl transition-all cursor-pointer"
-                  title="Clear conversation history"
+                  className="p-2 hover:text-red-400 hover:bg-[#111b21] rounded-full transition-all cursor-pointer"
+                  title="Clear chat messages"
                 >
-                  <Trash2 size={15} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
 
-            {/* In-Chat Search Bar Drawer */}
+            {/* In-Chat Search Drawer */}
             <AnimatePresence>
               {chatSearchOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="p-3 bg-black/60 border-b border-white/10 flex items-center gap-2 overflow-hidden shrink-0"
+                  className="p-2.5 bg-[#202c33] border-b border-[#222e35] flex items-center gap-2 overflow-hidden shrink-0"
                 >
-                  <Search size={14} className="text-amber-400 shrink-0" />
+                  <Search size={15} className="text-[#00a884] shrink-0 ml-2" />
                   <input
                     type="text"
                     value={chatSearchTerm}
                     onChange={(e) => setChatSearchTerm(e.target.value)}
-                    placeholder="Search words in this conversation..."
-                    className="w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
+                    placeholder="Search in conversation..."
+                    className="w-full bg-transparent text-xs text-[#e9edef] outline-none placeholder:text-[#8696a0]"
                     autoFocus
                   />
                   {chatSearchTerm && (
-                    <button onClick={() => setChatSearchTerm('')} className="text-slate-400 hover:text-white p-1">
-                      <X size={13} />
+                    <button onClick={() => setChatSearchTerm('')} className="text-[#8696a0] hover:text-white p-1">
+                      <X size={14} />
                     </button>
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Pinned Message Banner if available */}
+            {/* Pinned Announcement Bar */}
             {activeRoom.pinnedMessage && (
-              <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-3 text-xs shrink-0">
+              <div className="px-4 py-2 bg-[#182229] border-b border-[#222e35] flex items-center justify-between gap-3 text-xs shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Pin size={14} className="text-amber-400 shrink-0" />
+                  <Pin size={13} className="text-[#00a884] shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[9px] font-black text-amber-400 uppercase tracking-wider">Pinned Announcement</p>
-                    <p className="text-slate-200 truncate">{activeRoom.pinnedMessage.text}</p>
+                    <span className="text-[10px] font-bold text-[#00a884] uppercase mr-1">Pinned:</span>
+                    <span className="text-[#d1d7db] truncate">{activeRoom.pinnedMessage.text}</span>
                   </div>
                 </div>
                 <button
                   onClick={() => handleTogglePinMessage(activeRoom.pinnedMessage!)}
-                  className="text-slate-400 hover:text-white text-[10px] font-bold underline shrink-0 cursor-pointer"
+                  className="text-[#8696a0] hover:text-white text-[10px] font-semibold shrink-0 cursor-pointer underline"
                 >
                   Unpin
                 </button>
               </div>
             )}
 
-            {/* Messages Feed */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 no-scrollbar">
+            {/* WhatsApp Chat Wallpaper & Messages Feed */}
+            <div 
+              ref={scrollRef} 
+              className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 no-scrollbar relative"
+              style={{
+                backgroundColor: '#0b141a',
+                backgroundImage: `radial-gradient(#1f2c34 1px, transparent 1px), radial-gradient(#1f2c34 1px, #0b141a 1px)`,
+                backgroundSize: '24px 24px',
+                backgroundPosition: '0 0, 12px 12px'
+              }}
+            >
+              {/* WhatsApp Security & Ephemeral Notice Pill */}
+              <div className="flex justify-center my-2">
+                <div className="bg-[#182229] border border-[#222e35] text-[#ffe082] px-3.5 py-1.5 rounded-lg text-[10px] max-w-md text-center shadow-md flex items-center gap-1.5 leading-relaxed">
+                  <Lock size={11} className="text-[#ffe082] shrink-0" />
+                  <span>
+                    Messages are end-to-end protected. {isBusinessRoom(activeRoom) ? 'Business records are preserved permanently.' : 'Standard messages auto-disappear after 48 hours.'}
+                  </span>
+                </div>
+              </div>
+
+              {/* WhatsApp Date Separator */}
+              <div className="flex justify-center my-1">
+                <span className="bg-[#182229] border border-[#222e35] text-[#8696a0] px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wider shadow-sm">
+                  Today
+                </span>
+              </div>
+
+              {/* Messages Mapping */}
               {displayedMessages.map((msg) => {
                 const isMe = msg.senderId === myUser.uid;
                 const remainingHours = getMessageRemainingHours(msg, activeRoom);
@@ -1220,138 +1644,86 @@ export default function ChatView({
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 8 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}
                   >
-                    <div className={`flex gap-2 max-w-[85%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {/* Avatar */}
-                      <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-white/10 flex items-center justify-center shrink-0 text-amber-400 text-xs font-bold overflow-hidden">
-                        {msg.senderPhoto ? (
-                          <img src={msg.senderPhoto} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          msg.senderName?.[0] || 'U'
-                        )}
-                      </div>
-
-                      {/* Bubble Container */}
+                    <div className={`flex gap-1.5 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      
+                      {/* WhatsApp Message Bubble */}
                       <div className="space-y-1">
-                        <div className={`flex items-center gap-2 px-1 text-[9px] text-slate-400 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <span className="font-black text-slate-300 uppercase tracking-wider">{msg.senderName}</span>
-                          
-                          {/* Disappearing indicator or Business badge */}
-                          {msg.isBusiness || isBusinessRoom(activeRoom) ? (
-                            <span className="text-[8px] text-emerald-400 font-bold flex items-center gap-0.5">
-                              <Briefcase size={8} /> Business
-                            </span>
-                          ) : remainingHours ? (
-                            <span className="text-[8px] text-amber-400/80 font-mono flex items-center gap-0.5" title="Expires in 48 hours">
-                              <Clock size={8} /> {remainingHours} left
-                            </span>
-                          ) : null}
-
-                          {/* Quick Message Actions Hover Menu */}
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                            <button
-                              onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)}
-                              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-amber-300 cursor-pointer"
-                              title="React with emoji"
-                            >
-                              <Smile size={11} />
-                            </button>
-
-                            <button
-                              onClick={() => setReplyingTo(msg)}
-                              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white cursor-pointer"
-                              title="Reply"
-                            >
-                              <CornerUpLeft size={11} />
-                            </button>
-
-                            <button
-                              onClick={() => handleTogglePinMessage(msg)}
-                              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-amber-400 cursor-pointer"
-                              title="Pin message"
-                            >
-                              <Pin size={11} />
-                            </button>
-
-                            {isMe && (
-                              <button
-                                onClick={(e) => handleDeleteMessage(msg, e)}
-                                className="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400 cursor-pointer"
-                                title="Delete message"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Message Content Box */}
                         <div
-                          className={`p-3.5 md:p-4 rounded-[1.8rem] text-xs leading-relaxed shadow-lg relative ${
+                          className={`p-2.5 md:p-3 text-[13px] leading-relaxed shadow-md relative ${
                             isMe
-                              ? 'bg-amber-400 text-black rounded-tr-none font-medium'
-                              : 'bg-slate-900 text-slate-200 rounded-tl-none border border-white/10'
+                              ? 'bg-[#005c4b] text-[#e9edef] rounded-2xl rounded-tr-xs'
+                              : 'bg-[#202c33] text-[#e9edef] rounded-2xl rounded-tl-xs'
                           }`}
                         >
-                          {/* Replied Message Preview */}
+                          {/* Sender Name in Group/Direct (for other senders) */}
+                          {!isMe && (
+                            <p className="text-[11px] font-bold text-[#00a884] mb-1">
+                              {msg.senderName}
+                            </p>
+                          )}
+
+                          {/* WhatsApp Replied Message Box */}
                           {msg.replyTo && (
-                            <div className={`mb-2 p-2 rounded-xl border-l-2 text-[10px] ${
-                              isMe ? 'bg-black/10 border-black text-black/80' : 'bg-black/40 border-amber-400 text-slate-400'
+                            <div className={`mb-2 p-2 rounded-lg border-l-3 text-[11px] ${
+                              isMe ? 'bg-[#025144] border-[#00a884] text-[#d1d7db]' : 'bg-[#111b21] border-[#00a884] text-[#8696a0]'
                             }`}>
-                              <span className="font-bold uppercase">Replying to {msg.replyTo.senderName}:</span>
-                              <p className="truncate italic">"{msg.replyTo.text}"</p>
+                              <span className="font-bold text-[#00a884]">{msg.replyTo.senderName}</span>
+                              <p className="truncate text-[10px] mt-0.5">{msg.replyTo.text}</p>
                             </div>
                           )}
 
-                          {/* Media Image with Click-to-Expand Lightbox */}
+                          {/* Image Attachment */}
                           {msg.imageUrl && (
-                            <div className="relative group/media mb-2 rounded-2xl overflow-hidden border border-black/10 cursor-pointer" onClick={() => setLightboxImage(msg.imageUrl!)}>
-                              <img src={msg.imageUrl} alt="Media" className="max-w-full rounded-2xl max-h-64 object-cover" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-[10px] font-bold">
+                            <div className="relative group/media mb-1.5 rounded-xl overflow-hidden cursor-pointer" onClick={() => setLightboxImage(msg.imageUrl!)}>
+                              <img src={msg.imageUrl} alt="Media" className="max-w-full rounded-xl max-h-64 object-cover" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-[11px] font-semibold">
                                 <ZoomIn size={16} />
-                                <span>Click to Expand</span>
+                                <span>View Photo</span>
                               </div>
                             </div>
                           )}
 
-                          {/* Voice Note Player */}
+                          {/* WhatsApp Style Voice Note Player */}
                           {msg.audioUrl && (
-                            <div className={`p-2.5 rounded-2xl flex items-center gap-3 mb-1.5 ${isMe ? 'bg-black/15' : 'bg-black/50 border border-white/10'}`}>
+                            <div className={`p-2 rounded-xl flex items-center gap-3 mb-1 min-w-[200px] sm:min-w-[240px] ${
+                              isMe ? 'bg-[#025144]' : 'bg-[#111b21]'
+                            }`}>
                               <button
                                 onClick={() => setPlayingAudioId(playingAudioId === msg.id ? null : msg.id)}
-                                className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-all ${
-                                  isMe ? 'bg-black text-amber-400' : 'bg-amber-400 text-black'
-                                }`}
+                                className="w-9 h-9 rounded-full bg-[#00a884] hover:bg-[#009373] text-white flex items-center justify-center cursor-pointer transition-all shrink-0 shadow"
                               >
-                                {playingAudioId === msg.id ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+                                {playingAudioId === msg.id ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
                               </button>
                               
                               <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-1 h-3">
-                                  {[40, 70, 90, 60, 30, 80, 100, 50, 65, 85, 45, 95].map((h, idx) => (
+                                <div className="flex items-center gap-1 h-3.5">
+                                  {[35, 70, 95, 60, 40, 85, 100, 55, 70, 90, 45, 80].map((h, idx) => (
                                     <div 
                                       key={idx} 
-                                      className={`flex-1 rounded-full ${playingAudioId === msg.id ? 'animate-pulse bg-current' : 'opacity-50 bg-current'}`} 
+                                      className={`flex-1 rounded-full ${
+                                        playingAudioId === msg.id ? 'bg-[#00a884] animate-pulse' : 'bg-[#8696a0]'
+                                      }`} 
                                       style={{ height: `${h}%` }} 
                                     />
                                   ))}
                                 </div>
-                                <div className="flex items-center justify-between text-[9px] font-mono">
-                                  <span>Voice Note</span>
+                                <div className="flex items-center justify-between text-[10px] text-[#8696a0] font-mono">
                                   <span>0:0{msg.audioDuration || 4}</span>
+                                  <Mic size={11} className="text-[#00a884]" />
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Message Text */}
-                          <p className="whitespace-pre-wrap">{msg.text}</p>
+                          <p className="whitespace-pre-wrap select-text pr-8">{msg.text}</p>
 
-                          {/* Timestamp & Read Receipt */}
-                          <div className={`flex items-center justify-end gap-1 mt-1 text-[8px] ${isMe ? 'text-black/60' : 'text-slate-500'}`}>
+                          {/* Timestamp & Double Blue Checkmark */}
+                          <div className="flex items-center justify-end gap-1 mt-0.5 -mb-1 text-[10px] text-[#8696a0] select-none">
                             <span>
                               {(() => {
                                 if (!msg.timestamp) return '';
@@ -1365,18 +1737,59 @@ export default function ChatView({
                                 }
                               })()}
                             </span>
-                            {isMe && <CheckCheck size={10} className="text-current" />}
+                            {isMe && (
+                              <CheckCheck size={14} className="text-[#53bdeb]" />
+                            )}
                           </div>
+                        </div>
+
+                        {/* WhatsApp Message Hover Actions Bar */}
+                        <div className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-1 ${
+                          isMe ? 'justify-end' : 'justify-start'
+                        }`}>
+                          <button
+                            onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)}
+                            className="p-1 text-[#8696a0] hover:text-[#ffe082] bg-[#202c33] rounded-full shadow cursor-pointer"
+                            title="React with emoji"
+                          >
+                            <Smile size={13} />
+                          </button>
+
+                          <button
+                            onClick={() => setReplyingTo(msg)}
+                            className="p-1 text-[#8696a0] hover:text-[#00a884] bg-[#202c33] rounded-full shadow cursor-pointer"
+                            title="Reply"
+                          >
+                            <CornerUpLeft size={13} />
+                          </button>
+
+                          <button
+                            onClick={() => handleTogglePinMessage(msg)}
+                            className="p-1 text-[#8696a0] hover:text-[#ffe082] bg-[#202c33] rounded-full shadow cursor-pointer"
+                            title="Pin message"
+                          >
+                            <Pin size={13} />
+                          </button>
+
+                          {isMe && (
+                            <button
+                              onClick={(e) => handleDeleteMessage(msg, e)}
+                              className="p-1 text-[#8696a0] hover:text-red-400 bg-[#202c33] rounded-full shadow cursor-pointer"
+                              title="Delete message"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
 
                         {/* Floating Emoji Picker Popover */}
                         <AnimatePresence>
                           {showEmojiPickerFor === msg.id && (
                             <motion.div
-                              initial={{ opacity: 0, scale: 0.8 }}
+                              initial={{ opacity: 0, scale: 0.85 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              className="flex items-center gap-1 p-1 bg-slate-900 border border-white/20 rounded-full shadow-2xl z-30"
+                              exit={{ opacity: 0, scale: 0.85 }}
+                              className="flex items-center gap-1 p-1 bg-[#202c33] border border-[#222e35] rounded-full shadow-2xl z-30"
                             >
                               {availableEmojis.map(emoji => (
                                 <button
@@ -1391,21 +1804,21 @@ export default function ChatView({
                           )}
                         </AnimatePresence>
 
-                        {/* Active Reactions Pills */}
+                        {/* WhatsApp Reaction Capsules */}
                         {hasReactions && (
                           <div className={`flex flex-wrap gap-1 pt-0.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             {Object.entries(msg.reactions!).map(([emoji, uids]) => (
                               <button
                                 key={emoji}
                                 onClick={() => handleToggleReaction(msg, emoji)}
-                                className={`px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 border transition-all cursor-pointer ${
+                                className={`px-2 py-0.5 rounded-full text-[11px] flex items-center gap-1 border transition-all cursor-pointer shadow-sm ${
                                   uids.includes(myUser.uid)
-                                    ? 'bg-amber-400/20 border-amber-400 text-amber-300'
-                                    : 'bg-black/40 border-white/10 text-slate-300'
+                                    ? 'bg-[#005c4b] border-[#00a884] text-[#e9edef]'
+                                    : 'bg-[#202c33] border-[#222e35] text-[#d1d7db]'
                                 }`}
                               >
                                 <span>{emoji}</span>
-                                <span className="font-bold text-[9px] font-mono">{uids.length}</span>
+                                <span className="font-bold text-[10px] font-mono">{uids.length}</span>
                               </button>
                             ))}
                           </div>
@@ -1418,19 +1831,19 @@ export default function ChatView({
 
               {/* Typing Indicator */}
               {isTyping && (
-                <div className="flex items-center gap-2 text-slate-400 text-xs italic px-3 py-1">
+                <div className="flex items-center gap-2 text-[#00a884] text-xs italic px-3 py-1">
                   <div className="flex gap-1">
-                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" />
-                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    <div className="w-1.5 h-1.5 bg-[#00a884] rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-[#00a884] rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <div className="w-1.5 h-1.5 bg-[#00a884] rounded-full animate-bounce [animation-delay:0.4s]" />
                   </div>
-                  <span>Sister Yasmin is reflecting...</span>
+                  <span>Sister Yasmin is typing...</span>
                 </div>
               )}
             </div>
 
-            {/* Input Form & Rich Toolbar */}
-            <div className="p-3 md:p-5 bg-slate-950/80 border-t border-white/10 space-y-2 shrink-0">
+            {/* WhatsApp Chat Input Bar */}
+            <div className="p-2.5 sm:p-3 bg-[#202c33] border-t border-[#222e35] space-y-2 shrink-0">
               {/* Replying Banner */}
               <AnimatePresence>
                 {replyingTo && (
@@ -1438,31 +1851,31 @@ export default function ChatView({
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-2.5 bg-slate-900 border border-amber-400/30 rounded-2xl flex items-center justify-between text-xs"
+                    className="p-2 bg-[#111b21] border-l-4 border-[#00a884] rounded-lg flex items-center justify-between text-xs"
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <CornerUpLeft size={14} className="text-amber-400 shrink-0" />
-                      <span className="text-slate-300 truncate">
-                        Replying to <strong className="text-amber-400">{replyingTo.senderName}</strong>: "{replyingTo.text}"
+                    <div className="flex items-center gap-2 truncate text-[#d1d7db]">
+                      <CornerUpLeft size={13} className="text-[#00a884] shrink-0" />
+                      <span className="truncate">
+                        Replying to <strong className="text-[#00a884]">{replyingTo.senderName}</strong>: "{replyingTo.text}"
                       </span>
                     </div>
-                    <button onClick={() => setReplyingTo(null)} className="text-slate-400 hover:text-white p-1">
-                      <X size={14} />
+                    <button onClick={() => setReplyingTo(null)} className="text-[#8696a0] hover:text-white p-1">
+                      <X size={13} />
                     </button>
                   </motion.div>
                 )}
 
                 {attachment && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="relative w-20 h-20 rounded-2xl overflow-hidden border border-amber-400 shadow-xl"
+                    exit={{ opacity: 0, y: 8 }}
+                    className="relative w-18 h-18 rounded-xl overflow-hidden border-2 border-[#00a884] shadow-lg"
                   >
                     <img src={attachment} alt="" className="w-full h-full object-cover" />
                     <button
                       onClick={() => setAttachment(null)}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg"
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow"
                     >
                       <X size={10} />
                     </button>
@@ -1470,84 +1883,90 @@ export default function ChatView({
                 )}
               </AnimatePresence>
 
-              {/* Rich Attachment Drawer Menu */}
+              {/* WhatsApp Rich Attachment Popup Drawer */}
               <AnimatePresence>
                 {showAttachmentMenu && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="p-3 bg-slate-900 border border-white/10 rounded-2xl grid grid-cols-3 gap-2 text-xs"
+                    className="p-3 bg-[#202c33] border border-[#222e35] rounded-2xl grid grid-cols-3 gap-2.5 text-xs shadow-2xl"
                   >
                     <button
                       onClick={() => handleShareDuaCard('Rabbana atina fid-dunya hasanatan wa fil-akhirati hasanatan wa qina adhaban-nar.', 'Dua for Goodness in Both Worlds')}
-                      className="p-2.5 rounded-xl bg-white/5 hover:bg-amber-400/20 text-slate-300 hover:text-amber-300 border border-white/5 flex flex-col items-center gap-1 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] border border-[#222e35] flex flex-col items-center gap-1.5 cursor-pointer transition-all"
                     >
-                      <Sparkles size={16} className="text-amber-400" />
-                      <span className="text-[10px] font-bold">Share Dua Card</span>
+                      <div className="w-9 h-9 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center">
+                        <Sparkles size={18} />
+                      </div>
+                      <span className="text-[11px] font-semibold">Share Dua</span>
                     </button>
 
                     <button
                       onClick={handleShareMarketItem}
-                      className="p-2.5 rounded-xl bg-white/5 hover:bg-emerald-400/20 text-slate-300 hover:text-emerald-300 border border-white/5 flex flex-col items-center gap-1 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] border border-[#222e35] flex flex-col items-center gap-1.5 cursor-pointer transition-all"
                     >
-                      <Briefcase size={16} className="text-emerald-400" />
-                      <span className="text-[10px] font-bold">Suq Trade Card</span>
+                      <div className="w-9 h-9 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center">
+                        <Briefcase size={18} />
+                      </div>
+                      <span className="text-[11px] font-semibold">Trade Card</span>
                     </button>
 
                     <button
                       onClick={() => handleSendMessage(undefined, { text: '🕌 [Masjid Check-In] Performing Salah at the local congregation. Duas requested for the Ummah!' })}
-                      className="p-2.5 rounded-xl bg-white/5 hover:bg-teal-400/20 text-slate-300 hover:text-teal-300 border border-white/5 flex flex-col items-center gap-1 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] border border-[#222e35] flex flex-col items-center gap-1.5 cursor-pointer transition-all"
                     >
-                      <MapPin size={16} className="text-teal-400" />
-                      <span className="text-[10px] font-bold">Masjid Check-in</span>
+                      <div className="w-9 h-9 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center">
+                        <MapPin size={18} />
+                      </div>
+                      <span className="text-[11px] font-semibold">Check-In</span>
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Input Row */}
+              {/* WhatsApp Input Controls Row */}
               <div className="flex items-center gap-2">
-                {/* Voice Note Recording Indicator Mode */}
+                {/* Voice Note Recording Indicator */}
                 {isRecordingAudio ? (
-                  <div className="flex-1 flex items-center justify-between p-3 bg-red-500/20 border border-red-500/40 rounded-2xl">
+                  <div className="flex-1 flex items-center justify-between p-2.5 bg-[#111b21] border border-red-500/40 rounded-full px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
-                      <span className="text-xs font-bold text-red-300 font-mono">
-                        Recording Voice Note... 0:0{recordingSeconds}
+                      <span className="text-xs font-bold text-red-400 font-mono">
+                        Recording audio... 0:0{recordingSeconds}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleCancelAudioRecording}
-                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-bold cursor-pointer"
+                        className="px-3 py-1 rounded-full text-xs font-semibold text-[#8696a0] hover:text-white cursor-pointer"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleStopAudioRecording}
-                        className="px-4 py-1.5 rounded-xl bg-red-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                        className="px-3.5 py-1 rounded-full bg-[#00a884] text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow"
                       >
-                        <Send size={12} /> Send Voice
+                        <Send size={12} /> Send
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    {/* Attachment Drawer Trigger */}
+                    {/* Attachment Clip Button */}
                     <button
                       type="button"
                       onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                      className="w-11 h-11 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-amber-400 transition-all cursor-pointer shrink-0"
-                      title="Share Duas & Trade items"
+                      className="p-2 text-[#8696a0] hover:text-[#00a884] hover:bg-[#111b21] rounded-full transition-all cursor-pointer shrink-0"
+                      title="Attach items"
                     >
-                      <Paperclip size={18} />
+                      <Paperclip size={20} />
                     </button>
 
                     {/* Image Attachment Button */}
-                    <label className="w-11 h-11 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-amber-400 transition-all cursor-pointer shrink-0">
-                      <ImageIcon size={18} />
+                    <label className="p-2 text-[#8696a0] hover:text-[#00a884] hover:bg-[#111b21] rounded-full transition-all cursor-pointer shrink-0">
+                      <ImageIcon size={20} />
                       <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                     </label>
 
@@ -1555,41 +1974,44 @@ export default function ChatView({
                     <button
                       type="button"
                       onClick={toggleListening}
-                      className={`w-11 h-11 rounded-2xl border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                      className={`p-2 rounded-full transition-all cursor-pointer shrink-0 ${
                         isListening
-                          ? 'bg-amber-400 text-black border-amber-400 animate-pulse'
-                          : 'bg-white/5 text-slate-400 border-white/10 hover:text-amber-400'
+                          ? 'bg-[#00a884] text-white animate-pulse'
+                          : 'text-[#8696a0] hover:text-[#00a884] hover:bg-[#111b21]'
                       }`}
-                      title="Dictate message"
+                      title="Speech to text"
                     >
-                      <Mic size={18} />
+                      <Mic size={20} />
                     </button>
 
-                    {/* Text Input Box */}
+                    {/* WhatsApp Pill Input Box */}
                     <form onSubmit={handleSendMessage} className="flex-1 flex items-center gap-2">
-                      <input
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Type a message or reflection..."
-                        className="w-full bg-black/60 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/50 transition-all placeholder:text-slate-500"
-                      />
+                      <div className="flex-1 flex items-center bg-[#2a3942] rounded-full px-4 py-2 text-xs">
+                        <input
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder="Type a message"
+                          className="w-full bg-transparent text-xs text-[#e9edef] outline-none placeholder:text-[#8696a0]"
+                        />
+                      </div>
 
-                      {/* Send Button or Voice Note Record */}
+                      {/* WhatsApp Floating Circular Action Button (Send / Mic) */}
                       {newMessage.trim() || attachment ? (
                         <button
                           type="submit"
-                          className="w-11 h-11 rounded-2xl bg-amber-400 hover:bg-amber-300 text-black flex items-center justify-center transition-all shadow-xl shadow-amber-400/20 cursor-pointer shrink-0 font-bold"
+                          className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#009373] text-white flex items-center justify-center transition-all shadow-lg cursor-pointer shrink-0"
+                          title="Send message"
                         >
-                          <Send size={16} />
+                          <Send size={16} className="ml-0.5" />
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={handleStartAudioRecording}
-                          className="w-11 h-11 rounded-2xl bg-amber-400/20 hover:bg-amber-400 text-amber-400 hover:text-black border border-amber-400/30 flex items-center justify-center transition-all cursor-pointer shrink-0"
-                          title="Record audio note"
+                          className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#009373] text-white flex items-center justify-center transition-all shadow-lg cursor-pointer shrink-0"
+                          title="Hold to record voice note"
                         >
-                          <Volume2 size={18} />
+                          <Mic size={18} />
                         </button>
                       )}
                     </form>
@@ -1599,14 +2021,14 @@ export default function ChatView({
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-10 space-y-4">
-            <div className="w-16 h-16 rounded-3xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400 shadow-xl">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-10 space-y-4 bg-[#0b141a]">
+            <div className="w-16 h-16 rounded-full bg-[#202c33] border border-[#222e35] flex items-center justify-center text-[#00a884] shadow-xl">
               <MessageCircle size={32} />
             </div>
             <div>
-              <h3 className="text-lg font-black text-white uppercase italic tracking-wider">Sanctuary Circle Standby</h3>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1">
-                Select a brother, sister, or circle to share reflections, exchange commerce, or ask guidance.
+              <h3 className="text-base font-bold text-[#e9edef]">WhatsApp for Sanctuary Ummah</h3>
+              <p className="text-xs text-[#8696a0] max-w-xs mx-auto mt-1">
+                Select a chat from the sidebar to send messages, voice notes, Duas, and trade cards.
               </p>
             </div>
           </div>
@@ -1695,51 +2117,51 @@ export default function ChatView({
       {/* 4. Create Group / Channel Modal */}
       <AnimatePresence>
         {showCreateGroup && (
-          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm bg-slate-950 border border-amber-500/30 rounded-[2.5rem] p-6 space-y-5 shadow-2xl"
+              className="w-full max-w-sm bg-[#111b21] border border-[#222e35] rounded-3xl p-6 space-y-5 shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-base font-black text-white">Create New Channel</h3>
-                <button onClick={() => setShowCreateGroup(false)} className="text-slate-400 hover:text-white">
+              <div className="flex items-center justify-between border-b border-[#222e35] pb-3">
+                <h3 className="text-base font-bold text-[#e9edef]">New Group / Community Chat</h3>
+                <button onClick={() => setShowCreateGroup(false)} className="text-[#8696a0] hover:text-white cursor-pointer">
                   <X size={18} />
                 </button>
               </div>
 
               <form onSubmit={handleCreateGroup} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Channel Name</label>
+                  <label className="text-[11px] font-semibold text-[#8696a0] uppercase tracking-wider">Group Name</label>
                   <input
                     required
                     type="text"
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="e.g. Daily Fiqh Circle, Trade Discussion..."
-                    className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-400/50"
+                    placeholder="e.g. Daily Fiqh Circle, Quran Study..."
+                    className="w-full bg-[#202c33] border border-[#222e35] rounded-xl p-3 text-xs text-[#e9edef] outline-none focus:border-[#00a884]"
                   />
                 </div>
 
-                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#202c33] border border-[#222e35] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isGroupBusiness}
                     onChange={(e) => setIsGroupBusiness(e.target.checked)}
-                    className="rounded accent-amber-400"
+                    className="rounded accent-[#00a884]"
                   />
                   <div className="text-left">
-                    <p className="text-xs font-black text-white">💼 Business & Trade Channel</p>
-                    <p className="text-[9px] text-slate-400">Preserves all receipts & discussions permanently (exempt from 48h disappearing rule).</p>
+                    <p className="text-xs font-semibold text-[#e9edef]">💼 Business & Trade Channel</p>
+                    <p className="text-[10px] text-[#8696a0]">Preserves all receipts & transactions permanently (exempt from 48h disappearing rule).</p>
                   </div>
                 </label>
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-wider rounded-xl hover:bg-amber-300 transition-all cursor-pointer shadow-lg"
+                  className="w-full py-3 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-lg"
                 >
-                  Open Channel
+                  Create WhatsApp Group
                 </button>
               </form>
             </motion.div>

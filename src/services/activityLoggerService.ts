@@ -18,7 +18,8 @@ export type ActivityType =
   | 'dhikr' 
   | 'admin' 
   | 'prayer'
-  | 'broadcast';
+  | 'broadcast'
+  | 'product';
 
 export interface ActivityLogItem {
   id: string;
@@ -31,6 +32,8 @@ export interface ActivityLogItem {
   amount?: number;
   badge?: string;
   rewardTitle?: string;
+  targetId?: string;
+  targetName?: string;
   timestamp: string;
   createdAt?: any;
   isSimulated?: boolean;
@@ -52,6 +55,8 @@ export class ActivityLoggerService {
     amount?: number;
     badge?: string;
     rewardTitle?: string;
+    targetId?: string;
+    targetName?: string;
   }): Promise<void> {
     const timestampStr = new Date().toISOString();
     const currentUser = auth?.currentUser;
@@ -66,6 +71,8 @@ export class ActivityLoggerService {
       amount: data.amount,
       badge: data.badge,
       rewardTitle: data.rewardTitle,
+      targetId: data.targetId,
+      targetName: data.targetName,
       timestamp: timestampStr
     };
 
@@ -74,11 +81,11 @@ export class ActivityLoggerService {
       detail: { ...logEntry, id: `local_${Date.now()}` }
     }));
 
-    // 2. Save to localStorage cache (keep last 50)
+    // 2. Save to localStorage cache (keep last 100)
     try {
       const existingRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
       const existing: ActivityLogItem[] = existingRaw ? JSON.parse(existingRaw) : [];
-      const updated = [{ ...logEntry, id: `cache_${Date.now()}` }, ...existing.slice(0, 49)];
+      const updated = [{ ...logEntry, id: `cache_${Date.now()}` }, ...existing.slice(0, 99)];
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {
       console.warn("Local storage activity cache error:", e);
@@ -96,6 +103,78 @@ export class ActivityLoggerService {
     } catch (err) {
       console.warn("Firestore activity logging notice (fallback active):", err);
     }
+  }
+
+  /**
+   * Specific helper: Admin Action Log
+   */
+  static async logAdminAction(details: {
+    title: string;
+    message: string;
+    badge?: string;
+    adminName?: string;
+    adminEmail?: string;
+    targetId?: string;
+    targetName?: string;
+  }): Promise<void> {
+    const currentUser = auth?.currentUser;
+    await this.logActivity({
+      type: 'admin',
+      title: details.title,
+      message: details.message,
+      userName: details.adminName || currentUser?.displayName || 'Administrator',
+      userEmail: details.adminEmail || currentUser?.email || 'admin@sanctuary.app',
+      badge: details.badge || 'ADMIN ACTION',
+      targetId: details.targetId,
+      targetName: details.targetName
+    });
+  }
+
+  /**
+   * Specific helper: Admin User Deletion
+   */
+  static async logUserDeletion(user: { uid: string; displayName?: string; email?: string }, adminName?: string): Promise<void> {
+    const name = user.displayName || 'User';
+    await this.logAdminAction({
+      title: 'User Account Deleted 🗑️',
+      message: `Admin deleted user profile: "${name}" (UID: ${user.uid}${user.email ? `, Email: ${user.email}` : ''})`,
+      badge: 'USER DELETED',
+      adminName: adminName || 'Admin',
+      targetId: user.uid,
+      targetName: name
+    });
+  }
+
+  /**
+   * Specific helper: Admin Product Edit
+   */
+  static async logProductEdit(product: { id: string; title: string; price?: number; coinPrice?: number; category?: string }, adminName?: string): Promise<void> {
+    const priceText = product.price !== undefined ? `$${product.price}` : '';
+    const coinsText = product.coinPrice !== undefined ? `${product.coinPrice.toLocaleString()} Coins` : '';
+    const costSnippet = [priceText, coinsText].filter(Boolean).join(' / ');
+
+    await this.logAdminAction({
+      title: 'Product Edited ✏️',
+      message: `Admin updated marketplace item: "${product.title}" (${product.category || 'Product'}${costSnippet ? ` • ${costSnippet}` : ''})`,
+      badge: 'PRODUCT EDIT',
+      adminName: adminName || 'Admin',
+      targetId: product.id,
+      targetName: product.title
+    });
+  }
+
+  /**
+   * Specific helper: Admin Product Deletion
+   */
+  static async logProductDeletion(product: { id: string; title: string; sellerName?: string }, adminName?: string): Promise<void> {
+    await this.logAdminAction({
+      title: 'Product Deleted 🗑️',
+      message: `Admin permanently removed item: "${product.title}" from Suq Al-Mubaraki${product.sellerName ? ` (Seller: ${product.sellerName})` : ''}`,
+      badge: 'PRODUCT DELETED',
+      adminName: adminName || 'Admin',
+      targetId: product.id,
+      targetName: product.title
+    });
   }
 
   /**

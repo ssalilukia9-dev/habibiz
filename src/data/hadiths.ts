@@ -447,7 +447,7 @@ export const HADITH_DATABASE: HadithEntry[] = [
   })
 ];
 
-export const getDailyHadith = () => {
-  const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+export const getDailyHadith = (date: Date = new Date()) => {
+  const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
   return HADITH_DATABASE[dayOfYear % HADITH_DATABASE.length];
 };

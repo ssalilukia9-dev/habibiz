@@ -20,13 +20,25 @@ import {
   Radio,
   Clock,
   Sparkle,
-  Check
+  Check,
+  Search,
+  X,
+  Filter
 } from 'lucide-react';
 import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData';
 import { NAMES_OF_ALLAH_AUDIO_MAP, getNameOfAllahAudioUrl } from '../data/namesOfAllahAudio';
 import { YoutubeNamesService, YoutubeNamesState, YOUTUBE_NAMES_VIDEO_ID } from '../services/youtubeNamesService';
 
 export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: string }) {
+  const [searchTerm, setSearchTerm] = useState(searchQuery);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'learned' | 'unlearned' | 'part1' | 'part2' | 'part3'>('all');
+
+  useEffect(() => {
+    if (searchQuery) {
+      setSearchTerm(searchQuery);
+    }
+  }, [searchQuery]);
+
   const [ytState, setYtState] = useState<YoutubeNamesState>(YoutubeNamesService.getState());
   const [speed, setSpeed] = useState<number>(1.0);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -177,14 +189,26 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const query = searchQuery.toLowerCase().trim();
-  const filteredNames = ALL_NAMES_OF_ALLAH.filter(n => 
-    n.transliteration.toLowerCase().includes(query) ||
-    n.english.toLowerCase().includes(query) ||
-    n.meaning.toLowerCase().includes(query) ||
-    n.arabic.includes(searchQuery.trim()) ||
-    n.id.toString() === query
-  );
+  const query = searchTerm.toLowerCase().trim();
+  const filteredNames = ALL_NAMES_OF_ALLAH.filter(n => {
+    // 1. Check Search Term
+    const matchesSearch = !query || (
+      n.transliteration.toLowerCase().includes(query) ||
+      n.english.toLowerCase().includes(query) ||
+      n.meaning.toLowerCase().includes(query) ||
+      n.arabic.includes(searchTerm.trim()) ||
+      n.id.toString() === query
+    );
+    if (!matchesSearch) return false;
+
+    // 2. Check Active Category Filter
+    if (activeFilter === 'learned') return !!learnedMap[n.id];
+    if (activeFilter === 'unlearned') return !learnedMap[n.id];
+    if (activeFilter === 'part1') return n.id >= 1 && n.id <= 33;
+    if (activeFilter === 'part2') return n.id >= 34 && n.id <= 66;
+    if (activeFilter === 'part3') return n.id >= 67 && n.id <= 99;
+    return true;
+  });
 
   const learnedCount = Object.values(learnedMap).filter(Boolean).length;
   const progressPercent = Math.round((learnedCount / 99) * 100);
@@ -439,7 +463,88 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
         </div>
       </div>
 
+      {/* SEARCH BAR & QUICK FILTERS FOR 99 NAMES */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Input Box */}
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+              <Search size={18} className="text-amber-400" />
+            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by Name (e.g. Ar-Rahman, The Merciful), Arabic (الرحمن), or #ID (e.g. 1)..."
+              className="w-full bg-slate-900/90 border border-white/10 hover:border-amber-400/40 focus:border-amber-400 rounded-2xl py-3.5 pl-11 pr-10 text-xs sm:text-sm text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Results Counter Badge */}
+          <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+            <span className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 font-bold">
+              Showing <strong className="text-amber-300 font-mono">{filteredNames.length}</strong> of 99 Names
+            </span>
+          </div>
+        </div>
+
+        {/* Category Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+          {[
+            { id: 'all', label: 'All 99 Names' },
+            { id: 'learned', label: `Memorized (${learnedCount})` },
+            { id: 'unlearned', label: `To Learn (${99 - learnedCount})` },
+            { id: 'part1', label: 'Part 1 (1–33)' },
+            { id: 'part2', label: 'Part 2 (34–66)' },
+            { id: 'part3', label: 'Part 3 (67–99)' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveFilter(tab.id as any)}
+              className={`px-3.5 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                activeFilter === tab.id
+                  ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/20 font-black'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:border-white/20'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 99 NAMES GRID WITH DUAL AUDIO BEHAVIOR & REAL-TIME SPEED SYNC */}
+      {filteredNames.length === 0 ? (
+        <div className="p-12 text-center rounded-[2.5rem] bg-slate-900/60 border border-white/10 space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+            <Search size={24} />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-white">No Divine Names match "{searchTerm}"</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+              Try searching by transliteration (e.g. Al-Malik), Arabic (الملك), English meaning (The King), or number (#3).
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setActiveFilter('all');
+            }}
+            className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+          >
+            Reset Search & Filters
+          </button>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredNames.map((n) => {
           const isLearned = !!learnedMap[n.id];
@@ -595,11 +700,6 @@ export default function NamesOfAllahView({ searchQuery = '' }: { searchQuery: st
           );
         })}
       </div>
-
-      {filteredNames.length === 0 && (
-        <div className="text-center py-16 space-y-3">
-          <p className="text-slate-400 text-sm">No Names of Allah found matching "{searchQuery}".</p>
-        </div>
       )}
     </div>
   );

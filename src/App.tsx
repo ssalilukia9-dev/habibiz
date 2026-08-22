@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
@@ -57,6 +57,7 @@ import {
   increment
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/utils.ts';
+import UniversalShareModal from './components/UniversalShareModal.tsx';
 
 // Components
 import HomeView from './components/HomeView.tsx';
@@ -91,7 +92,11 @@ import TahajjudAlarmModal from './components/TahajjudAlarmModal.tsx';
 import UniversalSearchModal from './components/UniversalSearchModal.tsx';
 import { TahajjudAlarmService } from './services/tahajjudAlarmService.ts';
 import GlobalQuranPlayerBar from './components/GlobalQuranPlayerBar.tsx';
+import BabyNamesView from './components/BabyNamesView.tsx';
 import ThemeCustomizerView from './components/ThemeCustomizerView.tsx';
+import KhatamJourneyView from './components/KhatamJourneyView.tsx';
+import AliyahMemoriseView from './components/AliyahMemoriseView.tsx';
+import GlobalNavigationControls from './components/GlobalNavigationControls.tsx';
 import { ThemeService } from './services/themeService.ts';
 import kaabaDuaThemeBg from './assets/images/kaaba_dua_theme_bg_1786900551467.jpg';
 
@@ -2098,6 +2103,13 @@ export default function App() {
                     <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
+                    <Route path="/babynames" element={<BabyNamesView onBack={() => navigate('/resources')} addHasanat={addHasanat} />} />
+                    <Route path="/baby-names" element={<BabyNamesView onBack={() => navigate('/resources')} addHasanat={addHasanat} />} />
+                    <Route path="/khatam" element={<KhatamJourneyView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} onOpenAdmin={() => navigate('/admin')} />} />
+                    <Route path="/memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/aliyah" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/aliyah-memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/hifz" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
                     <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
                     <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium || isTrialActive} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
@@ -2258,6 +2270,10 @@ export default function App() {
         isInSurahView={activeTab === 'resources' && !!selectedSurah}
         currentViewingSurahNumber={selectedSurah?.number || null}
       />
+
+      <GlobalNavigationControls />
+
+      <UniversalShareModal />
 
       {/* Mobile Floating Bottom Navigation Dock (Optimized for all phone screen sizes) */}
       <nav 

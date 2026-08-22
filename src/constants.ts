@@ -124,7 +124,7 @@ export const JUZ_LIST: Juz[] = FULL_JUZ_LIST;
 export const NAVIGATION_TABS = [
   { id: 'home', label: 'Home', icon: 'Home' },
   { id: 'resources', label: 'Resources', icon: 'BookOpen' },
-  { id: 'chat', label: 'Chat', icon: 'MessageCircle' },
+  { id: 'chat', label: 'Habibi Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
   { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
   { id: 'premium', label: 'Premium', icon: 'Sparkles' }

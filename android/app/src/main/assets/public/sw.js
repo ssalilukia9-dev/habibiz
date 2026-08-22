@@ -137,6 +137,74 @@ self.addEventListener('message', (event) => {
       showAdhanNotification(prayerName, prayerTime, adhanVoice);
     }, delayMs);
   }
+
+  if (data.type === 'SCHEDULE_TAHAJJUD_NOTIFICATIONS') {
+    const schedule = data.schedule || [];
+    schedule.forEach((item) => {
+      const delayMs = new Date(item.time).getTime() - Date.now();
+      if (delayMs > 0 && delayMs < 24 * 60 * 60 * 1000) {
+        setTimeout(() => {
+          self.registration.showNotification(item.title || '🌌 Tahajjud & Qiyam Al-Layl', {
+            body: item.body || 'The Lord descends to the lowest heaven in the last third of the night. Stand in Qiyam.',
+            icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=8B5CF6',
+            badge: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=8B5CF6',
+            vibrate: [500, 150, 500, 150, 450, 150],
+            requireInteraction: true,
+            renotify: true,
+            tag: `tahajjud-${Date.now()}`,
+            data: { actionUrl: item.actionUrl || '/resources?tab=adhkar' },
+            actions: [
+              { action: 'open_tahajjud', title: '🤲 Read Tahajjud Duas' },
+              { action: 'open_quran', title: '📖 Quran Recitation' }
+            ]
+          });
+        }, delayMs);
+      }
+    });
+  }
+
+  if (data.type === 'SCHEDULE_WHITEDAYS_NOTIFICATIONS') {
+    const schedule = data.schedule || [];
+    schedule.forEach((item) => {
+      const delayMs = new Date(item.time).getTime() - Date.now();
+      if (delayMs > 0 && delayMs < 72 * 60 * 60 * 1000) { // Within 72 hours
+        setTimeout(() => {
+          self.registration.showNotification(item.title || '🌙 White Days Sunnah Fast', {
+            body: item.body || 'Reminder for Ayyam al-Beed Sunnah Fasting (13th, 14th, 15th of the lunar month).',
+            icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=F59E0B',
+            badge: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=F59E0B',
+            vibrate: [400, 100, 400, 100],
+            requireInteraction: true,
+            renotify: true,
+            tag: `whitedays-${Date.now()}`,
+            data: { actionUrl: item.actionUrl || '/resources?tab=calendar' },
+            actions: [
+              { action: 'open_fasting', title: '🌙 Set Fasting Intention' },
+              { action: 'open_calendar', title: '📅 Islamic Calendar' }
+            ]
+          });
+        }, delayMs);
+      }
+    });
+  }
+
+  if (data.type === 'TEST_CUSTOM_ALARM') {
+    const delayMs = data.delayMs || 3000;
+    const title = data.title || '🔔 Islamic Reminder Alarm';
+    const body = data.body || 'Habibi Islamic Sanctuary reminder.';
+    const tag = data.tag || `custom-${Date.now()}`;
+
+    setTimeout(() => {
+      self.registration.showNotification(title, {
+        body,
+        icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7',
+        badge: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=A855F7',
+        vibrate: [500, 150, 500, 150, 400, 100],
+        requireInteraction: true,
+        tag
+      });
+    }, delayMs);
+  }
 });
 
 // Push notification event for cloud-triggered Athans

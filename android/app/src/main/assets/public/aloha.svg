@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <rect width="600" height="600" fill="#F4EFE6"/>
+  <g transform="translate(60, 200)">
+    <g transform="translate(0, 0)">
+      <path d="M 100,50 C 130,25 180,25 210,40 C 175,55 130,55 100,50 Z" fill="#C08B57" />
+      <path d="M 75,70 C 115,40 170,40 205,65 C 165,75 115,75 75,70 Z" fill="#C08B57" opacity="0.9" />
+      <path d="M 20,85 C 65,60 125,70 175,100 C 120,110 65,95 20,85 Z" fill="#134B68" />
+      <path d="M 45,100 C 85,85 135,90 170,115 C 125,120 80,110 45,100 Z" fill="#134B68" />
+      <path d="M 15,115 C 65,110 115,130 160,145 C 110,150 55,140 15,115 Z" fill="#0C293D" />
+    </g>
+
+    <g transform="translate(225, 60)">
+      <text x="0" y="45" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="62" font-weight="900" fill="#0B2B3F" letter-spacing="3">ALOHA</text>
+      <text x="2" y="85" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="600" fill="#1A4A63" letter-spacing="1">Group of Companies</text>
+    </g>
+  </g>
+</svg>
