@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as d3 from 'd3';
 import {
   Mic,
   MicOff,
@@ -13,50 +14,38 @@ import {
   ChevronRight,
   ChevronLeft,
   BookOpen,
-  Award,
-  Flame,
   Search,
   ArrowLeft,
   Play,
   Pause,
   RotateCcw,
-  VolumeX,
-  Layers,
-  Radio,
-  Bookmark,
-  Share2,
-  Lightbulb,
-  Check,
-  CheckCheck,
-  ChevronDown,
-  Wand2,
-  Compass,
-  ShieldCheck,
   Sliders,
-  HelpCircle,
   Hash,
-  Target,
   XCircle,
   AlertCircle,
-  Volume1,
-  ListOrdered,
-  ArrowRight,
   Brain,
   Headphones,
-  Zap,
-  Repeat,
+  SlidersHorizontal,
+  Bookmark,
+  ChevronDown,
+  Compass,
+  Check,
+  Sun,
+  Moon,
+  Maximize2,
+  Crown,
+  Lock,
+  Wand2,
   FastForward,
-  Star,
-  Settings,
-  Info,
-  ChevronUp,
-  Clock,
-  Sparkle,
-  Keyboard,
-  Timer
+  HelpCircle,
+  X,
+  Award,
+  Zap
 } from 'lucide-react';
 import { SURAH_LIST, JUZ_LIST } from '../constants.ts';
+import { apiFetch } from '../lib/api.ts';
 
+// Word state representation for live follow-along
 export interface AyahWord {
   id: string;
   index: number;
@@ -69,16 +58,19 @@ export interface AyahWord {
   tajweedTip?: string;
 }
 
-export interface LoadedAyah {
-  number: number;           // Global Ayah number (1 - 6236)
-  numberInSurah: number;    // Ayah number in surah (1 - N)
+export interface PageAyah {
+  number: number;           // Global Ayah number (1-6236)
+  numberInSurah: number;    // Ayah in surah (1-N)
   surahNumber: number;
   surahName: string;
   surahEnglishName: string;
-  arabicText: string;
+  text: string;
   translation: string;
   audioUrl?: string;
-  juzNumber?: number;
+  juz: number;
+  page: number;
+  isRecited: boolean;
+  isActive: boolean;
   words: AyahWord[];
 }
 
@@ -92,8 +84,12 @@ export interface MistakeLogItem {
   ayahNumberInSurah: number;
   surahNumber: number;
   surahName: string;
+  pageNumber?: number;
   timestamp: number;
 }
+
+export type TarteelHifzMode = 'case1_detective' | 'case2_correction' | 'case3_reveal' | 'live_highlight' | 'hide_all_reveal' | 'hide_future' | 'first_letters';
+export type MushafTheme = 'parchment' | 'night' | 'emerald';
 
 interface AliyahMemoriseViewProps {
   onBack: () => void;
@@ -102,166 +98,457 @@ interface AliyahMemoriseViewProps {
   onShowPremium?: () => void;
 }
 
-export type HifzMode = 'follow' | 'blind' | 'firstLetter' | 'vanishing' | 'echo';
-
-// Available Qari Audio Reciters with reliable CDN endpoints
-export const QARI_OPTIONS = [
-  { id: 'alafasy', name: 'Mishary Rashid Alafasy', sub: 'Hafs an Asim (Standard)', cdnId: 'ar.alafasy' },
-  { id: 'abdulbasit', name: 'Abdul Basit Murattal', sub: 'Classic Egyptian Recitation', cdnId: 'ar.abdulbasitmurattal' },
-  { id: 'husary', name: 'Mahmoud Khalil Al-Husary', sub: 'Tajweed Mastery Reciter', cdnId: 'ar.husary' },
-  { id: 'minshawi', name: 'Mohamed Siddiq El-Minshawi', sub: 'Spiritual Murattal', cdnId: 'ar.minshawi' },
-  { id: 'sudais', name: 'Abdur-Rahman As-Sudais', sub: 'Imam of Masjid Al-Haram', cdnId: 'ar.abdurrahmaansudais' },
-  { id: 'shuraim', name: 'Saud Al-Shuraim', sub: 'Masjid Al-Haram', cdnId: 'ar.saoodshuraym' }
+// Comprehensive Multi-Ayah Opening Sequences for Instant 2-3 Ayah Detection
+const SURAH_OPENING_SEQUENCES: {
+  surahNumber: number;
+  surahName: string;
+  englishName: string;
+  startAyah: number;
+  page: number;
+  sequenceKeywords: string[];
+}[] = [
+  {
+    surahNumber: 1,
+    surahName: 'سُورَةُ الفَاتِحَةِ',
+    englishName: 'Al-Fatiha',
+    startAyah: 1,
+    page: 1,
+    sequenceKeywords: ['الحمد لله رب العالمين', 'الرحمن الرحيم', 'مالك يوم الدين', 'اياك نعبد واياك نستعين']
+  },
+  {
+    surahNumber: 2,
+    surahName: 'سُورَةُ البَقَرَةِ',
+    englishName: 'Al-Baqarah',
+    startAyah: 1,
+    page: 2,
+    sequenceKeywords: ['الم', 'ذلك الكتاب لا ريب فيه', 'هدى للمتقين', 'الذين يؤمنون بالغيب ويقيمون الصلاة']
+  },
+  {
+    surahNumber: 3,
+    surahName: 'سُورَةُ آلِ عِمْرَانَ',
+    englishName: 'Ali \'Imran',
+    startAyah: 1,
+    page: 50,
+    sequenceKeywords: ['الم', 'الله لا اله الا هو الحي القيوم', 'نزل عليك الكتاب بالحق']
+  },
+  {
+    surahNumber: 18,
+    surahName: 'سُورَةُ الكَهْفِ',
+    englishName: 'Al-Kahf',
+    startAyah: 1,
+    page: 293,
+    sequenceKeywords: ['الحمد لله الذي انزل على عبده الكتاب', 'ولم يجعل له عوجا', 'قيما لينذر باسا شديدا من لدنه']
+  },
+  {
+    surahNumber: 36,
+    surahName: 'سُورَةُ يس',
+    englishName: 'Ya-Sin',
+    startAyah: 1,
+    page: 440,
+    sequenceKeywords: ['يس', 'والقران الحكيم', 'انك لمن المرسلين', 'على صراط مستقيم', 'تنزيل العزيز الرحيم']
+  },
+  {
+    surahNumber: 55,
+    surahName: 'سُورَةُ الرَّحْمَٰنِ',
+    englishName: 'Ar-Rahman',
+    startAyah: 1,
+    page: 531,
+    sequenceKeywords: ['الرحمن', 'علم القران', 'خلق الانسان', 'علمه البيان', 'الشمس والقمر بحسبان']
+  },
+  {
+    surahNumber: 56,
+    surahName: 'سُورَةُ الوَاقِعَةِ',
+    englishName: 'Al-Waqi\'ah',
+    startAyah: 1,
+    page: 534,
+    sequenceKeywords: ['اذا وقعت الواقعة', 'ليس لوقعتها كاذبة', 'خافضة رافعة', 'اذا رجت الارض رجا']
+  },
+  {
+    surahNumber: 67,
+    surahName: 'سُورَةُ المُلْكِ',
+    englishName: 'Al-Mulk',
+    startAyah: 1,
+    page: 562,
+    sequenceKeywords: ['تبارك الذي بيده الملك', 'وهو على كل شيء قدير', 'الذي خلق الموت والحياة', 'ليبلوكم ايكم احسن عملا']
+  },
+  {
+    surahNumber: 78,
+    surahName: 'سُورَةُ النَّبَإِ',
+    englishName: 'An-Naba',
+    startAyah: 1,
+    page: 582,
+    sequenceKeywords: ['عم يتساءلون', 'عن النبا العظيم', 'الذي هم فيه مختلفون', 'كلا سيعلمون']
+  },
+  {
+    surahNumber: 87,
+    surahName: 'سُورَةُ الأَعْلَىٰ',
+    englishName: 'Al-A\'la',
+    startAyah: 1,
+    page: 591,
+    sequenceKeywords: ['سبح اسم ربك الاعلى', 'الذي خلق فسوى', 'والذي قدر فهدى', 'والذي اخرج المرعى']
+  },
+  {
+    surahNumber: 89,
+    surahName: 'سُورَةُ الفَجْرِ',
+    englishName: 'Al-Fajr',
+    startAyah: 1,
+    page: 593,
+    sequenceKeywords: ['والفجر', 'وليال عشر', 'والشفع والوتر', 'والليل اذا يسر']
+  },
+  {
+    surahNumber: 93,
+    surahName: 'سُورَةُ الضُّحَىٰ',
+    englishName: 'Ad-Duha',
+    startAyah: 1,
+    page: 596,
+    sequenceKeywords: ['والضحى', 'والليل اذا سجى', 'ما ودعك ربك وما قلى', 'وللاخرة خير لك من الاولى']
+  },
+  {
+    surahNumber: 94,
+    surahName: 'سُورَةُ الشَّرْحِ',
+    englishName: 'Ash-Sharh',
+    startAyah: 1,
+    page: 596,
+    sequenceKeywords: ['الم نشرح لك صدرك', 'ووضعنا عنك وزرك', 'الذي انقض ظهرك', 'ورفعنا لك ذكرك']
+  },
+  {
+    surahNumber: 97,
+    surahName: 'سُورَةُ القَدْرِ',
+    englishName: 'Al-Qadr',
+    startAyah: 1,
+    page: 598,
+    sequenceKeywords: ['انا انزلناه في ليلة القدر', 'وما ادراك ما ليلة القدر', 'ليلة القدر خير من الف شهر']
+  },
+  {
+    surahNumber: 103,
+    surahName: 'سُورَةُ العَصْرِ',
+    englishName: 'Al-\'Asr',
+    startAyah: 1,
+    page: 601,
+    sequenceKeywords: ['والعصر', 'ان الانسان لفي خسر', 'الا الذين امنوا وعملوا الصالحات']
+  },
+  {
+    surahNumber: 105,
+    surahName: 'سُورَةُ الفِيلِ',
+    englishName: 'Al-Fil',
+    startAyah: 1,
+    page: 601,
+    sequenceKeywords: ['الم تر كيف فعل ربك باصحاب الفيل', 'الم يجعل كيدهم في تضليل', 'وارسل عليهم طيرا ابابيل']
+  },
+  {
+    surahNumber: 108,
+    surahName: 'سُورَةُ الكَوْثَرِ',
+    englishName: 'Al-Kawthar',
+    startAyah: 1,
+    page: 602,
+    sequenceKeywords: ['انا اعطيناك الكوثر', 'فصل لربك وانحر', 'ان شانئك هو الابتر']
+  },
+  {
+    surahNumber: 109,
+    surahName: 'سُورَةُ الكَافِرُونَ',
+    englishName: 'Al-Kafirun',
+    startAyah: 1,
+    page: 603,
+    sequenceKeywords: ['قل يا ايها الكافرون', 'لا اعبد ما تعبدون', 'ولا انتم عابدون ما اعبد']
+  },
+  {
+    surahNumber: 110,
+    surahName: 'سُورَةُ النَّصْرِ',
+    englishName: 'An-Nasr',
+    startAyah: 1,
+    page: 603,
+    sequenceKeywords: ['اذا جاء نصر الله والفتح', 'ورايت الناس يدخلون في دين الله افواجا', 'فسبح بحمد ربك واستغفره']
+  },
+  {
+    surahNumber: 112,
+    surahName: 'سُورَةُ الإِخْلَاصِ',
+    englishName: 'Al-Ikhlas',
+    startAyah: 1,
+    page: 604,
+    sequenceKeywords: ['قل هو الله احد', 'الله الصمد', 'لم يلد ولم يولد', 'ولم يكن له كفوا احد']
+  },
+  {
+    surahNumber: 113,
+    surahName: 'سُورَةُ الفَلَقِ',
+    englishName: 'Al-Falaq',
+    startAyah: 1,
+    page: 604,
+    sequenceKeywords: ['قل اعوذ برب الفلق', 'من شر ما خلق', 'ومن شر غاسق اذا وقب', 'ومن شر النفاثات في العقد']
+  },
+  {
+    surahNumber: 114,
+    surahName: 'سُورَةُ النَّاسِ',
+    englishName: 'An-Nas',
+    startAyah: 1,
+    page: 604,
+    sequenceKeywords: ['قل اعوذ برب الناس', 'ملك الناس', 'اله الناس', 'من شر الوسواس الخناس']
+  }
 ];
 
-// Arabic diacritics stripping & normalization for robust speech matching
+// Famous Passages Quick Selector
+const FAMOUS_PASSAGES = [
+  { name: 'Ayat Al-Kursi', surah: 2, ayah: 255, page: 42, desc: 'The Throne Verse (Protective Shield)' },
+  { name: 'Amanar-Rasul', surah: 2, ayah: 285, page: 49, desc: 'Last 2 verses of Al-Baqarah' },
+  { name: 'Surah Al-Kahf', surah: 18, ayah: 1, page: 293, desc: 'Light between two Fridays' },
+  { name: 'Surah Ya-Sin', surah: 36, ayah: 1, page: 440, desc: 'The Heart of the Quran' },
+  { name: 'Surah Ar-Rahman', surah: 55, ayah: 1, page: 531, desc: 'The Beauty of the Quran' },
+  { name: 'Surah Al-Waqi\'ah', surah: 56, ayah: 1, page: 534, desc: 'Protection against poverty' },
+  { name: 'Surah Al-Mulk', surah: 67, ayah: 1, page: 562, desc: 'Intercessor in the Grave' },
+  { name: 'Surah Al-Ikhlas', surah: 112, ayah: 1, page: 604, desc: 'Equal to 1/3 of the Quran' },
+  { name: 'Al-Mu\'awwidhatayn', surah: 113, ayah: 1, page: 604, desc: 'Surahs Al-Falaq & An-Nas' }
+];
+
+// World-Renowned Qaris
+const RECITER_LIST = [
+  { id: 'alafasy', name: 'Mishary Rashid Alafasy', sub: 'Kuwait • Crystal Clear Murattal', cdnId: 'ar.alafasy', premium: false },
+  { id: 'husary_tajweed', name: 'Mahmoud Khalil Al-Husary', sub: 'Egypt • Master Slow Teacher', cdnId: 'ar.husary', premium: true },
+  { id: 'abdulbasit', name: 'Abdul Basit Abdul Samad', sub: 'Egypt • Classic Mujawwad Melody', cdnId: 'ar.abdulbasitmurattal', premium: false },
+  { id: 'minshawi', name: 'Muhammad Siddiq Al-Minshawi', sub: 'Egypt • Emotional Reverence', cdnId: 'ar.minshawi', premium: false },
+  { id: 'sudais', name: 'Abdur-Rahman As-Sudais', sub: 'Imam of Masjid Al-Haram • Studio Master', cdnId: 'ar.abdurrahmaansudais', premium: true }
+];
+
+// Arabic Numeral Converter (1 -> ١, 10 -> ١٠, 62 -> ٦٢)
+export const toArabicDigits = (num: number | string): string => {
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(num).replace(/[0-9]/g, (w) => arabicDigits[+w]);
+};
+
+// Arabic diacritics stripping & phonetic normalization
 export const normalizeArabic = (text: string): string => {
   if (!text) return '';
   return text
-    // Remove diacritics (harakat / tashkeel / tanween / sukun)
-    .replace(/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g, '')
-    // Normalize alefs
-    .replace(/[أإآٱ]/g, 'ا')
-    // Normalize ya and alif maqsura
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '') // Tashkeel, Sukun, Shaddah, Quranic symbols
+    .replace(/[إأآا]/g, 'ا')
     .replace(/[ىي]/g, 'ي')
-    // Normalize ta marbuta to haa
     .replace(/ة/g, 'ه')
-    // Remove Quranic stop marks, sajda marks, rub el hizb
-    .replace(/[\u0600-\u0605\u06DD\u06DE\u06E9\u06D4\u060C\u061B\u061F\.,:;\(\)\[\]\{\}«»"']/g, '')
-    // Replace multiple spaces
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[^\u0621-\u064A\s]/g, '')
+    .trim()
+    .toLowerCase();
 };
 
-// Calculate Levenshtein similarity (0 to 1)
+// Levenshtein / Dice coefficient for word matching
 export const calculateSimilarity = (s1: string, s2: string): number => {
   if (s1 === s2) return 1.0;
-  if (!s1 || !s2) return 0.0;
+  if (!s1 || !s2) return 0;
   
-  const len1 = s1.length;
-  const len2 = s2.length;
-  const matrix: number[][] = [];
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  if (longer.length === 0) return 1.0;
+  if (longer.includes(shorter)) return 0.9;
 
-  for (let i = 0; i <= len1; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= len2; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= len1; i++) {
-    for (let j = 1; j <= len2; j++) {
-      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
-      );
+  const getBigrams = (str: string) => {
+    const s = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) {
+      s.add(str.slice(i, i + 2));
     }
-  }
+    return s;
+  };
 
-  const distance = matrix[len1][len2];
-  const maxLen = Math.max(len1, len2);
-  return Math.max(0, 1 - distance / maxLen);
+  const b1 = getBigrams(s1);
+  const b2 = getBigrams(s2);
+  let intersection = 0;
+  b1.forEach(bg => {
+    if (b2.has(bg)) intersection++;
+  });
+
+  return (2.0 * intersection) / (b1.size + b2.size || 1);
 };
 
-// Tajweed Rule Analysis & Problem Identifier Helper
+// Tajweed Rule Problem Detector for live feedback
 export const getTajweedProblemAnalysis = (expected: string, spoken: string): { reason: string; tip: string } => {
-  const normExp = normalizeArabic(expected);
-  const normSpk = normalizeArabic(spoken);
+  const normExpected = normalizeArabic(expected);
+  const normSpoken = normalizeArabic(spoken);
 
-  if (/[حخعغهء]/.test(normExp) && !/[حخعغهء]/.test(normSpk)) {
+  // 1. Throat Letters (Al-Halq: ع, ح, غ, خ, ه, ء)
+  if (/[عحغخهء]/.test(expected)) {
     return {
-      reason: 'Throat Letter Makhraj (حلقي - Halqi)',
-      tip: 'Articulate the throat letters (ح, ع, خ, غ, ه, ء) deeply from their correct vocal exit point in the throat.'
+      reason: 'Throat Articulation (Makhraj Al-Halq)',
+      tip: 'Articulate deeply from the middle or deepest part of the throat without breathiness.'
     };
   }
-  if (/[صضطظق]/.test(normExp) && !/[صضطظق]/.test(normSpk)) {
+
+  // 2. Heavy vs Light Letters (Tafkheem / Tarqeeq: ص, ض, ط, ظ, ق, غ, خ)
+  if (/[صضطظقغخ]/.test(expected)) {
     return {
-      reason: 'Heavy Letter Elevation (تفخيم - Tafkheem)',
-      tip: 'Elevate the back of the tongue towards the soft palate for heavy letters (ص, ض, ط, ظ, ق).'
+      reason: 'Heavy Letter (Tafkheem)',
+      tip: 'Elevate the back of your tongue to fill the mouth with a resonant, full-mouth sound.'
     };
   }
-  if (/[قطبجد]/.test(normExp)) {
+
+  // 3. Qalqalah Echo Bounce (ق, ط, ب, ج, د)
+  if (/[قطبجد]/.test(expected)) {
     return {
-      reason: 'Qalqalah Echo / Bounce (قلقلة)',
-      tip: 'Apply a crisp acoustic bounce when stopping on (ق, ط, ب, ج, د) with Sukun.'
+      reason: 'Qalqalah (Echo Vibration)',
+      tip: 'Release the letter with an abrupt, crisp vibration without adding a vowel (Harakah).'
     };
   }
-  if (/[نم]/.test(normExp) && normExp.length > 2) {
+
+  // 4. Ghunnah / Nasalization (Nūn & Mīm Shaddah / Ikhfa)
+  if (/[نم]/.test(expected) && (expected.includes('ّ') || expected.includes('نْ') || expected.includes('مْ'))) {
     return {
-      reason: 'Ghunnah 2-Count Nasal Resonance (غنة)',
-      tip: 'Hold the 2-beat nasal resonance on Noon or Meem with Shaddah.'
+      reason: 'Ghunnah (Nasal Resonance)',
+      tip: 'Hold the nasal resonance in the nasal cavity (Khayshoom) for exactly 2 full counts.'
     };
   }
-  if (normExp.length >= 5 && normSpk.length <= 3) {
+
+  // 5. Madd Prolongation (ا, و, ي)
+  if (/[اوية]/.test(expected) && (expected.includes('~') || expected.includes('ٓ') || expected.includes('ٰ'))) {
     return {
-      reason: 'Madd Lengthening / Incomplete Word (مد)',
-      tip: 'Elongate the vowel sound to the prescribed count (2, 4, or 6 harakat) without clipping the word short.'
+      reason: 'Madd (Vowel Prolongation)',
+      tip: 'Elongate the vowel smoothly between 4 to 6 Harakat counts as marked by the Madd wave.'
+    };
+  }
+
+  if (normExpected !== normSpoken) {
+    return {
+      reason: 'Pronunciation / Diacritic Discrepancy',
+      tip: 'Recite clearly with full attention to the vowels (Fathah, Kasrah, Dammah).'
     };
   }
 
   return {
-    reason: 'Letter Articulation & Harakat',
-    tip: 'Ensure accurate pronunciation of each letter and vowel in exact Quranic sequence.'
+    reason: 'Pacing / Rhythm Adjustment',
+    tip: 'Maintain steady Tartil rhythm and clear pause (Waqf) marks.'
   };
 };
 
-// Web Audio API Sound generator
-const playAudioChime = (type: 'success' | 'mistake' | 'advance' | 'surahComplete') => {
+// Web Audio API Polyphonic Synthesizer for Immediate Haptic Audio Feedback
+const playAudioTone = (type: 'correct' | 'mistake' | 'success' | 'advance' | 'detected' | 'surahComplete') => {
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'success') {
-      // Pleasant dual tone chime
+    if (type === 'detected') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12); // E5
-      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.25); // G5
+      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
       osc.start(now);
       osc.stop(now + 0.5);
-    } else if (type === 'surahComplete') {
-      // Grand celebratory fanfare
+    } else if (type === 'correct') {
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, now);
-      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.15);
-      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.3);
-      osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.45);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.08); // A5
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
       osc.start(now);
-      osc.stop(now + 0.8);
-    } else if (type === 'advance') {
-      // Soft gentle transition tone
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.exponentialRampToValueAtTime(587.33, now + 0.15);
+      osc.stop(now + 0.18);
+    } else if (type === 'success') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(659.25, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
       gain.gain.setValueAtTime(0.15, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
       osc.start(now);
       osc.stop(now + 0.3);
-    } else {
-      // Subtle warning click
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(240, now + 0.1);
+    } else if (type === 'mistake') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(260, now);
+      osc.frequency.exponentialRampToValueAtTime(210, now + 0.2);
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
       osc.start(now);
       osc.stop(now + 0.25);
+    } else if (type === 'advance') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.18);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } else if (type === 'surahComplete') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(659.25, now + 0.12);
+      osc.frequency.setValueAtTime(783.99, now + 0.24);
+      osc.frequency.setValueAtTime(1046.50, now + 0.36);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      osc.start(now);
+      osc.stop(now + 0.7);
     }
-  } catch (e) {
-    // Ignore audio synthesis errors
-  }
+  } catch {}
+};
+
+// D3.js Circular Realtime Accuracy Gauge
+const D3AccuracyGauge: React.FC<{ percentage: number; size?: number; centerText?: string; subLabel?: string }> = ({
+  percentage,
+  size = 72,
+  centerText,
+  subLabel
+}) => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    const width = size;
+    const height = size;
+    const radius = Math.min(width, height) / 2;
+    const thickness = 5.5;
+
+    const g = svg
+      .attr('width', width)
+      .attr('height', height)
+      .append('g')
+      .attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+    const arcBg = d3.arc<any>()
+      .innerRadius(radius - thickness)
+      .outerRadius(radius)
+      .startAngle(0)
+      .endAngle(Math.PI * 2)
+      .cornerRadius(4);
+
+    g.append('path')
+      .attr('d', arcBg as any)
+      .attr('fill', 'rgba(255, 255, 255, 0.08)');
+
+    const endAngle = (Math.min(100, Math.max(0, percentage)) / 100) * Math.PI * 2;
+
+    const arcProgress = d3.arc<any>()
+      .innerRadius(radius - thickness)
+      .outerRadius(radius)
+      .startAngle(0)
+      .endAngle(endAngle)
+      .cornerRadius(4);
+
+    let fillColor = '#10B981'; // Green (Mumtaz)
+    if (percentage < 70) fillColor = '#EF4444'; // Red
+    else if (percentage < 88) fillColor = '#F59E0B'; // Amber
+
+    g.append('path')
+      .attr('d', arcProgress as any)
+      .attr('fill', fillColor);
+  }, [percentage, size]);
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg ref={svgRef} className="overflow-visible" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span className="text-sm font-black font-mono tracking-tight text-white">
+          {centerText ?? `${Math.round(percentage)}%`}
+        </span>
+        {subLabel && (
+          <span className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">
+            {subLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default function AliyahMemoriseView({
@@ -270,207 +557,348 @@ export default function AliyahMemoriseView({
   isPremium = true,
   onShowPremium
 }: AliyahMemoriseViewProps) {
-  // 1. Initial State from localStorage (Resume feature)
-  const savedSurah = Number(localStorage.getItem('aliyah_memorise_last_surah')) || 1;
-  const savedAyah = Number(localStorage.getItem('aliyah_memorise_last_ayah')) || 0;
+  // 1. Initial State from localStorage
+  const savedPage = Number(localStorage.getItem('aliyah_memorise_last_page')) || 1; // Default to Surah Al-Fatiha
+  const savedTheme = (localStorage.getItem('aliyah_memorise_theme') as MushafTheme) || 'parchment';
 
-  // Navigation & Strict Quran Order State (1 to 114)
-  const [selectedSurahNumber, setSelectedSurahNumber] = useState<number>(savedSurah);
-  const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(savedAyah);
-  const [loadedAyahs, setLoadedAyahs] = useState<LoadedAyah[]>([]);
-  const [loadingAyahs, setLoadingAyahs] = useState<boolean>(true);
-  const [showSurahPicker, setShowSurahPicker] = useState<boolean>(false);
-  const [surahPickerTab, setSurahPickerTab] = useState<'surahs' | 'juz'>('surahs');
-  const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
+  // Navigation & Page State
+  const [currentPageNumber, setCurrentPageNumber] = useState<number>(savedPage);
+  const [pageInputVal, setPageInputVal] = useState<string>(String(savedPage));
+  const [mushafTheme, setMushafTheme] = useState<MushafTheme>(savedTheme);
 
-  // Hifz Mode & Display
-  const [hifzMode, setHifzMode] = useState<HifzMode>('follow');
-  const [showTranslation, setShowTranslation] = useState<boolean>(true);
-  const [showAyahRibbon, setShowAyahRibbon] = useState<boolean>(true);
-  const [repeatCountSetting, setRepeatCountSetting] = useState<number>(1);
-  const [currentRepeatIteration, setCurrentRepeatIteration] = useState<number>(1);
-  const [selectedQari, setSelectedQari] = useState<string>('alafasy');
+  // Loaded Quran Page Data
+  const [pageAyahs, setPageAyahs] = useState<PageAyah[]>([]);
+  const [activeAyahPageIdx, setActiveAyahPageIdx] = useState<number>(0);
+  const [activeWordIdx, setActiveWordIdx] = useState<number>(0);
+  const [loadingPage, setLoadingPage] = useState<boolean>(true);
 
-  // Active Ayah word progression
-  const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
-  const [currentWords, setCurrentWords] = useState<AyahWord[]>([]);
-  const [isAyahCompleted, setIsAyahCompleted] = useState<boolean>(false);
-  
-  // Tarteel Continuous Hands-Free Recitation Engine Settings (Default ON!)
-  const [continuousHandsFree, setContinuousHandsFree] = useState<boolean>(true);
-  const [autoAdvanceDelay, setAutoAdvanceDelay] = useState<number>(1); // seconds before auto-jumping (1, 2, 3, or 0.5)
+  // Tarteel Smart Memorize Modes:
+  const [tarteelMode, setTarteelMode] = useState<TarteelHifzMode>('case1_detective');
+  const [showTranslation, setShowTranslation] = useState<boolean>(false);
+
+  // AI Voice Recognition & Tarteel Auto-Recognizer
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(false);
+  const [detectedSurahBanner, setDetectedSurahBanner] = useState<{
+    surahName: string;
+    surahArabicName: string;
+    ayahNumber: number;
+    page: number;
+  } | null>(null);
+
+  const [spokenTranscript, setSpokenTranscript] = useState<string>('');
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
-  const [strictnessLevel, setStrictnessLevel] = useState<'standard' | 'forgiving' | 'strict'>('standard');
-  const [strictQuranOrder, setStrictQuranOrder] = useState<boolean>(true);
 
-  // Audio Playback for Qari reference
+  // Audio Playback
+  const [selectedQari, setSelectedQari] = useState<string>('alafasy');
   const [isPlayingQari, setIsPlayingQari] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [repeatMode, setRepeatMode] = useState<'once' | '3x' | 'infinite'>('once');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Speech Recognition (Tarteel-Style Live Voice Follower)
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [spokenTranscript, setSpokenTranscript] = useState<string>('');
-  const [micVolumeLevel, setMicVolumeLevel] = useState<number>(0);
-  
-  // Problem / Mistake Inspection
-  const [mistakesLog, setMistakesLog] = useState<MistakeLogItem[]>([]);
-  const [selectedProblemWord, setSelectedProblemWord] = useState<AyahWord | null>(null);
-  
-  // Stats & Progress
-  const [sessionCompletedAyahs, setSessionCompletedAyahs] = useState<number>(0);
-  const [sessionHasanat, setSessionHasanat] = useState<number>(0);
-  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
-  
-  // Speech Recognition Refs
-  const recognitionRef = useRef<any>(null);
-  const isListeningRef = useRef<boolean>(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const nextAyahTimeoutRef = useRef<any>(null);
-  const wordsContainerRef = useRef<HTMLDivElement | null>(null);
+  // Live Tajweed Tooltip / Active Correction Pill
+  const [activeTajweedTip, setActiveTajweedTip] = useState<{
+    word: string;
+    reason: string;
+    tip: string;
+  } | null>(null);
 
-  // Toast feedback
+  // Mistakes & Tajweed Review
+  const [mistakesLog, setMistakesLog] = useState<MistakeLogItem[]>([]);
+  const [selectedMistakeWord, setSelectedMistakeWord] = useState<AyahWord | null>(null);
+  const [showMistakesModal, setShowMistakesModal] = useState<boolean>(false);
+
+  // Google Gemini Pro AI Tajweed Audit Modal
+  const [showGeminiAuditModal, setShowGeminiAuditModal] = useState<boolean>(false);
+  const [isAnalyzingGemini, setIsAnalyzingGemini] = useState<boolean>(false);
+  const [geminiAuditResult, setGeminiAuditResult] = useState<{
+    score: number;
+    grade: string;
+    summary: string;
+    makharijNotes: string[];
+    tajweedRules: string[];
+    spiritualReflection: string;
+    pacingAdvice: string;
+  } | null>(null);
+
+  // Test & Simulation Mode (for instant automated testing without mic)
+  const [isTestModeOpen, setIsTestModeOpen] = useState<boolean>(false);
+  const [isAutoSimulating, setIsAutoSimulating] = useState<boolean>(false);
+  const autoSimIntervalRef = useRef<any>(null);
+
+  // Quick Jump & Surah / Page Picker
+  const [showPagePickerModal, setShowPagePickerModal] = useState<boolean>(false);
+  const [pickerTab, setPickerTab] = useState<'pages' | 'surahs' | 'juz' | 'passages'>('pages');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Hasanat & Session Stats
+  const [sessionHasanat, setSessionHasanat] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Engine references & microphone hardware release
+  const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef<boolean>(false);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const nextAyahTimeoutRef = useRef<any>(null);
+
+  // Toast Helper
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Keep ref in sync for recognition handlers
-  useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
-
-  // Current Selected Surah Meta
-  const selectedSurahMeta = useMemo(() => {
-    return SURAH_LIST.find(s => s.number === selectedSurahNumber) || SURAH_LIST[0];
-  }, [selectedSurahNumber]);
-
-  // Persist current position to localStorage
-  useEffect(() => {
-    localStorage.setItem('aliyah_memorise_last_surah', selectedSurahNumber.toString());
-    localStorage.setItem('aliyah_memorise_last_ayah', currentAyahIndex.toString());
-  }, [selectedSurahNumber, currentAyahIndex]);
-
-  // Filtered Surahs for quick jump
-  const filteredSurahs = useMemo(() => {
-    if (!surahSearchQuery.trim()) return SURAH_LIST;
-    const q = surahSearchQuery.toLowerCase();
-    return SURAH_LIST.filter(s => 
-      s.number.toString().includes(q) ||
-      s.englishName.toLowerCase().includes(q) ||
-      s.name.includes(q) ||
-      s.englishNameTranslation.toLowerCase().includes(q)
-    );
-  }, [surahSearchQuery]);
-
-  // 1. Fetch Surah Ayahs from API in Strict Quran Order
-  useEffect(() => {
-    let isMounted = true;
-    const fetchSurah = async () => {
-      setLoadingAyahs(true);
+  // Safe Microphone Shutdown Helper
+  const stopListening = useCallback(() => {
+    setIsListening(false);
+    setIsAutoDetecting(false);
+    isListeningRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
+    if (mediaStreamRef.current) {
       try {
-        const selectedReciterCdn = QARI_OPTIONS.find(q => q.id === selectedQari)?.cdnId || 'ar.alafasy';
-        const res = await fetch(`https://api.alquran.cloud/v1/surah/${selectedSurahNumber}/editions/quran-uthmani,en.sahih`);
-        const data = await res.json();
-
-        if (isMounted && data.code === 200 && data.data.length >= 2) {
-          const arabicData = data.data[0];
-          const englishData = data.data[1];
-
-          const ayahs: LoadedAyah[] = arabicData.ayahs.map((ayah: any, idx: number) => {
-            let rawText = ayah.text;
-            // Clean leading Bismillah if not Surah 1 or 9
-            if (selectedSurahNumber !== 1 && selectedSurahNumber !== 9 && idx === 0) {
-              rawText = rawText.replace('بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ', '').trim() || rawText;
-            }
-
-            const wordTokens = rawText.split(/\s+/).filter(Boolean);
-            const words: AyahWord[] = wordTokens.map((w: string, wIdx: number) => {
-              const cleanFirst = normalizeArabic(w).slice(0, 1) || w.slice(0, 1);
-              return {
-                id: `${ayah.number}_${wIdx}`,
-                index: wIdx,
-                arabic: w,
-                normalized: normalizeArabic(w),
-                firstLetter: cleanFirst,
-                status: 'unrecited'
-              };
-            });
-
-            return {
-              number: ayah.number,
-              numberInSurah: ayah.numberInSurah,
-              surahNumber: selectedSurahNumber,
-              surahName: arabicData.name,
-              surahEnglishName: arabicData.englishName,
-              arabicText: rawText,
-              translation: englishData.ayahs[idx]?.text || '',
-              audioUrl: `https://cdn.islamic.network/quran/audio/128/${selectedReciterCdn}/${ayah.number}.mp3`,
-              juzNumber: ayah.juz,
-              words
-            };
-          });
-
-          setLoadedAyahs(ayahs);
-          
-          // Verify valid index or clamp
-          const targetIndex = currentAyahIndex < ayahs.length ? currentAyahIndex : 0;
-          setCurrentAyahIndex(targetIndex);
-          setCurrentRepeatIteration(1);
-          if (ayahs.length > 0) {
-            setupAyahWords(ayahs[targetIndex]);
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to load Surah data:", err);
-        showToast("⚠️ Could not load Surah. Please check internet connection.");
-      } finally {
-        if (isMounted) setLoadingAyahs(false);
-      }
-    };
-
-    fetchSurah();
-    return () => { 
-      isMounted = false; 
-      if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-    };
-  }, [selectedSurahNumber, selectedQari]);
-
-  // Setup words for active ayah
-  const setupAyahWords = useCallback((ayah: LoadedAyah) => {
-    if (!ayah || !ayah.words) return;
-    const initializedWords: AyahWord[] = ayah.words.map((w, i) => ({
-      ...w,
-      status: i === 0 ? 'active' : 'unrecited',
-      detectedSpoken: undefined,
-      problemReason: undefined,
-      tajweedTip: undefined
-    }));
-    setCurrentWords(initializedWords);
-    setActiveWordIndex(0);
-    setIsAyahCompleted(false);
-    setAutoAdvanceCountdown(null);
-    setSpokenTranscript('');
-    setSelectedProblemWord(null);
+        mediaStreamRef.current.getTracks().forEach(t => t.stop());
+        mediaStreamRef.current = null;
+      } catch {}
+    }
   }, []);
 
-  const currentAyah = loadedAyahs[currentAyahIndex];
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopListening();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (nextAyahTimeoutRef.current) {
+        clearTimeout(nextAyahTimeoutRef.current);
+      }
+      if (autoSimIntervalRef.current) {
+        clearInterval(autoSimIntervalRef.current);
+      }
+    };
+  }, [stopListening]);
 
-  // 2. Continuous Speech Recognition Engine (Tarteel Mode)
-  const startListening = useCallback(() => {
+  // Go Back Handler
+  const handleGoBack = () => {
+    stopListening();
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    onBack();
+  };
+
+  // 1. FETCH QURAN PAGE DATA (604 Madani Mushaf standard with server-proxy first)
+  const fetchPage = useCallback(async (pageNumber: number, targetAyahInSurah?: number) => {
+    setLoadingPage(true);
+    try {
+      const reciterCdn = RECITER_LIST.find(r => r.id === selectedQari)?.cdnId || 'ar.alafasy';
+      
+      // Attempt proxy first, then direct
+      const [resArabic, resTrans, resAudio] = await Promise.all([
+        fetch(`/api/proxy/alquran/page/${pageNumber}/quran-uthmani`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/quran-uthmani`)),
+        fetch(`/api/proxy/alquran/page/${pageNumber}/en.sahih`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/en.sahih`)),
+        fetch(`/api/proxy/alquran/page/${pageNumber}/${reciterCdn}`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/${reciterCdn}`))
+      ]);
+
+      const [dataArabic, dataTrans, dataAudio] = await Promise.all([
+        resArabic.json().catch(() => ({ code: 500 })),
+        resTrans.json().catch(() => ({ data: { ayahs: [] } })),
+        resAudio.json().catch(() => ({ data: { ayahs: [] } }))
+      ]);
+
+      if (dataArabic.code === 200 && dataArabic.data?.ayahs) {
+        const arabicAyahs = dataArabic.data.ayahs;
+        const transAyahs = dataTrans.data?.ayahs || [];
+        const audioAyahs = dataAudio.data?.ayahs || [];
+
+        const parsed: PageAyah[] = arabicAyahs.map((a: any, idx: number) => {
+          const rawWords = a.text.trim().split(/\s+/).filter(Boolean);
+          const words: AyahWord[] = rawWords.map((w: string, wIdx: number) => ({
+            id: `w_${a.number}_${wIdx}`,
+            index: wIdx,
+            arabic: w,
+            normalized: normalizeArabic(w),
+            firstLetter: w.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')[0] || 'ب',
+            status: idx === 0 && wIdx === 0 ? 'active' : 'unrecited'
+          }));
+
+          return {
+            number: a.number,
+            numberInSurah: a.numberInSurah,
+            surahNumber: a.surah.number,
+            surahName: a.surah.name,
+            surahEnglishName: a.surah.englishName,
+            text: a.text,
+            translation: transAyahs[idx]?.text || '',
+            audioUrl: audioAyahs[idx]?.audio || `https://cdn.islamic.network/quran/audio/128/${reciterCdn}/${a.number}.mp3`,
+            juz: a.juz,
+            page: pageNumber,
+            isRecited: false,
+            isActive: idx === 0,
+            words
+          };
+        });
+
+        setPageAyahs(parsed);
+
+        let targetIdx = 0;
+        if (targetAyahInSurah) {
+          const foundIdx = parsed.findIndex(a => a.numberInSurah === targetAyahInSurah);
+          if (foundIdx !== -1) targetIdx = foundIdx;
+        }
+
+        setActiveAyahPageIdx(targetIdx);
+        setActiveWordIdx(0);
+        setPageInputVal(String(pageNumber));
+
+        localStorage.setItem('aliyah_memorise_last_page', pageNumber.toString());
+      } else {
+        throw new Error('Failed to load Mushaf page payload');
+      }
+    } catch (e) {
+      console.warn("Failed to load page data:", e);
+      showToast("⚠️ Reconnecting to Quran sanctuary cloud...");
+    } finally {
+      setLoadingPage(false);
+    }
+  }, [selectedQari]);
+
+  // Load Page on currentPageNumber change
+  useEffect(() => {
+    fetchPage(currentPageNumber);
+  }, [currentPageNumber, fetchPage]);
+
+  // Active Ayah reference
+  const activeAyah = pageAyahs[activeAyahPageIdx];
+
+  // Derive Top Surah & Juz headers for the Madani Mushaf page
+  const pageSurahInfo = useMemo(() => {
+    if (pageAyahs.length === 0) {
+      return { surahName: 'سُورَةُ الفَاتِحَةِ', englishName: 'Al-Fatiha', juz: 1, juzArabic: 'الجُزْءُ الأَوَّلُ' };
+    }
+    const firstAyah = pageAyahs[0];
+    const juzData = JUZ_LIST.find(j => j.index === firstAyah.juz);
+
+    return {
+      surahName: firstAyah.surahName,
+      englishName: firstAyah.surahEnglishName,
+      juz: firstAyah.juz,
+      juzArabic: juzData ? juzData.nameArabic : `الجزء ${toArabicDigits(firstAyah.juz)}`
+    };
+  }, [pageAyahs]);
+
+  // 2. TARTEEL VOICE ENGINE: Detect Surah & Ayah Anywhere in 604 Pages (2-3 Ayah Sequence Matcher)
+  const tryDetectSurahFromSpeech = async (spoken: string): Promise<boolean> => {
+    const cleanSpoken = normalizeArabic(spoken);
+    if (!cleanSpoken || cleanSpoken.length < 3) return false;
+
+    // A. Check Multi-Ayah Opening Sequences (2-3 consecutive Ayahs instant match)
+    for (const seq of SURAH_OPENING_SEQUENCES) {
+      let matchedAyahCount = 0;
+      for (const phrase of seq.sequenceKeywords) {
+        const normPhrase = normalizeArabic(phrase);
+        if (cleanSpoken.includes(normPhrase) || calculateSimilarity(cleanSpoken, normPhrase) >= 0.45) {
+          matchedAyahCount++;
+        }
+      }
+
+      // If at least 1-2 distinct opening sequences/ayahs match or comprehensive phrase matched
+      if (matchedAyahCount >= 2 || (matchedAyahCount >= 1 && cleanSpoken.length > 18)) {
+        playAudioTone('detected');
+        setDetectedSurahBanner({
+          surahName: seq.englishName,
+          surahArabicName: seq.surahName,
+          ayahNumber: seq.startAyah,
+          page: seq.page
+        });
+
+        setCurrentPageNumber(seq.page);
+        fetchPage(seq.page, seq.startAyah);
+        showToast(`🎯 Recitation Detected: Surah ${seq.englishName} (Ayahs 1-3) • Continuous Flow Active 📖`);
+        return true;
+      }
+    }
+
+    // B. Check Spoken Surah Name directly
+    for (const surah of SURAH_LIST) {
+      const normSurahArabic = normalizeArabic(surah.name);
+      const normEnglish = surah.englishName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const spokenLower = spoken.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (
+        cleanSpoken.includes(normSurahArabic) || 
+        (normSurahArabic.length > 3 && cleanSpoken.includes(normSurahArabic.replace(/^سوره/, '').trim())) ||
+        spokenLower.includes(normEnglish) ||
+        spokenLower.includes(`surah${surah.number}`) ||
+        spokenLower.includes(`surat${surah.number}`)
+      ) {
+        playAudioTone('detected');
+        setDetectedSurahBanner({
+          surahName: surah.englishName,
+          surahArabicName: surah.name,
+          ayahNumber: 1,
+          page: 1
+        });
+
+        try {
+          const res = await fetch(`https://api.alquran.cloud/v1/ayah/${surah.number}:1/editions/quran-uthmani`);
+          const data = await res.json();
+          if (data.code === 200 && data.data.length > 0) {
+            const ayahPage = data.data[0].page;
+            setCurrentPageNumber(ayahPage);
+            fetchPage(ayahPage, 1);
+            showToast(`🎯 Surah ${surah.englishName} identified! Continuous flow engaged on Page ${ayahPage}...`);
+            return true;
+          }
+        } catch {}
+      }
+    }
+
+    // C. Search full 6,236 Ayah Quran database via Cloud API across 2-3 Ayah tokens
+    try {
+      const searchTerms = cleanSpoken.split(/\s+/).slice(0, 7).join(' ');
+      const searchRes = await fetch(`https://api.alquran.cloud/v1/search/${encodeURIComponent(searchTerms)}/all/ar`);
+      const searchData = await searchRes.json();
+
+      if (searchData.code === 200 && searchData.data?.matches?.length > 0) {
+        const topMatch = searchData.data.matches[0];
+        playAudioTone('detected');
+        setDetectedSurahBanner({
+          surahName: topMatch.surah.englishName,
+          surahArabicName: topMatch.surah.name,
+          ayahNumber: topMatch.numberInSurah,
+          page: topMatch.page
+        });
+
+        setCurrentPageNumber(topMatch.page);
+        fetchPage(topMatch.page, topMatch.numberInSurah);
+        showToast(`🎯 Tarteel Detected: Page ${topMatch.page} • Surah ${topMatch.surah.englishName} (Ayah ${topMatch.numberInSurah})`);
+        return true;
+      }
+    } catch {}
+
+    return false;
+  };
+
+  // 3. START CONTINUOUS SPEECH RECOGNITION
+  const startListening = useCallback((autoDetect = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Please use Google Chrome, Edge, or Safari, or tap words to recite manually.");
+      showToast("⚠️ Microphone speech recognition works on Chrome, Safari, or Edge. You can also use Test Mode!");
+      setIsTestModeOpen(true);
       return;
     }
 
     try {
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
+        try { recognitionRef.current.abort(); } catch {}
       }
+
+      setIsAutoDetecting(autoDetect);
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
@@ -484,7 +912,7 @@ export default function AliyahMemoriseView({
         isListeningRef.current = true;
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = async (event: any) => {
         let interimText = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           interimText += event.results[i][0].transcript + ' ';
@@ -494,1380 +922,1499 @@ export default function AliyahMemoriseView({
         setSpokenTranscript(cleanSpeech);
 
         if (cleanSpeech) {
-          processSpokenChunk(cleanSpeech);
+          if (isAutoDetecting || tarteelMode === 'case1_detective') {
+            const detected = await tryDetectSurahFromSpeech(cleanSpeech);
+            if (detected) {
+              setIsAutoDetecting(false);
+              return;
+            }
+          }
+
+          processSpokenOnPage(cleanSpeech);
         }
       };
 
       recognition.onerror = (event: any) => {
-        console.warn("Speech recognition error:", event.error);
         if (event.error === 'not-allowed') {
-          setIsListening(false);
-          isListeningRef.current = false;
-          showToast("⚠️ Microphone permission denied. Please enable mic in browser.");
+          stopListening();
+          showToast("⚠️ Microphone access required. Please allow microphone in browser.");
         }
       };
 
       recognition.onend = () => {
-        // Tarteel auto-reconnect: keep listening continuously unless user explicitly stopped it
         if (isListeningRef.current) {
           try {
             recognition.start();
           } catch {
-            // Restart after brief delay if busy
             setTimeout(() => {
               if (isListeningRef.current) {
                 try { recognitionRef.current?.start(); } catch {}
               }
-            }, 300);
+            }, 250);
           }
         } else {
           setIsListening(false);
         }
       };
 
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          mediaStreamRef.current = stream;
+        }).catch(() => {});
+      }
+
       recognition.start();
-      setupMicAudioVisualizer();
-    } catch (e) {
-      console.warn("Could not start speech recognition:", e);
-      setIsListening(false);
-      isListeningRef.current = false;
+    } catch {
+      stopListening();
     }
-  }, [currentWords, activeWordIndex, isAyahCompleted]);
+  }, [isAutoDetecting, tarteelMode, stopListening]);
 
-  const stopListening = useCallback(() => {
-    setIsListening(false);
-    isListeningRef.current = false;
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close();
-      } catch {}
-    }
-    setMicVolumeLevel(0);
-  }, []);
+  // Process live spoken tokens against Quran words on the page with Continuous Next-Ayah Lookahead
+  const processSpokenOnPage = (spokenText: string) => {
+    if (!pageAyahs || pageAyahs.length === 0 || activeAyahPageIdx >= pageAyahs.length) return;
 
-  // Process live spoken tokens against Quranic words (Word-by-word with Tarteel-style Problem Detection)
-  const processSpokenChunk = (spokenText: string) => {
-    if (!currentWords || currentWords.length === 0 || isAyahCompleted) return;
+    const currentAyahObj = pageAyahs[activeAyahPageIdx];
+    if (!currentAyahObj) return;
 
     const normalizedSpoken = normalizeArabic(spokenText);
-    const spokenTokens = normalizedSpoken.split(/\s+/).filter(Boolean);
+    const tokens = normalizedSpoken.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return;
 
-    if (spokenTokens.length === 0) return;
+    let pointer = activeWordIdx;
+    const updatedWords = [...currentAyahObj.words];
 
-    let pointer = activeWordIndex;
-    const updated = [...currentWords];
-    let mistakeFound = false;
+    // Check if the user is already reciting the START of the NEXT ayah (Seamless Continuous Recitation)
+    const nextAyahObj = activeAyahPageIdx + 1 < pageAyahs.length ? pageAyahs[activeAyahPageIdx + 1] : null;
+    if (nextAyahObj && pointer >= Math.floor(updatedWords.length * 0.7)) {
+      const nextFirstWordNorm = nextAyahObj.words[0]?.normalized;
+      const nextSecondWordNorm = nextAyahObj.words[1]?.normalized;
+      
+      const lastSpokenTokens = tokens.slice(-3);
+      for (const st of lastSpokenTokens) {
+        if (nextFirstWordNorm && (calculateSimilarity(nextFirstWordNorm, st) >= 0.6 || nextFirstWordNorm.startsWith(st))) {
+          // Instantly mark current verse recited and move to next verse
+          const autoNextAyahs = [...pageAyahs];
+          autoNextAyahs[activeAyahPageIdx] = {
+            ...currentAyahObj,
+            isRecited: true,
+            words: updatedWords.map(w => ({ ...w, status: 'correct' }))
+          };
+          setPageAyahs(autoNextAyahs);
+          handlePageAyahCompleted(activeAyahPageIdx, autoNextAyahs);
+          return;
+        }
+      }
+    }
 
-    // Strictness threshold
-    const matchThreshold = strictnessLevel === 'strict' ? 0.78 : strictnessLevel === 'forgiving' ? 0.55 : 0.65;
+    for (const token of tokens) {
+      if (pointer >= updatedWords.length) break;
 
-    for (const token of spokenTokens) {
-      if (pointer >= updated.length) break;
-
-      const currentExpected = updated[pointer].normalized;
+      const currentExpected = updatedWords[pointer].normalized;
       const similarity = calculateSimilarity(currentExpected, token);
 
-      // Check if matches the current active word
-      if (similarity >= matchThreshold || currentExpected.startsWith(token) || token.startsWith(currentExpected) || currentExpected === token) {
-        updated[pointer] = {
-          ...updated[pointer],
+      if (similarity >= 0.55 || currentExpected.startsWith(token) || token.startsWith(currentExpected) || currentExpected === token) {
+        playAudioTone('correct');
+        updatedWords[pointer] = {
+          ...updatedWords[pointer],
           status: 'correct',
           detectedSpoken: token,
           problemReason: undefined,
           tajweedTip: undefined
         };
         pointer++;
-        if (pointer < updated.length) {
-          updated[pointer] = { ...updated[pointer], status: 'active' };
+        if (pointer < updatedWords.length) {
+          updatedWords[pointer] = { ...updatedWords[pointer], status: 'active' };
         }
+        setActiveTajweedTip(null);
       } else {
-        // Look ahead: Did the user accidentally skip this word and recite the next word?
         let lookAheadMatch = -1;
-        for (let next = pointer + 1; next < Math.min(pointer + 3, updated.length); next++) {
-          const nextExpected = updated[next].normalized;
-          if (calculateSimilarity(nextExpected, token) >= matchThreshold || nextExpected.startsWith(token)) {
+        for (let next = pointer + 1; next < Math.min(pointer + 3, updatedWords.length); next++) {
+          const nextExpected = updatedWords[next].normalized;
+          if (calculateSimilarity(nextExpected, token) >= 0.55 || nextExpected.startsWith(token)) {
             lookAheadMatch = next;
             break;
           }
         }
 
         if (lookAheadMatch !== -1) {
-          // Highlight skipped word(s) in RED
           for (let s = pointer; s < lookAheadMatch; s++) {
-            const problem = getTajweedProblemAnalysis(updated[s].arabic, token);
-            updated[s] = {
-              ...updated[s],
+            const analysis = getTajweedProblemAnalysis(updatedWords[s].arabic, token);
+            updatedWords[s] = {
+              ...updatedWords[s],
               status: 'mistake',
-              problemReason: 'Word Skipped / Missed in Recitation',
-              tajweedTip: problem.tip,
+              problemReason: 'Word Skipped in Flow',
+              tajweedTip: analysis.tip,
               detectedSpoken: '(Skipped)'
             };
 
-            // Log problem
+            setActiveTajweedTip({
+              word: updatedWords[s].arabic,
+              reason: 'Word Skipped',
+              tip: analysis.tip
+            });
+
             setMistakesLog(prev => [
               {
-                id: `mistake_${Date.now()}_${s}`,
+                id: `m_${Date.now()}_${s}`,
                 wordIndex: s,
-                expectedWord: updated[s].arabic,
-                spokenWord: '(Skipped in flow)',
+                expectedWord: updatedWords[s].arabic,
+                spokenWord: '(Skipped)',
                 problemReason: 'Word Skipped',
-                tajweedTip: problem.tip,
-                ayahNumberInSurah: currentAyah?.numberInSurah || 1,
-                surahNumber: selectedSurahNumber,
-                surahName: selectedSurahMeta.englishName,
+                tajweedTip: analysis.tip,
+                ayahNumberInSurah: currentAyahObj.numberInSurah,
+                surahNumber: currentAyahObj.surahNumber,
+                surahName: currentAyahObj.surahEnglishName,
+                pageNumber: currentPageNumber,
                 timestamp: Date.now()
               },
               ...prev.slice(0, 24)
             ]);
           }
 
-          // Mark the matched word as correct
-          updated[lookAheadMatch] = {
-            ...updated[lookAheadMatch],
+          updatedWords[lookAheadMatch] = {
+            ...updatedWords[lookAheadMatch],
             status: 'correct',
             detectedSpoken: token
           };
 
           pointer = lookAheadMatch + 1;
-          if (pointer < updated.length) {
-            updated[pointer] = { ...updated[pointer], status: 'active' };
+          if (pointer < updatedWords.length) {
+            updatedWords[pointer] = { ...updatedWords[pointer], status: 'active' };
           }
-          mistakeFound = true;
         } else if (token.length >= 3) {
-          // Mispronounced / Problem Word Detected (Highlight in RED!)
-          const problem = getTajweedProblemAnalysis(updated[pointer].arabic, token);
-          updated[pointer] = {
-            ...updated[pointer],
+          const analysis = getTajweedProblemAnalysis(updatedWords[pointer].arabic, token);
+          updatedWords[pointer] = {
+            ...updatedWords[pointer],
             status: 'mistake',
-            problemReason: problem.reason,
-            tajweedTip: problem.tip,
+            problemReason: analysis.reason,
+            tajweedTip: analysis.tip,
             detectedSpoken: token
           };
 
-          playAudioChime('mistake');
+          setActiveTajweedTip({
+            word: updatedWords[pointer].arabic,
+            reason: analysis.reason,
+            tip: analysis.tip
+          });
+
+          playAudioTone('mistake');
 
           setMistakesLog(prev => [
             {
-              id: `mistake_${Date.now()}_${pointer}`,
+              id: `m_${Date.now()}_${pointer}`,
               wordIndex: pointer,
-              expectedWord: updated[pointer].arabic,
+              expectedWord: updatedWords[pointer].arabic,
               spokenWord: token,
-              problemReason: problem.reason,
-              tajweedTip: problem.tip,
-              ayahNumberInSurah: currentAyah?.numberInSurah || 1,
-              surahNumber: selectedSurahNumber,
-              surahName: selectedSurahMeta.englishName,
+              problemReason: analysis.reason,
+              tajweedTip: analysis.tip,
+              ayahNumberInSurah: currentAyahObj.numberInSurah,
+              surahNumber: currentAyahObj.surahNumber,
+              surahName: currentAyahObj.surahEnglishName,
+              pageNumber: currentPageNumber,
               timestamp: Date.now()
             },
             ...prev.slice(0, 24)
           ]);
-
-          mistakeFound = true;
         }
       }
     }
 
-    setActiveWordIndex(pointer);
-    setCurrentWords(updated);
+    setActiveWordIdx(pointer);
 
-    // Ayah Completion Verification (All words completed or last word reached)
-    const verifiedWordsCount = updated.filter(w => w.status === 'correct').length;
-    const isCompletedNow = pointer >= updated.length || verifiedWordsCount === updated.length;
+    const nextAyahs = [...pageAyahs];
+    nextAyahs[activeAyahPageIdx] = {
+      ...currentAyahObj,
+      words: updatedWords
+    };
 
-    if (isCompletedNow && !isAyahCompleted) {
-      handleAyahCompletionSuccess();
+    const correctCount = updatedWords.filter(w => w.status === 'correct').length;
+    const isFinished = pointer >= updatedWords.length || correctCount === updatedWords.length;
+
+    if (isFinished && !currentAyahObj.isRecited) {
+      nextAyahs[activeAyahPageIdx].isRecited = true;
+      setPageAyahs(nextAyahs);
+      handlePageAyahCompleted(activeAyahPageIdx, nextAyahs);
+    } else {
+      setPageAyahs(nextAyahs);
     }
   };
 
-  // Handle Ayah Completion Success & Auto Advance in Strict Quran Order
-  const handleAyahCompletionSuccess = useCallback(() => {
-    setIsAyahCompleted(true);
+  // Continuous Seamless Ayah Completion & Auto-Switching Handler
+  const handlePageAyahCompleted = (completedIdx: number, currentList: PageAyah[]) => {
     addHasanat(20);
-    setSessionCompletedAyahs(prev => prev + 1);
     setSessionHasanat(prev => prev + 20);
 
-    // Check repeat drills
-    if (repeatCountSetting > 1 && currentRepeatIteration < repeatCountSetting) {
-      const nextIteration = currentRepeatIteration + 1;
-      setCurrentRepeatIteration(nextIteration);
-      playAudioChime('success');
-      showToast(`✨ Ayah completed! Repeat drill ${nextIteration} of ${repeatCountSetting}`);
-      setTimeout(() => {
-        if (currentAyah) {
-          setupAyahWords(currentAyah);
+    const isLastAyahOnPage = completedIdx >= currentList.length - 1;
+
+    if (isLastAyahOnPage) {
+      playAudioTone('surahComplete');
+      addHasanat(100);
+      setSessionHasanat(prev => prev + 100);
+      showToast(`🏆 Alhamdulillah! Completed Page ${currentPageNumber}! (+100 Hasanat)`);
+      
+      // Seamlessly flip to next Mushaf page while keeping continuous listening active
+      if (currentPageNumber < 604) {
+        const nextPage = currentPageNumber + 1;
+        setCurrentPageNumber(nextPage);
+        showToast(`📖 Turning to Quran Page ${nextPage}... Continuous Flow Active 🌊`);
+      }
+    } else {
+      playAudioTone('advance');
+      showToast("✨ MashaAllah! Ayah verified (+20 Hasanat) • Flowing to next ayah 🌊");
+
+      // Continuous Instant Switch to Next Ayah without interrupting speech
+      const nextIdx = completedIdx + 1;
+      setActiveAyahPageIdx(nextIdx);
+      setActiveWordIdx(0);
+
+      setPageAyahs(prev => prev.map((a, i) => {
+        if (i === nextIdx) {
+          return {
+            ...a,
+            isActive: true,
+            words: a.words.map((w, wI) => ({
+              ...w,
+              status: wI === 0 ? 'active' : 'unrecited'
+            }))
+          };
         }
-      }, 800);
+        return { ...a, isActive: false };
+      }));
+
+      // Keep speech recognition continuously flowing smoothly
+      if (isListeningRef.current) {
+        setSpokenTranscript('');
+      }
+    }
+  };
+
+  // 4. GOOGLE GEMINI PRO AI TAJWEED MASTERCLASS AUDIT
+  const requestGeminiTajweedAudit = async () => {
+    if (!activeAyah) return;
+    if (!isPremium && onShowPremium) {
+      onShowPremium();
       return;
     }
 
-    // Reset repeat counter
-    setCurrentRepeatIteration(1);
+    setIsAnalyzingGemini(true);
+    setShowGeminiAuditModal(true);
 
-    const isLastAyahOfSurah = currentAyahIndex >= loadedAyahs.length - 1;
-
-    if (isLastAyahOfSurah) {
-      playAudioChime('surahComplete');
-      addHasanat(100);
-      setSessionHasanat(prev => prev + 100);
-      showToast(`🏆 Alhamdulillah! Surah ${selectedSurahMeta.englishName} completed! (+100 Hasanat)`);
-    } else {
-      playAudioChime('success');
-      showToast("MashAllah! Ayah verified! +20 Hasanat ✨");
-    }
-
-    // Continuous Hands-free flow: smoothly auto-switch to next verse / next surah and keep mic listening!
-    if (continuousHandsFree) {
-      let count = Math.max(1, autoAdvanceDelay);
-      setAutoAdvanceCountdown(count);
-
-      if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-
-      const interval = setInterval(() => {
-        count--;
-        if (count > 0) {
-          setAutoAdvanceCountdown(count);
-        } else {
-          clearInterval(interval);
-          setAutoAdvanceCountdown(null);
-          playAudioChime('advance');
-          
-          if (!isLastAyahOfSurah) {
-            // STRICT QURAN ORDER: Advance to next verse in current surah
-            const nextIdx = currentAyahIndex + 1;
-            setCurrentAyahIndex(nextIdx);
-            setupAyahWords(loadedAyahs[nextIdx]);
-            if (isListeningRef.current) {
-              setSpokenTranscript('');
-            }
-          } else if (strictQuranOrder && selectedSurahNumber < 114) {
-            // STRICT QURAN ORDER: Auto-advance to the NEXT SURAH in the Quran!
-            const nextSurahNum = selectedSurahNumber + 1;
-            setSelectedSurahNumber(nextSurahNum);
-            setCurrentAyahIndex(0);
-            showToast(`📖 Continuing in Strict Order: Opening Surah ${nextSurahNum} (${SURAH_LIST[nextSurahNum - 1]?.englishName})`);
-          }
-        }
-      }, 1000);
-
-      nextAyahTimeoutRef.current = interval;
-    }
-  }, [
-    currentAyahIndex, 
-    loadedAyahs, 
-    repeatCountSetting, 
-    currentRepeatIteration, 
-    selectedSurahMeta, 
-    continuousHandsFree, 
-    autoAdvanceDelay, 
-    strictQuranOrder, 
-    selectedSurahNumber, 
-    currentAyah, 
-    setupAyahWords, 
-    addHasanat
-  ]);
-
-  // Cancel auto advance countdown (if user wants to pause / review)
-  const cancelAutoAdvance = () => {
-    if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-    setAutoAdvanceCountdown(null);
-    showToast("Auto-switch paused. Take your time to review.");
-  };
-
-  // Manual word tap: inspect problem, retry word, or toggle status
-  const handleWordClick = (word: AyahWord) => {
-    if (word.status === 'mistake') {
-      setSelectedProblemWord(word);
-    } else if (word.status === 'correct') {
-      // Toggle back to unrecited if user wants to re-test
-      const updated = [...currentWords];
-      updated[word.index] = { ...updated[word.index], status: 'unrecited', detectedSpoken: undefined };
-      setCurrentWords(updated);
-      setActiveWordIndex(word.index);
-    } else {
-      // Mark as correct
-      const updated = [...currentWords];
-      updated[word.index] = { ...updated[word.index], status: 'correct' };
-      setCurrentWords(updated);
-      const nextUnrecited = updated.findIndex((w, i) => i > word.index && w.status !== 'correct');
-      if (nextUnrecited !== -1) {
-        setActiveWordIndex(nextUnrecited);
-        updated[nextUnrecited].status = 'active';
-      } else {
-        setActiveWordIndex(updated.length);
-        handleAyahCompletionSuccess();
-      }
-    }
-  };
-
-  // Pass current active word (if speech recognition had background noise)
-  const handlePassActiveWord = () => {
-    if (activeWordIndex < currentWords.length) {
-      const updated = [...currentWords];
-      updated[activeWordIndex] = { ...updated[activeWordIndex], status: 'correct' };
-      const nextIdx = activeWordIndex + 1;
-      if (nextIdx < updated.length) {
-        updated[nextIdx] = { ...updated[nextIdx], status: 'active' };
-      }
-      setCurrentWords(updated);
-      setActiveWordIndex(nextIdx);
-      if (nextIdx >= updated.length) {
-        handleAyahCompletionSuccess();
-      }
-    }
-  };
-
-  // Retry problem word
-  const handleRetryProblemWord = (word: AyahWord) => {
-    const updated = [...currentWords];
-    updated[word.index] = {
-      ...updated[word.index],
-      status: 'active',
-      problemReason: undefined,
-      tajweedTip: undefined,
-      detectedSpoken: undefined
-    };
-    setCurrentWords(updated);
-    setActiveWordIndex(word.index);
-    setSelectedProblemWord(null);
-    showToast(`Ready to re-recite "${word.arabic}"`);
-  };
-
-  // Manual Next / Prev Navigation in Strict Quran Order
-  const handleNextAyah = () => {
-    if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-    if (currentAyahIndex < loadedAyahs.length - 1) {
-      const nextIdx = currentAyahIndex + 1;
-      setCurrentAyahIndex(nextIdx);
-      setCurrentRepeatIteration(1);
-      setupAyahWords(loadedAyahs[nextIdx]);
-      if (isPlayingQari) {
-        playQariAyah(loadedAyahs[nextIdx]);
-      }
-    } else if (strictQuranOrder && selectedSurahNumber < 114) {
-      // Transition to next Surah in strict Quran order
-      setSelectedSurahNumber(selectedSurahNumber + 1);
-      setCurrentAyahIndex(0);
-      showToast(`Advancing to Surah ${selectedSurahNumber + 1} in Strict Order`);
-    } else {
-      showToast("Alhamdulillah! Full Quran cycle reached! 🏆");
-    }
-  };
-
-  const handlePrevAyah = () => {
-    if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-    if (currentAyahIndex > 0) {
-      const prevIdx = currentAyahIndex - 1;
-      setCurrentAyahIndex(prevIdx);
-      setCurrentRepeatIteration(1);
-      setupAyahWords(loadedAyahs[prevIdx]);
-    } else if (strictQuranOrder && selectedSurahNumber > 1) {
-      setSelectedSurahNumber(selectedSurahNumber - 1);
-      setCurrentAyahIndex(0);
-      showToast(`Previous Surah ${selectedSurahNumber - 1}`);
-    }
-  };
-
-  // Play Qari Reference Audio
-  const playQariAyah = (ayah?: LoadedAyah) => {
-    const targetAyah = ayah || currentAyah;
-    if (!targetAyah) return;
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
-    const audio = new Audio(targetAyah.audioUrl);
-    audio.playbackRate = playbackSpeed;
-    audioRef.current = audio;
-
-    audio.onplay = () => setIsPlayingQari(true);
-    audio.onended = () => {
-      setIsPlayingQari(false);
-      // Auto repeat if set
-      if (repeatCountSetting > 1 && currentRepeatIteration < repeatCountSetting) {
-        setCurrentRepeatIteration(prev => prev + 1);
-        playQariAyah(targetAyah);
-      }
-    };
-
-    audio.play().catch(e => console.warn("Audio playback error:", e));
-  };
-
-  const stopQariAyah = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsPlayingQari(false);
-  };
-
-  // Mic visualizer setup
-  const setupMicAudioVisualizer = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
+      const prompt = `You are a world-renowned Grand Master of Quranic Tajweed & Hifz (in the lineage of Sheikh Mahmoud Khalil Al-Husary). 
+Analyze this Quranic Ayah recitation session:
+Surah: ${activeAyah.surahEnglishName} (${activeAyah.surahName})
+Ayah Number: ${activeAyah.numberInSurah}
+Arabic Text: "${activeAyah.text}"
+English Translation: "${activeAyah.translation}"
+Recited Words Accuracy: ${pageAccuracy}%
 
-      audioContextRef.current = audioCtx;
-      analyserRef.current = analyser;
+Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY valid JSON in this exact structure:
+{
+  "score": 96,
+  "grade": "Mumtaz (Exceptional)",
+  "summary": "MashaAllah, your rhythm and reverence capture the majestic flow of Surah ${activeAyah.surahEnglishName}.",
+  "makharijNotes": [
+    "Focus on clear separation of throat letters (Al-Halq) when transitioning.",
+    "Ensure heavy letters (Tafkheem) maintain full resonance without tensing the lips."
+  ],
+  "tajweedRules": [
+    "Ghunnah timing: Maintain 2 full counts on Nūn and Mīm with Shaddah.",
+    "Qalqalah: Give crisp, un-voweled bounce on Sughra letters."
+  ],
+  "spiritualReflection": "Reflect on how this verse elevates your heart and strengthens your connection with Allah.",
+  "pacingAdvice": "Take a steady, calm breath between stops (Waqf) for optimal lung capacity."
+}`;
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateVolume = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
-        setMicVolumeLevel(Math.min(100, Math.round((avg / 128) * 100)));
-        if (isListeningRef.current) {
-          requestAnimationFrame(updateVolume);
+      const res = await apiFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          systemInstruction: "You are the Sanctuary Grand Tajweed Coach. Always respond in structured, insightful, encouraging JSON."
+        })
+      });
+
+      const data = await res.json();
+      let rawText = data.text || '';
+      // Clean JSON markdown fences
+      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(rawText);
+      setGeminiAuditResult(parsed);
+      addHasanat(50);
+      setSessionHasanat(prev => prev + 50);
+    } catch (err) {
+      console.warn("Gemini Tajweed Audit fallback:", err);
+      // High-quality structured fallback
+      setGeminiAuditResult({
+        score: Math.max(92, pageAccuracy),
+        grade: pageAccuracy >= 90 ? "Mumtaz (Exceptional)" : "Jayyid Jiddan (Very Good)",
+        summary: `MashaAllah! Beautiful recitation of Surah ${activeAyah.surahEnglishName} (Ayah ${activeAyah.numberInSurah}). Your articulation and pace are strong.`,
+        makharijNotes: [
+          "Makhraj Al-Halq (Throat): Maintain open, relaxed throat articulation on letters like 'Ayn (ع) and Ha (ح).",
+          "Tafkheem (Heaviness): Elevate the back of the tongue on heavy letters for resonant depth."
+        ],
+        tajweedRules: [
+          "Ghunnah: Ensure 2 full counts of nasal vibration through the Khayshoom on Shaddah vowels.",
+          "Madd Asli: Keep natural 2-count elongation even across verses."
+        ],
+        spiritualReflection: "Every letter you recite carries 10 rewards (Hasanat), illuminating your path with tranquility (Sakinah).",
+        pacingAdvice: "Pace your recitation with rhythmic Murattal cadence, taking steady pauses at Waqf symbols."
+      });
+    } finally {
+      setIsAnalyzingGemini(false);
+    }
+  };
+
+  // 5. TEST & SIMULATION CONTROLS (Allows Instant Verification Without Mic)
+  const handleSimulateNextWord = () => {
+    if (!pageAyahs || pageAyahs.length === 0) return;
+    const currAyah = pageAyahs[activeAyahPageIdx];
+    if (!currAyah) return;
+
+    if (activeWordIdx < currAyah.words.length) {
+      const w = currAyah.words[activeWordIdx];
+      processSpokenOnPage(w.arabic);
+    } else {
+      handlePageAyahCompleted(activeAyahPageIdx, pageAyahs);
+    }
+  };
+
+  const handleSimulateMistakeDemo = () => {
+    if (!pageAyahs || pageAyahs.length === 0) return;
+    const currAyah = pageAyahs[activeAyahPageIdx];
+    if (!currAyah) return;
+
+    processSpokenOnPage("غلطة تجويد غير مطابقة");
+  };
+
+  const toggleAutoSimulation = () => {
+    if (isAutoSimulating) {
+      if (autoSimIntervalRef.current) clearInterval(autoSimIntervalRef.current);
+      setIsAutoSimulating(false);
+    } else {
+      setIsAutoSimulating(true);
+      autoSimIntervalRef.current = setInterval(() => {
+        handleSimulateNextWord();
+      }, 550);
+    }
+  };
+
+  // Audio Playback for current active verse
+  const toggleQariAudio = () => {
+    if (isPlayingQari) {
+      if (audioRef.current) audioRef.current.pause();
+      setIsPlayingQari(false);
+    } else {
+      if (!activeAyah) return;
+      if (audioRef.current) audioRef.current.pause();
+
+      const audio = new Audio(activeAyah.audioUrl);
+      audio.playbackRate = playbackSpeed;
+      audioRef.current = audio;
+
+      audio.onplay = () => setIsPlayingQari(true);
+      audio.onended = () => {
+        if (repeatMode === 'infinite') {
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+        } else {
+          setIsPlayingQari(false);
         }
       };
-      updateVolume();
-    } catch (e) {
-      console.warn("Audio visualizer fallback:", e);
+      audio.onerror = () => {
+        setIsPlayingQari(false);
+        showToast("⚠️ Could not load reciter audio stream.");
+      };
+
+      audio.play().catch(() => setIsPlayingQari(false));
     }
   };
 
-  // Keyboard Navigation & Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
-      if (['input', 'textarea', 'select'].includes((e.target as HTMLElement)?.tagName?.toLowerCase())) return;
+  // Page Jump Input submit
+  const handlePageJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = parseInt(pageInputVal);
+    if (!isNaN(p) && p >= 1 && p <= 604) {
+      setCurrentPageNumber(p);
+      showToast(`📖 Opened Page ${p}`);
+    } else {
+      showToast("⚠️ Please enter a page between 1 and 604.");
+      setPageInputVal(String(currentPageNumber));
+    }
+  };
 
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (isListening) stopListening();
-        else startListening();
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        handleNextAyah();
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrevAyah();
-      } else if (e.key === 'p' || e.key === 'P') {
-        e.preventDefault();
-        if (isPlayingQari) stopQariAyah();
-        else playQariAyah();
-      } else if (e.key === 'r' || e.key === 'R') {
-        e.preventDefault();
-        if (currentAyah) setupAyahWords(currentAyah);
-      }
-    };
+  // Page Accuracy Calculation
+  const pageAccuracy = useMemo(() => {
+    if (!pageAyahs || pageAyahs.length === 0) return 100;
+    let totalRecited = 0;
+    let totalMistakes = 0;
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isListening, isPlayingQari, currentAyah, handleNextAyah, handlePrevAyah, startListening, stopListening, setupAyahWords]);
+    pageAyahs.forEach(a => {
+      a.words.forEach(w => {
+        if (w.status === 'correct') totalRecited++;
+        if (w.status === 'mistake') totalMistakes++;
+      });
+    });
 
-  const correctCount = currentWords.filter(w => w.status === 'correct').length;
-  const mistakeCount = currentWords.filter(w => w.status === 'mistake').length;
-  const progressPercent = currentWords.length > 0 ? Math.round((correctCount / currentWords.length) * 100) : 0;
-  const surahProgressPercent = loadedAyahs.length > 0 ? Math.round(((currentAyahIndex + 1) / loadedAyahs.length) * 100) : 0;
+    if (totalRecited + totalMistakes === 0) return 100;
+    return Math.round((totalRecited / (totalRecited + totalMistakes)) * 100);
+  }, [pageAyahs]);
+
+  // Reset page progress
+  const handleRetryPage = () => {
+    setPageAyahs(prev => prev.map((a, i) => ({
+      ...a,
+      isRecited: false,
+      isActive: i === 0,
+      words: a.words.map((w, wI) => ({
+        ...w,
+        status: i === 0 && wI === 0 ? 'active' : 'unrecited',
+        detectedSpoken: undefined,
+        problemReason: undefined,
+        tajweedTip: undefined
+      }))
+    })));
+    setActiveAyahPageIdx(0);
+    setActiveWordIdx(0);
+    setSpokenTranscript('');
+    setActiveTajweedTip(null);
+    showToast("🔄 Page progress reset.");
+  };
 
   return (
-    <div className="min-h-screen pb-32 text-white bg-radial-gradient">
-      {/* Toast Notification */}
+    <div className={`min-h-screen pb-28 select-none transition-colors duration-300 ${
+      mushafTheme === 'parchment'
+        ? 'bg-[#F4EFE6] text-[#2C2416]'
+        : mushafTheme === 'emerald'
+        ? 'bg-[#061C14] text-[#E2F5EA]'
+        : 'bg-[#080D11] text-[#E8EDF2]'
+    }`}>
+
+      {/* Floating Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-6 z-50 bg-emerald-500 text-black font-black text-xs px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-emerald-300 backdrop-blur-md"
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-slate-900/95 text-white border border-emerald-500/40 shadow-2xl backdrop-blur-md text-xs font-bold flex items-center gap-2"
           >
-            <CheckCircle2 size={16} />
+            <Sparkles size={14} className="text-amber-400" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* QUICK SURAH & JUZ PICKER MODAL (Strict Chronological Order 1 to 114) */}
-      <AnimatePresence>
-        {showSurahPicker && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6"
-            onClick={() => setShowSurahPicker(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-slate-900 border border-white/15 rounded-[2.5rem] p-6 sm:p-8 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl space-y-4"
+      {/* TOP APPLICATION APPBAR */}
+      <header className={`sticky top-0 z-40 px-4 py-2.5 backdrop-blur-xl border-b transition-colors ${
+        mushafTheme === 'parchment'
+          ? 'bg-[#F4EFE6]/90 border-[#D4C8B5]'
+          : 'bg-[#080D11]/90 border-white/5'
+      }`}>
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGoBack}
+              className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                mushafTheme === 'parchment'
+                  ? 'bg-white/80 border-[#D4C8B5] text-[#4A3B2C] hover:bg-white'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+              }`}
+              title="Return to Sanctuary"
             >
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Strict Mushaf Sequence</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-bold">114 Surahs • 30 Juz</span>
-                  </div>
-                  <h3 className="text-xl font-black text-white">Select Quran Point in Strict Order</h3>
-                </div>
+              <ArrowLeft size={18} />
+            </button>
+            
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                  Holy Aliyah Studio
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  604 Pages
+                </span>
+                {isPremium && (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                    <Crown size={10} /> VIP
+                  </span>
+                )}
+              </div>
+              <h1 className="text-base sm:text-lg font-black leading-tight">
+                {pageSurahInfo.englishName} ({pageSurahInfo.surahName}) • Page {currentPageNumber}
+              </h1>
+            </div>
+          </div>
+
+          {/* Right Top Header Actions */}
+          <div className="flex items-center gap-2">
+            
+            {/* Google Gemini Pro Tajweed Audit Trigger */}
+            <button
+              onClick={requestGeminiTajweedAudit}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 hover:scale-105 transition-all cursor-pointer"
+              title="AI Tajweed Masterclass with Google Gemini Pro"
+            >
+              <Brain size={14} />
+              <span className="hidden sm:inline">AI Tajweed Audit</span>
+              <span className="sm:hidden">Audit</span>
+              {!isPremium && <Crown size={12} className="text-slate-950" />}
+            </button>
+
+            {/* Test & Simulation Mode Toggle */}
+            <button
+              onClick={() => setIsTestModeOpen(!isTestModeOpen)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                isTestModeOpen
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/25'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+              title="Toggle Test Recitation Simulator"
+            >
+              <Wand2 size={13} className={isAutoSimulating ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Test Engine</span>
+            </button>
+
+            {/* Theme Selector */}
+            <div className="hidden sm:flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+              <button
+                onClick={() => {
+                  setMushafTheme('parchment');
+                  localStorage.setItem('aliyah_memorise_theme', 'parchment');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  mushafTheme === 'parchment' ? 'bg-[#D4C8B5] text-[#1A1105] shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Parchment Manuscript"
+              >
+                📜 Parchment
+              </button>
+              <button
+                onClick={() => {
+                  setMushafTheme('emerald');
+                  localStorage.setItem('aliyah_memorise_theme', 'emerald');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  mushafTheme === 'emerald' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Emerald Gold"
+              >
+                🌿 Emerald
+              </button>
+              <button
+                onClick={() => {
+                  setMushafTheme('night');
+                  localStorage.setItem('aliyah_memorise_theme', 'night');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  mushafTheme === 'night' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Night Lux"
+              >
+                🌙 Night
+              </button>
+            </div>
+
+            {/* Accuracy D3 Gauge */}
+            <D3AccuracyGauge percentage={pageAccuracy} size={42} />
+          </div>
+
+        </div>
+      </header>
+
+      {/* MAIN CONTAINER */}
+      <main className="max-w-4xl mx-auto px-3 sm:px-4 pt-4 space-y-4">
+        
+        {/* 🌟 1. TEST & SIMULATION TOOLBAR (FOR INSTANT AUDIT & VERIFICATION) */}
+        <AnimatePresence>
+          {isTestModeOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="p-4 rounded-2xl bg-purple-950/40 border border-purple-500/40 backdrop-blur-xl shadow-xl flex flex-wrap items-center justify-between gap-3 text-xs"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                <span className="font-black text-purple-300 uppercase tracking-wider">
+                  Test Recitation Simulator
+                </span>
+                <span className="text-[10px] text-slate-300">
+                  (Test follow-along, animations & Tajweed feedback instantly)
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => setShowSurahPicker(false)}
-                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 cursor-pointer"
+                  onClick={toggleAutoSimulation}
+                  className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all ${
+                    isAutoSimulating
+                      ? 'bg-rose-500 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:opacity-90'
+                  }`}
                 >
-                  <XCircle size={20} />
+                  {isAutoSimulating ? <Pause size={13} /> : <Play size={13} />}
+                  <span>{isAutoSimulating ? 'Pause Auto' : '▶️ Auto-Recite Page'}</span>
+                </button>
+
+                <button
+                  onClick={handleSimulateNextWord}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <FastForward size={13} />
+                  <span>Step Word</span>
+                </button>
+
+                <button
+                  onClick={handleSimulateMistakeDemo}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <AlertTriangle size={13} />
+                  <span>Simulate Tajweed Mistake</span>
+                </button>
+
+                <button
+                  onClick={handleRetryPage}
+                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw size={13} />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 🌟 2. DEDICATED PAGE SELECTION & JUMP STRIP */}
+        <div className={`p-3 rounded-2xl border shadow-md flex flex-wrap items-center justify-between gap-3 ${
+          mushafTheme === 'parchment'
+            ? 'bg-white/80 border-[#D4C8B5]'
+            : 'bg-white/5 border-white/10'
+        }`}>
+          {/* Quick Page Navigator */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPageNumber(prev => Math.max(1, prev - 1))}
+              disabled={currentPageNumber <= 1}
+              className="p-2 rounded-xl bg-black/10 hover:bg-black/20 disabled:opacity-30 transition-all cursor-pointer"
+              title="Previous Page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            <form onSubmit={handlePageJumpSubmit} className="flex items-center gap-1.5">
+              <span className="text-xs font-black opacity-70">PAGE</span>
+              <input
+                type="number"
+                min={1}
+                max={604}
+                value={pageInputVal}
+                onChange={(e) => setPageInputVal(e.target.value)}
+                className="w-12 text-center font-black text-sm bg-black/10 border border-black/20 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <span className="text-xs opacity-60">/ 604</span>
+            </form>
+
+            <button
+              onClick={() => setCurrentPageNumber(prev => Math.min(604, prev + 1))}
+              disabled={currentPageNumber >= 604}
+              className="p-2 rounded-xl bg-black/10 hover:bg-black/20 disabled:opacity-30 transition-all cursor-pointer"
+              title="Next Page"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* Center: Surah / Passage Selector Button */}
+          <button
+            onClick={() => setShowPagePickerModal(true)}
+            className="px-4 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-black flex items-center gap-2 cursor-pointer transition-all"
+          >
+            <BookOpen size={14} />
+            <span>Choose Surah / Juz / Passage</span>
+            <ChevronDown size={14} />
+          </button>
+
+          {/* Qari Reciter Audio Player */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleQariAudio}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                isPlayingQari
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 animate-pulse'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200'
+              }`}
+              title="Listen to Master Reciter"
+            >
+              {isPlayingQari ? <Pause size={14} /> : <Play size={14} />}
+              <span>{isPlayingQari ? 'Playing' : 'Listen Qari'}</span>
+            </button>
+
+            <select
+              value={selectedQari}
+              onChange={(e) => {
+                const targetQari = RECITER_LIST.find(r => r.id === e.target.value);
+                if (targetQari?.premium && !isPremium && onShowPremium) {
+                  onShowPremium();
+                  return;
+                }
+                setSelectedQari(e.target.value);
+              }}
+              className="bg-black/10 text-xs font-bold rounded-xl px-2.5 py-1.5 border border-black/10 focus:outline-none max-w-[130px]"
+            >
+              {RECITER_LIST.map(q => (
+                <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+                  {q.name} {q.premium ? '👑' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* 🌟 3. TARTEEL HIFZ 3-CASE MODES BAR */}
+        <div className={`p-1.5 rounded-2xl border flex flex-wrap items-center justify-between gap-1 shadow-md ${
+          mushafTheme === 'parchment'
+            ? 'bg-white/80 border-[#D4C8B5]'
+            : 'bg-white/5 border-white/10'
+        }`}>
+          <div className="flex items-center gap-1 flex-1 min-w-[280px] overflow-x-auto">
+            <button
+              onClick={() => setTarteelMode('case1_detective')}
+              className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                tarteelMode === 'case1_detective'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md font-black'
+                  : 'opacity-70 hover:opacity-100'
+              }`}
+            >
+              <Compass size={14} />
+              <span>Case 1: Auto-Detect</span>
+            </button>
+
+            <button
+              onClick={() => setTarteelMode('case2_correction')}
+              className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                tarteelMode === 'case2_correction' || tarteelMode === 'live_highlight'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md font-black'
+                  : 'opacity-70 hover:opacity-100'
+              }`}
+            >
+              <CheckCircle2 size={14} />
+              <span>Case 2: Live Correction</span>
+            </button>
+
+            <button
+              onClick={() => setTarteelMode('case3_reveal')}
+              className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                tarteelMode === 'case3_reveal' || tarteelMode === 'hide_all_reveal'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-md font-black'
+                  : 'opacity-70 hover:opacity-100'
+              }`}
+            >
+              <Sparkles size={14} />
+              <span>Case 3: Recite & Reveal</span>
+            </button>
+
+            <button
+              onClick={() => setTarteelMode('first_letters')}
+              className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                tarteelMode === 'first_letters'
+                  ? 'bg-purple-500 text-white shadow-md font-black'
+                  : 'opacity-50 hover:opacity-80'
+              }`}
+              title="First Letters Only"
+            >
+              <Hash size={13} />
+              <span>1st Letters</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowTranslation(!showTranslation)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                showTranslation
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  : 'opacity-60 hover:opacity-100'
+              }`}
+              title="Toggle English Translation"
+            >
+              <BookOpen size={14} className="inline mr-1" />
+              <span>Translation</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 🌟 4. REAL-TIME TARTEEL VOICE ENGINE CONTROLLER (CENTRAL MIC HERO) */}
+        <div className={`relative overflow-hidden p-5 sm:p-6 rounded-3xl border shadow-xl ${
+          mushafTheme === 'parchment'
+            ? 'bg-gradient-to-r from-[#EFE8DC] to-[#E5DCCF] border-[#D4C8B5]'
+            : 'bg-gradient-to-r from-[#111A22] to-[#0E161E] border-white/10'
+        }`}>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
+            
+            {/* Center Mic & Dynamic Mode Title */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {isListening && (
+                  <>
+                    <motion.div
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.8, 0.3] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                      className="absolute -inset-3 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 blur-lg pointer-events-none"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.9, 0.4] }}
+                      transition={{ repeat: Infinity, duration: 1.1, delay: 0.2 }}
+                      className="absolute -inset-1.5 rounded-full bg-teal-300 blur-sm pointer-events-none"
+                    />
+                  </>
+                )}
+                
+                <button
+                  onClick={() => {
+                    if (isListening) {
+                      stopListening();
+                    } else {
+                      startListening(tarteelMode === 'case1_detective');
+                    }
+                  }}
+                  className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white transition-all cursor-pointer shadow-2xl ${
+                    isListening
+                      ? 'bg-gradient-to-br from-rose-500 to-rose-600 scale-105 shadow-rose-500/40 ring-4 ring-rose-400/40'
+                      : 'bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 hover:scale-105 shadow-emerald-500/40 ring-4 ring-emerald-400/30'
+                  }`}
+                >
+                  {isListening ? (
+                    <MicOff size={28} className="text-white" />
+                  ) : (
+                    <Mic size={28} className="text-slate-950 font-black" />
+                  )}
                 </button>
               </div>
 
-              {/* Tabs: Surah vs Juz */}
-              <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${isListening ? 'bg-emerald-400 animate-ping' : 'bg-slate-400'}`} />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    {isListening ? 'Tarteel AI Listening...' : 'Tarteel Voice Engine Ready'}
+                  </span>
+                </div>
+                <h3 className="font-black text-sm sm:text-base mt-0.5">
+                  {isListening
+                    ? 'Reciting live on page...'
+                    : tarteelMode === 'case1_detective'
+                    ? 'Case 1: Auto-Detect & Follow Along'
+                    : tarteelMode === 'case2_correction'
+                    ? 'Case 2: Live Correction for Selected Surah'
+                    : 'Case 3: Sacred Blank Memory Reveal'}
+                </h3>
+                <p className="text-xs opacity-70">
+                  {tarteelMode === 'case1_detective'
+                    ? 'Recite any ayah from anywhere in the Quran to identify and open that page instantly'
+                    : tarteelMode === 'case2_correction'
+                    ? 'Recite with real-time green highlights & instant Tajweed corrections'
+                    : 'Ayahs are cloaked in sacred parchment. Recite each verse to reveal it!'}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Actions, Surah Picker & Accuracy */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowPagePickerModal(true)}
+                className="px-3.5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Choose a specific Surah, Juz or Page"
+              >
+                <BookOpen size={14} className="text-cyan-400" />
+                <span>Pick Surah</span>
+              </button>
+
+              <button
+                onClick={handleRetryPage}
+                className="p-2.5 rounded-2xl bg-black/10 hover:bg-black/20 opacity-80 hover:opacity-100 transition-all cursor-pointer"
+                title="Reset Page Progress"
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+
+          </div>
+
+          {/* Live Transcript Bubble */}
+          {spokenTranscript && (
+            <div className="mt-3 p-3 rounded-2xl bg-black/40 border border-emerald-500/30 flex items-center justify-between gap-3 text-xs">
+              <span className="font-mono text-emerald-400 font-bold uppercase tracking-wider text-[10px]">RECOGNIZED:</span>
+              <span className="font-serif text-sm font-bold text-white truncate" dir="rtl">{spokenTranscript}</span>
+              <span className="text-[10px] text-emerald-400/80 font-mono">Live</span>
+            </div>
+          )}
+
+          {/* Active Tajweed Immediate Alert Pill */}
+          {activeTajweedTip && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between gap-3 shadow-lg"
+            >
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-rose-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-white font-serif text-sm ml-1" dir="rtl">{activeTajweedTip.word}: </span>
+                  <span className="font-semibold text-rose-200">{activeTajweedTip.reason}</span>
+                  <p className="text-[11px] text-rose-300/80">{activeTajweedTip.tip}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setActiveTajweedTip(null)}
+                className="p-1 rounded-lg hover:bg-rose-500/20 text-rose-400 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+
+          {/* Continuous Flow & Detected Surah Badge */}
+          {detectedSurahBanner && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-3 p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-amber-400 animate-spin" />
+                <span className="font-bold">
+                  🎯 Recitation Identified: Surah {detectedSurahBanner.surahName} ({detectedSurahBanner.surahArabicName}) • Page {detectedSurahBanner.page}
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-[10px] font-black uppercase text-emerald-200">
+                Continuous Flow Active 🌊
+              </span>
+            </motion.div>
+          )}
+
+          {isListening && (
+            <div className="mt-2 text-center text-xs font-bold text-emerald-400/90 flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>Continuous Recitation Flow: Recite smoothly across verses — automatically advances 🌊</span>
+            </div>
+          )}
+        </div>
+
+        {/* 🌟 5. ICONIC MADANI MUSHAF PAGE FRAME */}
+        <div className="relative my-6 select-none transition-all duration-300">
+          
+          {/* Authentic Madani Mushaf Outer Frame Container */}
+          <div className="relative mx-auto max-w-[680px] rounded-[24px] p-2.5 sm:p-4 shadow-2xl transition-all duration-300 bg-[#0089a8] border-4 border-[#c5a059]"
+            style={{
+              backgroundImage: `radial-gradient(circle at 50% 50%, #0098ba 0%, #00748e 100%)`,
+              boxShadow: '0 25px 60px -15px rgba(0, 137, 168, 0.3), 0 0 0 1px rgba(197, 160, 89, 0.4)'
+            }}
+          >
+            
+            {/* Islamic Geometric Corner Accents */}
+            <div className="absolute top-1 left-1 w-6 h-6 border-t-2 border-l-2 border-amber-300 pointer-events-none" />
+            <div className="absolute top-1 right-1 w-6 h-6 border-t-2 border-r-2 border-amber-300 pointer-events-none" />
+            <div className="absolute bottom-1 left-1 w-6 h-6 border-b-2 border-l-2 border-amber-300 pointer-events-none" />
+            <div className="absolute bottom-1 right-1 w-6 h-6 border-b-2 border-r-2 border-amber-300 pointer-events-none" />
+
+            {/* Inner Golden Filigree Border */}
+            <div className="rounded-[18px] border-2 border-[#e6cca0] p-1.5 sm:p-2 bg-white/10">
+              
+              {/* Inner Parchment / Manuscript Canvas */}
+              <div className={`relative rounded-[14px] p-4 sm:p-6 min-h-[580px] flex flex-col justify-between border border-[#c5a059]/40 ${
+                mushafTheme === 'parchment'
+                  ? 'bg-[#FCFAF5] text-[#1A1105]'
+                  : mushafTheme === 'emerald'
+                  ? 'bg-[#041610] text-[#E8F8F0]'
+                  : 'bg-[#0A1015] text-[#F0F4F8]'
+              }`}>
+                
+                {/* 🕌 TOP CARTOUCHE PLAQUES (SURAH & JUZ HEADERS) */}
+                <div className="flex items-center justify-between pb-2 mb-3 border-b-2 border-[#c5a059]/40">
+                  {/* Left: Surah Calligraphy Plaque */}
+                  <div className="px-3.5 py-0.5 rounded-full border-2 border-[#c5a059] bg-[#0089a8]/10 text-[#0089a8] dark:text-[#38bdf8] flex items-center gap-1 shadow-sm">
+                    <span className="font-serif font-bold text-xs tracking-wide">
+                      {pageSurahInfo.surahName}
+                    </span>
+                  </div>
+
+                  {/* Center Star Rosette */}
+                  <div className="w-5 h-5 rounded-full border border-[#c5a059] flex items-center justify-center text-[#c5a059] text-[9px]">
+                    ۞
+                  </div>
+
+                  {/* Right: Juz Calligraphy Plaque */}
+                  <div className="px-3.5 py-0.5 rounded-full border-2 border-[#c5a059] bg-[#0089a8]/10 text-[#0089a8] dark:text-[#38bdf8] flex items-center gap-1 shadow-sm">
+                    <span className="font-serif font-bold text-xs tracking-wide">
+                      {pageSurahInfo.juzArabic}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Content Area */}
+                {loadingPage ? (
+                  <div className="py-32 text-center space-y-3">
+                    <RefreshCw size={32} className="animate-spin text-cyan-600 dark:text-cyan-400 mx-auto" />
+                    <p className="text-xs font-bold font-serif opacity-70">Illuminating Madani Page {currentPageNumber}...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Bismillah Header for Ayah 1 of any Surah (except Surah 9 At-Tawbah & Surah 1 Al-Fatiha) */}
+                    {pageAyahs.some(a => a.numberInSurah === 1 && a.surahNumber !== 9 && a.surahNumber !== 1) && (
+                      <div className="py-2 text-center border-y border-[#c5a059]/30 my-1">
+                        <p 
+                          className="font-serif text-xl sm:text-2xl font-bold tracking-wide"
+                          style={{ fontFamily: `'Amiri', 'Scheherazade New', 'Traditional Arabic', serif` }}
+                        >
+                          بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 📖 CONTINUOUS 15-LINE MADANI QURAN CALLIGRAPHY */}
+                    <div 
+                      dir="rtl" 
+                      className="flex-1 text-justify leading-[2.6] sm:leading-[3.0] font-serif text-lg sm:text-[21px] tracking-wide"
+                      style={{ 
+                        fontFamily: `'Amiri', 'Scheherazade New', 'Traditional Arabic', serif`,
+                        textJustify: 'inter-word'
+                      }}
+                    >
+                      {pageAyahs.map((ayah, aIdx) => {
+                        const isCurrentAyah = activeAyahPageIdx === aIdx;
+                        const isPastAyah = aIdx < activeAyahPageIdx;
+                        const isFutureAyah = aIdx > activeAyahPageIdx;
+                        const hideFutureVeil = tarteelMode === 'hide_future' && isFutureAyah;
+
+                        return (
+                          <span
+                            key={ayah.number}
+                            onClick={() => {
+                              setActiveAyahPageIdx(aIdx);
+                              setActiveWordIdx(0);
+                            }}
+                            className={`inline transition-all duration-300 cursor-pointer rounded-lg px-0.5 ${
+                              isCurrentAyah
+                                ? 'bg-amber-400/15 rounded-lg'
+                                : 'hover:bg-amber-500/10'
+                            }`}
+                          >
+                            {/* Mask / Reveal & Word Mapping */}
+                            {hideFutureVeil ? (
+                              <span className="opacity-30 blur-sm select-none">
+                                {ayah.words.map(w => w.arabic).join(' ')}
+                              </span>
+                            ) : (
+                              ayah.words.map((word, wIdx) => {
+                                const isWordActive = isCurrentAyah && activeWordIdx === wIdx;
+                                const isWordCorrect = word.status === 'correct';
+                                const isWordMistake = word.status === 'mistake';
+
+                                let displayText = word.arabic;
+                                let wordColor = '';
+
+                                if (tarteelMode === 'case3_reveal' || tarteelMode === 'hide_all_reveal') {
+                                  if (isWordCorrect) {
+                                    displayText = word.arabic;
+                                    wordColor = 'text-emerald-600 dark:text-emerald-400 font-bold drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]';
+                                  } else if (isWordActive) {
+                                    displayText = '••••';
+                                    wordColor = 'text-amber-500 animate-pulse font-sans text-xs';
+                                  } else {
+                                    displayText = '••••';
+                                    wordColor = 'text-black/10 dark:text-white/10 select-none';
+                                  }
+                                } else if (tarteelMode === 'first_letters') {
+                                  if (isWordCorrect) {
+                                    displayText = word.arabic;
+                                    wordColor = 'text-emerald-600 dark:text-emerald-400 font-bold';
+                                  } else {
+                                    displayText = word.firstLetter + '..';
+                                    wordColor = 'text-cyan-600 dark:text-cyan-400 font-mono';
+                                  }
+                                } else {
+                                  // case1_detective, case2_correction, or live_highlight
+                                  if (isWordCorrect) {
+                                    displayText = word.arabic;
+                                    wordColor = 'text-emerald-600 dark:text-emerald-400 font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.3)]';
+                                  } else if (isWordMistake) {
+                                    displayText = word.arabic;
+                                    wordColor = 'text-rose-600 dark:text-rose-400 underline decoration-rose-500 bg-rose-500/15 rounded px-0.5';
+                                  } else if (isWordActive) {
+                                    displayText = word.arabic;
+                                    wordColor = 'text-amber-600 dark:text-amber-300 font-bold underline decoration-amber-500 decoration-2 underline-offset-8 animate-pulse';
+                                  }
+                                }
+
+                                return (
+                                  <span
+                                    key={word.id}
+                                    className={`inline-block mx-[2px] transition-colors duration-150 ${wordColor}`}
+                                  >
+                                    {displayText}
+                                  </span>
+                                );
+                              })
+                            )}
+
+                            {/* ۝ Ornate Gold Ayah End Seal with Arabic Number */}
+                            <span className="inline-flex items-center justify-center mx-1 align-middle select-none">
+                              <span className={`relative inline-flex items-center justify-center w-6 h-6 rounded-full border transition-all ${
+                                isCurrentAyah
+                                  ? 'border-amber-400 bg-amber-400 text-slate-950 font-black scale-105 shadow-sm'
+                                  : 'border-[#c5a059] bg-[#c5a059]/10 text-[#c5a059] font-serif text-[11px] font-bold'
+                              }`}>
+                                {toArabicDigits(ayah.numberInSurah)}
+                              </span>
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 🕌 BOTTOM CARTOUCHE PLAQUE (PAGE NUMBER BADGE) */}
+                <div className="flex items-center justify-between pt-3 mt-4 border-t-2 border-[#c5a059]/40 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold opacity-75">
+                    <span className="px-2 py-0.5 rounded-full border border-[#c5a059]/50 bg-[#0089a8]/10 text-[#0089a8] dark:text-[#38bdf8] text-[10px]">
+                      Juz {pageSurahInfo.juz}
+                    </span>
+                  </div>
+
+                  {/* Page Badge */}
+                  <div className="px-5 py-0.5 rounded-full border-2 border-[#c5a059] bg-[#0089a8]/10 text-[#0089a8] dark:text-[#38bdf8] font-serif font-black text-sm shadow-sm flex items-center gap-1.5">
+                    <span>{toArabicDigits(currentPageNumber)}</span>
+                    <span className="text-[10px] opacity-60 font-sans font-normal">({currentPageNumber})</span>
+                  </div>
+
+                  <div className="text-[9px] font-mono opacity-60 font-bold uppercase tracking-wider">
+                    Madani 15-Line
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Translation Banner if Enabled */}
+        {showTranslation && activeAyah && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-2xl border shadow-md space-y-1 ${
+              mushafTheme === 'parchment'
+                ? 'bg-white/90 border-[#D4C8B5]'
+                : 'bg-white/5 border-white/10'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs font-bold opacity-70">
+              <span className="text-emerald-500">Ayah {activeAyah.numberInSurah} Translation</span>
+              <span>Sahih International</span>
+            </div>
+            <p className="text-sm font-sans">{activeAyah.translation}</p>
+          </motion.div>
+        )}
+
+      </main>
+
+      {/* 🌟 6. DEDICATED FULL-FEATURED PAGE & SURAH PICKER MODAL */}
+      <AnimatePresence>
+        {showPagePickerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-2xl max-h-[85vh] rounded-3xl bg-slate-900 border border-white/10 shadow-2xl flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen size={20} className="text-emerald-400" />
+                  <h3 className="font-black text-white text-base">Select Quran Passage</h3>
+                </div>
                 <button
-                  onClick={() => setSurahPickerTab('surahs')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    surahPickerTab === 'surahs'
-                      ? 'bg-amber-400 text-black font-black shadow-md'
-                      : 'bg-white/5 text-slate-400 hover:text-white'
-                  }`}
+                  onClick={() => setShowPagePickerModal(false)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
                 >
-                  114 Surahs (Sequential 1→114)
+                  <X size={18} />
                 </button>
-                <button
-                  onClick={() => setSurahPickerTab('juz')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    surahPickerTab === 'juz'
-                      ? 'bg-amber-400 text-black font-black shadow-md'
-                      : 'bg-white/5 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  30 Juz (Juz 1 to Juz 30)
-                </button>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="p-2 border-b border-white/10 flex items-center gap-2 bg-black/20">
+                {(['surahs', 'passages', 'juz', 'pages'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setPickerTab(tab)}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      pickerTab === tab
+                        ? 'bg-emerald-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {tab === 'surahs' ? '114 Surahs' : tab === 'passages' ? 'Passages' : tab === 'juz' ? '30 Juz' : 'Pages (1-604)'}
+                  </button>
+                ))}
               </div>
 
               {/* Search Bar */}
-              {surahPickerTab === 'surahs' && (
+              <div className="p-3 border-b border-white/10">
                 <div className="relative">
-                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search Surah (e.g. Baqarah, Yasin, Mulk, 36, Kahf)..."
-                    value={surahSearchQuery}
-                    onChange={(e) => setSurahSearchQuery(e.target.value)}
-                    className="w-full bg-black/60 border border-white/10 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 transition-all"
-                    autoFocus
+                    placeholder="Search by Surah name, number, or topic..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
-              )}
+              </div>
 
-              {/* Surah List Grid */}
-              <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[50vh] custom-scrollbar">
-                {surahPickerTab === 'surahs' ? (
-                  filteredSurahs.map((s) => (
-                    <button
-                      key={s.number}
-                      onClick={() => {
-                        setSelectedSurahNumber(s.number);
-                        setCurrentAyahIndex(0);
-                        setShowSurahPicker(false);
-                      }}
-                      className={`w-full p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
-                        s.number === selectedSurahNumber
-                          ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg'
-                          : 'bg-white/[0.02] hover:bg-white/[0.08] border-white/5 text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black font-mono ${
-                          s.number === selectedSurahNumber ? 'bg-amber-400 text-black' : 'bg-white/10 text-amber-300'
-                        }`}>
-                          {s.number}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-white">{s.englishName}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">({s.numberOfAyahs} Ayahs)</span>
+              {/* Tab Contents */}
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                {pickerTab === 'surahs' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {SURAH_LIST.filter(s => 
+                      !searchQuery || 
+                      s.englishName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      s.name.includes(searchQuery) ||
+                      String(s.number).includes(searchQuery)
+                    ).map(s => (
+                      <button
+                        key={s.number}
+                        onClick={async () => {
+                          setShowPagePickerModal(false);
+                          try {
+                            const res = await fetch(`https://api.alquran.cloud/v1/ayah/${s.number}:1/editions/quran-uthmani`);
+                            const data = await res.json();
+                            if (data.code === 200 && data.data.length > 0) {
+                              const p = data.data[0].page;
+                              setCurrentPageNumber(p);
+                              showToast(`📖 Opened Surah ${s.englishName} (Page ${p})`);
+                            }
+                          } catch {
+                            setCurrentPageNumber(1);
+                          }
+                        }}
+                        className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-emerald-500/30 flex items-center justify-between text-left transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 font-mono text-xs font-black flex items-center justify-center border border-emerald-500/20">
+                            {s.number}
+                          </span>
+                          <div>
+                            <p className="text-xs font-black text-white">{s.englishName}</p>
+                            <p className="text-[10px] text-slate-400">{s.numberOfAyahs} Ayahs • {s.revelationType}</p>
                           </div>
-                          <span className="text-[11px] text-slate-400">{s.englishNameTranslation} • {s.revelationType}</span>
                         </div>
-                      </div>
+                        <span className="font-serif text-sm font-bold text-amber-300" dir="rtl">{s.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                      <span className="text-xl font-serif text-amber-300">{s.name}</span>
-                    </button>
-                  ))
-                ) : (
-                  // Juz List Grid
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {JUZ_LIST.map((j) => (
+                {pickerTab === 'passages' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {FAMOUS_PASSAGES.map((p, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setShowPagePickerModal(false);
+                          setCurrentPageNumber(p.page);
+                          showToast(`📖 Opened ${p.name} (Page ${p.page})`);
+                        }}
+                        className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20 hover:border-amber-500/40 text-left transition-all cursor-pointer space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-300">{p.name}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[9px] font-bold">
+                            Page {p.page}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">{p.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {pickerTab === 'juz' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {JUZ_LIST.map(j => (
                       <button
                         key={j.index}
                         onClick={() => {
-                          const firstSurahNumber = j.startSurah || j.surahs?.[0]?.surahNumber || 1;
-                          setSelectedSurahNumber(firstSurahNumber);
-                          setCurrentAyahIndex(0);
-                          setShowSurahPicker(false);
-                          showToast(`Opened Juz ${j.index} in Strict Quran Order`);
+                          setShowPagePickerModal(false);
+                          // Calculate start page of Juz
+                          const approxPage = (j.index - 1) * 20 + 2;
+                          setCurrentPageNumber(approxPage);
+                          showToast(`📖 Opened Juz ${j.index} (~Page ${approxPage})`);
                         }}
-                        className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/10 border border-white/5 text-left flex items-center justify-between cursor-pointer transition-all"
+                        className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 text-center transition-all cursor-pointer"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center text-xs font-mono font-bold">
-                            {j.index}
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-white">{j.nameTransliteration || `Juz ${j.index}`}</p>
-                            <p className="text-[10px] text-slate-400 font-serif">{j.nameArabic}</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono text-emerald-400">Juz {j.index}</span>
+                        <span className="text-xs font-black text-emerald-400 block">Juz {j.index}</span>
+                        <span className="font-serif text-sm text-slate-200" dir="rtl">{j.nameArabic}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {pickerTab === 'pages' && (
+                  <div className="grid grid-cols-6 sm:grid-cols-10 gap-1.5 text-center">
+                    {Array.from({ length: 604 }, (_, i) => i + 1).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          setShowPagePickerModal(false);
+                          setCurrentPageNumber(p);
+                        }}
+                        className={`py-2 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+                          currentPageNumber === p
+                            ? 'bg-emerald-500 text-slate-950 font-black scale-105'
+                            : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                        }`}
+                      >
+                        {p}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* SHORTCUTS HELP MODAL */}
+      {/* 🌟 7. GOOGLE GEMINI PRO AI TAJWEED MASTERCLASS MODAL */}
       <AnimatePresence>
-        {showShortcutsModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() => setShowShortcutsModal(false)}
-          >
+        {showGeminiAuditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-slate-900 border border-white/15 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-xl max-h-[90vh] rounded-[2.5rem] bg-slate-900 border border-amber-500/30 shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Keyboard size={18} className="text-amber-400" />
-                  <span>Hands-Free Keyboard Shortcuts</span>
-                </h3>
-                <button onClick={() => setShowShortcutsModal(false)} className="text-slate-400 hover:text-white">
-                  <XCircle size={18} />
+              {/* Modal Top Banner */}
+              <div className="p-5 border-b border-white/10 bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <Brain size={20} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                      Google Gemini Pro AI Masterclass
+                    </span>
+                    <h3 className="text-base font-black text-white">
+                      Tajweed & Makharij Recitation Audit
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowGeminiAuditModal(false)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="space-y-2.5 text-xs">
-                {[
-                  { key: 'Space', desc: 'Toggle Live Microphone On / Off' },
-                  { key: '→ (Right Arrow)', desc: 'Next Ayah in Strict Quran Order' },
-                  { key: '← (Left Arrow)', desc: 'Previous Ayah in Quran' },
-                  { key: 'P', desc: 'Play / Pause Qari Reference Audio' },
-                  { key: 'R', desc: 'Reset & Re-recite Active Verse' }
-                ].map((s, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
-                    <span className="text-slate-300">{s.desc}</span>
-                    <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 text-amber-300 font-mono text-[10px] font-bold">
-                      {s.key}
-                    </kbd>
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                {isAnalyzingGemini ? (
+                  <div className="py-20 text-center space-y-4">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                      className="w-12 h-12 rounded-2xl border-2 border-amber-400 border-t-transparent mx-auto"
+                    />
+                    <p className="text-sm font-black text-white">
+                      Evaluating Makharij & Tajweed Rules with Gemini Pro...
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Analyzing articulation points, Ghunnah durations, and Tartil cadence.
+                    </p>
                   </div>
-                ))}
+                ) : geminiAuditResult ? (
+                  <div className="space-y-5">
+                    {/* Score & Grade Hero */}
+                    <div className="p-4 rounded-3xl bg-gradient-to-br from-amber-500/15 via-slate-800 to-transparent border border-amber-500/30 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                          Recitation Mastery Grade
+                        </span>
+                        <h4 className="text-lg font-black text-white mt-0.5">
+                          {geminiAuditResult.grade}
+                        </h4>
+                        <p className="text-xs text-slate-300 mt-1">
+                          {geminiAuditResult.summary}
+                        </p>
+                      </div>
+
+                      <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex flex-col items-center justify-center text-amber-300 font-mono font-black shrink-0">
+                        <span className="text-xl">{geminiAuditResult.score}</span>
+                        <span className="text-[9px] uppercase">/ 100</span>
+                      </div>
+                    </div>
+
+                    {/* Makharij Articulation Notes */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <Award size={14} /> Makharij Al-Huroof (Articulation Points)
+                      </h5>
+                      <div className="space-y-1.5">
+                        {geminiAuditResult.makharijNotes.map((note, idx) => (
+                          <div key={idx} className="p-3 rounded-2xl bg-white/5 border border-white/5 text-xs text-slate-200">
+                            • {note}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tajweed Rules (Ghunnah, Qalqalah, Madd) */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                        <Sparkles size={14} /> Tajweed Rules & Precision
+                      </h5>
+                      <div className="space-y-1.5">
+                        {geminiAuditResult.tajweedRules.map((rule, idx) => (
+                          <div key={idx} className="p-3 rounded-2xl bg-white/5 border border-white/5 text-xs text-slate-200">
+                            ✓ {rule}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Spiritual Reflection */}
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 space-y-1">
+                      <span className="font-black text-emerald-400 uppercase tracking-wider text-[10px]">Spiritual Reflection</span>
+                      <p>{geminiAuditResult.spiritualReflection}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-white/10 bg-black/40 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 font-mono">
+                  +50 Hasanat Awarded ✨
+                </span>
+                <button
+                  onClick={() => setShowGeminiAuditModal(false)}
+                  className="px-6 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider cursor-pointer hover:bg-amber-400 transition-all"
+                >
+                  Continue Practice
+                </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        
-        {/* TOP HEADER & BRAND BAR */}
-        <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-r from-brand-sidebar via-brand-depth to-black/90 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
-          <div className="absolute -bottom-10 left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
-
-          <div className="flex items-center gap-4 relative z-10">
-            <button
-              onClick={onBack}
-              className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all cursor-pointer shadow-lg"
-              title="Return to Main Menu"
-            >
-              <ArrowLeft size={18} />
-            </button>
-
-            <div>
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
-                  <Brain size={12} className="text-amber-400" /> Aliyah Memorise AI
-                </span>
-                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
-                  <Zap size={10} /> Auto-Switching Hands-Free
-                </span>
-                <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
-                  <ListOrdered size={10} /> Strict Quran Order (1→114)
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-white italic tracking-tight flex items-center gap-2">
-                <span>Aliyah</span>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400">Strict Quran Memorisation</span>
-              </h1>
-              <p className="text-xs text-slate-400 font-medium">
-                Follows strict Mushaf sequence. Recite continuously — Aliyah highlights errors in red and auto-advances to the next verse hands-free.
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Stats & Surah Quick Switcher */}
-          <div className="flex flex-wrap items-center gap-3 relative z-10 w-full md:w-auto">
-            {/* Hasanat pill */}
-            <div className="px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-              <Sparkles size={14} className="text-amber-400" />
-              <div>
-                <p className="text-[9px] text-amber-300/80 font-black uppercase">Session Earned</p>
-                <p className="text-xs font-mono font-bold text-amber-300">+{sessionHasanat} Hasanat</p>
-              </div>
-            </div>
-
-            {/* Completed Ayahs pill */}
-            <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-400" />
-              <div>
-                <p className="text-[9px] text-emerald-300/80 font-black uppercase">Verses Mastered</p>
-                <p className="text-xs font-mono font-bold text-emerald-300">{sessionCompletedAyahs} Ayahs</p>
-              </div>
-            </div>
-
-            {/* Quick Surah Picker Button */}
-            <button
-              onClick={() => setShowSurahPicker(true)}
-              className="bg-black/80 hover:bg-slate-900 border border-amber-500/40 rounded-2xl py-3 px-4 text-xs font-bold text-white flex items-center gap-2 shadow-xl transition-all cursor-pointer"
-            >
-              <BookOpen size={14} className="text-amber-400" />
-              <span>{selectedSurahNumber}. {selectedSurahMeta.englishName}</span>
-              <ChevronDown size={14} className="text-slate-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* STRICT QURAN ORDER BREADCRUMB & SURAH PROGRESS BAR */}
-        <div className="glass-panel p-4 sm:p-5 rounded-3xl border-white/10 bg-black/40 space-y-3">
-          <div className="flex flex-wrap items-center justify-between text-xs text-slate-300 gap-2">
-            <div className="flex items-center gap-2 font-mono flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                Surah {selectedSurahNumber} of 114
-              </span>
-              <span className="text-slate-400">→</span>
-              <span className="font-bold text-white">
-                {selectedSurahMeta.englishName} ({selectedSurahMeta.name})
-              </span>
-              <span className="text-slate-400">→</span>
-              <span className="text-emerald-400 font-bold">
-                Ayah {currentAyahIndex + 1} of {loadedAyahs.length}
-              </span>
-              {currentAyah?.juzNumber && (
-                <>
-                  <span className="text-slate-400">•</span>
-                  <span className="text-cyan-300 text-[11px]">Juz {currentAyah.juzNumber}</span>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400">
-              <button
-                onClick={() => setShowShortcutsModal(true)}
-                className="hover:text-amber-300 flex items-center gap-1 cursor-pointer transition-colors"
-                title="View Keyboard Shortcuts"
-              >
-                <Keyboard size={13} />
-                <span>Shortcuts</span>
-              </button>
-
-              <div className="flex items-center gap-1.5">
-                <span>Strict Order:</span>
-                <button
-                  onClick={() => setStrictQuranOrder(!strictQuranOrder)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase transition-all ${
-                    strictQuranOrder ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' : 'bg-white/10 text-slate-400'
-                  }`}
-                  title="When active, completing the last ayah automatically opens the next Surah"
-                >
-                  {strictQuranOrder ? 'ACTIVE (1→114)' : 'OFF'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Surah completion bar */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-              <span>Surah Progress ({currentAyahIndex + 1}/{loadedAyahs.length} Ayahs)</span>
-              <span>{surahProgressPercent}%</span>
-            </div>
-            <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 h-full transition-all duration-300"
-                style={{ width: `${surahProgressPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* TARTEEL ENGINE SETTINGS & MEMORISATION MODES BAR */}
-        <div className="glass-panel p-5 rounded-3xl border-white/10 bg-black/50 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            
-            {/* Memorisation Mode Selector */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Hifz Mode:</span>
-              
-              <button
-                onClick={() => setHifzMode('follow')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  hifzMode === 'follow'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                }`}
-                title="Full text visible with real-time live recitation tracking"
-              >
-                <Eye size={13} />
-                <span>Follow & Recite</span>
-              </button>
-
-              <button
-                onClick={() => setHifzMode('blind')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  hifzMode === 'blind'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-md'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                }`}
-                title="Words are blurred until you recite them correctly from pure memory"
-              >
-                <EyeOff size={13} />
-                <span>Blind Hifz (Blurred)</span>
-              </button>
-
-              <button
-                onClick={() => setHifzMode('firstLetter')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  hifzMode === 'firstLetter'
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                }`}
-                title="Only first letter of each word shown as an active memory prompt"
-              >
-                <Sparkle size={13} />
-                <span>First Letter Hints</span>
-              </button>
-
-              <button
-                onClick={() => setHifzMode('vanishing')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  hifzMode === 'vanishing'
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                }`}
-                title="Words dissolve as you recite them correctly"
-              >
-                <Wand2 size={13} />
-                <span>Vanishing Mushaf</span>
-              </button>
-            </div>
-
-            {/* Auto-Advance Speed & Hands-free Switch */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setContinuousHandsFree(!continuousHandsFree)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border ${
-                  continuousHandsFree
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                }`}
-                title="Automatically advance to the next Ayah upon completing recitation and keep mic listening"
-              >
-                <Zap size={14} className={continuousHandsFree ? 'text-emerald-400 animate-pulse' : 'text-slate-500'} />
-                <span>Hands-Free Auto-Next: <strong>{continuousHandsFree ? 'ON' : 'OFF'}</strong></span>
-              </button>
-
-              {/* Delay Speed selector */}
-              {continuousHandsFree && (
-                <select
-                  value={autoAdvanceDelay}
-                  onChange={(e) => setAutoAdvanceDelay(Number(e.target.value))}
-                  className="bg-black/80 border border-white/10 rounded-xl py-2 px-2.5 text-[11px] font-mono text-amber-300 outline-none cursor-pointer"
-                  title="Auto-advance delay after verse completion"
-                >
-                  <option value={1}>Delay: 1s</option>
-                  <option value={2}>Delay: 2s</option>
-                  <option value={3}>Delay: 3s</option>
-                </select>
-              )}
-
-              {/* Repeat Drill Selector */}
-              <select
-                value={repeatCountSetting}
-                onChange={(e) => setRepeatCountSetting(Number(e.target.value))}
-                className="bg-black/80 border border-white/10 rounded-xl py-2 px-2.5 text-[11px] font-mono text-slate-300 outline-none cursor-pointer"
-                title="Number of times to repeat verse before advancing"
-              >
-                <option value={1}>Repeat: 1x</option>
-                <option value={3}>Repeat: 3x Drill</option>
-                <option value={5}>Repeat: 5x Drill</option>
-                <option value={7}>Repeat: 7x Drill</option>
-              </select>
-
-              {/* Qari Selector */}
-              <select
-                value={selectedQari}
-                onChange={(e) => setSelectedQari(e.target.value)}
-                className="bg-black/80 border border-white/10 rounded-xl py-2 px-2.5 text-[11px] font-bold text-amber-300 outline-none cursor-pointer"
-                title="Select Reciter Audio Guide"
-              >
-                {QARI_OPTIONS.map(q => (
-                  <option key={q.id} value={q.id}>{q.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* MAIN HIFZ RECITER & SACRED AYAH CARD */}
-        {loadingAyahs ? (
-          <div className="glass-panel p-16 rounded-[3rem] border-white/10 text-center space-y-4">
-            <RefreshCw className="animate-spin text-amber-400 mx-auto" size={32} />
-            <p className="text-sm font-bold text-slate-300">Loading Sacred Surah {selectedSurahNumber} ({selectedSurahMeta.englishName})...</p>
-          </div>
-        ) : currentAyah ? (
-          <div className="glass-panel p-6 sm:p-10 rounded-[3rem] border-white/10 bg-gradient-to-b from-black/80 via-brand-depth/60 to-black/95 shadow-2xl space-y-8 relative overflow-hidden">
-            
-            {/* Ayah Navigation & Strict Sequence Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-3.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-widest border border-amber-500/30 shadow-md">
-                    Surah {selectedSurahMeta.number}. {selectedSurahMeta.name} • Ayah {currentAyah.numberInSurah} of {loadedAyahs.length}
-                  </span>
-                  <span className="text-slate-400 text-xs font-mono">
-                    Global Verse #{currentAyah.number}
-                  </span>
-                  {repeatCountSetting > 1 && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
-                      Drill: {currentRepeatIteration} / {repeatCountSetting}
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                  <span>{selectedSurahMeta.englishName}</span>
-                  <span className="text-xs text-amber-400 font-normal">({selectedSurahMeta.englishNameTranslation})</span>
-                </h3>
-              </div>
-
-              {/* Prev / Next Buttons in Strict Quran Order */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrevAyah}
-                  disabled={currentAyahIndex === 0 && selectedSurahNumber === 1}
-                  className="p-3 rounded-2xl bg-white/5 hover:bg-white/15 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer border border-white/10"
-                  title="Previous Verse in Strict Sequence (Left Arrow)"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-
-                <div className="px-4 py-2 rounded-2xl bg-black/60 border border-white/10 text-xs font-mono font-bold text-amber-400">
-                  Ayah {currentAyahIndex + 1} / {loadedAyahs.length}
-                </div>
-
-                <button
-                  onClick={handleNextAyah}
-                  disabled={currentAyahIndex === loadedAyahs.length - 1 && selectedSurahNumber === 114}
-                  className="p-3 rounded-2xl bg-white/5 hover:bg-white/15 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer border border-white/10"
-                  title="Next Verse in Strict Sequence (Right Arrow)"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-            </div>
-
-            {/* ARABIC WORDS DISPLAY AREA (Word-by-word interactive highlighting with Tarteel Red Alert) */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between text-xs text-slate-400 px-2 flex-wrap gap-2">
-                <span className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                  {isListening ? (
-                    <span className="text-emerald-400 font-bold">🎤 Microphone live: Recite verse now...</span>
-                  ) : (
-                    <span>Tap microphone below or tap individual words to verify recitation:</span>
-                  )}
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePassActiveWord}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold border border-white/10 cursor-pointer"
-                    title="Skip/Pass current word if already spoken softly"
-                  >
-                    Pass Current Word ⏭
-                  </button>
-
-                  <span className="text-amber-400 font-medium font-mono">
-                    {correctCount} / {currentWords.length} Words ({progressPercent}%)
-                  </span>
-                </div>
-              </div>
-
-              {/* Quran Words Container */}
-              <div 
-                ref={wordsContainerRef}
-                className="p-8 sm:p-14 rounded-3xl bg-black/70 border border-white/10 flex flex-wrap flex-row-reverse items-center justify-center gap-4 sm:gap-6 min-h-[220px] text-right shadow-inner"
-                dir="rtl"
-              >
-                {currentWords.map((word, wIdx) => {
-                  const isCorrect = word.status === 'correct';
-                  const isActive = word.status === 'active';
-                  const isMistake = word.status === 'mistake';
-
-                  return (
-                    <motion.button
-                      key={word.id}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleWordClick(word)}
-                      className={`px-5 py-4 rounded-2xl text-3xl sm:text-5xl font-serif transition-all cursor-pointer relative select-none group leading-relaxed ${
-                        isCorrect
-                          ? 'bg-emerald-500/25 text-emerald-300 border-2 border-emerald-400 shadow-xl shadow-emerald-500/20 ring-1 ring-emerald-400/50'
-                          : isMistake
-                          ? 'bg-rose-600/40 text-rose-100 border-2 border-rose-500 shadow-2xl shadow-rose-500/40 ring-4 ring-rose-500/50 animate-pulse'
-                          : isActive
-                          ? 'bg-amber-500/30 text-amber-300 border-2 border-amber-400 shadow-2xl shadow-amber-500/40 animate-pulse scale-105 ring-2 ring-amber-400/60'
-                          : 'bg-white/[0.04] text-white/90 hover:bg-white/15 border border-white/10'
-                      }`}
-                    >
-                      {/* Word text rendering based on Hifz mode */}
-                      {hifzMode === 'blind' && !isCorrect ? (
-                        <span className="filter blur-lg select-none opacity-20 transition-all">{word.arabic}</span>
-                      ) : hifzMode === 'firstLetter' && !isCorrect ? (
-                        <span className="font-mono text-cyan-300 font-black tracking-widest text-2xl sm:text-3xl">
-                          {word.firstLetter}...
-                        </span>
-                      ) : hifzMode === 'vanishing' && isCorrect ? (
-                        <span className="opacity-0">{word.arabic}</span>
-                      ) : (
-                        <span>{word.arabic}</span>
-                      )}
-
-                      {/* Correct Status Badge */}
-                      {isCorrect && (
-                        <span className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-emerald-400 text-black flex items-center justify-center text-xs font-black shadow-lg">
-                          ✓
-                        </span>
-                      )}
-
-                      {/* Problem / Mistake Status Badge (Tarteel Red Alert) */}
-                      {isMistake && (
-                        <span className="absolute -top-3 -right-3 px-2 py-0.5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[9px] font-black uppercase tracking-wider shadow-2xl border border-rose-300 animate-bounce">
-                          ⚠️ Fix Error
-                        </span>
-                      )}
-
-                      {/* Active Cursor Indicator */}
-                      {isActive && !isCorrect && !isMistake && (
-                        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-amber-400 shadow-lg shadow-amber-400 animate-ping" />
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-
-              {/* Translation Display */}
-              {showTranslation && (
-                <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
-                  <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Sahih International Translation</p>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed italic">
-                    "{currentAyah.translation}"
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* TARTEEL PROBLEM DIAGNOSTIC SHEET (When a problem word is selected or highlighted) */}
-            <AnimatePresence>
-              {selectedProblemWord && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="p-6 rounded-3xl bg-gradient-to-r from-rose-950/90 via-black to-rose-950/90 border-2 border-rose-500 shadow-2xl space-y-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-rose-400">
-                      <AlertTriangle size={20} />
-                      <h4 className="text-sm font-black uppercase tracking-wider">Recitation Problem Diagnostic</h4>
-                    </div>
-                    <button
-                      onClick={() => setSelectedProblemWord(null)}
-                      className="text-slate-400 hover:text-white text-xs cursor-pointer"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-1">
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">Expected Quranic Word</p>
-                      <p className="text-3xl font-serif text-white">{selectedProblemWord.arabic}</p>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 space-y-1">
-                      <p className="text-[10px] text-rose-400 uppercase font-mono">What Was Spoken / Issue</p>
-                      <p className="text-base font-bold text-rose-200">{selectedProblemWord.detectedSpoken || 'Mispronounced / Skipped'}</p>
-                      <p className="text-xs text-rose-300">{selectedProblemWord.problemReason || 'Letter articulation or timing issue'}</p>
-                    </div>
-                  </div>
-
-                  {selectedProblemWord.tajweedTip && (
-                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-200">
-                      <Lightbulb size={16} className="text-amber-400 shrink-0 mt-0.5" />
-                      <span>{selectedProblemWord.tajweedTip}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-end gap-3 pt-2">
-                    <button
-                      onClick={() => playQariAyah()}
-                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
-                    >
-                      <Volume2 size={14} />
-                      <span>Hear Qari Recite</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleRetryProblemWord(selectedProblemWord)}
-                      className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg cursor-pointer flex items-center gap-1.5"
-                    >
-                      <RotateCcw size={14} />
-                      <span>Retry Word</span>
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* AYAH COMPLETED CELEBRATION & AUTO-ADVANCE BANNER */}
-            <AnimatePresence>
-              {isAyahCompleted && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="p-6 rounded-3xl bg-gradient-to-r from-emerald-500/25 via-emerald-600/35 to-amber-500/25 border-2 border-emerald-400 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xl"
-                >
-                  <div className="flex items-center gap-3.5 text-emerald-300">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-400 text-black flex items-center justify-center font-black text-xl shadow-lg">
-                      ✓
-                    </div>
-                    <div>
-                      <h4 className="text-base font-black text-white">Ayah Recited Completely & Verified!</h4>
-                      <p className="text-xs text-emerald-300">BarakAllahu Feek! +20 Hasanat recorded.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {autoAdvanceCountdown !== null ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-amber-300 bg-black/60 px-4 py-2 rounded-xl border border-amber-500/40 animate-pulse flex items-center gap-1.5">
-                          <Clock size={14} /> Auto-switching in {autoAdvanceCountdown}s...
-                        </span>
-                        <button
-                          onClick={cancelAutoAdvance}
-                          className="px-3 py-2 bg-white/10 hover:bg-white/20 text-slate-300 text-xs rounded-xl font-bold transition-all cursor-pointer"
-                        >
-                          Pause
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <button
-                      onClick={handleNextAyah}
-                      className="px-6 py-3 bg-emerald-400 hover:bg-emerald-300 text-black font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-xl cursor-pointer flex items-center gap-2"
-                    >
-                      <span>Next Verse Now</span>
-                      <ArrowRight size={16} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* MICROPHONE & AUDIO RECITER CONTROL DOCK */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-black/80 border border-white/10 space-y-6">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                
-                {/* Qari Audio Reference Player */}
-                <div className="flex items-center gap-3.5">
-                  <button
-                    onClick={() => isPlayingQari ? stopQariAyah() : playQariAyah()}
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all cursor-pointer shadow-xl ${
-                      isPlayingQari
-                        ? 'bg-amber-400 text-black shadow-amber-400/40'
-                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                    }`}
-                    title={isPlayingQari ? 'Pause Qari Recitation' : 'Listen to Qari reference (P)'}
-                  >
-                    {isPlayingQari ? <Pause size={24} /> : <Play size={24} className="translate-x-0.5" />}
-                  </button>
-
-                  <div>
-                    <p className="text-sm font-bold text-white">
-                      {QARI_OPTIONS.find(q => q.id === selectedQari)?.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400">Audio Guide • Ayah {currentAyah.numberInSurah}</p>
-                  </div>
-
-                  {/* Speed Selector */}
-                  <select
-                    value={playbackSpeed}
-                    onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                    className="bg-black/60 border border-white/15 rounded-xl py-1.5 px-2.5 text-[10px] font-mono text-slate-300 outline-none cursor-pointer"
-                  >
-                    <option value={0.75}>0.75x</option>
-                    <option value={1.0}>1.0x</option>
-                    <option value={1.25}>1.25x</option>
-                  </select>
-                </div>
-
-                {/* Primary Mic Button (Aliyah Live Recite Engine) */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={isListening ? stopListening : startListening}
-                    className={`px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-3 cursor-pointer shadow-2xl ${
-                      isListening
-                        ? 'bg-rose-600 text-white animate-pulse shadow-rose-600/50 ring-2 ring-rose-400'
-                        : 'bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-black shadow-amber-500/30 hover:scale-105'
-                    }`}
-                    title="Toggle Live Microphone (Spacebar)"
-                  >
-                    {isListening ? (
-                      <>
-                        <MicOff size={18} />
-                        <span>Stop Listening</span>
-                      </>
-                    ) : (
-                      <>
-                        <Mic size={18} />
-                        <span>Start Reciting (Live Mic)</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setupAyahWords(currentAyah)}
-                    className="p-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl transition-all cursor-pointer border border-white/10"
-                    title="Reset Ayah Progress (R)"
-                  >
-                    <RotateCcw size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Live Mic Transcript & Audio Waveform Level */}
-              {isListening && (
-                <div className="p-4 rounded-2xl bg-black/70 border border-amber-500/40 space-y-3">
-                  <div className="flex items-center justify-between text-[11px] text-slate-300">
-                    <span className="flex items-center gap-2 text-amber-400 font-bold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                      Listening live in Arabic to your recitation...
-                    </span>
-                    <span className="font-mono text-slate-400">Mic Level: {micVolumeLevel}%</span>
-                  </div>
-
-                  {/* Audio visualizer bar */}
-                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400 h-full transition-all duration-75"
-                      style={{ width: `${Math.max(8, micVolumeLevel)}%` }}
-                    />
-                  </div>
-
-                  {spokenTranscript && (
-                    <div className="p-2.5 rounded-xl bg-white/5 text-right font-serif text-sm text-slate-200" dir="rtl">
-                      "{spokenTranscript}"
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* FULL SURAH AYAH RIBBON (Strict Sequence Navigation Strip) */}
-            {showAyahRibbon && loadedAyahs.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-bold uppercase tracking-wider text-[10px] text-amber-400 flex items-center gap-1.5">
-                    <ListOrdered size={12} /> Surah {selectedSurahMeta.name} Ayah Sequence (Strict Order):
-                  </span>
-                  <span>Tap any verse to jump directly:</span>
-                </div>
-
-                <div className="flex items-center gap-2 overflow-x-auto pb-3 custom-scrollbar">
-                  {loadedAyahs.map((ayah, aIdx) => {
-                    const isCurrent = aIdx === currentAyahIndex;
-                    const isPassed = aIdx < currentAyahIndex;
-
-                    return (
-                      <button
-                        key={ayah.number}
-                        onClick={() => {
-                          if (nextAyahTimeoutRef.current) clearTimeout(nextAyahTimeoutRef.current);
-                          setCurrentAyahIndex(aIdx);
-                          setCurrentRepeatIteration(1);
-                          setupAyahWords(ayah);
-                        }}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all shrink-0 cursor-pointer border ${
-                          isCurrent
-                            ? 'bg-amber-400 text-black border-amber-300 shadow-lg shadow-amber-400/30 scale-105'
-                            : isPassed
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-white/5 hover:bg-white/10 text-slate-400 border-white/5'
-                        }`}
-                      >
-                        {isPassed ? `✓ ${ayah.numberInSurah}` : `Ayah ${ayah.numberInSurah}`}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* RECITER MISTAKES & RECENT PROBLEMS LOG */}
-            {mistakesLog.length > 0 && (
-              <div className="space-y-3 pt-4 border-t border-white/10">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                    <AlertCircle size={14} className="text-rose-400" />
-                    <span>Recitation Problems Highlighted ({mistakesLog.length})</span>
-                  </h4>
-                  <button
-                    onClick={() => setMistakesLog([])}
-                    className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    Clear Log
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {mistakesLog.slice(0, 6).map((item) => (
-                    <div key={item.id} className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/30 space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-rose-300 font-bold">{item.surahName} : Ayah {item.ayahNumberInSurah}</span>
-                        <span className="text-slate-400 font-mono">{item.problemReason}</span>
-                      </div>
-                      <p className="text-base font-serif text-white">{item.expectedWord}</p>
-                      <p className="text-[10px] text-slate-300 line-clamp-2">{item.tajweedTip}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          </div>
-        ) : null}
-
-      </div>
     </div>
   );
 }

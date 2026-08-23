@@ -787,7 +787,7 @@ export default function ProfileView({
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
                   <input 
-                    value={editName}
+                    value={editName || ''}
                     onChange={(e) => {
                       setEditName(e.target.value);
                       if (nameError) setNameError(null);
@@ -812,7 +812,7 @@ export default function ProfileView({
                   <div className="relative flex-1">
                     <Camera className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
                     <input 
-                      value={editPhoto}
+                      value={editPhoto || ''}
                       onChange={(e) => setEditPhoto(e.target.value)}
                       className="w-full bg-black/40 border border-white/10 p-4 pl-12 rounded-2xl text-sm focus:border-brand-primary outline-none transition-all text-white"
                       placeholder="Enter image URL..."
@@ -841,7 +841,7 @@ export default function ProfileView({
                  </button>
               </div>
               <textarea 
-                value={editBio}
+                value={editBio || ''}
                 onChange={(e) => setEditBio(e.target.value)}
                 placeholder="Share your spiritual journey in a few words..."
                 className="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-xs focus:border-brand-primary outline-none transition-all text-white resize-none h-24"

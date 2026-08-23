@@ -1202,7 +1202,7 @@ export default function PrayerTimesView() {
                 <input 
                   type="url"
                   placeholder="Paste Adhan URL (mp3/wav)..."
-                  value={customUrl}
+                  value={customUrl || ''}
                   onChange={(e) => setCustomUrl(e.target.value)}
                   className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white placeholder:text-slate-600 outline-none focus:border-brand-primary/50 transition-all"
                 />
@@ -1337,7 +1337,7 @@ export default function PrayerTimesView() {
                       <input
                         type="text"
                         placeholder="e.g. Chicago"
-                        value={inputCity}
+                        value={inputCity || ''}
                         onChange={(e) => setInputCity(e.target.value)}
                         className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate-600 outline-none focus:border-brand-primary/50 transition-all font-semibold"
                       />
@@ -1347,7 +1347,7 @@ export default function PrayerTimesView() {
                       <input
                         type="text"
                         placeholder="e.g. USA"
-                        value={inputCountry}
+                        value={inputCountry || ''}
                         onChange={(e) => setInputCountry(e.target.value)}
                         className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate-600 outline-none focus:border-brand-primary/50 transition-all font-semibold"
                       />

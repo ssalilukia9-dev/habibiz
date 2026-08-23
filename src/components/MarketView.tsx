@@ -1930,7 +1930,7 @@ export default function MarketView({
                               <input
                                 required={newListing.isDigital}
                                 type="url"
-                                value={newListing.downloadUrl}
+                                value={newListing.downloadUrl || ''}
                                 onChange={(e) => setNewListing(prev => ({ ...prev, downloadUrl: e.target.value }))}
                                 placeholder="https://example.com/files/tajweed-mushaf.pdf"
                                 className="w-full bg-black/60 border border-cyan-500/30 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-cyan-400 font-mono"
@@ -1941,7 +1941,7 @@ export default function MarketView({
                               <div className="space-y-1.5">
                                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">File Format</label>
                                 <select
-                                  value={newListing.downloadFormat}
+                                  value={newListing.downloadFormat || 'PDF'}
                                   onChange={(e) => setNewListing(prev => ({ ...prev, downloadFormat: e.target.value }))}
                                   className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-cyan-400"
                                 >
@@ -1955,7 +1955,7 @@ export default function MarketView({
                                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">File Size (e.g. 24 MB)</label>
                                 <input
                                   type="text"
-                                  value={newListing.downloadSize}
+                                  value={newListing.downloadSize || ''}
                                   onChange={(e) => setNewListing(prev => ({ ...prev, downloadSize: e.target.value }))}
                                   placeholder="e.g. 15.4 MB"
                                   className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-cyan-400"
@@ -1972,7 +1972,7 @@ export default function MarketView({
                         <input 
                           required
                           type="text" 
-                          value={newListing.title}
+                          value={newListing.title || ''}
                           onChange={(e) => setNewListing({...newListing, title: e.target.value})}
                           placeholder={newListing.isDigital ? "e.g. The Noble Quran Tajweed PDF (Full 604 Pages)" : "e.g. Handcrafted Velvet Prayer Rug (Musalla)"}
                           className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 px-4 text-xs text-white font-medium outline-none focus:border-amber-400/50 transition-all"
@@ -2016,7 +2016,7 @@ export default function MarketView({
                                  <input 
                                    type="number" 
                                    step="0.01"
-                                   value={newListing.price}
+                                   value={newListing.price ?? ''}
                                    onChange={(e) => {
                                      const p = e.target.value;
                                      setNewListing(prev => ({
@@ -2040,7 +2040,7 @@ export default function MarketView({
                                  <input 
                                    type="number" 
                                    step="1"
-                                   value={newListing.coinPrice}
+                                   value={newListing.coinPrice ?? ''}
                                    onChange={(e) => setNewListing(prev => ({ ...prev, coinPrice: e.target.value }))}
                                    placeholder="0"
                                    className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-8 pr-3 text-xs text-white font-mono outline-none focus:border-amber-400/50"
@@ -2054,7 +2054,7 @@ export default function MarketView({
                         <label className="flex items-center gap-2 pt-1 cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={newListing.isNegotiable}
+                            checked={!!newListing.isNegotiable}
                             onChange={(e) => setNewListing(prev => ({ ...prev, isNegotiable: e.target.checked }))}
                             className="rounded accent-amber-400"
                           />
@@ -2073,7 +2073,7 @@ export default function MarketView({
                         </p>
                         <input 
                           type="tel"
-                          value={newListing.whatsappNumber}
+                          value={newListing.whatsappNumber || ''}
                           onChange={(e) => setNewListing({...newListing, whatsappNumber: e.target.value})}
                           placeholder="e.g., +1 234 567 8900 or +256 708515639 (with country code)"
                           className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white font-mono outline-none focus:border-emerald-500/50"
@@ -2085,7 +2085,7 @@ export default function MarketView({
                         <div className="space-y-1.5">
                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Category</label>
                           <select 
-                            value={newListing.category}
+                            value={newListing.category || 'Worship'}
                             onChange={(e) => setNewListing({...newListing, category: e.target.value})}
                             className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
                           >
@@ -2096,7 +2096,7 @@ export default function MarketView({
                         <div className="space-y-1.5">
                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Condition</label>
                            <select 
-                             value={newListing.condition}
+                             value={newListing.condition || 'New'}
                              onChange={(e) => setNewListing({...newListing, condition: e.target.value as any})}
                              className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
                            >
@@ -2108,7 +2108,7 @@ export default function MarketView({
                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">City / Region</label>
                            <input 
                              type="text" 
-                             value={newListing.cityLocation}
+                             value={newListing.cityLocation || ''}
                              onChange={(e) => setNewListing({...newListing, cityLocation: e.target.value})}
                              placeholder={newListing.isDigital ? "Instant Digital Download" : "e.g. Dubai, UAE or Global"}
                              className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
@@ -2122,7 +2122,7 @@ export default function MarketView({
                         <textarea 
                           required
                           rows={3}
-                          value={newListing.description}
+                          value={newListing.description || ''}
                           onChange={(e) => setNewListing({...newListing, description: e.target.value})}
                           placeholder="Detail your item's features, material, download specifications, and spiritual craft..."
                           className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/50 resize-none"
@@ -2280,7 +2280,7 @@ export default function MarketView({
                     <input 
                       type="text" 
                       required
-                      value={editProductForm.title}
+                      value={editProductForm.title || ''}
                       onChange={(e) => setEditProductForm({...editProductForm, title: e.target.value})}
                       className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/60 font-bold"
                     />
@@ -2294,7 +2294,7 @@ export default function MarketView({
                         type="number" 
                         min="0"
                         step="0.01"
-                        value={editProductForm.price}
+                        value={editProductForm.price ?? 0}
                         onChange={(e) => setEditProductForm({...editProductForm, price: parseFloat(e.target.value) || 0})}
                         className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-emerald-400/60 font-mono"
                       />
@@ -2305,7 +2305,7 @@ export default function MarketView({
                         type="number" 
                         min="0"
                         step="1"
-                        value={editProductForm.coinPrice}
+                        value={editProductForm.coinPrice ?? 0}
                         onChange={(e) => setEditProductForm({...editProductForm, coinPrice: parseInt(e.target.value, 10) || 0})}
                         className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/60 font-mono"
                       />
@@ -2317,7 +2317,7 @@ export default function MarketView({
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Category</label>
                       <select 
-                        value={editProductForm.category}
+                        value={editProductForm.category || 'Worship'}
                         onChange={(e) => setEditProductForm({...editProductForm, category: e.target.value})}
                         className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
                       >
@@ -2328,7 +2328,7 @@ export default function MarketView({
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Condition</label>
                       <select 
-                        value={editProductForm.condition}
+                        value={editProductForm.condition || 'New'}
                         onChange={(e) => setEditProductForm({...editProductForm, condition: e.target.value as any})}
                         className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
                       >
@@ -2340,7 +2340,7 @@ export default function MarketView({
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">City / Region</label>
                       <input 
                         type="text" 
-                        value={editProductForm.cityLocation}
+                        value={editProductForm.cityLocation || ''}
                         onChange={(e) => setEditProductForm({...editProductForm, cityLocation: e.target.value})}
                         className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-3 text-xs text-white outline-none focus:border-amber-400/50"
                       />
@@ -2351,7 +2351,7 @@ export default function MarketView({
                   <label className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={editProductForm.halalCertified}
+                      checked={!!editProductForm.halalCertified}
                       onChange={(e) => setEditProductForm(prev => ({ ...prev, halalCertified: e.target.checked }))}
                       className="rounded accent-emerald-400"
                     />
@@ -2367,7 +2367,7 @@ export default function MarketView({
                         </label>
                         <input
                           type="url"
-                          value={editProductForm.downloadUrl}
+                          value={editProductForm.downloadUrl || ''}
                           onChange={(e) => setEditProductForm(prev => ({ ...prev, downloadUrl: e.target.value }))}
                           className="w-full bg-black/60 border border-cyan-500/30 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-cyan-400 font-mono"
                         />
@@ -2381,7 +2381,7 @@ export default function MarketView({
                     <textarea 
                       required
                       rows={3}
-                      value={editProductForm.description}
+                      value={editProductForm.description || ''}
                       onChange={(e) => setEditProductForm({...editProductForm, description: e.target.value})}
                       className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white outline-none focus:border-amber-400/50 resize-none leading-relaxed"
                     />

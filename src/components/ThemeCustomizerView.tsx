@@ -577,7 +577,7 @@ export default function ThemeCustomizerView({
                 </label>
                 <input
                   type="text"
-                  value={customForm.name}
+                  value={customForm.name || ''}
                   onChange={(e) => setCustomForm({ ...customForm, name: e.target.value })}
                   placeholder="e.g. My Tahajjud Oasis"
                   className="w-full bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary"
@@ -602,11 +602,11 @@ export default function ThemeCustomizerView({
             <div className="space-y-3 pt-4 border-t border-white/10">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.primary }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.primary || '#c58f54' }} />
                   Primary Brand Illumination Color
                 </label>
                 <span className="font-mono text-xs text-slate-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                  {customForm.primary}
+                  {customForm.primary || '#c58f54'}
                 </span>
               </div>
 
@@ -618,14 +618,14 @@ export default function ThemeCustomizerView({
                     type="button"
                     onClick={() => setCustomForm({ ...customForm, primary: col.hex, accent: col.hex })}
                     className={`w-9 h-9 rounded-xl border transition-all cursor-pointer relative flex items-center justify-center ${
-                      customForm.primary.toLowerCase() === col.hex.toLowerCase()
+                      (customForm.primary || '').toLowerCase() === col.hex.toLowerCase()
                         ? 'ring-2 ring-white scale-110 border-white'
                         : 'border-white/10 hover:scale-105'
                     }`}
                     style={{ backgroundColor: col.hex }}
                     title={col.name}
                   >
-                    {customForm.primary.toLowerCase() === col.hex.toLowerCase() && (
+                    {(customForm.primary || '').toLowerCase() === col.hex.toLowerCase() && (
                       <Check size={14} className="text-black" />
                     )}
                   </button>
@@ -636,7 +636,7 @@ export default function ThemeCustomizerView({
                   <span className="text-[10px] font-bold text-slate-400">Custom:</span>
                   <input
                     type="color"
-                    value={customForm.primary}
+                    value={customForm.primary || '#c58f54'}
                     onChange={(e) => setCustomForm({ ...customForm, primary: e.target.value, accent: e.target.value })}
                     className="w-9 h-9 bg-transparent border-0 rounded cursor-pointer"
                   />
@@ -648,11 +648,11 @@ export default function ThemeCustomizerView({
             <div className="space-y-3 pt-4 border-t border-white/10">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.secondary }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.secondary || '#1b4d6e' }} />
                   Secondary Glow & Ambient Hue
                 </label>
                 <span className="font-mono text-xs text-slate-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                  {customForm.secondary}
+                  {customForm.secondary || '#1b4d6e'}
                 </span>
               </div>
 
@@ -663,14 +663,14 @@ export default function ThemeCustomizerView({
                     type="button"
                     onClick={() => setCustomForm({ ...customForm, secondary: col.hex })}
                     className={`w-9 h-9 rounded-xl border transition-all cursor-pointer relative flex items-center justify-center ${
-                      customForm.secondary.toLowerCase() === col.hex.toLowerCase()
+                      (customForm.secondary || '').toLowerCase() === col.hex.toLowerCase()
                         ? 'ring-2 ring-white scale-110 border-white'
                         : 'border-white/10 hover:scale-105'
                     }`}
                     style={{ backgroundColor: col.hex }}
                     title={col.name}
                   >
-                    {customForm.secondary.toLowerCase() === col.hex.toLowerCase() && (
+                    {(customForm.secondary || '').toLowerCase() === col.hex.toLowerCase() && (
                       <Check size={14} className="text-black" />
                     )}
                   </button>
@@ -680,7 +680,7 @@ export default function ThemeCustomizerView({
                   <span className="text-[10px] font-bold text-slate-400">Custom:</span>
                   <input
                     type="color"
-                    value={customForm.secondary}
+                    value={customForm.secondary || '#1b4d6e'}
                     onChange={(e) => setCustomForm({ ...customForm, secondary: e.target.value })}
                     className="w-9 h-9 bg-transparent border-0 rounded cursor-pointer"
                   />
@@ -692,11 +692,11 @@ export default function ThemeCustomizerView({
             <div className="space-y-3 pt-4 border-t border-white/10">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.depth }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: customForm.depth || '#0a1c2a' }} />
                   Midnight Background Depth Tone
                 </label>
                 <span className="font-mono text-xs text-slate-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                  {customForm.depth}
+                  {customForm.depth || '#0a1c2a'}
                 </span>
               </div>
 
@@ -707,14 +707,14 @@ export default function ThemeCustomizerView({
                     type="button"
                     onClick={() => setCustomForm({ ...customForm, depth: col.hex })}
                     className={`w-9 h-9 rounded-xl border transition-all cursor-pointer relative flex items-center justify-center ${
-                      customForm.depth.toLowerCase() === col.hex.toLowerCase()
+                      (customForm.depth || '').toLowerCase() === col.hex.toLowerCase()
                         ? 'ring-2 ring-white scale-110 border-white'
                         : 'border-white/10 hover:scale-105'
                     }`}
                     style={{ backgroundColor: col.hex }}
                     title={col.name}
                   >
-                    {customForm.depth.toLowerCase() === col.hex.toLowerCase() && (
+                    {(customForm.depth || '').toLowerCase() === col.hex.toLowerCase() && (
                       <Check size={14} className="text-white" />
                     )}
                   </button>
@@ -724,7 +724,7 @@ export default function ThemeCustomizerView({
                   <span className="text-[10px] font-bold text-slate-400">Custom:</span>
                   <input
                     type="color"
-                    value={customForm.depth}
+                    value={customForm.depth || '#0a1c2a'}
                     onChange={(e) => setCustomForm({ ...customForm, depth: e.target.value })}
                     className="w-9 h-9 bg-transparent border-0 rounded cursor-pointer"
                   />

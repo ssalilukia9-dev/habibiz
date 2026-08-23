@@ -15,13 +15,20 @@ import {
   Dices,
   EyeOff,
   Leaf,
-  Coins
+  Coins,
+  Crown,
+  Lock
 } from 'lucide-react';
 import ZakatCalculator from './ZakatCalculator';
 
 type Section = 'overview' | 'zakat' | 'investment' | 'halal-standards' | 'banking';
 
-export default function IslamicFinanceView() {
+interface IslamicFinanceViewProps {
+  isPremium?: boolean;
+  onShowPremium?: () => void;
+}
+
+export default function IslamicFinanceView({ isPremium = false, onShowPremium }: IslamicFinanceViewProps) {
   const [activeSection, setActiveSection] = useState<Section>('overview');
 
   const financeGuides = [
@@ -30,28 +37,32 @@ export default function IslamicFinanceView() {
       title: 'Zakat Hub',
       description: 'Calculate and understand the 2.5% obligatory wealth purification.',
       icon: Wallet,
-      color: 'bg-brand-primary'
+      color: 'bg-brand-primary',
+      isVip: false
     },
     {
       id: 'investment',
       title: 'Halal Investing',
       description: 'Guidelines on Shariah-compliant stocks, sukuk, and real estate.',
       icon: TrendingUp,
-      color: 'bg-blue-500'
+      color: 'bg-blue-500',
+      isVip: true
     },
     {
       id: 'halal-standards',
       title: 'Purity Standards',
       description: 'Understanding Riba (Interest), Gharar (Uncertainty), and Maysir (Gambling).',
       icon: ShieldCheck,
-      color: 'bg-emerald-500'
+      color: 'bg-emerald-500',
+      isVip: false
     },
     {
       id: 'banking',
       title: 'Islamic Banking',
       description: 'Principles of Mudarabah, Musharakah, and Murabahah.',
       icon: Scale,
-      color: 'bg-amber-500'
+      color: 'bg-amber-500',
+      isVip: true
     }
   ];
 
@@ -110,23 +121,37 @@ export default function IslamicFinanceView() {
                 key={guide.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveSection(guide.id as Section)}
-                className="group relative p-8 bg-white/5 border border-white/5 rounded-[2.5rem] text-left hover:bg-white/10 transition-all shadow-xl flex flex-col justify-between h-64 overflow-hidden"
+                onClick={() => {
+                  if (guide.isVip && !isPremium) {
+                    if (onShowPremium) onShowPremium();
+                    else setActiveSection(guide.id as Section);
+                  } else {
+                    setActiveSection(guide.id as Section);
+                  }
+                }}
+                className="group relative p-8 bg-white/5 border border-white/5 rounded-[2.5rem] text-left hover:bg-white/10 transition-all shadow-xl flex flex-col justify-between h-64 overflow-hidden cursor-pointer"
               >
                 <div className={`absolute top-0 right-0 w-32 h-32 ${guide.color}/10 rounded-bl-full blur-3xl`} />
                 
                 <div className="relative z-10 space-y-4">
-                  <div className={`w-14 h-14 ${guide.color}/20 rounded-2xl flex items-center justify-center text-white border border-white/10`}>
-                    <guide.icon size={28} />
+                  <div className="flex items-center justify-between">
+                    <div className={`w-14 h-14 ${guide.color}/20 rounded-2xl flex items-center justify-center text-white border border-white/10`}>
+                      <guide.icon size={28} />
+                    </div>
+                    {guide.isVip && (
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-black uppercase flex items-center gap-1">
+                        {!isPremium ? <Lock size={11} /> : <Crown size={11} />} VIP ELITE
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <h3 className="text-xl font-black text-white uppercase tracking-tight">{guide.title}</h3>
-                    <p className="text-slate-500 font-medium text-sm leading-relaxed max-w-[240px]">{guide.description}</p>
+                    <p className="text-slate-400 font-medium text-sm leading-relaxed max-w-[240px]">{guide.description}</p>
                   </div>
                 </div>
                 
                 <div className="relative z-10 flex items-center gap-2 text-brand-primary font-black text-[10px] uppercase tracking-widest group-hover:gap-4 transition-all">
-                  Open Module <ChevronRight size={14} />
+                  {guide.isVip && !isPremium ? 'Unlock with Elite Pass' : 'Open Module'} <ChevronRight size={14} />
                 </div>
               </motion.button>
             ))}
@@ -142,9 +167,49 @@ export default function IslamicFinanceView() {
                     Islamic finance is built on risk-sharing and asset-backed transactions. No debt-traps, no interest exploitation, only ethical growth.
                   </p>
                </div>
-               <button className="bg-brand-depth text-brand-primary px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all">
-                  View Manifesto
+               <button 
+                onClick={() => onShowPremium?.()}
+                className="bg-brand-depth text-brand-primary px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all cursor-pointer"
+               >
+                  Sanctuary Elite
                </button>
+            </div>
+          </motion.div>
+        ) : (activeSection === 'investment' || activeSection === 'banking') && !isPremium ? (
+          <motion.div
+            key="vip-lock"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="p-8 sm:p-12 rounded-[3rem] bg-gradient-to-br from-amber-500/10 via-slate-900/90 to-purple-500/10 border border-amber-500/30 text-center max-w-2xl mx-auto space-y-6 shadow-2xl"
+          >
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-xl">
+              <Lock size={32} />
+            </div>
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                Sanctuary Elite Exclusive
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-black text-white italic">
+                {activeSection === 'investment' ? 'Halal Wealth & Portfolio Engine' : 'Islamic Banking Masterclass'}
+              </h3>
+              <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
+                Unlock full institutional-grade Shariah screening, Sukuk yields analyzer, and personal Islamic wealth ledgers with Sanctuary Elite membership.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <button
+                onClick={() => setActiveSection('overview')}
+                className="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs cursor-pointer transition-all"
+              >
+                Back to Overview
+              </button>
+              <button
+                onClick={() => onShowPremium?.()}
+                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              >
+                Upgrade to Sanctuary Elite
+              </button>
             </div>
           </motion.div>
         ) : activeSection === 'zakat' ? (

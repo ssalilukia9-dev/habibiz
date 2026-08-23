@@ -179,69 +179,9 @@ export default function ChatView({
   // Typing emulation indicator
   const [isTyping, setIsTyping] = useState(false);
 
-  // Sanctuary community members to explore and connect with as friends
-  const [communityMembers, setCommunityMembers] = useState<any[]>([
-    {
-      id: 'member_yasmin',
-      name: 'Sister Yasmin al-Farsi',
-      location: 'Istanbul, Turkey',
-      rank: 'Tajweed Instructor',
-      bio: 'Quran study leader, hosting weekly Surah Al-Kahf circles.',
-      avatarBg: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-      initial: 'Y',
-      online: true
-    },
-    {
-      id: 'member_imam_ahmed',
-      name: 'Imam Ahmed Al-Farooq',
-      location: 'Cairo, Egypt',
-      rank: 'Fiqh Scholar',
-      bio: 'Guidance on everyday Islamic rulings & spiritual purification.',
-      avatarBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-      initial: 'A',
-      online: true
-    },
-    {
-      id: 'member_tariq_malik',
-      name: 'Brother Tariq Malik',
-      location: 'London, UK',
-      rank: 'Community Organizer',
-      bio: 'Connecting Muslims across Europe for charity and networking.',
-      avatarBg: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
-      initial: 'T',
-      online: false
-    },
-    {
-      id: 'member_fatima_zahra',
-      name: 'Sister Fatima Al-Zahra',
-      location: 'Medina, KSA',
-      rank: 'Hadith Researcher',
-      bio: 'Studying authentic prophetic traditions and prophetic character.',
-      avatarBg: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-      initial: 'F',
-      online: true
-    },
-    {
-      id: 'member_omar_salim',
-      name: 'Brother Omar Salim',
-      location: 'Kuala Lumpur, Malaysia',
-      rank: 'Halal Entrepreneur',
-      bio: 'Islamic finance advocate & Suq Al-Mubaraki trader.',
-      avatarBg: 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
-      initial: 'O',
-      online: true
-    },
-    {
-      id: 'member_zainab_khalil',
-      name: 'Sister Zainab Khalil',
-      location: 'Toronto, Canada',
-      rank: 'Youth Mentor',
-      bio: 'Hosting youth Halaqas & Quran memorization support.',
-      avatarBg: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
-      initial: 'Z',
-      online: true
-    }
-  ]);
+  // Real Sanctuary community members loaded live from Firestore
+  const [communityMembers, setCommunityMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState<boolean>(true);
 
   // Explore search filter
   const [exploreFilter, setExploreFilter] = useState('');
@@ -251,9 +191,9 @@ export default function ChatView({
     try {
       const uid = myUser?.uid || 'guest';
       const saved = localStorage.getItem(`sanctuary_friends_${uid}`);
-      return saved ? JSON.parse(saved) : ['member_yasmin'];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['member_yasmin'];
+      return [];
     }
   });
 
@@ -267,32 +207,126 @@ export default function ChatView({
     }
   });
 
-  // Load / initialize pending requests
+  // 1. Live stream real users from Firestore
   useEffect(() => {
-    const uid = myUser?.uid || 'guest';
-    const saved = localStorage.getItem(`sanctuary_received_reqs_${uid}`);
-    if (saved) {
-      try {
-        setPendingRequests(JSON.parse(saved));
-      } catch {
-        setPendingRequests([]);
-      }
-    } else {
-      // Starter friendly incoming request
-      const starterReqs: ChatRequest[] = [
-        {
-          id: 'req_imam_ahmed',
-          fromId: 'member_imam_ahmed',
-          fromName: 'Imam Ahmed Al-Farooq',
-          fromPhoto: '',
-          toId: uid,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        }
-      ];
-      setPendingRequests(starterReqs);
-      localStorage.setItem(`sanctuary_received_reqs_${uid}`, JSON.stringify(starterReqs));
+    setLoadingMembers(true);
+    let unsubUsers: (() => void) | null = null;
+
+    try {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const members: any[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          // Exclude current signed-in user
+          if (docSnap.id === myUser?.uid) return;
+
+          const name = data.displayName || data.name || (data.email ? data.email.split('@')[0] : 'Sanctuary Member');
+          const initial = (name[0] || 'S').toUpperCase();
+          const hasanat = Number(data.hasanat) || 0;
+          const rank = data.rank || (hasanat > 500 ? 'Hafiz Candidate' : hasanat > 100 ? 'Devoted Seeker' : 'Sanctuary Seeker');
+          const location = data.location || (data.country ? `${data.city ? data.city + ', ' : ''}${data.country}` : 'Sanctuary Global');
+          const bio = data.bio || data.aboutMe || (data.email ? `Verified Member • ${data.email}` : 'Dedicated to daily Quran memorization and sunnah.');
+          const online = data.isOnline !== undefined ? !!data.isOnline : true;
+
+          const colorIndex = (name.charCodeAt(0) || 0) % 5;
+          const bgColors = [
+            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+            'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+            'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+            'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+            'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+          ];
+
+          members.push({
+            id: docSnap.id,
+            name,
+            email: data.email || '',
+            photoURL: data.photoURL || '',
+            location,
+            rank,
+            bio,
+            hasanat,
+            avatarBg: bgColors[colorIndex],
+            initial,
+            online
+          });
+        });
+
+        setCommunityMembers(members);
+        setLoadingMembers(false);
+      }, (err) => {
+        console.warn("Firestore users stream error:", err);
+        setLoadingMembers(false);
+      });
+    } catch (e) {
+      console.warn("Could not attach users listener", e);
+      setLoadingMembers(false);
     }
+
+    return () => {
+      if (unsubUsers) unsubUsers();
+    };
+  }, [myUser?.uid]);
+
+  // 2. Real-time Firestore friend requests listener (Incoming & Sent)
+  useEffect(() => {
+    if (!myUser?.uid || myUser.uid.startsWith('local_')) {
+      const uid = myUser?.uid || 'guest';
+      const saved = localStorage.getItem(`sanctuary_received_reqs_${uid}`);
+      if (saved) {
+        try { setPendingRequests(JSON.parse(saved)); } catch {}
+      }
+      return;
+    }
+
+    // A. Incoming requests
+    const qIncoming = query(
+      collection(db, 'friend_requests'),
+      where('toId', '==', myUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubIncoming = onSnapshot(qIncoming, (snap) => {
+      const reqs: ChatRequest[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        reqs.push({
+          id: docSnap.id,
+          fromId: data.fromId,
+          fromName: data.fromName || 'Sanctuary Member',
+          fromPhoto: data.fromPhoto || '',
+          toId: data.toId,
+          status: data.status || 'pending',
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString())
+        });
+      });
+      setPendingRequests(reqs);
+    }, (err) => {
+      console.warn("Incoming friend requests stream:", err);
+    });
+
+    // B. Sent requests
+    const qSent = query(
+      collection(db, 'friend_requests'),
+      where('fromId', '==', myUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubSent = onSnapshot(qSent, (snap) => {
+      const sentIds: string[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.toId) sentIds.push(data.toId);
+      });
+      setSentRequests(sentIds);
+    }, (err) => {
+      console.warn("Sent friend requests stream:", err);
+    });
+
+    return () => {
+      unsubIncoming();
+      unsubSent();
+    };
   }, [myUser?.uid]);
 
   // Save friends & sent requests
@@ -315,26 +349,69 @@ export default function ChatView({
   };
 
   // Send friend request
-  const handleSendFriendRequest = (member: any) => {
+  const handleSendFriendRequest = async (member: any) => {
+    if (!myUser?.uid) return;
     if (friends.includes(member.id) || sentRequests.includes(member.id)) return;
+
     const nextSent = [...sentRequests, member.id];
     saveSentRequests(nextSent);
     if (addHasanat) addHasanat(3);
+
+    try {
+      if (!myUser.uid.startsWith('local_')) {
+        await addDoc(collection(db, 'friend_requests'), {
+          fromId: myUser.uid,
+          fromName: myUser.displayName || (myUser.email ? myUser.email.split('@')[0] : 'Sanctuary Member'),
+          fromPhoto: myUser.photoURL || '',
+          toId: member.id,
+          toName: member.name,
+          status: 'pending',
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (e) {
+      console.warn("Could not save friend request to Firestore, saved locally", e);
+    }
   };
 
   // Cancel sent request
-  const handleCancelSentRequest = (memberId: string) => {
+  const handleCancelSentRequest = async (memberId: string) => {
     const nextSent = sentRequests.filter(id => id !== memberId);
     saveSentRequests(nextSent);
+
+    try {
+      if (myUser?.uid && !myUser.uid.startsWith('local_')) {
+        const q = query(
+          collection(db, 'friend_requests'),
+          where('fromId', '==', myUser.uid),
+          where('toId', '==', memberId),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        snap.forEach(async (d) => {
+          await deleteDoc(doc(db, 'friend_requests', d.id));
+        });
+      }
+    } catch (e) {
+      console.warn("Could not cancel friend request in Firestore", e);
+    }
   };
 
   // Accept friend request
-  const handleAcceptRequest = (req: ChatRequest) => {
+  const handleAcceptRequest = async (req: ChatRequest) => {
     const nextFriends = Array.from(new Set([...friends, req.fromId]));
     saveFriends(nextFriends);
     
     const nextReqs = pendingRequests.filter(r => r.id !== req.id);
     saveReceivedRequests(nextReqs);
+
+    try {
+      if (req.id && !req.id.startsWith('req_')) {
+        await updateDoc(doc(db, 'friend_requests', req.id), { status: 'accepted' });
+      }
+    } catch (e) {
+      console.warn("Could not update friend request status", e);
+    }
 
     // Create or open private chat room with this new friend
     const roomId = `private_${req.fromId}`;
@@ -367,9 +444,17 @@ export default function ChatView({
   };
 
   // Decline request
-  const handleDeclineRequest = (reqId: string) => {
+  const handleDeclineRequest = async (reqId: string) => {
     const nextReqs = pendingRequests.filter(r => r.id !== reqId);
     saveReceivedRequests(nextReqs);
+
+    try {
+      if (reqId && !reqId.startsWith('req_')) {
+        await deleteDoc(doc(db, 'friend_requests', reqId));
+      }
+    } catch (e) {
+      console.warn("Could not delete declined friend request", e);
+    }
   };
 
   // Start instant 1-on-1 private chat with any sanctuary member
@@ -1286,84 +1371,100 @@ export default function ChatView({
               </div>
               
               <div className="space-y-2.5">
-                {communityMembers
-                  .filter(m => 
-                    !exploreFilter || 
-                    m.name.toLowerCase().includes(exploreFilter.toLowerCase()) ||
-                    m.bio.toLowerCase().includes(exploreFilter.toLowerCase()) ||
-                    m.location.toLowerCase().includes(exploreFilter.toLowerCase())
-                  )
-                  .map(member => {
-                    const isFriend = friends.includes(member.id);
-                    const isSent = sentRequests.includes(member.id);
+                {loadingMembers ? (
+                  <div className="p-8 text-center text-[#8696a0] space-y-2">
+                    <RotateCw size={22} className="animate-spin mx-auto text-[#00a884]" />
+                    <p className="text-xs">Loading real Sanctuary members...</p>
+                  </div>
+                ) : communityMembers.length === 0 ? (
+                  <div className="p-6 bg-[#202c33] rounded-2xl border border-[#222e35] text-center text-xs text-[#8696a0] space-y-2">
+                    <Users size={28} className="mx-auto text-[#00a884] opacity-60" />
+                    <p className="font-bold text-[#e9edef]">No other signed-in users yet</p>
+                    <p className="text-[11px] text-[#8696a0] leading-relaxed">
+                      As soon as other worshippers sign into the Sanctuary with their accounts, they will appear here live in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  communityMembers
+                    .filter(m => 
+                      !exploreFilter || 
+                      m.name.toLowerCase().includes(exploreFilter.toLowerCase()) ||
+                      m.bio.toLowerCase().includes(exploreFilter.toLowerCase()) ||
+                      m.location.toLowerCase().includes(exploreFilter.toLowerCase()) ||
+                      m.email?.toLowerCase().includes(exploreFilter.toLowerCase())
+                    )
+                    .map(member => {
+                      const isFriend = friends.includes(member.id);
+                      const isSent = sentRequests.includes(member.id);
 
-                    return (
-                      <div key={member.id} className="p-3 bg-[#202c33] rounded-2xl border border-[#222e35] text-xs text-[#d1d7db] space-y-2.5 transition-all hover:border-[#00a884]/40">
-                        <div className="flex items-start gap-2.5">
-                          <div className="relative">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${member.avatarBg}`}>
-                              {member.initial}
+                      return (
+                        <div key={member.id} className="p-3 bg-[#202c33] rounded-2xl border border-[#222e35] text-xs text-[#d1d7db] space-y-2.5 transition-all hover:border-[#00a884]/40">
+                          <div className="flex items-start gap-2.5">
+                            <div className="relative">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${member.avatarBg}`}>
+                                {member.initial}
+                              </div>
+                              {member.online && (
+                                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#00a884] border-2 border-[#202c33]" />
+                              )}
                             </div>
-                            {member.online && (
-                              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#00a884] border-2 border-[#202c33]" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="font-bold text-[#e9edef] truncate">{member.name}</p>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#111b21] text-[#00a884] font-semibold shrink-0">
-                                {member.rank}
-                              </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-bold text-[#e9edef] truncate">{member.name}</p>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#111b21] text-[#00a884] font-semibold shrink-0">
+                                  {member.rank}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-[#8696a0]">{member.location}</p>
+                              <p className="text-[11px] text-[#aebac1] mt-1 line-clamp-2 leading-relaxed">
+                                {member.bio}
+                              </p>
                             </div>
-                            <p className="text-[10px] text-[#8696a0]">{member.location}</p>
-                            <p className="text-[11px] text-[#aebac1] mt-1 line-clamp-2 leading-relaxed">
-                              {member.bio}
-                            </p>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-[#111b21]/70">
-                          {isFriend ? (
-                            <button
-                              onClick={() => handleStartDirectChat(member)}
-                              className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              <MessageCircle size={13} />
-                              <span>Message Habibi</span>
-                            </button>
-                          ) : isSent ? (
-                            <div className="flex-1 flex items-center gap-1.5">
-                              <span className="flex-1 py-1.5 bg-[#111b21] text-[#8696a0] text-center text-xs font-semibold rounded-xl border border-[#222e35]">
-                                ⏳ Request Sent
-                              </span>
-                              <button
-                                onClick={() => handleCancelSentRequest(member.id)}
-                                className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs rounded-xl font-semibold transition-all cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleSendFriendRequest(member)}
-                                className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                              >
-                                <Users size={13} />
-                                <span>Add Friend</span>
-                              </button>
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-[#111b21]/70">
+                            {isFriend ? (
                               <button
                                 onClick={() => handleStartDirectChat(member)}
-                                className="px-3 py-1.5 bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] text-xs font-semibold rounded-xl border border-[#222e35] transition-all cursor-pointer"
+                                className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                               >
-                                Chat
+                                <MessageCircle size={13} />
+                                <span>Message Habibi</span>
                               </button>
-                            </>
-                          )}
+                            ) : isSent ? (
+                              <div className="flex-1 flex items-center gap-1.5">
+                                <span className="flex-1 py-1.5 bg-[#111b21] text-[#8696a0] text-center text-xs font-semibold rounded-xl border border-[#222e35]">
+                                  ⏳ Request Sent
+                                </span>
+                                <button
+                                  onClick={() => handleCancelSentRequest(member.id)}
+                                  className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs rounded-xl font-semibold transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleSendFriendRequest(member)}
+                                  className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                                >
+                                  <Users size={13} />
+                                  <span>Add Friend</span>
+                                </button>
+                                <button
+                                  onClick={() => handleStartDirectChat(member)}
+                                  className="px-3 py-1.5 bg-[#111b21] hover:bg-[#2a3942] text-[#d1d7db] text-xs font-semibold rounded-xl border border-[#222e35] transition-all cursor-pointer"
+                                >
+                                  Chat
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                )}
               </div>
             </div>
           )}
@@ -1375,9 +1476,9 @@ export default function ChatView({
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
-                    Friend Requests ({pendingRequests.length})
+                    Incoming Requests ({pendingRequests.length})
                   </p>
-                  <span className="text-[9px] text-[#00a884] font-semibold">Incoming</span>
+                  <span className="text-[9px] text-[#00a884] font-semibold">Action Required</span>
                 </div>
 
                 {pendingRequests.length > 0 ? (
@@ -1390,7 +1491,7 @@ export default function ChatView({
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-bold text-[#e9edef] truncate">{req.fromName}</p>
-                            <p className="text-[10px] text-[#8696a0]">Wants to connect on Habibi Chat</p>
+                            <p className="text-[10px] text-[#8696a0]">Wants to connect with you on Habibi Chat</p>
                           </div>
                         </div>
 
@@ -1400,7 +1501,7 @@ export default function ChatView({
                             className="flex-1 py-1.5 bg-[#00a884] hover:bg-[#009373] text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
                           >
                             <Check size={13} />
-                            <span>Accept</span>
+                            <span>Accept & Chat</span>
                           </button>
                           <button
                             onClick={() => handleDeclineRequest(req.id)}
@@ -1414,10 +1515,56 @@ export default function ChatView({
                   </div>
                 ) : (
                   <div className="p-4 bg-[#202c33]/50 rounded-2xl border border-[#222e35] text-center text-[#8696a0] text-xs">
-                    <Inbox size={26} className="mx-auto mb-1.5 opacity-40 text-[#00a884]" />
-                    <p className="font-medium text-[#d1d7db]">No pending friend requests</p>
-                    <p className="text-[10px] mt-0.5 opacity-80">Use Explore to send requests to members</p>
+                    <Inbox size={24} className="mx-auto mb-1 opacity-40 text-[#00a884]" />
+                    <p className="font-medium text-[#d1d7db]">No pending incoming requests</p>
+                    <p className="text-[10px] mt-0.5 opacity-80">Explore community members to connect</p>
                   </div>
+                )}
+              </div>
+
+              {/* Sent Requests */}
+              <div className="space-y-2 pt-2 border-t border-[#222e35]">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
+                    Sent Requests ({sentRequests.length})
+                  </p>
+                  <span className="text-[9px] text-amber-400 font-medium">Pending Response</span>
+                </div>
+
+                {sentRequests.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {sentRequests.map(sentId => {
+                      const member = communityMembers.find(m => m.id === sentId) || {
+                        id: sentId,
+                        name: sentId.replace('member_', '').replace(/_/g, ' '),
+                        location: 'Ummah Network',
+                        initial: sentId[0]?.toUpperCase() || 'H'
+                      };
+
+                      return (
+                        <div key={sentId} className="p-2.5 bg-[#202c33] rounded-xl border border-[#222e35] flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                              {member.initial || 'H'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-xs text-[#e9edef] truncate">{member.name}</p>
+                              <p className="text-[9px] text-[#8696a0]">Request sent • Waiting</p>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleCancelSentRequest(sentId)}
+                            className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg transition-all cursor-pointer shrink-0"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#8696a0] italic px-1">No outgoing requests sent yet.</p>
                 )}
               </div>
 
@@ -1427,6 +1574,7 @@ export default function ChatView({
                   <p className="text-[10px] font-bold text-[#8696a0] uppercase tracking-wider">
                     My Habibi Friends ({friends.length})
                   </p>
+                  <span className="text-[9px] text-[#00a884] font-semibold">Connected</span>
                 </div>
 
                 <div className="space-y-1.5">
@@ -2137,7 +2285,7 @@ export default function ChatView({
                   <input
                     required
                     type="text"
-                    value={newGroupName}
+                    value={newGroupName || ''}
                     onChange={(e) => setNewGroupName(e.target.value)}
                     placeholder="e.g. Daily Fiqh Circle, Quran Study..."
                     className="w-full bg-[#202c33] border border-[#222e35] rounded-xl p-3 text-xs text-[#e9edef] outline-none focus:border-[#00a884]"
@@ -2147,7 +2295,7 @@ export default function ChatView({
                 <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#202c33] border border-[#222e35] cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={isGroupBusiness}
+                    checked={!!isGroupBusiness}
                     onChange={(e) => setIsGroupBusiness(e.target.checked)}
                     className="rounded accent-[#00a884]"
                   />

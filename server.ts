@@ -207,15 +207,18 @@ async function startServer() {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { content, category, image, poll } = req.body;
+      const { content, category, image, poll, privacy, bgStyle, caption } = req.body;
       const userDoc = await fdb.collection("app_users").doc(session.email).get();
       const userDisplayName = userDoc.exists ? userDoc.data()!.displayName : "Spiritual Soul";
 
       const postData = {
         userId: session.uid,
         user: userDisplayName,
-        content,
+        content: content || caption || "",
+        caption: caption || content || "",
         category: category || "How I Feel",
+        privacy: privacy || "public",
+        bgStyle: bgStyle || "default",
         time: Timestamp.now(),
         supportCount: 0,
         reconsiderCount: 0,
@@ -396,7 +399,7 @@ async function startServer() {
     }
   });
 
-  // 7b. Comment on Feed Post via REST
+  // 7b. Comment or Reply on Feed Post via REST
   app.post("/api/db/feed/posts/:postId/comments", async (req, res) => {
     try {
       const session = await validateSession(req);
@@ -405,7 +408,7 @@ async function startServer() {
       }
 
       const { postId } = req.params;
-      const { text } = req.body;
+      const { text, replyToCommentId, replyToUser, parentCommentId } = req.body;
       if (!postId || !text) {
         return res.status(400).json({ error: "postId and text are required" });
       }
@@ -420,17 +423,41 @@ async function startServer() {
       const userDisplayName = userDoc.exists ? userDoc.data()!.displayName : "Spiritual Soul";
 
       const newComment = {
-        id: `c-${Date.now()}`,
+        id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         userId: session.uid,
         user: userDisplayName,
         text,
+        replyToCommentId: replyToCommentId || parentCommentId || null,
+        replyToUser: replyToUser || null,
         time: new Date().toISOString(),
         replies: []
       };
 
       const postData = postDoc.data()!;
-      const comments = postData.comments || [];
-      comments.push(newComment);
+      let comments = postData.comments || [];
+
+      // If it's a direct reply to a parent comment, we can attach to parent's replies or flat list with parentCommentId
+      const targetParentId = parentCommentId || replyToCommentId;
+      if (targetParentId) {
+        let parentFound = false;
+        comments = comments.map((c: any) => {
+          if (c.id === targetParentId) {
+            parentFound = true;
+            return {
+              ...c,
+              replies: [...(c.replies || []), newComment]
+            };
+          }
+          return c;
+        });
+
+        if (!parentFound) {
+          // If parent wasn't a root comment, append to root comment list
+          comments.push(newComment);
+        }
+      } else {
+        comments.push(newComment);
+      }
 
       await postRef.update({ comments });
       res.json({ success: true, comment: newComment });

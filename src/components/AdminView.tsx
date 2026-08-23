@@ -66,7 +66,9 @@ import {
   ChevronDown,
   ChevronUp,
   UserMinus,
-  Mail
+  Mail,
+  GraduationCap,
+  Image as ImageIcon
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
 import { STARTER_MARKET_LISTINGS } from '../data/marketData.ts';
@@ -89,6 +91,9 @@ import { notificationService } from '../services/notificationService.ts';
 import { ActivityLoggerService, ActivityLogItem } from '../services/activityLoggerService.ts';
 import { AdminConfigService, AdminConfig, DEFAULT_ADMIN_CONFIG } from '../services/adminConfigService.ts';
 import { KhatamVideoService, KhatamVideoItem, DEFAULT_KHATAM_VIDEOS } from '../services/khatamVideoService.ts';
+import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS } from '../services/islamicWisdomService.ts';
+import { ReportService, PostReportItem, PREDEFINED_REPORT_REASONS } from '../services/reportService.ts';
+import { AdminWisdomManager } from './AdminWisdomManager.tsx';
 
 interface AdminViewProps {
   currentUser: any;
@@ -136,12 +141,48 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'banned' | 'fire' | 'premium' | 'king'>('all');
-  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'khatam_videos' | 'market_moderation' | 'broadcast' | 'audit' | 'security'>('users');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'khatam_videos' | 'market_moderation' | 'post_reports' | 'islamic_wisdom' | 'broadcast' | 'audit' | 'security'>('users');
   const [userViewMode, setUserViewMode] = useState<'table' | 'grid'>('table');
   const [selectedUserUids, setSelectedUserUids] = useState<string[]>([]);
   const [sortField, setSortField] = useState<'displayName' | 'email' | 'hasanat' | 'streak' | 'level' | 'role' | 'status' | 'createdAt'>('hasanat');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
+
+  // 🚩 Post Moderation & Community Reports State
+  const [postReports, setPostReports] = useState<PostReportItem[]>([]);
+  const [reportFilter, setReportFilter] = useState<'all' | 'pending' | 'actioned' | 'dismissed'>('all');
+  const [reportSearch, setReportSearch] = useState<string>('');
+
+  // 📖 Islamic Wisdom Teachings & Picture Cards Management State
+  const [teachings, setTeachings] = useState<IslamicTeachingItem[]>(DEFAULT_ISLAMIC_TEACHINGS);
+  const [wisdomSearch, setWisdomSearch] = useState<string>('');
+  const [wisdomCategoryFilter, setWisdomCategoryFilter] = useState<string>('all');
+  const [newTeachingTitle, setNewTeachingTitle] = useState<string>('');
+  const [newTeachingImageUrl, setNewTeachingImageUrl] = useState<string>('https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000');
+  const [newTeachingCategory, setNewTeachingCategory] = useState<'hadith_pearls' | 'quran_insights' | 'akhlaq_character' | 'daily_reminders' | 'prophetic_sunnah' | 'spirituality'>('spirituality');
+  const [newTeachingContent, setNewTeachingContent] = useState<string>('');
+  const [newTeachingArabic, setNewTeachingArabic] = useState<string>('');
+  const [newTeachingScholar, setNewTeachingScholar] = useState<string>('');
+  const [newTeachingFeatured, setNewTeachingFeatured] = useState<boolean>(false);
+  const [isAddingTeaching, setIsAddingTeaching] = useState<boolean>(false);
+  const [showBulkWisdomModal, setShowBulkWisdomModal] = useState<boolean>(false);
+  const [bulkWisdomText, setBulkWisdomText] = useState<string>('');
+  const [isBulkSubmittingWisdom, setIsBulkSubmittingWisdom] = useState<boolean>(false);
+  const [previewingTeaching, setPreviewingTeaching] = useState<IslamicTeachingItem | null>(null);
+
+  // Subscribe to live Firestore post_reports and islamic_teachings
+  useEffect(() => {
+    const unsubReports = ReportService.subscribeToReports((list) => {
+      setPostReports(list);
+    });
+    const unsubTeachings = IslamicWisdomService.subscribeToTeachings((list) => {
+      setTeachings(list);
+    });
+    return () => {
+      unsubReports();
+      unsubTeachings();
+    };
+  }, []);
   
   // Market Moderation State
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
@@ -943,6 +984,127 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
     showActionFeedback("Seeded standard sacred Khatam videos.");
   };
 
+  // POST MODERATION & REPORTS OPERATIONS
+  const handleDismissReport = async (report: PostReportItem) => {
+    const success = await ReportService.updateReportStatus(report.id, 'dismissed', `Dismissed / Approved by ${currentUser?.displayName || 'Admin'}`);
+    if (success) {
+      showActionFeedback(`Report #${report.id.slice(-6)} marked as Dismissed / Safe.`);
+      logActivity('admin', `Dismissed report against post by ${report.postAuthor}`, currentUser?.displayName || 'Admin', 'REPORT DISMISSED');
+    }
+  };
+
+  const handleDeleteReportedPost = async (report: PostReportItem) => {
+    if (!window.confirm(`Permanently delete reported reflection from "${report.postAuthor}"?`)) return;
+
+    try {
+      // 1. Delete from Firestore posts
+      try {
+        await deleteDoc(doc(db, 'posts', report.postId));
+      } catch (e) {
+        console.warn("Firestore delete reported post fallback:", e);
+      }
+
+      // 2. Mark report as actioned
+      await ReportService.updateReportStatus(report.id, 'actioned', `Post permanently deleted by ${currentUser?.displayName || 'Admin'}`);
+
+      // 3. Log
+      logActivity('admin', `Deleted inappropriate post #${report.postId} by ${report.postAuthor}`, currentUser?.displayName || 'Admin', 'POST PURGED');
+      showActionFeedback(`Post by ${report.postAuthor} permanently deleted and report resolved.`);
+    } catch (err) {
+      console.error("Error deleting reported post:", err);
+    }
+  };
+
+  const handleBanReportedAuthor = async (report: PostReportItem) => {
+    const authorUser = users.find(u => u.uid === report.reportedByUid || u.displayName === report.postAuthor);
+    if (!authorUser) {
+      alert(`User "${report.postAuthor}" not found in registered accounts list.`);
+      return;
+    }
+    if (!window.confirm(`Suspend/Ban user "${report.postAuthor}"?`)) return;
+
+    await handleToggleBan(authorUser);
+    await ReportService.updateReportStatus(report.id, 'actioned', `Author ${report.postAuthor} suspended/banned by Admin.`);
+  };
+
+  // ISLAMIC WISDOM & TEACHINGS (PICTURES) OPERATIONS
+  const handleAddWisdom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeachingTitle.trim() || !newTeachingContent.trim()) {
+      alert("Please enter a title and teaching reflection content.");
+      return;
+    }
+
+    setIsAddingTeaching(true);
+    const res = await IslamicWisdomService.addTeaching({
+      title: newTeachingTitle.trim(),
+      imageUrl: newTeachingImageUrl.trim(),
+      category: newTeachingCategory,
+      arabicText: newTeachingArabic.trim(),
+      content: newTeachingContent.trim(),
+      scholarOrSource: newTeachingScholar.trim() || 'Islamic Classical Tradition',
+      featured: newTeachingFeatured
+    }, currentUser?.displayName || 'Admin');
+    setIsAddingTeaching(false);
+
+    if (res.success) {
+      setNewTeachingTitle('');
+      setNewTeachingContent('');
+      setNewTeachingArabic('');
+      setNewTeachingScholar('');
+      setNewTeachingFeatured(false);
+      showActionFeedback(`Published Islamic Teaching: "${newTeachingTitle.trim()}"!`);
+      logActivity('admin', `Published wisdom teaching: ${newTeachingTitle.trim()}`, currentUser?.displayName || 'Admin', 'WISDOM ADDED');
+    } else {
+      alert(res.error || "Failed to publish wisdom.");
+    }
+  };
+
+  const handleBulkAddWisdom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkWisdomText.trim()) return;
+
+    setIsBulkSubmittingWisdom(true);
+    const lines = bulkWisdomText.split(/[\r\n]+/).filter(Boolean);
+    const parsedItems = lines.map(line => {
+      const parts = line.split('|').map(p => p.trim());
+      return {
+        title: parts[0] || 'Sacred Reflection',
+        imageUrl: parts[1] && parts[1].startsWith('http') ? parts[1] : 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+        content: parts[2] || parts[0] || 'Reflect upon the signs of Allah in creation.',
+        scholarOrSource: parts[3] || 'Prophetic Sunnah',
+        category: newTeachingCategory
+      };
+    });
+
+    const res = await IslamicWisdomService.bulkAddTeachings(parsedItems, currentUser?.displayName || 'Admin');
+    setIsBulkSubmittingWisdom(false);
+
+    if (res.success) {
+      setBulkWisdomText('');
+      setShowBulkWisdomModal(false);
+      showActionFeedback(`Successfully imported ${res.addedCount} teachings and pictures!`);
+      logActivity('admin', `Bulk imported ${res.addedCount} wisdom teachings`, currentUser?.displayName || 'Admin', 'BULK WISDOM');
+    } else {
+      alert(res.errors?.join('\n') || "Failed to parse teachings.");
+    }
+  };
+
+  const handleDeleteWisdom = async (item: IslamicTeachingItem) => {
+    if (!window.confirm(`Delete "${item.title}" from Islamic Wisdom? Seekers will no longer see this card.`)) return;
+
+    const success = await IslamicWisdomService.deleteTeaching(item.id);
+    if (success) {
+      showActionFeedback(`Deleted teaching "${item.title}"`);
+      logActivity('admin', `Deleted wisdom card: ${item.title}`, currentUser?.displayName || 'Admin', 'WISDOM DELETED');
+    }
+  };
+
+  const handleToggleFeaturedWisdom = async (item: IslamicTeachingItem) => {
+    await IslamicWisdomService.toggleFeatured(item.id, !!item.featured);
+    showActionFeedback(`${item.featured ? 'Removed from' : 'Pinned to'} Islamic Wisdom Featured Spotlight!`);
+  };
+
   const handleToggleMaintenance = async () => {
     setSavingConfig(true);
     const nextVal = !adminConfig.maintenanceMode;
@@ -1583,6 +1745,8 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
             { id: 'analytics', label: 'Realtime Graphs', icon: BarChart3 },
             { id: 'users', label: `Users (${users.length})`, icon: Users },
             { id: 'khatam_videos', label: `YouTube Videos (${khatamVideos.length})`, icon: Video },
+            { id: 'islamic_wisdom', label: `Islamic Wisdom (${teachings.length})`, icon: GraduationCap },
+            { id: 'post_reports', label: postReports.filter(r => r.status === 'pending').length > 0 ? `🚩 Reports (${postReports.filter(r => r.status === 'pending').length} Pending)` : `Reports (${postReports.length})`, icon: Flag },
             { id: 'market_moderation', label: adminListings.filter(l => l.isFlagged).length > 0 ? `🚩 Market (${adminListings.filter(l => l.isFlagged).length} Flagged)` : `Market (${adminListings.length})`, icon: ShoppingBag },
             { id: 'broadcast', label: 'Broadcast', icon: Radio },
             { id: 'audit', label: 'Activity Feed', icon: Activity },
@@ -3787,6 +3951,250 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
         </div>
       )}
 
+      {/* TAB: POST REPORTS & COMMUNITY CONTENT MODERATION */}
+      {activeTab === 'post_reports' && (
+        <div className="space-y-8">
+          {/* Header Banner */}
+          <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-r from-rose-950/40 via-brand-depth to-black/70 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <Flag size={12} /> Community Moderation Hub
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 text-slate-300 border border-white/10 text-[9px] font-mono">
+                  {postReports.length} Reports Recorded
+                </span>
+                {postReports.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="px-3 py-1 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">
+                    {postReports.filter(r => r.status === 'pending').length} Pending Action
+                  </span>
+                )}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white italic">
+                NoorTalk Content Reports & Moderation
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Super Admin audit panel: Review flagged NoorTalk posts reported by community members. Inspect compliance reasons (Inappropriate, Spam, Misinformation, Harassment), dismiss safe reflections, or permanently delete violating content from Firestore.
+              </p>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-white font-mono">{postReports.length}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Total</p>
+              </div>
+              <div className={`p-3.5 rounded-2xl border text-center transition-all ${
+                postReports.filter(r => r.status === 'pending').length > 0
+                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 shadow-lg shadow-rose-500/20'
+                  : 'bg-white/5 border-white/10 text-slate-400'
+              }`}>
+                <p className="text-xl font-black font-mono text-rose-400">
+                  {postReports.filter(r => r.status === 'pending').length}
+                </p>
+                <p className="text-[9px] font-bold uppercase">Pending</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-emerald-400 font-mono">
+                  {postReports.filter(r => r.status === 'dismissed').length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Dismissed</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-amber-400 font-mono">
+                  {postReports.filter(r => r.status === 'actioned').length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Actioned</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="p-4 sm:p-6 rounded-[2rem] bg-brand-sidebar/40 border border-white/10 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={reportSearch}
+                onChange={(e) => setReportSearch(e.target.value)}
+                placeholder="Search reports by reason, author, reporter, post text..."
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-10 text-xs text-white placeholder:text-slate-500 focus:border-rose-400 outline-none"
+              />
+              {reportSearch && (
+                <button onClick={() => setReportSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+              {(['all', 'pending', 'actioned', 'dismissed'] as const).map((filterVal) => (
+                <button
+                  key={filterVal}
+                  onClick={() => setReportFilter(filterVal)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                    reportFilter === filterVal
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  {filterVal}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reports List */}
+          <div className="space-y-4">
+            {postReports
+              .filter(r => {
+                if (reportFilter !== 'all' && r.status !== reportFilter) return false;
+                if (!reportSearch.trim()) return true;
+                const q = reportSearch.toLowerCase();
+                return (
+                  r.reason.toLowerCase().includes(q) ||
+                  (r.postAuthor && r.postAuthor.toLowerCase().includes(q)) ||
+                  (r.postContent && r.postContent.toLowerCase().includes(q)) ||
+                  (r.reportedByName && r.reportedByName.toLowerCase().includes(q)) ||
+                  (r.details && r.details.toLowerCase().includes(q))
+                );
+              })
+              .map((report) => (
+                <motion.div
+                  key={report.id}
+                  layout
+                  className={`glass-panel p-6 rounded-[2.2rem] border transition-all ${
+                    report.status === 'pending'
+                      ? 'border-rose-500/40 bg-gradient-to-r from-rose-950/20 to-slate-900/60 shadow-lg'
+                      : report.status === 'actioned'
+                      ? 'border-amber-500/30 bg-slate-900/40'
+                      : 'border-white/10 bg-slate-900/30 opacity-75'
+                  }`}
+                >
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                    {/* Report Information */}
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          report.status === 'pending'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                            : report.status === 'actioned'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        }`}>
+                          ● Status: {report.status}
+                        </span>
+
+                        <span className="px-3 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[10px] font-bold">
+                          Reason: {report.reason}
+                        </span>
+
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {new Date(report.createdAt).toLocaleDateString()} at {new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      {/* Reported Post Box */}
+                      <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Post Author: <strong className="text-white">{report.postAuthor || 'Community Member'}</strong></span>
+                          <span className="text-[10px] font-mono text-slate-500">Post ID: {report.postId}</span>
+                        </div>
+                        {report.postContent && (
+                          <p className="text-xs text-slate-200 italic font-medium leading-relaxed bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                            "{report.postContent}"
+                          </p>
+                        )}
+                        {report.postImage && (
+                          <div className="mt-2 w-28 h-20 rounded-xl overflow-hidden bg-black/60 border border-white/10">
+                            <img src={report.postImage} alt="Reported Media" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reporter details */}
+                      <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                        <span>Reported by: <strong className="text-slate-200">{report.reportedByName}</strong> {report.reportedByEmail ? `(${report.reportedByEmail})` : ''}</span>
+                        {report.details && (
+                          <span className="text-amber-300/90 font-medium">
+                            • Note: "{report.details}"
+                          </span>
+                        )}
+                        {report.actionTaken && (
+                          <span className="text-emerald-400 font-medium">
+                            • Action: {report.actionTaken}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Admin Action Buttons */}
+                    <div className="flex flex-row lg:flex-col items-center gap-2 shrink-0 w-full lg:w-48">
+                      {report.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleDismissReport(report)}
+                            className="w-full py-2.5 px-4 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all border border-emerald-500/40 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Check size={13} />
+                            <span>Dismiss / Safe</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteReportedPost(report)}
+                            className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-rose-600/30 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Trash2 size={13} />
+                            <span>Delete Post</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleBanReportedAuthor(report)}
+                            className="w-full py-2 px-4 bg-white/5 hover:bg-white/10 text-amber-300 font-bold rounded-xl text-xs transition-all border border-white/10 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <UserX size={13} />
+                            <span>Suspend Author</span>
+                          </button>
+                        </>
+                      )}
+
+                      {report.status !== 'pending' && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm("Remove this report record from list?")) {
+                              ReportService.deleteReport(report.id);
+                              showActionFeedback("Report record removed.");
+                            }
+                          }}
+                          className="w-full py-2 px-3 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 font-bold rounded-xl text-xs transition-all border border-white/5 cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <Trash2 size={12} />
+                          <span>Clear Record</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+            {postReports.length === 0 && (
+              <div className="glass-panel p-16 rounded-[2.5rem] border-white/10 text-center space-y-3 bg-slate-900/40">
+                <Flag size={36} className="mx-auto text-slate-600" />
+                <h3 className="text-base font-black text-white">No Reports Submitted</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Alhamdulillah! Community posts are currently clean and compliant with Sanctuary ethical guidelines.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: ISLAMIC WISDOM & TEACHINGS (PICTURES) MANAGEMENT */}
+      {activeTab === 'islamic_wisdom' && (
+        <AdminWisdomManager currentUser={currentUser} />
+      )}
+
       {/* MODAL: PREVIEW KHATAM VIDEO */}
       <AnimatePresence>
         {previewingVideo && (
@@ -4265,6 +4673,160 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                     >
                       {isBulkSubmitting ? <RefreshCw className="animate-spin" size={14} /> : <Database size={14} />}
                       <span>Save All to Firestore</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 5: ISLAMIC WISDOM TEACHING PREVIEW MODAL */}
+      <AnimatePresence>
+        {previewingTeaching && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-brand-sidebar border border-white/10 rounded-[3rem] overflow-hidden shadow-3xl flex flex-col"
+            >
+              <div className="relative aspect-video w-full bg-black">
+                <img
+                  src={previewingTeaching.imageUrl}
+                  alt={previewingTeaching.title}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => setPreviewingTeaching(null)}
+                  className="absolute top-4 right-4 p-2.5 rounded-full bg-black/80 text-white hover:bg-black transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 sm:p-8 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider">
+                    {previewingTeaching.categoryLabel || previewingTeaching.category}
+                  </span>
+                  {previewingTeaching.featured && (
+                    <span className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black uppercase tracking-wider">
+                      ⭐ Featured Card
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl font-black text-white">{previewingTeaching.title}</h3>
+
+                {previewingTeaching.arabicText && (
+                  <p className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-base font-serif text-right leading-relaxed">
+                    {previewingTeaching.arabicText}
+                  </p>
+                )}
+
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  {previewingTeaching.content}
+                </p>
+
+                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                  <span>Source: <strong className="text-white">{previewingTeaching.scholarOrSource || 'Prophetic Tradition'}</strong></span>
+                  <button
+                    onClick={() => setPreviewingTeaching(null)}
+                    className="px-5 py-2 bg-emerald-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 6: BULK ISLAMIC WISDOM / PICTURES IMPORT MODAL */}
+      <AnimatePresence>
+        {showBulkWisdomModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-brand-sidebar border border-white/10 rounded-[3rem] p-6 sm:p-8 space-y-6 shadow-3xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Layers size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">Bulk Import Islamic Teachings & Cards</h3>
+                    <p className="text-xs text-slate-400">Paste multiple picture teachings at once to save directly to Firestore</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBulkWisdomModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white bg-white/5 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkAddWisdom} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Assign Category to Imported Teachings
+                  </label>
+                  <select
+                    value={newTeachingCategory}
+                    onChange={(e) => setNewTeachingCategory(e.target.value as any)}
+                    className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400"
+                  >
+                    <option value="hadith_pearls">Hadith Pearls</option>
+                    <option value="quran_insights">Quranic Insights</option>
+                    <option value="prophetic_sunnah">Prophetic Sunnah</option>
+                    <option value="akhlaq_character">Akhlaq & Character</option>
+                    <option value="spirituality">Inner Spirituality & Tazkiyah</option>
+                    <option value="daily_reminders">Daily Reminders</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    <span>Paste Teachings (One per line)</span>
+                    <span className="text-[9px] text-emerald-300 font-normal">Format: Title | ImageURL | Content | Source</span>
+                  </label>
+                  <textarea
+                    rows={8}
+                    required
+                    value={bulkWisdomText}
+                    onChange={(e) => setBulkWisdomText(e.target.value)}
+                    placeholder={`The Power of Istighfar | https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000 | Seeking forgiveness cleanses the soul from impurities. | Hasan al-Basri\nKindness to Parents | https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000 | Paradise lies at the feet of mothers. | Sahih al-Bukhari`}
+                    className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white text-xs font-mono outline-none focus:border-emerald-400 resize-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <span className="text-[10px] text-slate-400">
+                    Lines detected: <span className="text-white font-mono font-bold">{bulkWisdomText.split(/[\r\n]+/).filter(Boolean).length}</span>
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkWisdomModal(false)}
+                      className="px-4 py-3 bg-white/5 hover:bg-white/10 text-slate-300 font-bold rounded-2xl text-xs uppercase tracking-wider cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isBulkSubmittingWisdom || !bulkWisdomText.trim()}
+                      className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg hover:brightness-110 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isBulkSubmittingWisdom ? <RefreshCw className="animate-spin" size={14} /> : <Database size={14} />}
+                      <span>Save All Teachings to Firestore</span>
                     </button>
                   </div>
                 </div>

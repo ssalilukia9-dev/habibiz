@@ -32,7 +32,9 @@ import {
   HeartHandshake,
   Award,
   Clock,
-  Sparkle
+  Sparkle,
+  Lock,
+  X
 } from 'lucide-react';
 import { notificationService } from '../services/notificationService';
 import { ActivityLoggerService } from '../services/activityLoggerService';
@@ -80,6 +82,8 @@ const SACRED_SOUNDSCAPES: SoundscapeTrack[] = [
 export default function PremiumView() {
   const [user, setUser] = useState<any>(null);
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
+  const [currentTier, setCurrentTier] = useState<string>('free');
+  const [activatedAtDate, setActivatedAtDate] = useState<Date | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual' | 'lifetime'>('annual');
   const [loading, setLoading] = useState<boolean>(false);
   const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
@@ -87,6 +91,7 @@ export default function PremiumView() {
   const [soundVolume, setSoundVolume] = useState<number>(0.75);
   const [activeTab, setActiveTab] = useState<'overview' | 'streams' | 'soundscapes' | 'ai_tools' | 'plans'>('overview');
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
+  const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -99,7 +104,12 @@ export default function PremiumView() {
           const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
-            setIsSubscribed(!!data.isPremium || !!data.isHabibiKing);
+            const sub = !!data.isPremium || !!data.isHabibiKing;
+            setIsSubscribed(sub);
+            setCurrentTier(data.subscriptionTier || (sub ? 'annual' : 'free'));
+            if (data.premiumActivatedAt) {
+              setActivatedAtDate(data.premiumActivatedAt.toDate ? data.premiumActivatedAt.toDate() : new Date(data.premiumActivatedAt));
+            }
           }
         } catch (e) {
           console.warn("User status check offline:", e);
@@ -109,7 +119,12 @@ export default function PremiumView() {
         if (local) {
           const parsed = JSON.parse(local);
           setUser(parsed);
-          setIsSubscribed(!!parsed.isPremium || !!parsed.isHabibiKing);
+          const sub = !!parsed.isPremium || !!parsed.isHabibiKing;
+          setIsSubscribed(sub);
+          setCurrentTier(parsed.subscriptionTier || (sub ? 'annual' : 'free'));
+          if (parsed.premiumActivatedAt) {
+            setActivatedAtDate(new Date(parsed.premiumActivatedAt));
+          }
         }
       }
     };
@@ -118,6 +133,16 @@ export default function PremiumView() {
 
   // Audio Ambient Player handler
   const handleToggleSoundscape = (track: SoundscapeTrack) => {
+    if (!isSubscribed) {
+      notificationService.notify(
+        'Sanctuary Elite Feature 🔒',
+        'Sacred Soundscapes are exclusive to Sanctuary Elite members. Select a plan to unlock immersive audio.',
+        'system'
+      );
+      setActiveTab('plans');
+      return;
+    }
+
     if (activeSoundId === track.id && isPlayingSound) {
       audioRef.current?.pause();
       setIsPlayingSound(false);
@@ -173,11 +198,22 @@ export default function PremiumView() {
         const parsed = JSON.parse(local);
         parsed.isPremium = true;
         parsed.subscriptionTier = selectedPlan;
+        parsed.premiumActivatedAt = now.toISOString();
         localStorage.setItem('sanctuary_local_user', JSON.stringify(parsed));
       }
 
       setIsSubscribed(true);
+      setCurrentTier(selectedPlan);
+      setActivatedAtDate(now);
       setShowCelebration(true);
+
+      // Dispatch global user updated event
+      window.dispatchEvent(new CustomEvent('sanctuary_user_updated', {
+        detail: {
+          uid: auth.currentUser?.uid || user?.uid,
+          isPremium: true
+        }
+      }));
 
       // Log to Firestore Activity Stream
       await ActivityLoggerService.logActivity({
@@ -197,10 +233,73 @@ export default function PremiumView() {
     } catch (error) {
       console.warn("Local activation fallback:", error);
       setIsSubscribed(true);
+      setCurrentTier(selectedPlan);
       setShowCelebration(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle Cancel Subscription & Return to Free Plan
+  const handleCancelSubscription = async () => {
+    setLoading(true);
+    try {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, {
+          isPremium: false,
+          isHabibiKing: false,
+          subscriptionTier: 'free',
+          cancelledAt: serverTimestamp()
+        });
+      }
+
+      // Update local storage
+      const local = localStorage.getItem('sanctuary_local_user');
+      if (local) {
+        const parsed = JSON.parse(local);
+        parsed.isPremium = false;
+        parsed.isHabibiKing = false;
+        parsed.subscriptionTier = 'free';
+        localStorage.setItem('sanctuary_local_user', JSON.stringify(parsed));
+      }
+
+      setIsSubscribed(false);
+      setCurrentTier('free');
+      setShowCancelModal(false);
+
+      // Notify global state
+      window.dispatchEvent(new CustomEvent('sanctuary_user_updated', {
+        detail: {
+          uid: auth.currentUser?.uid || user?.uid,
+          isPremium: false
+        }
+      }));
+
+      notificationService.notify(
+        'Subscription Cancelled',
+        'Your membership has been reverted to the Free Plan. You can rejoin Sanctuary Elite at any time.',
+        'system'
+      );
+    } catch (e) {
+      console.warn("Cancel subscription error:", e);
+      setIsSubscribed(false);
+      setCurrentTier('free');
+      setShowCancelModal(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate Expiration Text
+  const getExpirationDisplay = () => {
+    if (!activatedAtDate) return '1 Year from Activation (Active)';
+    if (currentTier === 'lifetime') return 'Lifetime Access (Never expires)';
+    const msDuration = (currentTier === 'annual' || currentTier === 'yearly') 
+      ? 365 * 24 * 60 * 60 * 1000 
+      : 30 * 24 * 60 * 60 * 1000;
+    const expiryDate = new Date(activatedAtDate.getTime() + msDuration);
+    return `Expires on ${expiryDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`;
   };
 
   const VIP_PERKS = [
@@ -390,27 +489,74 @@ export default function PremiumView() {
             </p>
           </div>
 
+          {!isSubscribed && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 sm:p-6 rounded-[2rem] bg-gradient-to-r from-amber-500/15 via-black/60 to-purple-500/15 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-4xl mx-auto shadow-xl"
+            >
+              <div className="flex items-center gap-3.5 text-center sm:text-left">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white">4K Haramain Streams (Sanctuary Elite Only)</h4>
+                  <p className="text-xs text-slate-400">Upgrade to an Elite pass to unlock continuous 24/7 ultra-HD feeds with zero interruptions.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('plans')}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shrink-0 cursor-pointer"
+              >
+                Unlock 4K Streams
+              </button>
+            </motion.div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Makkah Live Frame */}
-            <div className="glass-panel p-6 rounded-[2.5rem] border-white/10 bg-black/40 space-y-4 overflow-hidden">
+            <div className="glass-panel p-6 rounded-[2.5rem] border-white/10 bg-black/40 space-y-4 overflow-hidden relative group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <h3 className="text-sm font-black text-white uppercase tracking-wider">Makkah Al-Mukarramah</h3>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black uppercase font-mono">
-                  LIVE 4K
+                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black uppercase font-mono flex items-center gap-1">
+                  {!isSubscribed && <Lock size={10} />} LIVE 4K
                 </span>
               </div>
 
               <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black relative border border-white/10 shadow-2xl">
-                <iframe
-                  className="w-full h-full"
-                  src="https://www.youtube-nocookie.com/embed/live_stream?channel=UC4_o6i_FfF6r7q9_y6pT7vg&autoplay=0"
-                  title="Makkah Live Stream"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+                {isSubscribed ? (
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube-nocookie.com/embed/live_stream?channel=UC4_o6i_FfF6r7q9_y6pT7vg&autoplay=1"
+                    title="Makkah Live Stream"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="relative w-full h-full">
+                    <img 
+                      src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=1200" 
+                      alt="Makkah Preview" 
+                      className="w-full h-full object-cover blur-sm scale-105 opacity-40"
+                    />
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-lg">
+                        <Crown size={28} />
+                      </div>
+                      <h4 className="text-base font-black text-white italic">Makkah 4K Kaaba Live Feed</h4>
+                      <p className="text-xs text-slate-300 max-w-xs">Reserved for Sanctuary Elite members. Experience direct 4K feeds from the Holy Kaaba courtyard.</p>
+                      <button
+                        onClick={() => setActiveTab('plans')}
+                        className="px-5 py-2.5 rounded-xl bg-amber-400 text-brand-depth font-black text-xs uppercase tracking-wider hover:bg-amber-300 transition-all cursor-pointer shadow-lg"
+                      >
+                        Unlock Feed ($3.00/mo)
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -419,25 +565,48 @@ export default function PremiumView() {
             </div>
 
             {/* Madinah Live Frame */}
-            <div className="glass-panel p-6 rounded-[2.5rem] border-white/10 bg-black/40 space-y-4 overflow-hidden">
+            <div className="glass-panel p-6 rounded-[2.5rem] border-white/10 bg-black/40 space-y-4 overflow-hidden relative group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <h3 className="text-sm font-black text-white uppercase tracking-wider">Madinah Al-Munawwarah</h3>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black uppercase font-mono">
-                  LIVE 4K
+                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black uppercase font-mono flex items-center gap-1">
+                  {!isSubscribed && <Lock size={10} />} LIVE 4K
                 </span>
               </div>
 
               <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black relative border border-white/10 shadow-2xl">
-                <iframe
-                  className="w-full h-full"
-                  src="https://www.youtube-nocookie.com/embed/live_stream?channel=UC_wG9fP9jJ3v8cT6gH_6u4w&autoplay=0"
-                  title="Madinah Live Stream"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+                {isSubscribed ? (
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube-nocookie.com/embed/live_stream?channel=UC_wG9fP9jJ3v8cT6gH_6u4w&autoplay=1"
+                    title="Madinah Live Stream"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="relative w-full h-full">
+                    <img 
+                      src="https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1200" 
+                      alt="Madinah Preview" 
+                      className="w-full h-full object-cover blur-sm scale-105 opacity-40"
+                    />
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-lg">
+                        <Crown size={28} />
+                      </div>
+                      <h4 className="text-base font-black text-white italic">Prophet's Mosque 4K Feed</h4>
+                      <p className="text-xs text-slate-300 max-w-xs">Direct high-definition broadcast of Al-Masjid An-Nabawi in Madinah Al-Munawwarah.</p>
+                      <button
+                        onClick={() => setActiveTab('plans')}
+                        className="px-5 py-2.5 rounded-xl bg-amber-400 text-brand-depth font-black text-xs uppercase tracking-wider hover:bg-amber-300 transition-all cursor-pointer shadow-lg"
+                      >
+                        Unlock Feed ($3.00/mo)
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -462,6 +631,30 @@ export default function PremiumView() {
               Play sacred background acoustics while reading the Quran, reciting evening Adhkar, or engaging in Tahajjud prayer.
             </p>
           </div>
+
+          {!isSubscribed && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 sm:p-6 rounded-[2rem] bg-gradient-to-r from-purple-500/15 via-black/60 to-amber-500/15 border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-4xl mx-auto shadow-xl"
+            >
+              <div className="flex items-center gap-3.5 text-center sm:text-left">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/30">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white">Sacred Soundscapes Vault (VIP Feature)</h4>
+                  <p className="text-xs text-slate-400">Unlock endless high-definition 3D spatial acoustics from Makkah, Madinah, and the desert night.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('plans')}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shrink-0 cursor-pointer"
+              >
+                Unlock Soundscapes
+              </button>
+            </motion.div>
+          )}
 
           {/* Volume Control Bar */}
           <div className="glass-panel p-4 rounded-2xl border-white/10 max-w-md mx-auto flex items-center gap-4">
@@ -503,7 +696,8 @@ export default function PremiumView() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                     
-                    <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-[9px] font-black text-amber-300 uppercase tracking-wider">
+                    <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-[9px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                      {!isSubscribed && <Lock size={10} />}
                       {sound.tag}
                     </span>
 
@@ -512,10 +706,12 @@ export default function PremiumView() {
                       className={`absolute bottom-3 right-3 w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xl ${
                         isPlaying 
                           ? 'bg-amber-400 text-brand-depth scale-110' 
+                          : !isSubscribed
+                          ? 'bg-black/60 text-amber-400 hover:bg-amber-400 hover:text-brand-depth backdrop-blur-md'
                           : 'bg-white/20 hover:bg-amber-400 hover:text-brand-depth text-white backdrop-blur-md'
                       }`}
                     >
-                      {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
+                      {!isSubscribed ? <Lock size={18} /> : isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
                     </button>
                   </div>
 
@@ -536,22 +732,144 @@ export default function PremiumView() {
         <div className="space-y-10">
           <div className="text-center space-y-2">
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400">
-              Honest & Sacred Subscription
+              Honest & Sacred Monetization
             </span>
             <h2 className="text-3xl sm:text-5xl font-black text-white italic">
-              Choose Your Sanctum Tier
+              {isSubscribed ? 'Your Active Sanctum Plan' : 'Choose Your Sanctum Tier'}
             </h2>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Every contribution directly supports our cloud servers, real-time sync, and Quran preservation programs.
+              {isSubscribed 
+                ? 'Manage your sacred subscription or switch tiers anytime.' 
+                : 'Choose the Free Plan for essential tools, or upgrade to Elite to unlock unlimited AI, 4K streams, and master reciters.'}
             </p>
           </div>
 
-          {/* Pricing Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {/* Monthly Tier */}
+          {/* 🌟 Active Subscription Management Banner */}
+          {isSubscribed && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-6 sm:p-8 rounded-[2.5rem] bg-gradient-to-r from-amber-950/40 via-slate-900/90 to-purple-950/40 border border-amber-500/30 shadow-2xl max-w-4xl mx-auto space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-black shadow-lg">
+                    <Crown size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-brand-depth font-black text-[10px] uppercase tracking-wider">
+                        {currentTier.toUpperCase()} VIP
+                      </span>
+                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 size={13} /> Active
+                      </span>
+                    </div>
+                    <p className="text-sm font-black text-white mt-1">Sanctuary Elite Membership</p>
+                    <p className="text-xs text-amber-300/90 font-medium flex items-center gap-1.5 mt-0.5">
+                      <Clock size={12} />
+                      <span>{getExpirationDisplay()}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={loading}
+                  className="px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-black transition-all cursor-pointer hover:border-rose-500/50"
+                >
+                  Cancel & Revert to Free Plan
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-white/10 text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Check size={14} className="text-amber-400 shrink-0" />
+                  <span>24/7 Haramain 4K Streams</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={14} className="text-amber-400 shrink-0" />
+                  <span>2X Hasanat Multiplier</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={14} className="text-amber-400 shrink-0" />
+                  <span>Sacred Soundscapes Vault</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Complete 4-Tier Pricing Grid: Free Plan + 3 Paid Tiers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
+            {/* 1. FREE PLAN CARD */}
+            <div 
+              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border transition-all relative space-y-6 flex flex-col justify-between ${
+                !isSubscribed
+                  ? 'border-emerald-500/50 bg-emerald-500/[0.04] shadow-xl'
+                  : 'border-white/10 opacity-75 hover:opacity-100'
+              }`}
+            >
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">Free Seeker</span>
+                  {!isSubscribed ? (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase font-mono">
+                      Current Plan
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400 text-[9px] font-bold uppercase">
+                      Default Tier
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$0.00</span>
+                    <span className="text-xs text-slate-400 font-bold">/forever</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug">Essential instruments for your foundational daily devotion.</p>
+                </div>
+
+                {/* Included in Free */}
+                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
+                  <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">Included:</p>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-emerald-400 shrink-0" /> <span>Standard Quran & Reciters</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-emerald-400 shrink-0" /> <span>5 Daily Prayer Times & Qibla</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-emerald-400 shrink-0" /> <span>Digital Tasbih & Adhkar Library</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-emerald-400 shrink-0" /> <span>Community Chat & Faith Feed</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-emerald-400 shrink-0" /> <span>1X Standard Hasanat Velocity</span></div>
+                </div>
+
+                {/* Locked in Free */}
+                <div className="space-y-1.5 pt-2 border-t border-white/5 text-[10px] text-slate-400/80">
+                  <p className="text-[9px] font-black uppercase text-amber-400/80 tracking-wider">Requires Elite Pass:</p>
+                  <div className="flex items-center gap-1.5 text-slate-500 line-through"><Lock size={11} className="text-amber-500/70 shrink-0" /> <span>Haramain 4K Live Streams</span></div>
+                  <div className="flex items-center gap-1.5 text-slate-500 line-through"><Lock size={11} className="text-amber-500/70 shrink-0" /> <span>Sacred Soundscapes Vault</span></div>
+                  <div className="flex items-center gap-1.5 text-slate-500 line-through"><Lock size={11} className="text-amber-500/70 shrink-0" /> <span>Habibi Aliyah AI Companion</span></div>
+                  <div className="flex items-center gap-1.5 text-slate-500 line-through"><Lock size={11} className="text-amber-500/70 shrink-0" /> <span>2X Hasanat Multiplier Booster</span></div>
+                </div>
+              </div>
+
+              {!isSubscribed ? (
+                <div className="w-full py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-center text-xs uppercase tracking-wider">
+                  Active Free Tier
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={loading}
+                  className="w-full py-3 rounded-2xl bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Downgrade to Free
+                </button>
+              )}
+            </div>
+
+            {/* 2. MONTHLY TIER */}
             <div 
               onClick={() => setSelectedPlan('monthly')}
-              className={`glass-panel p-8 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
+              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
                 selectedPlan === 'monthly'
                   ? 'border-amber-400 bg-amber-500/[0.03] shadow-xl'
                   : 'border-white/10 hover:border-white/20'
@@ -559,7 +877,7 @@ export default function PremiumView() {
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400">Monthly</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">Monthly</span>
                   <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'monthly' ? 'border-amber-400 bg-amber-400 text-brand-depth' : 'border-white/20'}`}>
                     {selectedPlan === 'monthly' && <Check size={12} />}
                   </div>
@@ -567,44 +885,45 @@ export default function PremiumView() {
 
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-white font-mono">$3.00</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$3.00</span>
                     <span className="text-xs text-slate-400 font-bold">/month</span>
                   </div>
-                  <p className="text-xs text-slate-400">Flexible monthly spiritual access. Cancel anytime.</p>
+                  <p className="text-[11px] text-slate-400">Flexible monthly spiritual access. 30-day cycle. Cancel anytime.</p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-white/5 text-xs text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>Haramain 4K Live Streams</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>Sacred Soundscapes Audio</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>+1,000 Hasanat Welcome Bonus</span></div>
+                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>24/7 Haramain 4K Streams</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Sacred Soundscapes Audio</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Habibi Aliyah Voice AI</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>+1,000 Hasanat Welcome Bonus</span></div>
                 </div>
               </div>
 
               <button
                 onClick={handleSubscribe}
                 disabled={loading}
-                className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+                className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-amber-400 hover:text-brand-depth text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
               >
-                {isSubscribed ? 'Active Plan' : 'Select Monthly ($3.00)'}
+                {isSubscribed && currentTier === 'monthly' ? 'Current Active Plan' : 'Select Monthly ($3.00)'}
               </button>
             </div>
 
-            {/* Annual Tier (BEST VALUE) */}
+            {/* 3. ANNUAL TIER (BEST VALUE) */}
             <div 
               onClick={() => setSelectedPlan('annual')}
-              className={`glass-panel p-8 rounded-[2.5rem] border-2 transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
+              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border-2 transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
                 selectedPlan === 'annual'
-                  ? 'border-amber-400 bg-amber-500/[0.08] shadow-2xl shadow-amber-500/20 scale-105'
+                  ? 'border-amber-400 bg-amber-500/[0.08] shadow-2xl shadow-amber-500/20 scale-[1.02] z-10'
                   : 'border-amber-500/40 hover:border-amber-400'
               }`}
             >
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth text-[10px] font-black uppercase tracking-widest shadow-lg">
-                MOST POPULAR • 45% SAVINGS
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth text-[9px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap">
+                MOST POPULAR • 45% OFF
               </div>
 
-              <div className="space-y-4 pt-2">
+              <div className="space-y-4 pt-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">Annual Barakah</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">Annual Barakah</span>
                   <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'annual' ? 'border-amber-400 bg-amber-400 text-brand-depth' : 'border-white/20'}`}>
                     {selectedPlan === 'annual' && <Check size={12} />}
                   </div>
@@ -612,17 +931,17 @@ export default function PremiumView() {
 
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-white font-mono">$20.00</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$20.00</span>
                     <span className="text-xs text-slate-400 font-bold">/year</span>
                   </div>
-                  <p className="text-[11px] text-amber-300 font-bold">Equivalent to just $1.66/month!</p>
+                  <p className="text-[11px] text-amber-300 font-bold">Expires in 365 days • Just $1.66/month!</p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-white/5 text-xs text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>All Monthly Features Included</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>2X Hasanat Multiplier Booster</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span>Word-by-Word Quran Analyzer</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> <span className="font-bold text-amber-300">+5,000 Hasanat Treasury Bonus</span></div>
+                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>All Monthly Features Included</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>2X Hasanat Velocity Booster</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Master Qaris & Slow Teacher</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span className="font-bold text-amber-300">+5,000 Hasanat Treasury Bonus</span></div>
                 </div>
               </div>
 
@@ -631,14 +950,14 @@ export default function PremiumView() {
                 disabled={loading}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
               >
-                {loading ? 'Activating Sacred Pass...' : isSubscribed ? 'Active VIP Member' : 'Activate Annual Pass ($20.00)'}
+                {loading ? 'Activating...' : isSubscribed && (currentTier === 'annual' || currentTier === 'yearly') ? 'Current Active VIP Plan' : 'Activate Annual Pass ($20.00)'}
               </button>
             </div>
 
-            {/* Lifetime Tier */}
+            {/* 4. LIFETIME TIER */}
             <div 
               onClick={() => setSelectedPlan('lifetime')}
-              className={`glass-panel p-8 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
+              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
                 selectedPlan === 'lifetime'
                   ? 'border-purple-400 bg-purple-500/[0.04] shadow-xl'
                   : 'border-white/10 hover:border-white/20'
@@ -646,7 +965,7 @@ export default function PremiumView() {
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-wider text-purple-300">Lifetime Patron</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-purple-300">Lifetime Patron</span>
                   <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'lifetime' ? 'border-purple-400 bg-purple-400 text-brand-depth' : 'border-white/20'}`}>
                     {selectedPlan === 'lifetime' && <Check size={12} />}
                   </div>
@@ -654,16 +973,16 @@ export default function PremiumView() {
 
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-white font-mono">$79.99</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$79.99</span>
                     <span className="text-xs text-slate-400 font-bold">/one-time</span>
                   </div>
-                  <p className="text-xs text-slate-400">Pay once, cherish forever across all future updates.</p>
+                  <p className="text-[11px] text-slate-400">Pay once, cherish forever across all future updates.</p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-white/5 text-xs text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={14} className="text-purple-400" /> <span>Permanent Lifetime Access</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-purple-400" /> <span>Golden Patron Profile Badge</span></div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-purple-400" /> <span className="font-bold text-purple-300">+15,000 Hasanat Treasury Bonus</span></div>
+                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span>Permanent Lifetime Access</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span>Golden Patron Profile Badge</span></div>
+                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span className="font-bold text-purple-300">+15,000 Hasanat Treasury Bonus</span></div>
                 </div>
               </div>
 
@@ -672,7 +991,7 @@ export default function PremiumView() {
                 disabled={loading}
                 className="w-full py-3.5 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-purple-500/20"
               >
-                {isSubscribed ? 'Active Patron' : 'Become Lifetime Patron'}
+                {isSubscribed && currentTier === 'lifetime' ? 'Active Patron' : 'Become Lifetime Patron'}
               </button>
             </div>
           </div>
@@ -692,6 +1011,45 @@ export default function PremiumView() {
           </div>
         </div>
       )}
+
+      {/* 🌟 Cancel Subscription Confirmation Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-900 border border-white/15 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 text-center"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+                <Clock size={28} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-black text-white">Cancel Sanctuary Elite?</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Are you sure you want to cancel and revert back to the <strong className="text-amber-400">Free Plan</strong>? You will lose 4K Haramain live streaming, Sacred Soundscapes, and the 2X Hasanat multiplier.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Keep Subscription
+                </button>
+                <button
+                  onClick={handleCancelSubscription}
+                  disabled={loading}
+                  className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/30 cursor-pointer transition-all"
+                >
+                  {loading ? 'Cancelling...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

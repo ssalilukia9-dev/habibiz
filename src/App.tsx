@@ -759,9 +759,9 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Trial Logic: 3 days (72 hours)
-  const isTrialActive = userJoinedAt ? (Date.now() - userJoinedAt.getTime() < 3 * 24 * 60 * 60 * 1000) : true;
-  const trialExpired = !isTrialActive;
+  // Subscription and Trial Policy: Strictly lock features for free tier unless user has active isPremium membership
+  const isTrialActive = false;
+  const trialExpired = true;
 
   // Bookmarks Listener
   useEffect(() => {
@@ -1169,14 +1169,18 @@ export default function App() {
               }
 
               let finalPremium = rawPremium;
-              if (rawPremium && rawActivatedAt) {
+              const tier = data.subscriptionTier || migratedLocalData?.subscriptionTier || 'monthly';
+              if (rawPremium && rawActivatedAt && tier !== 'lifetime') {
                 const elapsed = Date.now() - rawActivatedAt.getTime();
-                const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-                if (elapsed >= thirtyDays) {
+                const planDuration = (tier === 'annual' || tier === 'yearly')
+                  ? 365 * 24 * 60 * 60 * 1000 // 1 Full Year for Yearly plan
+                  : 30 * 24 * 60 * 60 * 1000;  // 30 Days for Monthly plan
+
+                if (elapsed >= planDuration) {
                   finalPremium = false;
                   if (!user.uid.startsWith('local_')) {
                     try {
-                      updateDoc(userRef, { isPremium: false });
+                      updateDoc(userRef, { isPremium: false, subscriptionTier: 'free' });
                     } catch (err) {
                       console.warn("Failed to auto-expire premium on Firestore", err);
                     }
@@ -1186,9 +1190,11 @@ export default function App() {
                     if (localDataRaw) {
                       const localData = JSON.parse(localDataRaw);
                       localData.isPremium = false;
+                      localData.subscriptionTier = 'free';
                       localStorage.setItem(key, JSON.stringify(localData));
                     }
                   }
+                  notificationService.notify('Plan Expired', 'Your Sanctuary Elite plan has ended. You can renew anytime.', 'system');
                 }
               }
 
@@ -2044,7 +2050,7 @@ export default function App() {
                         incrementDua={incrementDua}
                         incrementVerse={incrementVerse}
                         language={language}
-                        isPremium={isPremium || isTrialActive}
+                        isPremium={isPremium}
                         onShowPremium={() => setShowPremiumGateway(true)}
                         currentUser={currentUser}
                       />
@@ -2100,18 +2106,18 @@ export default function App() {
                     <Route path="/settings/theme" element={<ThemeCustomizerView theme={theme} setTheme={setTheme} onBack={() => navigate('/settings')} />} />
                     <Route path="/themes" element={<ThemeCustomizerView theme={theme} setTheme={setTheme} onBack={() => navigate('/home')} />} />
                     <Route path="/notifications" element={<NotificationsView />} />
-                    <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
+                    <Route path="/companion" element={<CompanionView currentUser={currentUser} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} addHasanat={addHasanat} />} />
                     <Route path="/premium" element={<PremiumView />} />
                     <Route path="/qibla" element={<QiblaView />} />
                     <Route path="/babynames" element={<BabyNamesView onBack={() => navigate('/resources')} addHasanat={addHasanat} />} />
                     <Route path="/baby-names" element={<BabyNamesView onBack={() => navigate('/resources')} addHasanat={addHasanat} />} />
                     <Route path="/khatam" element={<KhatamJourneyView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} onOpenAdmin={() => navigate('/admin')} />} />
-                    <Route path="/memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/aliyah" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/aliyah-memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/hifz" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium || isTrialActive} onShowPremium={() => setShowPremiumGateway(true)} />} />
-                    <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium || isTrialActive} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/aliyah" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/aliyah-memorise" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/hifz" element={<AliyahMemoriseView onBack={() => navigate('/resources')} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/ummah" element={<UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>

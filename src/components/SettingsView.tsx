@@ -900,6 +900,32 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
         </div>
       </section>
 
+      {/* Sanctuary Elite Subscription & Plan Section */}
+      <section className="space-y-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400/80 flex items-center gap-3">
+          <Sparkles size={14} /> Sanctuary Elite & Membership
+        </h3>
+        <div className="bg-gradient-to-r from-amber-500/10 via-slate-900/60 to-purple-500/10 rounded-[2rem] border border-amber-500/20 overflow-hidden shadow-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-brand-depth px-2 py-0.5 rounded-full">
+                Sacred Tier
+              </span>
+              <h4 className="text-base font-black text-white uppercase tracking-tight">Sanctuary Elite VIP</h4>
+            </div>
+            <p className="text-xs text-slate-300">
+              Manage your subscription, 4K Haramain Live streams, 365-day annual pass, and cancel or downgrade anytime.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/premium')}
+            className="px-6 py-3.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-brand-depth rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+          >
+            Manage Subscription <ArrowRight size={14} />
+          </button>
+        </div>
+      </section>
+
       {/* Admin Command Console Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400/80 flex items-center gap-3">
@@ -940,7 +966,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
               <input
                 type="password"
                 placeholder="AIzaSy..."
-                value={customGeminiKey}
+                value={customGeminiKey || ''}
                 onChange={(e) => saveGeminiKey(e.target.value)}
                 className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-indigo-400/50 focus:outline-none transition-all selection:bg-indigo-500/30 font-mono"
               />
@@ -983,7 +1009,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
               <input
                 type="text"
                 placeholder="https://your-deployment.run.app"
-                value={customApiUrl}
+                value={customApiUrl || ''}
                 onChange={(e) => saveApiUrl(e.target.value)}
                 className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-purple-400/50 focus:outline-none transition-all selection:bg-purple-500/30 font-mono"
               />

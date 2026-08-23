@@ -811,7 +811,7 @@ export default function ResourcesView({
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}
                  {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
                  {activeRes === 'zakat' && <ZakatCalculator />}
-                 {activeRes === 'finance' && <IslamicFinanceView />}
+                 {activeRes === 'finance' && <IslamicFinanceView isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
                  {activeRes === 'hajj_umrah' && <HajjUmrahHub onNavigate={(view) => setActiveRes(view as TabType)} addHasanat={addHasanat} incrementDua={incrementDua} />}
                   {activeRes === 'hajj_game' && <HajjGame3D onClose={() => setActiveRes(null)} addHasanat={addHasanat} />}

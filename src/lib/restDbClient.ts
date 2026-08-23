@@ -128,7 +128,7 @@ class RestDbClient {
   }
 
   // Social Feed Endpoints
-  async addPost(content: string, category: string, image?: string | null, poll?: any): Promise<any> {
+  async addPost(content: string, category: string, image?: string | null, poll?: any, privacy: 'public' | 'friends' = 'public', bgStyle: string = 'default', caption?: string): Promise<any> {
     const token = this.getToken();
     if (!token) throw new Error('Not logged in');
 
@@ -138,7 +138,7 @@ class RestDbClient {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ content, category, image, poll })
+      body: JSON.stringify({ content, category, image, poll, privacy, bgStyle, caption })
     });
 
     const data = await res.json();
@@ -176,7 +176,7 @@ class RestDbClient {
     return res.ok && data.success;
   }
 
-  async commentPost(postId: string, text: string): Promise<any> {
+  async commentPost(postId: string, text: string, replyToCommentId?: string, replyToUser?: string, parentCommentId?: string): Promise<any> {
     const token = this.getToken();
     if (!token) throw new Error('Not logged in');
 
@@ -186,7 +186,7 @@ class RestDbClient {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ text, replyToCommentId, replyToUser, parentCommentId })
     });
 
     const data = await res.json();
