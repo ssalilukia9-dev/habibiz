@@ -93,7 +93,6 @@ import { AdminConfigService, AdminConfig, DEFAULT_ADMIN_CONFIG } from '../servic
 import { KhatamVideoService, KhatamVideoItem, DEFAULT_KHATAM_VIDEOS } from '../services/khatamVideoService.ts';
 import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS } from '../services/islamicWisdomService.ts';
 import { ReportService, PostReportItem, PREDEFINED_REPORT_REASONS } from '../services/reportService.ts';
-import { AdminWisdomManager } from './AdminWisdomManager.tsx';
 
 interface AdminViewProps {
   currentUser: any;
@@ -4192,7 +4191,353 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
 
       {/* TAB: ISLAMIC WISDOM & TEACHINGS (PICTURES) MANAGEMENT */}
       {activeTab === 'islamic_wisdom' && (
-        <AdminWisdomManager currentUser={currentUser} />
+        <div className="space-y-8">
+          {/* Header Banner */}
+          <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-r from-emerald-950/50 via-brand-depth to-black/70 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <GraduationCap size={12} /> Ilm & Teachings Repository
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 text-slate-300 border border-white/10 text-[9px] font-mono">
+                  {teachings.length} Active Teachings
+                </span>
+                <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
+                  {teachings.filter(t => t.featured).length} Featured
+                </span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white italic">
+                Islamic Wisdom & Picture Teachings Hub
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Super Admin management: Upload authentic Hadiths, Quranic insights, spiritual reflections, and high-resolution picture cards directly into the sacred Islamic Wisdom repository (just like Khatam Journey).
+              </p>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+              <button
+                onClick={() => setShowBulkWisdomModal(true)}
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Layers size={15} />
+                <span>Bulk Upload Teachings</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Add Form */}
+          <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] border-white/10 bg-slate-900/60 shadow-xl space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Plus size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Upload New Islamic Teaching Card</h3>
+                  <p className="text-xs text-slate-400">Add high-resolution picture, Arabic calligraphy, and reflection</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddWisdom} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Title */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Teaching Title / Theme *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={newTeachingTitle}
+                    onChange={(e) => setNewTeachingTitle(e.target.value)}
+                    placeholder="e.g. Mercy Towards All Creation / The Light of Sabr"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                  />
+                </div>
+
+                {/* Picture URL */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    <span>High-Resolution Picture / Image URL *</span>
+                    <span className="text-[9px] text-emerald-400 font-normal">Click preset pill below to auto-fill</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      required
+                      type="url"
+                      value={newTeachingImageUrl}
+                      onChange={(e) => setNewTeachingImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-..."
+                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-mono outline-none focus:border-emerald-400 transition-colors"
+                    />
+                    {newTeachingImageUrl && (
+                      <div className="w-12 h-11 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shrink-0">
+                        <img src={newTeachingImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preset Image Quick Selector Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase">Presets:</span>
+                    {[
+                      { label: '🕌 Mosque Light', url: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000' },
+                      { label: '🕋 Sacred Kaaba', url: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000' },
+                      { label: '📜 Quran Manuscript', url: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000' },
+                      { label: '🌿 Tranquil Mountain', url: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000' },
+                      { label: '✨ Lantern & Arch', url: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000' },
+                      { label: '🌅 Sunrise Sky', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1000' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setNewTeachingImageUrl(preset.url)}
+                        className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold transition-all border border-white/5 cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Category */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Category *
+                  </label>
+                  <select
+                    value={newTeachingCategory}
+                    onChange={(e) => setNewTeachingCategory(e.target.value as any)}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                  >
+                    <option value="hadith_pearls">Hadith Pearls</option>
+                    <option value="quran_insights">Quranic Insights</option>
+                    <option value="prophetic_sunnah">Prophetic Sunnah</option>
+                    <option value="akhlaq_character">Akhlaq & Character</option>
+                    <option value="spirituality">Inner Spirituality & Tazkiyah</option>
+                    <option value="daily_reminders">Daily Reminders</option>
+                  </select>
+                </div>
+
+                {/* Scholar / Source */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Scholar / Authenticated Source
+                  </label>
+                  <input
+                    type="text"
+                    value={newTeachingScholar}
+                    onChange={(e) => setNewTeachingScholar(e.target.value)}
+                    placeholder="e.g. Sahih al-Bukhari / Imam al-Ghazali"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                  />
+                </div>
+
+                {/* Arabic Text (Optional) */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Arabic Matn / Quranic Text (Optional)
+                  </label>
+                  <input
+                    dir="rtl"
+                    type="text"
+                    value={newTeachingArabic}
+                    onChange={(e) => setNewTeachingArabic(e.target.value)}
+                    placeholder="الرَّاحِمُونَ يَرْحَمُهُمُ الرَّحْمَنُ..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-amber-200 text-sm font-serif outline-none focus:border-emerald-400 transition-colors text-right"
+                  />
+                </div>
+
+                {/* Content / Reflection Body */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Teaching Wisdom / Explanation *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={newTeachingContent}
+                    onChange={(e) => setNewTeachingContent(e.target.value)}
+                    placeholder="Provide the explanation, translation, context, and spiritual benefit..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* Submit & Featured checkbox */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-white/10">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={newTeachingFeatured}
+                    onChange={(e) => setNewTeachingFeatured(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/20 accent-emerald-500 cursor-pointer"
+                  />
+                  <span>⭐ Feature this teaching at top of Islamic Wisdom page</span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isAddingTeaching}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isAddingTeaching ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                  <span>Publish Teaching Card</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Search and Category Filter */}
+          <div className="p-4 sm:p-6 rounded-[2rem] bg-brand-sidebar/40 border border-white/10 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={wisdomSearch}
+                onChange={(e) => setWisdomSearch(e.target.value)}
+                placeholder="Search teachings by title, content, scholar..."
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-10 text-xs text-white placeholder:text-slate-500 focus:border-emerald-400 outline-none"
+              />
+              {wisdomSearch && (
+                <button onClick={() => setWisdomSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'hadith_pearls', label: 'Hadith' },
+                { id: 'quran_insights', label: 'Quran' },
+                { id: 'prophetic_sunnah', label: 'Sunnah' },
+                { id: 'akhlaq_character', label: 'Akhlaq' },
+                { id: 'spirituality', label: 'Spirituality' },
+                { id: 'daily_reminders', label: 'Reminders' }
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setWisdomCategoryFilter(c.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                    wisdomCategoryFilter === c.id
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Teachings Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {teachings
+              .filter(t => {
+                if (wisdomCategoryFilter !== 'all' && t.category !== wisdomCategoryFilter) return false;
+                if (!wisdomSearch.trim()) return true;
+                const q = wisdomSearch.toLowerCase();
+                return (
+                  t.title.toLowerCase().includes(q) ||
+                  t.content.toLowerCase().includes(q) ||
+                  (t.arabicText && t.arabicText.includes(q)) ||
+                  (t.scholarOrSource && t.scholarOrSource.toLowerCase().includes(q))
+                );
+              })
+              .map((item) => (
+                <motion.div
+                  key={item.id}
+                  layout
+                  className={`glass-panel rounded-[2.2rem] border overflow-hidden flex flex-col justify-between shadow-xl transition-all ${
+                    item.featured
+                      ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/20 to-slate-900/60 shadow-amber-500/10'
+                      : 'border-white/10 bg-slate-900/50'
+                  }`}
+                >
+                  <div>
+                    {/* Picture Preview */}
+                    <div className="relative aspect-video bg-black/50 overflow-hidden group">
+                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
+
+                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md text-emerald-300 text-[9px] font-black uppercase tracking-wider border border-white/10">
+                        {item.categoryLabel || item.category}
+                      </span>
+
+                      {item.featured && (
+                        <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-[9px] font-black uppercase tracking-wider">
+                          ⭐ Featured
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="p-5 space-y-3">
+                      <h4 className="text-sm font-black text-white line-clamp-2">{item.title}</h4>
+
+                      {item.arabicText && (
+                        <p className="text-xs text-amber-200/90 font-serif text-right line-clamp-1 bg-amber-500/5 p-2 rounded-xl border border-amber-500/10">
+                          {item.arabicText}
+                        </p>
+                      )}
+
+                      <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
+                        {item.content}
+                      </p>
+
+                      <div className="pt-2 text-[10px] text-slate-500 font-bold truncate">
+                        Source: <span className="text-slate-300">{item.scholarOrSource || 'Tradition'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Toolbar */}
+                  <div className="p-4 bg-black/40 border-t border-white/10 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleToggleFeaturedWisdom(item)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                        item.featured
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-white/5 hover:bg-white/10 text-slate-400'
+                      }`}
+                    >
+                      ⭐ {item.featured ? 'Featured' : 'Pin'}
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPreviewingTeaching(item)}
+                        className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-all cursor-pointer"
+                        title="Preview Teaching"
+                      >
+                        <Eye size={14} />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteWisdom(item)}
+                        className="px-3.5 py-1.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-600/20 active:scale-95"
+                        title="Delete teaching from Firestore"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+            {teachings.length === 0 && (
+              <div className="col-span-full py-16 text-center space-y-3 glass-panel rounded-3xl border-white/10 bg-slate-900/40">
+                <GraduationCap size={36} className="mx-auto text-slate-600" />
+                <p className="text-white font-bold text-sm">No Islamic teachings uploaded yet</p>
+                <p className="text-xs text-slate-400">Use the form above to add your first sacred picture card.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* MODAL: PREVIEW KHATAM VIDEO */}

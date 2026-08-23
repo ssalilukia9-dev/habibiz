@@ -43,16 +43,11 @@ import {
   RotateCcw,
   Smartphone,
   Eye,
-  Clock,
-  GraduationCap,
-  Upload,
-  Layers,
-  Database
+  Clock
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
 import { restDbClient } from '../lib/restDbClient.ts';
-import { AdminWisdomManager } from './AdminWisdomManager.tsx';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import PremiumGateway from './PremiumGateway';
 import CreatePostModal, { CreatePostPayload, PostPrivacy } from './CreatePostModal';
@@ -258,10 +253,6 @@ export default function FeedView({
 
   // Confirmation state
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'report' | 'delete_comment', id: string, commentId?: string, parentCommentId?: string, title: string, message: string } | null>(null);
-
-  // Admin Islamic Wisdom Panel & Modal States
-  const [showAdminWisdomPanel, setShowAdminWisdomPanel] = useState<boolean>(false);
-  const [showAdminWisdomModal, setShowAdminWisdomModal] = useState<boolean>(false);
   const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
@@ -894,16 +885,6 @@ export default function FeedView({
   });
 
   const currentUser = getActiveUser();
-  const savedEmail = typeof localStorage !== 'undefined' ? (localStorage.getItem('saved-auth-email') || '') : '';
-  const isAdmin = currentUser?.email === 'admin@habibisanctuary.com' || 
-                  currentUser?.email === 'ssalilukia9@gmail.com' ||
-                  savedEmail === 'admin@habibisanctuary.com' ||
-                  savedEmail === 'ssalilukia9@gmail.com' ||
-                  currentUser?.uid === 'hamloria' ||
-                  currentUser?.uid === '0207' ||
-                  currentUser?.uid === '0214' ||
-                  (typeof localStorage !== 'undefined' && localStorage.getItem('sanctuary_admin_mode') === 'true') ||
-                  (typeof localStorage !== 'undefined' && localStorage.getItem('sanctuary_admin_logged_in') === 'true');
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:grid lg:grid-cols-12 gap-8 pb-32">
@@ -915,25 +896,6 @@ export default function FeedView({
         currentUser={currentUser}
         initialCategory={activeCategory !== 'All' ? activeCategory : 'How I Feel'}
       />
-
-      {/* 🌟 Dedicated Admin-Only Islamic Wisdom Image & Teaching Modal */}
-      <AnimatePresence>
-        {showAdminWisdomModal && (
-          <div className="fixed inset-0 z-[220] flex items-center justify-center p-3 sm:p-6 bg-brand-depth/90 backdrop-blur-xl overflow-y-auto">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-auto"
-            >
-              <AdminWisdomManager 
-                currentUser={currentUser} 
-                onClose={() => setShowAdminWisdomModal(false)} 
-              />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
@@ -1038,21 +1000,6 @@ export default function FeedView({
                 Private
               </span>
             </button>
-
-            {/* Admin Dedicated Section in Sidebar */}
-            {isAdmin && (
-              <button 
-                onClick={() => setShowAdminWisdomModal(true)}
-                className="w-full text-left px-4 py-3 rounded-2xl text-xs font-black transition-all group flex items-center justify-between cursor-pointer bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 hover:brightness-110 shadow-lg shadow-emerald-500/10 mt-2"
-              >
-                <span className="flex items-center gap-2">
-                  <GraduationCap size={16} className="text-emerald-400" /> Wisdom Studio
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 text-[9px] font-black uppercase tracking-wider">
-                  Admin Hub
-                </span>
-              </button>
-            )}
           </div>
 
           <div className="pt-5 border-t border-white/5 space-y-5">
@@ -1133,83 +1080,14 @@ export default function FeedView({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                onClick={() => setShowAdminWisdomPanel(!showAdminWisdomPanel)}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 font-black text-xs flex items-center gap-1.5 border border-emerald-500/30 transition-all cursor-pointer shadow-md"
-                title="Toggle Admin Islamic Wisdom Image Studio"
-              >
-                <GraduationCap size={14} className="text-emerald-400" />
-                <span className="hidden sm:inline">Wisdom Uploader</span>
-                {showAdminWisdomPanel ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-            )}
-
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-black text-xs flex items-center gap-2 border border-white/10 transition-all cursor-pointer hover:border-emerald-400/40"
-            >
-              <Plus size={14} className="text-emerald-400" />
-              <span>Create Post</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-black text-xs flex items-center gap-2 border border-white/10 transition-all cursor-pointer hover:border-emerald-400/40"
+          >
+            <Plus size={14} className="text-emerald-400" />
+            <span>Create Post</span>
+          </button>
         </div>
-
-        {/* 🌟 Dedicated Admin-Only Islamic Wisdom Image & Picture Teaching Section (Inline Workspace) */}
-        {isAdmin && (
-          <div className="space-y-4">
-            <div className="glass-panel p-4 sm:p-5 rounded-[2rem] border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-teal-950/40 shadow-xl flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                  <GraduationCap size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">
-                      Admin: Islamic Wisdom & Picture Studio
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase">
-                      Admin Only
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Upload teaching pictures directly into Firestore with 1-click delete (Khatam Journey flow).
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setShowAdminWisdomModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider hover:bg-emerald-400 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Upload size={13} />
-                  <span>Open Studio</span>
-                </button>
-                <button
-                  onClick={() => setShowAdminWisdomPanel(!showAdminWisdomPanel)}
-                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 transition-all cursor-pointer"
-                >
-                  {showAdminWisdomPanel ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {showAdminWisdomPanel && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <AdminWisdomManager currentUser={currentUser} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
 
         {/* Quick Compose Card */}
         <motion.div 
