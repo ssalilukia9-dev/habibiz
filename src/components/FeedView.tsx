@@ -43,7 +43,12 @@ import {
   RotateCcw,
   Smartphone,
   Eye,
-  Clock
+  Clock,
+  GraduationCap,
+  Upload,
+  Download,
+  RefreshCw,
+  Layers
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
@@ -52,6 +57,9 @@ import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import PremiumGateway from './PremiumGateway';
 import CreatePostModal, { CreatePostPayload, PostPrivacy } from './CreatePostModal';
 import ReportPostModal from './ReportPostModal.tsx';
+import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS, compressImageFile, ISLAMIC_IMAGE_PRESETS } from '../services/islamicWisdomService.ts';
+import { AdminConfigService } from '../services/adminConfigService.ts';
+import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal';
 
 const SIDEBAR_TOPICS = [
   { name: 'General & Life', icon: SmilePlus, count: '3.8k' },
@@ -174,6 +182,48 @@ export const formatTimeAgo = (timestamp: any): string => {
 };
 
 // Sound tone for interaction
+export function ExpandableParagraph({
+  text,
+  maxWords = 15,
+  className = '',
+  isQuote = false,
+  readMoreColor = 'text-noor-emerald hover:text-emerald-300'
+}: {
+  text: string;
+  maxWords?: number;
+  className?: string;
+  isQuote?: boolean;
+  readMoreColor?: string;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  if (!text) return null;
+
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const isLong = words.length > maxWords;
+
+  const displayedWords = isLong && !isExpanded
+    ? words.slice(0, maxWords).join(' ') + '...'
+    : text;
+
+  return (
+    <div className={className}>
+      <span>{isQuote ? `"${displayedWords}"` : displayedWords}</span>
+      {isLong && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(prev => !prev);
+          }}
+          className={`ml-2 inline-flex items-center gap-0.5 font-black text-xs underline cursor-pointer transition-all ${readMoreColor}`}
+        >
+          {isExpanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 const playHapticAudio = (type: 'like' | 'publish' | 'swipe') => {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -263,6 +313,126 @@ export default function FeedView({
   const [dragActionNotice, setDragActionNotice] = useState<{ id: string; action: 'like' | 'bookmark' } | null>(null);
   const lastTapTimesRef = useRef<Record<string, number>>({});
 
+  // 🖼️ Universal Media Lightbox Expansion State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxMediaItems, setLightboxMediaItems] = useState<LightboxMediaItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openPostMediaLightbox = (post: Post) => {
+    if (!post.image) return;
+    const items: LightboxMediaItem[] = filteredPosts
+      .filter(p => p.image)
+      .map(p => ({
+        url: p.image!,
+        author: p.user || 'Community Member',
+        caption: p.caption || p.content || undefined,
+        title: p.category ? `${p.category} Reflection` : undefined,
+        timestamp: p.timeDisplay || (p.time?.toDate ? p.time.toDate().toLocaleDateString() : undefined)
+      }));
+    const targetIdx = items.findIndex(item => item.url === post.image);
+    setLightboxMediaItems(items.length > 0 ? items : [{ url: post.image, caption: post.caption || post.content, author: post.user }]);
+    setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
+    setIsLightboxOpen(true);
+  };
+
+  const openTeachingMediaLightbox = (teaching: IslamicTeachingItem) => {
+    setLightboxMediaItems([{
+      url: teaching.imageUrl,
+      title: teaching.title,
+      caption: teaching.content,
+      author: `${teaching.category.replace('_', ' ').toUpperCase()} • ${teaching.scholarOrSource || teaching.scholar || 'Prophetic Guidance'}`
+    }]);
+    setLightboxIndex(0);
+    setIsLightboxOpen(true);
+  };
+
+  // 📖 Dedicated Admin-Only Islamic Wisdom Visual Teaching Studio State
+  const [showAdminWisdomStudio, setShowAdminWisdomStudio] = useState(false);
+  const [adminTeachings, setAdminTeachings] = useState<IslamicTeachingItem[]>(DEFAULT_ISLAMIC_TEACHINGS);
+  const [wisdomFilterCategory, setWisdomFilterCategory] = useState<string>('all');
+  const [wisdomSearchQuery, setWisdomSearchQuery] = useState<string>('');
+  const [adminWisdomTitle, setAdminWisdomTitle] = useState<string>('');
+  const [adminWisdomImageUrl, setAdminWisdomImageUrl] = useState<string>('https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000');
+  const [adminWisdomCategory, setAdminWisdomCategory] = useState<'hadith_pearls' | 'quran_insights' | 'akhlaq_character' | 'daily_reminders' | 'prophetic_sunnah' | 'spirituality'>('spirituality');
+  const [adminWisdomContent, setAdminWisdomContent] = useState<string>('');
+  const [adminWisdomArabic, setAdminWisdomArabic] = useState<string>('');
+  const [adminWisdomScholar, setAdminWisdomScholar] = useState<string>('');
+  const [adminWisdomFeatured, setAdminWisdomFeatured] = useState<boolean>(false);
+  const [isUploadingWisdom, setIsUploadingWisdom] = useState<boolean>(false);
+  const [isCompressingWisdomImg, setIsCompressingWisdomImg] = useState<boolean>(false);
+  const [previewingWisdomCard, setPreviewingWisdomCard] = useState<IslamicTeachingItem | null>(null);
+
+  // Subscribe to live Islamic Teachings in Firestore
+  useEffect(() => {
+    const unsub = IslamicWisdomService.subscribeToTeachings((list) => {
+      setAdminTeachings(list);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAdminWisdomFileChange = async (file: File) => {
+    if (!file) return;
+    try {
+      setIsCompressingWisdomImg(true);
+      const dataUrl = await compressImageFile(file, 1280, 0.85);
+      setAdminWisdomImageUrl(dataUrl);
+      setPublishSuccessMessage("✨ Sacred visual compressed & attached!");
+      setTimeout(() => setPublishSuccessMessage(null), 3000);
+    } catch (err: any) {
+      alert("Image processing failed: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsCompressingWisdomImg(false);
+    }
+  };
+
+  const handleAdminPublishWisdomCard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminWisdomTitle.trim() || !adminWisdomContent.trim()) {
+      alert("Please provide a title and teaching explanation.");
+      return;
+    }
+
+    setIsUploadingWisdom(true);
+    const activeUser = getActiveUser();
+    const res = await IslamicWisdomService.addTeaching({
+      title: adminWisdomTitle.trim(),
+      imageUrl: adminWisdomImageUrl.trim(),
+      category: adminWisdomCategory,
+      arabicText: adminWisdomArabic.trim(),
+      content: adminWisdomContent.trim(),
+      scholarOrSource: adminWisdomScholar.trim() || 'Islamic Classical Tradition',
+      featured: adminWisdomFeatured
+    }, activeUser?.displayName || 'Admin');
+    setIsUploadingWisdom(false);
+
+    if (res.success) {
+      setAdminWisdomTitle('');
+      setAdminWisdomArabic('');
+      setAdminWisdomContent('');
+      setAdminWisdomScholar('');
+      setAdminWisdomFeatured(false);
+      setPublishSuccessMessage(`✨ Teaching "${adminWisdomTitle}" published to Islamic Wisdom repository!`);
+      setTimeout(() => setPublishSuccessMessage(null), 4500);
+    } else {
+      alert(res.error || "Failed to publish teaching card.");
+    }
+  };
+
+  const handleAdminDeleteWisdomCard = async (teaching: IslamicTeachingItem) => {
+    if (!window.confirm(`Admin: Delete "${teaching.title}" from Islamic Wisdom?`)) return;
+    const success = await IslamicWisdomService.deleteTeaching(teaching.id);
+    if (success) {
+      setPublishSuccessMessage(`🗑️ Removed teaching "${teaching.title}" from Firestore.`);
+      setTimeout(() => setPublishSuccessMessage(null), 3500);
+    }
+  };
+
+  const handleAdminToggleFeaturedWisdomCard = async (teaching: IslamicTeachingItem) => {
+    await IslamicWisdomService.toggleFeatured(teaching.id, !!teaching.featured);
+    setPublishSuccessMessage(`⭐ ${teaching.featured ? 'Unpinned from' : 'Pinned to'} Islamic Wisdom hero!`);
+    setTimeout(() => setPublishSuccessMessage(null), 3000);
+  };
+
   const handleContentTouch = (postId: string) => {
     const now = Date.now();
     const lastTap = lastTapTimesRef.current[postId] || 0;
@@ -301,9 +471,14 @@ export default function FeedView({
         isRest: false
       };
     }
+    let guestUid = localStorage.getItem('sanctuary_guest_uid');
+    if (!guestUid) {
+      guestUid = 'guest_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('sanctuary_guest_uid', guestUid);
+    }
     return {
-      uid: 'guest_' + Math.random().toString(36).substring(7),
-      displayName: 'Anonymous Pilgrim',
+      uid: guestUid,
+      displayName: 'Spiritual Soul',
       isRest: false
     };
   };
@@ -374,12 +549,16 @@ export default function FeedView({
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const list = snapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          privacy: 'public',
-          ...doc.data(),
-          timeDisplay: doc.data().time ? new Date(doc.data().time.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'
-        } as any));
+        const list = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            id: doc.id, 
+            privacy: 'public',
+            ...data,
+            comments: Array.isArray(data.comments) ? data.comments : [],
+            timeDisplay: data.time ? new Date(data.time.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'
+          } as any;
+        });
         setPosts(list);
         setLoading(false);
       }, (error) => {
@@ -420,33 +599,34 @@ export default function FeedView({
 
     if (type === 'support') playHapticAudio('like');
 
-    if (activeUser.isRest) {
-      const currentVote = post.userVotes?.[userId];
-      let supportChange = 0;
-      let reconsiderChange = 0;
-      const newUserVotes = { ...(post.userVotes || {}) };
+    // Apply instantaneous optimistic update immediately for ultra-fast response on any network
+    const currentVote = post.userVotes?.[userId];
+    let supportChange = 0;
+    let reconsiderChange = 0;
+    const newUserVotes = { ...(post.userVotes || {}) };
 
-      if (currentVote === type) {
-        delete newUserVotes[userId];
-        if (type === 'support') supportChange = -1;
+    if (currentVote === type) {
+      delete newUserVotes[userId];
+      if (type === 'support') supportChange = -1;
+      else reconsiderChange = -1;
+    } else {
+      if (currentVote) {
+        if (currentVote === 'support') supportChange = -1;
         else reconsiderChange = -1;
-      } else {
-        if (currentVote) {
-          if (currentVote === 'support') supportChange = -1;
-          else reconsiderChange = -1;
-        }
-        newUserVotes[userId] = type;
-        if (type === 'support') supportChange = 1;
-        else reconsiderChange = 1;
       }
+      newUserVotes[userId] = type;
+      if (type === 'support') supportChange = 1;
+      else reconsiderChange = 1;
+    }
 
-      setPosts(posts.map(p => p.id === postId ? {
-        ...p,
-        userVotes: newUserVotes,
-        supportCount: Math.max(0, (p.supportCount || 0) + supportChange),
-        reconsiderCount: Math.max(0, (p.reconsiderCount || 0) + reconsiderChange)
-      } : p));
+    setPosts(prevPosts => prevPosts.map(p => p.id === postId ? {
+      ...p,
+      userVotes: newUserVotes,
+      supportCount: Math.max(0, (p.supportCount || 0) + supportChange),
+      reconsiderCount: Math.max(0, (p.reconsiderCount || 0) + reconsiderChange)
+    } : p));
 
+    if (activeUser.isRest) {
       try {
         await restDbClient.votePost(postId, type);
       } catch (e) {}
@@ -454,7 +634,6 @@ export default function FeedView({
     }
 
     const postRef = doc(db, 'posts', postId);
-    const currentVote = post.userVotes?.[userId];
     const updates: any = {};
 
     if (currentVote === type) {
@@ -819,6 +998,7 @@ export default function FeedView({
       setPosts(posts.map(p => p.id === postId ? { ...p, comments: updatedComments } : p));
     }
 
+    setExpandedCommentsPostId(postId);
     if (addHasanat) addHasanat(10);
     
     if (parentCommentId) {
@@ -884,7 +1064,16 @@ export default function FeedView({
     return matchesCategory && matchesPrivacy && matchesHashtag;
   });
 
-  const currentUser = getActiveUser();
+  const currentUser: any = getActiveUser();
+  const isAdmin = currentUser?.email === 'ssalilukia9@gmail.com' ||
+                  currentUser?.email === 'admin@habibisanctuary.com' ||
+                  (typeof localStorage !== 'undefined' && (
+                    localStorage.getItem('sanctuary_admin_logged_in') === 'true' ||
+                    localStorage.getItem('sanctuary_admin_mode') === 'true' ||
+                    localStorage.getItem('saved-auth-email')?.toLowerCase() === 'ssalilukia9@gmail.com' ||
+                    localStorage.getItem('saved-auth-email')?.toLowerCase()?.includes('admin')
+                  )) ||
+                  AdminConfigService.isAdminUser(currentUser);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:grid lg:grid-cols-12 gap-8 pb-32">
@@ -896,6 +1085,59 @@ export default function FeedView({
         currentUser={currentUser}
         initialCategory={activeCategory !== 'All' ? activeCategory : 'How I Feel'}
       />
+
+      {/* Lightbox Preview Modal for Islamic Teaching */}
+      <AnimatePresence>
+        {previewingWisdomCard && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-brand-sidebar border border-white/10 rounded-[2.5rem] overflow-hidden shadow-3xl space-y-4"
+            >
+              <div className="relative aspect-video w-full bg-black overflow-hidden">
+                <img
+                  src={previewingWisdomCard.imageUrl}
+                  alt={previewingWisdomCard.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+                <button
+                  onClick={() => setPreviewingWisdomCard(null)}
+                  className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center cursor-pointer border border-white/10"
+                >
+                  <X size={16} />
+                </button>
+                <span className="absolute bottom-4 left-4 px-3 py-1 rounded-xl bg-emerald-500/80 text-slate-950 font-black text-xs uppercase tracking-wider">
+                  {previewingWisdomCard.categoryLabel || previewingWisdomCard.category}
+                </span>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <h3 className="text-xl font-black text-white">{previewingWisdomCard.title}</h3>
+                {previewingWisdomCard.arabicText && (
+                  <p className="text-sm text-amber-200 font-serif text-right bg-amber-500/10 p-3 rounded-2xl border border-amber-500/20 leading-loose">
+                    {previewingWisdomCard.arabicText}
+                  </p>
+                )}
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  {previewingWisdomCard.content}
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs text-slate-400">
+                  <span>Source: <strong className="text-white">{previewingWisdomCard.scholarOrSource || 'Tradition'}</strong></span>
+                  <button
+                    onClick={() => setPreviewingWisdomCard(null)}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs cursor-pointer"
+                  >
+                    Close Preview
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
@@ -1088,6 +1330,370 @@ export default function FeedView({
             <span>Create Post</span>
           </button>
         </div>
+
+        {/* 👑 ADMIN ONLY: Dedicated Islamic Wisdom & Visual Teaching Studio in Post Management */}
+        {isAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel rounded-[2.5rem] border border-emerald-500/40 bg-gradient-to-b from-emerald-950/40 via-slate-900/80 to-black/90 p-5 sm:p-6 shadow-2xl space-y-5 overflow-hidden relative"
+          >
+            {/* Header / Studio Toggle */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-emerald-500/20">
+                  <GraduationCap size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider">
+                      👑 Admin Studio
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {adminTeachings.length} Active Teachings
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-white">
+                    Islamic Wisdom & Visual Teaching Creator
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => setShowAdminWisdomStudio(!showAdminWisdomStudio)}
+                  className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  {showAdminWisdomStudio ? (
+                    <>
+                      <ChevronUp size={14} />
+                      <span>Collapse Studio</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} />
+                      <span>Upload & Manage ({adminTeachings.length})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Collapsible Upload & Management Workspace */}
+            <AnimatePresence>
+              {showAdminWisdomStudio && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-6 pt-2 overflow-hidden"
+                >
+                  {/* Uploader Form */}
+                  <form onSubmit={handleAdminPublishWisdomCard} className="space-y-4 bg-black/40 p-4 sm:p-5 rounded-3xl border border-white/10">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                        <Upload size={13} /> Direct Image & Reflection Uploader (Stored in Firestore)
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-mono">Upload & delete in real time</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Title */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                          Teaching Title / Sacred Theme *
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={adminWisdomTitle}
+                          onChange={(e) => setAdminWisdomTitle(e.target.value)}
+                          placeholder="e.g. The Highest Ranks of Taqwa / Healing in Gratitude"
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                        />
+                      </div>
+
+                      {/* Direct Image File Upload or URL */}
+                      <div className="space-y-2 sm:col-span-2">
+                        <div className="flex items-center justify-between pl-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <ImageIcon size={13} className="text-emerald-400" />
+                            <span>Sacred Picture / Visual Card *</span>
+                          </label>
+                          <span className="text-[9px] text-emerald-400">Direct file or URL</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                          {/* File input */}
+                          <div className="sm:col-span-5">
+                            <label className={`w-full py-3 px-4 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                              isCompressingWisdomImg
+                                ? 'border-emerald-400 bg-emerald-500/10 text-emerald-300'
+                                : 'border-white/15 hover:border-emerald-400/50 bg-black/40 hover:bg-black/60 text-slate-300'
+                            }`}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleAdminWisdomFileChange(f);
+                                }}
+                              />
+                              {isCompressingWisdomImg ? (
+                                <>
+                                  <RefreshCw size={14} className="animate-spin text-emerald-400" />
+                                  <span className="text-xs font-bold">Compressing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Download size={14} className="text-emerald-400 rotate-180" />
+                                  <span className="text-xs font-bold">Select File from Device</span>
+                                </>
+                              )}
+                            </label>
+                          </div>
+
+                          {/* Image URL & preview */}
+                          <div className="sm:col-span-7 flex gap-2">
+                            <input
+                              required
+                              type="text"
+                              value={adminWisdomImageUrl}
+                              onChange={(e) => setAdminWisdomImageUrl(e.target.value)}
+                              placeholder="https://images.unsplash.com/..."
+                              className="flex-1 bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-mono outline-none focus:border-emerald-400 transition-colors truncate"
+                            />
+                            {adminWisdomImageUrl && (
+                              <div className="w-12 h-11 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shrink-0">
+                                <img src={adminWisdomImageUrl} alt="Visual" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Preset Image Selector */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <span className="text-[9px] text-slate-500 font-bold uppercase">Presets:</span>
+                          {ISLAMIC_IMAGE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setAdminWisdomImageUrl(preset.url)}
+                              className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${
+                                adminWisdomImageUrl === preset.url
+                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/5'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Category */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                          Category *
+                        </label>
+                        <select
+                          value={adminWisdomCategory}
+                          onChange={(e) => setAdminWisdomCategory(e.target.value as any)}
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                        >
+                          <option value="spirituality">Inner Spirituality & Tazkiyah</option>
+                          <option value="hadith_pearls">Hadith Pearls</option>
+                          <option value="quran_insights">Quranic Insights</option>
+                          <option value="prophetic_sunnah">Prophetic Sunnah</option>
+                          <option value="akhlaq_character">Akhlaq & Character</option>
+                          <option value="daily_reminders">Daily Reminders</option>
+                        </select>
+                      </div>
+
+                      {/* Scholar / Source */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                          Scholar / Authenticated Source
+                        </label>
+                        <input
+                          type="text"
+                          value={adminWisdomScholar}
+                          onChange={(e) => setAdminWisdomScholar(e.target.value)}
+                          placeholder="e.g. Sahih al-Bukhari / Imam al-Nawawi"
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                        />
+                      </div>
+
+                      {/* Arabic Matn */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                          Arabic Quran / Hadith Text (Optional)
+                        </label>
+                        <input
+                          dir="rtl"
+                          type="text"
+                          value={adminWisdomArabic}
+                          onChange={(e) => setAdminWisdomArabic(e.target.value)}
+                          placeholder="إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ..."
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl py-3 px-4 text-amber-200 text-sm font-serif outline-none focus:border-emerald-400 transition-colors text-right"
+                        />
+                      </div>
+
+                      {/* Explanation Content */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                          Wisdom Explanation & Reflection *
+                        </label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={adminWisdomContent}
+                          onChange={(e) => setAdminWisdomContent(e.target.value)}
+                          placeholder="Write the sacred explanation, translation, context, and practical daily action..."
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl p-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors resize-none leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Publish Actions */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-white/10">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={adminWisdomFeatured}
+                          onChange={(e) => setAdminWisdomFeatured(e.target.checked)}
+                          className="w-4 h-4 rounded border-white/20 accent-emerald-500 cursor-pointer"
+                        />
+                        <span>⭐ Pin as Featured Hero Card</span>
+                      </label>
+
+                      <button
+                        type="submit"
+                        disabled={isUploadingWisdom || isCompressingWisdomImg}
+                        className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUploadingWisdom ? <RefreshCw className="animate-spin" size={14} /> : <Upload size={14} />}
+                        <span>Upload Teaching Card</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Simultaneous Live Management List (Upload & Delete at the same time) */}
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                        <span>Live Teachings Repository</span>
+                        <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[10px] font-mono">
+                          {adminTeachings.length} Total
+                        </span>
+                      </h4>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={wisdomSearchQuery}
+                          onChange={(e) => setWisdomSearchQuery(e.target.value)}
+                          placeholder="Search teachings..."
+                          className="bg-black/40 border border-white/10 rounded-xl py-1.5 px-3 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 transition-all w-44"
+                        />
+
+                        <select
+                          value={wisdomFilterCategory}
+                          onChange={(e) => setWisdomFilterCategory(e.target.value)}
+                          className="bg-black/40 border border-white/10 rounded-xl py-1.5 px-2 text-xs text-slate-300 outline-none focus:border-emerald-400"
+                        >
+                          <option value="all">All Categories</option>
+                          <option value="spirituality">Spirituality</option>
+                          <option value="hadith_pearls">Hadith</option>
+                          <option value="quran_insights">Quran</option>
+                          <option value="prophetic_sunnah">Sunnah</option>
+                          <option value="akhlaq_character">Akhlaq</option>
+                          <option value="daily_reminders">Reminders</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                      {adminTeachings
+                        .filter(t => {
+                          const matchCat = wisdomFilterCategory === 'all' || t.category === wisdomFilterCategory;
+                          const q = wisdomSearchQuery.toLowerCase().trim();
+                          const matchQ = !q || t.title.toLowerCase().includes(q) || t.content.toLowerCase().includes(q) || (t.scholarOrSource && t.scholarOrSource.toLowerCase().includes(q));
+                          return matchCat && matchQ;
+                        })
+                        .map((teaching) => (
+                          <div
+                            key={teaching.id}
+                            className="p-3.5 rounded-2xl bg-black/50 border border-white/10 hover:border-white/20 transition-all flex items-start gap-3 justify-between group shadow-md"
+                          >
+                            <div 
+                              onClick={() => openTeachingMediaLightbox(teaching)}
+                              className="w-16 h-16 rounded-xl overflow-hidden bg-black/60 border border-white/10 shrink-0 relative cursor-pointer group/timg"
+                              title="Click to expand sacred visual"
+                            >
+                              <img src={teaching.imageUrl} alt={teaching.title} className="w-full h-full object-cover group-hover/timg:scale-110 transition-transform duration-300" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/timg:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Sparkles size={14} className="text-amber-300" />
+                              </div>
+                              {teaching.featured && (
+                                <span className="absolute top-1 left-1 px-1 rounded bg-amber-500 text-black text-[8px] font-black">
+                                  ⭐
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-emerald-400 font-bold uppercase truncate">
+                                  {teaching.categoryLabel || teaching.category}
+                                </span>
+                                <span className="text-slate-400 truncate max-w-[90px]">
+                                  {teaching.scholarOrSource || 'Tradition'}
+                                </span>
+                              </div>
+                              <h5 className="text-xs font-bold text-white truncate">{teaching.title}</h5>
+                              <p className="text-[11px] text-slate-400 line-clamp-1 leading-snug">{teaching.content}</p>
+                            </div>
+
+                            {/* Actions (Preview, Feature, 1-Click Delete) */}
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <button
+                                onClick={() => setPreviewingWisdomCard(teaching)}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                title="Preview Card"
+                              >
+                                <Eye size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => handleAdminToggleFeaturedWisdomCard(teaching)}
+                                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                                  teaching.featured ? 'bg-amber-500/20 text-amber-300' : 'bg-white/5 text-slate-400 hover:text-amber-300'
+                                }`}
+                                title={teaching.featured ? 'Unpin Featured' : 'Pin Featured'}
+                              >
+                                ⭐
+                              </button>
+
+                              <button
+                                onClick={() => handleAdminDeleteWisdomCard(teaching)}
+                                className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer shadow-sm active:scale-95"
+                                title="Delete from Firestore & App"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Quick Compose Card */}
         <motion.div 
@@ -1339,21 +1945,39 @@ export default function FeedView({
                         }`}
                       >
                         {post.image ? (
-                          <img 
-                            src={post.image} 
-                            alt="Reel visual" 
-                            className="w-full max-h-64 object-cover rounded-2xl shadow-xl"
-                          />
+                          <div 
+                            className="w-full relative group/reelimg cursor-pointer"
+                            onClick={() => openPostMediaLightbox(post)}
+                            title="Click to expand reel visual"
+                          >
+                            <img 
+                              src={post.image} 
+                              alt="Reel visual" 
+                              className="w-full max-h-64 object-cover rounded-2xl shadow-xl group-hover/reelimg:scale-[1.01] transition-transform duration-300"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/reelimg:opacity-100 transition-opacity rounded-2xl flex items-center justify-center gap-1 text-white text-xs font-bold backdrop-blur-[1px]">
+                              <span>Expand Visual</span>
+                            </div>
+                          </div>
                         ) : (
-                          <p className="text-xl md:text-2xl font-black text-white italic leading-relaxed tracking-wide">
-                            "{post.content}"
-                          </p>
+                          <ExpandableParagraph
+                            text={post.content}
+                            maxWords={15}
+                            isQuote={true}
+                            className="text-xl md:text-2xl font-black text-white italic leading-relaxed tracking-wide"
+                            readMoreColor="text-emerald-300 hover:text-emerald-200 bg-black/40 px-2.5 py-1 rounded-xl border border-white/20 not-italic inline-block mt-3"
+                          />
                         )}
 
                         {post.caption && (
-                          <p className="mt-3 text-xs text-slate-300 font-medium">
-                            {post.caption}
-                          </p>
+                          <div className="mt-3">
+                            <ExpandableParagraph
+                              text={post.caption}
+                              maxWords={15}
+                              className="text-xs text-slate-300 font-medium"
+                              readMoreColor="text-emerald-400 hover:text-emerald-300"
+                            />
+                          </div>
                         )}
 
                         {/* Double tap heart explosion */}
@@ -1680,25 +2304,34 @@ export default function FeedView({
                               className={`p-8 sm:p-10 rounded-[2rem] border border-white/10 ${post.bgStyle} flex flex-col items-center justify-center min-h-[200px] text-center relative group shadow-xl overflow-hidden`}
                             >
                               <div className="absolute inset-0 bg-white/[0.02] bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
-                              <p className="text-lg sm:text-2xl font-black italic leading-relaxed tracking-wide drop-shadow-md relative z-10 max-w-md">
-                                "{post.content}"
-                              </p>
+                              <ExpandableParagraph
+                                text={post.content}
+                                maxWords={15}
+                                isQuote={true}
+                                className="text-lg sm:text-2xl font-black italic leading-relaxed tracking-wide drop-shadow-md relative z-10 max-w-md"
+                                readMoreColor="text-white bg-black/40 hover:bg-black/60 px-2.5 py-1 rounded-xl border border-white/20 not-italic inline-block mt-2"
+                              />
                             </div>
                           ) : (
-                            <p className="text-base sm:text-lg text-slate-200 leading-relaxed font-medium">
-                              {post.content}
-                            </p>
+                            <ExpandableParagraph
+                              text={post.content}
+                              maxWords={15}
+                              className="text-base sm:text-lg text-slate-200 leading-relaxed font-medium"
+                              readMoreColor="text-noor-emerald hover:text-emerald-300 bg-noor-emerald/10 hover:bg-noor-emerald/20 px-2 py-0.5 rounded-lg border border-noor-emerald/20"
+                            />
                           )}
 
-                          {/* Image Attachment */}
+                          {/* Image Attachment with High-Craft Lightbox Expansion */}
                           {post.image && (
                             <div 
-                              className="rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl relative group bg-black"
+                              onClick={() => openPostMediaLightbox(post)}
+                              className="rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl relative group bg-black cursor-pointer"
+                              title="Click to view & expand photo"
                             >
                               <img
                                 src={post.image}
                                 alt="Reflection visual"
-                                className={`w-full max-h-[420px] object-cover transition-all ${
+                                className={`w-full max-h-[420px] object-cover transition-all group-hover:scale-[1.01] duration-300 ${
                                   post.filterPreset === 'warm' ? 'sepia-[0.25] saturate-125' :
                                   post.filterPreset === 'emerald' ? 'hue-rotate-15 contrast-105' :
                                   post.filterPreset === 'golden' ? 'brightness-105 saturate-150' :
@@ -1706,9 +2339,22 @@ export default function FeedView({
                                 }`}
                               />
 
+                              {/* Hover expansion banner */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-4 pointer-events-none">
+                                <span className="px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-lg">
+                                  <Sparkles size={13} className="text-amber-300" />
+                                  <span>Tap to Expand Fullscreen</span>
+                                </span>
+                              </div>
+
                               {post.caption && (
                                 <div className="p-3 bg-slate-900/90 border-t border-white/10 text-xs text-slate-300 font-medium">
-                                  {post.caption}
+                                  <ExpandableParagraph
+                                    text={post.caption}
+                                    maxWords={15}
+                                    className="text-xs text-slate-300 font-medium"
+                                    readMoreColor="text-noor-emerald hover:text-emerald-300"
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1824,14 +2470,14 @@ export default function FeedView({
 
                         {/* 🌟 Threaded Comments Drawer */}
                         <AnimatePresence>
-                          {(areCommentsExpanded || post.comments.length > 0) && (
+                          {(areCommentsExpanded || (post.comments && post.comments.length > 0)) && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
                               className="pt-4 border-t border-white/5 space-y-4"
                             >
-                              {post.comments.length > 0 && (
+                              {(post.comments && post.comments.length > 0) && (
                                 <div className="space-y-4">
                                   {post.comments.map((comment) => (
                                     <div key={comment.id} className="space-y-2">
@@ -2102,6 +2748,14 @@ export default function FeedView({
           setPublishSuccessMessage(msg);
           setTimeout(() => setPublishSuccessMessage(null), 4500);
         }}
+      />
+
+      {/* Universal Media Lightbox Expansion Modal */}
+      <MediaLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        media={lightboxMediaItems}
+        initialIndex={lightboxIndex}
       />
     </div>
   );

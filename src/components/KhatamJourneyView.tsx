@@ -11,6 +11,8 @@ import {
   Calendar,
   Award,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Search,
   Filter,
   Share2,
@@ -28,10 +30,21 @@ import {
   Maximize2,
   Minimize2,
   Check,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  Upload,
+  Database,
+  RefreshCw,
+  Copy,
+  Video,
+  Radio,
+  ShieldAlert,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { KhatamVideoService, KhatamVideoItem, DEFAULT_KHATAM_VIDEOS } from '../services/khatamVideoService.ts';
 import { FULL_JUZ_LIST } from '../data/juzData.ts';
+import { AdminConfigService } from '../services/adminConfigService.ts';
 
 interface KhatamJourneyViewProps {
   onBack?: () => void;
@@ -60,6 +73,28 @@ export default function KhatamJourneyView({
     }
   });
 
+  // Admin Posting & Management State inside Khatam Journey
+  const [showAdminStudio, setShowAdminStudio] = useState<boolean>(false);
+  const [newVideoUrl, setNewVideoUrl] = useState<string>('');
+  const [newVideoTitle, setNewVideoTitle] = useState<string>('');
+  const [newVideoCategory, setNewVideoCategory] = useState<'tafsir' | 'dua' | 'motivation' | 'tajweed' | 'juz_guide' | 'general'>('tafsir');
+  const [newVideoSpeaker, setNewVideoSpeaker] = useState<string>('');
+  const [newVideoDescription, setNewVideoDescription] = useState<string>('');
+  const [newVideoDuration, setNewVideoDuration] = useState<string>('');
+  const [newVideoJuz, setNewVideoJuz] = useState<string>('');
+  const [newVideoFeatured, setNewVideoFeatured] = useState<boolean>(false);
+  const [isAddingVideo, setIsAddingVideo] = useState<boolean>(false);
+
+  const isAdmin = currentUser?.email === 'ssalilukia9@gmail.com' ||
+                  currentUser?.email === 'admin@habibisanctuary.com' ||
+                  (typeof localStorage !== 'undefined' && (
+                    localStorage.getItem('sanctuary_admin_logged_in') === 'true' ||
+                    localStorage.getItem('sanctuary_admin_mode') === 'true' ||
+                    localStorage.getItem('saved-auth-email')?.toLowerCase() === 'ssalilukia9@gmail.com' ||
+                    localStorage.getItem('saved-auth-email')?.toLowerCase()?.includes('admin')
+                  )) ||
+                  AdminConfigService.isAdminUser(currentUser);
+
   // Juz completion state (1 to 30)
   const [completedJuz, setCompletedJuz] = useState<number[]>(() => {
     try {
@@ -80,8 +115,78 @@ export default function KhatamJourneyView({
     }
   });
 
+  // Daily Khatam Goal & Progress State (e.g. pages or verses per day)
+  const [dailyGoalType, setDailyGoalType] = useState<'pages' | 'verses'>(() => {
+    return (localStorage.getItem('sanctuary_khatam_daily_goal_type') as 'pages' | 'verses') || 'pages';
+  });
+
+  const [dailyGoalTarget, setDailyGoalTarget] = useState<number>(() => {
+    const saved = localStorage.getItem('sanctuary_khatam_daily_goal_target');
+    return saved ? Number(saved) : 20; // default 20 pages (1 full Juz / day)
+  });
+
+  const [dailyCompletedUnits, setDailyCompletedUnits] = useState<number>(() => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const savedDate = localStorage.getItem('sanctuary_khatam_daily_progress_date');
+      const savedUnits = localStorage.getItem('sanctuary_khatam_daily_progress_units');
+      if (savedDate === todayStr && savedUnits) {
+        return Number(savedUnits);
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [dailyGoalStreak, setDailyGoalStreak] = useState<number>(() => {
+    const saved = localStorage.getItem('sanctuary_khatam_daily_goal_streak');
+    return saved ? Number(saved) : 1;
+  });
+
+  const [showGoalConfigModal, setShowGoalConfigModal] = useState<boolean>(false);
+  const [customGoalInput, setCustomGoalInput] = useState<string>('');
+
   const [theaterMode, setTheaterMode] = useState<boolean>(false);
   const [claimToast, setClaimToast] = useState<string | null>(null);
+
+  // Daily Goal Handlers
+  const updateDailyProgress = (delta: number) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const next = Math.max(0, dailyCompletedUnits + delta);
+    setDailyCompletedUnits(next);
+    localStorage.setItem('sanctuary_khatam_daily_progress_date', today);
+    localStorage.setItem('sanctuary_khatam_daily_progress_units', String(next));
+    
+    if (next >= dailyGoalTarget && dailyCompletedUnits < dailyGoalTarget) {
+      if (addHasanat) addHasanat(30);
+      const nextStreak = dailyGoalStreak + 1;
+      setDailyGoalStreak(nextStreak);
+      localStorage.setItem('sanctuary_khatam_daily_goal_streak', String(nextStreak));
+      showToast(`🎉 Masha'Allah! Daily Khatam Goal completed! +30 Hasanat & ${nextStreak}-day Streak 🔥`);
+    } else if (delta > 0) {
+      if (addHasanat) addHasanat(5 * delta);
+      showToast(`+${delta} ${dailyGoalType} logged! +${5 * delta} Hasanat ✨`);
+    }
+  };
+
+  const handleSetDailyGoal = (target: number, type: 'pages' | 'verses' = dailyGoalType) => {
+    if (target < 1) return;
+    setDailyGoalTarget(target);
+    setDailyGoalType(type);
+    localStorage.setItem('sanctuary_khatam_daily_goal_target', String(target));
+    localStorage.setItem('sanctuary_khatam_daily_goal_type', type);
+    setShowGoalConfigModal(false);
+    showToast(`Daily Khatam Target updated to ${target} ${type} per day 🎯`);
+  };
+
+  const resetDailyProgress = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setDailyCompletedUnits(0);
+    localStorage.setItem('sanctuary_khatam_daily_progress_date', today);
+    localStorage.setItem('sanctuary_khatam_daily_progress_units', '0');
+    showToast('Today\'s Khatam reading log has been reset.');
+  };
 
   // Subscribe to real-time videos from Firestore
   useEffect(() => {
@@ -128,6 +233,100 @@ export default function KhatamJourneyView({
     localStorage.setItem('sanctuary_khatam_watched_videos', JSON.stringify(next));
     if (addHasanat) addHasanat(25);
     showToast(`Claimed +25 Hasanat for watching "${video.title.slice(0, 32)}..." ✨`);
+  };
+
+  // Admin Video Actions directly inside Khatam Journey
+  const handleAdminPublishVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVideoUrl.trim()) {
+      showToast("Please enter a valid video link (YouTube, Vimeo, MP4).");
+      return;
+    }
+
+    setIsAddingVideo(true);
+    const categoryLabel = KhatamVideoService.getCategoryLabel(newVideoCategory);
+    let titleToUse = newVideoTitle.trim();
+    if (!titleToUse) {
+      titleToUse = `${categoryLabel} - Video #${videos.length + 1}`;
+    }
+
+    const res = await KhatamVideoService.addVideo({
+      url: newVideoUrl.trim(),
+      title: titleToUse,
+      category: newVideoCategory,
+      categoryLabel,
+      speaker: newVideoSpeaker.trim() || 'Sanctuary Scholar',
+      description: newVideoDescription.trim() || 'Reflection and guidance for completing the Holy Quran.',
+      duration: newVideoDuration.trim() || '15:00',
+      juzNumber: newVideoJuz ? parseInt(newVideoJuz, 10) : undefined,
+      featured: newVideoFeatured
+    }, currentUser?.displayName || 'Admin');
+
+    setIsAddingVideo(false);
+
+    if (res.success) {
+      setNewVideoUrl('');
+      setNewVideoTitle('');
+      setNewVideoSpeaker('');
+      setNewVideoDescription('');
+      setNewVideoDuration('');
+      setNewVideoJuz('');
+      setNewVideoFeatured(false);
+      showToast(`Broadcasted "${titleToUse}" to all users in Firestore! 🌟`);
+    } else {
+      showToast(res.error || "Failed to publish video.");
+    }
+  };
+
+  // 🛡️ SECURE ADMIN DELETION CONFIRMATION MODAL STATE
+  // Prevents accidental data loss when deleting Khatam Journey videos
+  const [pendingDeleteModal, setPendingDeleteModal] = useState<{
+    id: string;
+    title: string;
+    subtitle?: string;
+    imageUrl?: string;
+    badge?: string;
+    video: KhatamVideoItem;
+  } | null>(null);
+  const [isProcessingDelete, setIsProcessingDelete] = useState<boolean>(false);
+
+  const handleAdminDeleteVideo = (video: KhatamVideoItem) => {
+    // Open secure confirmation modal preventing accidental data loss
+    setPendingDeleteModal({
+      id: video.id,
+      title: video.title,
+      subtitle: `${video.speaker || 'Sanctuary Scholar'} • ${video.categoryLabel || video.category}${video.duration ? ` (${video.duration})` : ''}`,
+      imageUrl: video.thumbnailUrl,
+      badge: `🎬 ${video.categoryLabel || 'Khatam Video'}`,
+      video
+    });
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (!pendingDeleteModal) return;
+    setIsProcessingDelete(true);
+    const { video } = pendingDeleteModal;
+    try {
+      const success = await KhatamVideoService.deleteVideo(video.id);
+      if (success) {
+        showToast(`🗑️ Video "${video.title}" permanently deleted.`);
+        if (activeVideo?.id === video.id) {
+          const remaining = videos.filter(v => v.id !== video.id);
+          if (remaining.length > 0) setActiveVideo(remaining[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Error deleting Khatam video:", err);
+      showToast("Failed to delete video.");
+    } finally {
+      setIsProcessingDelete(false);
+      setPendingDeleteModal(null);
+    }
+  };
+
+  const handleAdminToggleFeatured = async (video: KhatamVideoItem) => {
+    await KhatamVideoService.toggleFeatured(video.id, !!video.featured);
+    showToast(`${video.featured ? 'Removed from' : 'Pinned as'} Featured Hero Video!`);
   };
 
   // Filtered video list
@@ -230,7 +429,269 @@ export default function KhatamJourneyView({
             </div>
           </div>
 
-          {/* Navigation Sub-Tabs */}
+          {/* Daily Khatam Goal & Visual Picture Card */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left: Daily Khatam Goal Interactive Progress Bar Card */}
+          <div className="lg:col-span-7 glass-panel p-6 sm:p-8 rounded-[2.5rem] border-amber-500/25 bg-gradient-to-br from-brand-sidebar via-brand-depth to-black/90 space-y-6 shadow-2xl relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Flame size={24} className="animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Today's Sacred Rhythm</span>
+                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                      {dailyGoalStreak} Day Streak 🔥
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                    Daily Khatam Goal
+                  </h2>
+                </div>
+              </div>
+
+              {/* Configure Target Button */}
+              <button
+                onClick={() => setShowGoalConfigModal(true)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+              >
+                <span>Target: {dailyGoalTarget} {dailyGoalType}/day</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {/* Progress Bar & Numerical Metrics */}
+            <div className="space-y-3 bg-white/[0.02] p-5 rounded-2xl border border-white/5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-300">
+                  Completed Today: <strong className="text-amber-300 font-mono text-base">{dailyCompletedUnits}</strong> / {dailyGoalTarget} {dailyGoalType}
+                </span>
+                <span className={`font-mono font-black text-sm ${dailyCompletedUnits >= dailyGoalTarget ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {Math.min(100, Math.round((dailyCompletedUnits / Math.max(1, dailyGoalTarget)) * 100))}%
+                </span>
+              </div>
+
+              {/* Glowing Linear Progress Bar */}
+              <div className="relative h-4 w-full bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (dailyCompletedUnits / Math.max(1, dailyGoalTarget)) * 100)}%` }}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    dailyCompletedUnits >= dailyGoalTarget
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-lg shadow-emerald-500/50'
+                      : 'bg-gradient-to-r from-amber-500 to-orange-400 shadow-lg shadow-amber-500/50'
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                <span>
+                  {dailyCompletedUnits >= dailyGoalTarget ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <CheckCircle2 size={13} /> Daily Goal Completed! BarakAllahu Feek.
+                    </span>
+                  ) : (
+                    <span>~{Math.max(0, dailyGoalTarget - dailyCompletedUnits)} {dailyGoalType} remaining today</span>
+                  )}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {dailyGoalType === 'pages' && `~${Math.ceil(dailyGoalTarget / 5)} pages / prayer`}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Increment Actions */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quick Log Today's Reading</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  onClick={() => updateDailyProgress(1)}
+                  className="py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus size={14} /> +1 {dailyGoalType === 'pages' ? 'Page' : 'Verse'}
+                </button>
+                <button
+                  onClick={() => updateDailyProgress(4)}
+                  className="py-2.5 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Recommended: 4 pages after 1 Salah"
+                >
+                  <Plus size={14} /> +4 (1 Salah)
+                </button>
+                <button
+                  onClick={() => updateDailyProgress(10)}
+                  className="py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus size={14} /> +10 (Half Juz)
+                </button>
+                <button
+                  onClick={() => updateDailyProgress(20)}
+                  className="py-2.5 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus size={14} /> +20 (1 Juz)
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => updateDailyProgress(-1)}
+                  disabled={dailyCompletedUnits <= 0}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 disabled:opacity-30 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw size={12} /> Undo (-1)
+                </button>
+                <button
+                  onClick={resetDailyProgress}
+                  className="text-[11px] text-red-400/80 hover:text-red-300 transition-colors cursor-pointer"
+                >
+                  Reset Today
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: High Quality Picture Card for Khatam Journey */}
+          <div className="lg:col-span-5 relative overflow-hidden rounded-[2.5rem] border border-amber-500/30 shadow-2xl group min-h-[260px] flex flex-col justify-end p-6 sm:p-8">
+            {/* Background High Res Sacred Quran Recitation Image */}
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{
+                backgroundImage: `url('https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1200')`
+              }}
+            />
+            {/* Elegant Gradient Darkening Layer */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
+            <div className="absolute inset-0 bg-amber-950/20 mix-blend-color" />
+
+            <div className="relative z-10 space-y-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10px] font-black uppercase tracking-wider backdrop-blur-md">
+                <BookOpen size={12} /> Sacred Tilawah Companion
+              </div>
+
+              <h3 className="text-xl font-black text-white leading-tight">
+                Family & Soul Khatam Journey
+              </h3>
+
+              <p className="arabic-text text-amber-200 text-sm leading-relaxed text-right">
+                "وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا"
+              </p>
+
+              <p className="text-xs text-slate-300 italic">
+                "And recite the Qur'an with measured, rhythmic recitation." (73:4)
+              </p>
+
+              <div className="pt-2 flex items-center justify-between text-xs">
+                <span className="text-emerald-300 font-bold flex items-center gap-1">
+                  <Sparkles size={13} /> {completedJuz.length} of 30 Juz done
+                </span>
+                <span className="text-amber-400 font-mono font-bold">
+                  {khatamTargetDays}-Day Track
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Goal Configuration Modal */}
+        <AnimatePresence>
+          {showGoalConfigModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+              onClick={() => setShowGoalConfigModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-brand-sidebar border border-amber-500/30 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6"
+              >
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                      <Calendar size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-white">Set Daily Khatam Goal</h3>
+                      <p className="text-xs text-slate-400">Choose your daily reading target</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowGoalConfigModal(false)}
+                    className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Preset Targets */}
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-300">Popular Daily Schedules:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      { target: 4, type: 'pages' as const, label: '4 Pages / Day', sub: 'Gentle (150 days)' },
+                      { target: 10, type: 'pages' as const, label: '10 Pages / Day', sub: 'Half Juz (60 days)' },
+                      { target: 20, type: 'pages' as const, label: '20 Pages / Day', sub: '1 Full Juz (30 days)' },
+                      { target: 40, type: 'pages' as const, label: '40 Pages / Day', sub: '2 Juz / Day (15 days)' },
+                      { target: 50, type: 'verses' as const, label: '50 Verses / Day', sub: 'Ayah-based pace' },
+                      { target: 100, type: 'verses' as const, label: '100 Verses / Day', sub: 'Ayah-based pace' },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSetDailyGoal(preset.target, preset.type)}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                          dailyGoalTarget === preset.target && dailyGoalType === preset.type
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
+                            : 'bg-white/5 border-white/10 hover:border-white/20 text-slate-200'
+                        }`}
+                      >
+                        <p className="text-xs font-bold">{preset.label}</p>
+                        <p className="text-[10px] text-slate-400">{preset.sub}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom input */}
+                <div className="space-y-2 pt-2 border-t border-white/10">
+                  <label className="text-xs font-bold text-slate-300">Or Enter Custom Goal:</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="604"
+                      value={customGoalInput}
+                      onChange={(e) => setCustomGoalInput(e.target.value)}
+                      placeholder="e.g. 15"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-amber-400 outline-none"
+                    />
+                    <select
+                      value={dailyGoalType}
+                      onChange={(e) => setDailyGoalType(e.target.value as any)}
+                      className="bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none"
+                    >
+                      <option value="pages">Pages / Day</option>
+                      <option value="verses">Verses / Day</option>
+                    </select>
+                    <button
+                      onClick={() => {
+                        const val = parseInt(customGoalInput, 10);
+                        if (val > 0) handleSetDailyGoal(val, dailyGoalType);
+                      }}
+                      className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-black text-xs rounded-xl transition-all cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
           <div className="flex items-center gap-2 mt-8 pt-6 border-t border-white/10 overflow-x-auto pb-1">
             {[
               { id: 'videos', label: `Sacred Video Sanctuary (${videos.length})`, icon: Film },
@@ -260,6 +721,184 @@ export default function KhatamJourneyView({
         {/* TAB 1: VIDEO SANCTUARY */}
         {activeTab === 'videos' && (
           <div className="space-y-8">
+            {/* ADMIN STUDIO: Direct Video Upload & Publishing Panel */}
+            {isAdmin && (
+              <div className="glass-panel p-6 rounded-[2.5rem] border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-brand-sidebar to-brand-depth space-y-6 shadow-2xl relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold">
+                      <Shield size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase tracking-wider border border-amber-500/30">
+                          Admin Overseer
+                        </span>
+                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                          <Radio size={10} className="animate-pulse" /> Live Firestore Broadcast
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-black text-white">
+                        Post Videos to Khatam Journey (Visible to All Users)
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowAdminStudio(!showAdminStudio)}
+                      className="px-4 py-2 bg-amber-400 text-black hover:bg-amber-300 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-amber-400/20 cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      <span>{showAdminStudio ? 'Close Studio' : '+ Post New Video'}</span>
+                    </button>
+                    {onOpenAdmin && (
+                      <button
+                        onClick={onOpenAdmin}
+                        className="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-bold border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <ExternalLink size={13} />
+                        <span>Full Admin</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {showAdminStudio && (
+                    <motion.form
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      onSubmit={handleAdminPublishVideo}
+                      className="space-y-4 pt-4 border-t border-white/10"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                            <span>Video URL / Link *</span>
+                            <span className="text-slate-500 font-normal">(YouTube, Shorts, Vimeo, MP4)</span>
+                          </label>
+                          <input
+                            type="url"
+                            required
+                            placeholder="https://www.youtube.com/watch?v=... or /shorts/..."
+                            value={newVideoUrl}
+                            onChange={(e) => setNewVideoUrl(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                            Video Title (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Completing Surah Al-Baqarah & Spiritual Milestones"
+                            value={newVideoTitle}
+                            onChange={(e) => setNewVideoTitle(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                            Category / Journey Stage
+                          </label>
+                          <select
+                            value={newVideoCategory}
+                            onChange={(e: any) => setNewVideoCategory(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                          >
+                            <option value="tafsir" className="bg-slate-900 text-white">Tafsir & Reflections</option>
+                            <option value="dua" className="bg-slate-900 text-white">Khatam Duas & Supplications</option>
+                            <option value="motivation" className="bg-slate-900 text-white">Daily Khatam Motivation</option>
+                            <option value="juz_guide" className="bg-slate-900 text-white">Schedules & Guides</option>
+                            <option value="tajweed" className="bg-slate-900 text-white">Tajweed & Recitation Mastery</option>
+                            <option value="general" className="bg-slate-900 text-white">General Sacred Ilm</option>
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                              Speaker / Scholar
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Sheikh Omar Suleiman"
+                              value={newVideoSpeaker}
+                              onChange={(e) => setNewVideoSpeaker(e.target.value)}
+                              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                              Duration (MM:SS)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="12:45"
+                              value={newVideoDuration}
+                              onChange={(e) => setNewVideoDuration(e.target.value)}
+                              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                          Description & Key Insights (Optional)
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="Provide context or key benefits of this video reflection for travelers on the Khatam Journey..."
+                          value={newVideoDescription}
+                          onChange={(e) => setNewVideoDescription(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newVideoFeatured}
+                            onChange={(e) => setNewVideoFeatured(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-black/40 border-white/20"
+                          />
+                          <span className="text-xs text-slate-300 font-bold">
+                            Pin as Featured Hero Video at top
+                          </span>
+                        </label>
+
+                        <button
+                          type="submit"
+                          disabled={isAddingVideo}
+                          className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-black text-xs rounded-xl transition-all shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isAddingVideo ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              <span>Publishing to Firestore...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} />
+                              <span>Broadcast to All Users Now</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {/* Active Video Player Hero */}
             {activeVideo && (
               <div className={`glass-panel rounded-[2.5rem] border-white/10 overflow-hidden bg-black/60 shadow-2xl transition-all ${theaterMode ? 'max-w-6xl mx-auto' : ''}`}>
@@ -299,6 +938,11 @@ export default function KhatamJourneyView({
                             <User size={10} /> {activeVideo.speaker}
                           </span>
                         )}
+                        {activeVideo.featured && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <Star size={9} className="fill-black" /> Featured Hero
+                          </span>
+                        )}
                       </div>
                       <h2 className="text-xl sm:text-2xl font-black text-white leading-snug">
                         {activeVideo.title}
@@ -306,6 +950,29 @@ export default function KhatamJourneyView({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {isAdmin && (
+                        <>
+                          <button
+                            onClick={() => handleAdminToggleFeatured(activeVideo)}
+                            className={`p-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                              activeVideo.featured 
+                                ? 'bg-amber-400 text-black border-amber-400' 
+                                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                            }`}
+                            title={activeVideo.featured ? 'Remove from Featured' : 'Pin to Featured'}
+                          >
+                            <Star size={14} className={activeVideo.featured ? 'fill-black' : ''} />
+                          </button>
+                          <button
+                            onClick={() => handleAdminDeleteVideo(activeVideo)}
+                            className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            title="Delete this video"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+
                       <button
                         onClick={() => handleClaimVideoReward(activeVideo)}
                         className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg ${
@@ -399,7 +1066,7 @@ export default function KhatamJourneyView({
                       setActiveVideo(video);
                       window.scrollTo({ top: 120, behavior: 'smooth' });
                     }}
-                    className={`glass-panel rounded-3xl border overflow-hidden transition-all cursor-pointer group flex flex-col justify-between ${
+                    className={`glass-panel rounded-3xl border overflow-hidden transition-all cursor-pointer group flex flex-col justify-between relative ${
                       isSelected
                         ? 'border-amber-400 ring-2 ring-amber-400/30 bg-amber-500/5'
                         : 'border-white/10 hover:border-white/20 bg-white/[0.02]'
@@ -419,6 +1086,28 @@ export default function KhatamJourneyView({
                           <Play size={20} className="translate-x-0.5" />
                         </div>
                       </div>
+
+                      {/* Admin Quick Action Pills on Card */}
+                      {isAdmin && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-20" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleAdminToggleFeatured(video)}
+                            className={`p-1.5 rounded-lg text-[10px] backdrop-blur-md transition-all ${
+                              video.featured ? 'bg-amber-400 text-black font-black' : 'bg-black/70 text-white hover:bg-black/90'
+                            }`}
+                            title={video.featured ? 'Featured' : 'Mark as Featured'}
+                          >
+                            <Star size={11} className={video.featured ? 'fill-black' : ''} />
+                          </button>
+                          <button
+                            onClick={() => handleAdminDeleteVideo(video)}
+                            className="p-1.5 rounded-lg text-[10px] bg-red-600/80 hover:bg-red-600 text-white backdrop-blur-md transition-all"
+                            title="Delete video"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      )}
 
                       {/* Duration Badge */}
                       {video.duration && (
@@ -643,6 +1332,121 @@ export default function KhatamJourneyView({
         )}
 
       </div>
+
+      {/* 🛡️ SECURE ADMIN DELETION CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {pendingDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 10 }}
+              className="w-full max-w-lg bg-slate-950 border-2 border-rose-500/40 rounded-[2.5rem] p-6 sm:p-8 space-y-6 shadow-3xl relative overflow-hidden"
+            >
+              {/* Decorative background glow */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/10">
+                    <ShieldAlert size={26} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-black uppercase tracking-widest inline-block mb-1">
+                      Destructive Action Guard
+                    </span>
+                    <h3 className="text-lg font-black text-white">
+                      Confirm Permanent Deletion
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !isProcessingDelete && setPendingDeleteModal(null)}
+                  disabled={isProcessingDelete}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white bg-white/5 cursor-pointer disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Warning Notice */}
+              <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 space-y-1 text-xs">
+                <p className="text-rose-200 font-bold flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-rose-400 shrink-0" />
+                  <span>This action cannot be undone.</span>
+                </p>
+                <p className="text-slate-300 text-[11px] leading-relaxed pl-5">
+                  This YouTube video will be permanently removed from the Khatam Journey sanctuary in Firestore and will no longer be visible to seekers.
+                </p>
+              </div>
+
+              {/* Item Preview Card */}
+              <div className="p-4 rounded-2xl bg-black/60 border border-white/10 flex items-center gap-4">
+                {pendingDeleteModal.imageUrl ? (
+                  <div className="w-20 h-14 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10">
+                    <img
+                      src={pendingDeleteModal.imageUrl}
+                      alt={pendingDeleteModal.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center shrink-0 text-slate-500">
+                    <Trash2 size={24} />
+                  </div>
+                )}
+
+                <div className="space-y-1 overflow-hidden flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[9px] font-black uppercase tracking-wider truncate">
+                      {pendingDeleteModal.badge || 'Khatam Video'}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white truncate">
+                    {pendingDeleteModal.title}
+                  </h4>
+                  {pendingDeleteModal.subtitle && (
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {pendingDeleteModal.subtitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isProcessingDelete}
+                  onClick={() => setPendingDeleteModal(null)}
+                  className="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancel, Keep Video
+                </button>
+                <button
+                  type="button"
+                  disabled={isProcessingDelete}
+                  onClick={handleConfirmPermanentDelete}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-rose-600/30 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isProcessingDelete ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      <span>Yes, Permanently Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

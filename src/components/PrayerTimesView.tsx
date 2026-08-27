@@ -26,7 +26,8 @@ import {
   Flame,
   Bell,
   Check,
-  Award
+  Award,
+  Upload
 } from 'lucide-react';
 import { JUMMAH_HADITHS } from '../data/jummahData.ts';
 import { notificationService } from '../services/notificationService.ts';
@@ -100,6 +101,8 @@ export default function PrayerTimesView() {
   const [tahajjudAlarmEnabled, setTahajjudAlarmEnabled] = useState<boolean>(() => TahajjudAlarmService.getSettings().enabled);
   const [tahajjudOffset, setTahajjudOffset] = useState<string>(() => TahajjudAlarmService.getSettings().offset);
   const [tahajjudSound, setTahajjudSound] = useState<string>(() => TahajjudAlarmService.getSettings().sound);
+  const [tahajjudCustomUrl, setTahajjudCustomUrl] = useState<string>(() => TahajjudAlarmService.getSettings().customSoundUrl || '');
+  const [tahajjudCustomName, setTahajjudCustomName] = useState<string>(() => TahajjudAlarmService.getSettings().customSoundName || '');
   const [testingTahajjud, setTestingTahajjud] = useState(false);
   const [isPlayingChimePreview, setIsPlayingChimePreview] = useState(false);
 
@@ -107,6 +110,10 @@ export default function PrayerTimesView() {
   const [whiteDaysAlarmEnabled, setWhiteDaysAlarmEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('whitedays-reminder-settings');
     return saved ? JSON.parse(saved).enabled !== false : true;
+  });
+  const [whiteDaysAdvanceAlerts, setWhiteDaysAdvanceAlerts] = useState<boolean>(() => {
+    const saved = localStorage.getItem('whitedays-reminder-settings');
+    return saved ? JSON.parse(saved).advanceAlerts !== false : true;
   });
   const [testingWhiteDays, setTestingWhiteDays] = useState(false);
   const [whiteDaysData, setWhiteDaysData] = useState(() => getUpcomingWhiteDays());
@@ -365,10 +372,46 @@ export default function PrayerTimesView() {
     TahajjudAlarmService.saveSettings({ sound: sound as any });
   };
 
+  const handleCustomAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setTahajjudCustomUrl(dataUrl);
+        setTahajjudCustomName(file.name);
+        setTahajjudSound('custom');
+        TahajjudAlarmService.saveSettings({
+          sound: 'custom',
+          customSoundUrl: dataUrl,
+          customSoundName: file.name
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCustomAudioUrlSave = (url: string) => {
+    setTahajjudCustomUrl(url);
+    setTahajjudSound('custom');
+    TahajjudAlarmService.saveSettings({
+      sound: 'custom',
+      customSoundUrl: url,
+      customSoundName: 'Custom Web Audio Link'
+    });
+  };
+
   const handlePreviewTahajjudSound = (sound: string) => {
+    if (isPlayingChimePreview) {
+      TahajjudAlarmService.stopPreview();
+      setIsPlayingChimePreview(false);
+      return;
+    }
     setIsPlayingChimePreview(true);
-    TahajjudAlarmService.playAlarmChime(sound, 0.9);
-    setTimeout(() => setIsPlayingChimePreview(false), 2500);
+    TahajjudAlarmService.playAlarmChime(sound as any, 0.9, tahajjudCustomUrl);
+    setTimeout(() => setIsPlayingChimePreview(false), 3000);
   };
 
   const handleTestTahajjud = async () => {
@@ -393,11 +436,21 @@ export default function PrayerTimesView() {
   const handleToggleWhiteDaysAlarm = async () => {
     const nextState = !whiteDaysAlarmEnabled;
     setWhiteDaysAlarmEnabled(nextState);
-    const newSettings = { enabled: nextState, eveningBefore: true, suhoorMorning: true };
+    const newSettings = { enabled: nextState, advanceAlerts: whiteDaysAdvanceAlerts, eveningBefore: true, suhoorMorning: true };
     localStorage.setItem('whitedays-reminder-settings', JSON.stringify(newSettings));
 
     if (nextState) {
       await notificationService.requestPermission();
+      notificationService.scheduleWhiteDaysNotifications();
+    }
+  };
+
+  const handleToggleWhiteDaysAdvance = async () => {
+    const nextAdv = !whiteDaysAdvanceAlerts;
+    setWhiteDaysAdvanceAlerts(nextAdv);
+    const newSettings = { enabled: whiteDaysAlarmEnabled, advanceAlerts: nextAdv, eveningBefore: true, suhoorMorning: true };
+    localStorage.setItem('whitedays-reminder-settings', JSON.stringify(newSettings));
+    if (whiteDaysAlarmEnabled) {
       notificationService.scheduleWhiteDaysNotifications();
     }
   };
@@ -948,6 +1001,65 @@ export default function PrayerTimesView() {
                   </button>
                 </div>
 
+                {/* Clear Tahajjud Countdown Banner */}
+                {(() => {
+                  const now = new Date();
+                  let targetTime = tahajjudInfo.startTime;
+                  let isDuringNight = tahajjudInfo.isLastThirdNow;
+                  let diffMs = 0;
+
+                  if (isDuringNight) {
+                    const [fH, fM] = fajrTime.split(':').map(Number);
+                    const fajrD = new Date(now);
+                    fajrD.setHours(fH, fM, 0, 0);
+                    if (fajrD <= now) fajrD.setDate(fajrD.getDate() + 1);
+                    diffMs = Math.max(0, fajrD.getTime() - now.getTime());
+                  } else {
+                    if (targetTime.getTime() <= now.getTime()) {
+                      const nextTarget = new Date(targetTime);
+                      nextTarget.setDate(nextTarget.getDate() + 1);
+                      diffMs = Math.max(0, nextTarget.getTime() - now.getTime());
+                    } else {
+                      diffMs = Math.max(0, targetTime.getTime() - now.getTime());
+                    }
+                  }
+
+                  const cdHours = Math.floor(diffMs / (1000 * 60 * 60));
+                  const cdMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                  const cdSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+                  const snoozeInfo = TahajjudAlarmService.getSnoozeInfo();
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-purple-950/60 to-black/60 border border-purple-400/30 space-y-2 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-purple-300 flex items-center gap-1.5">
+                          <Clock size={12} className="text-amber-400" />
+                          {isDuringNight ? 'Active Tahajjud Window' : 'Countdown to Next Tahajjud'}
+                        </span>
+                        {snoozeInfo.isSnoozed && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold animate-pulse flex items-center gap-1">
+                            <Clock size={10} /> Snoozed ({snoozeInfo.minutes}m)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-baseline justify-between">
+                        <div className="flex items-baseline gap-1.5 font-mono">
+                          <span className="text-3xl font-black text-white">{String(cdHours).padStart(2, '0')}</span>
+                          <span className="text-xs font-bold text-purple-300">h</span>
+                          <span className="text-3xl font-black text-white">{String(cdMins).padStart(2, '0')}</span>
+                          <span className="text-xs font-bold text-purple-300">m</span>
+                          <span className="text-2xl font-bold text-purple-300/80">{String(cdSecs).padStart(2, '0')}</span>
+                          <span className="text-xs font-bold text-purple-300/80">s</span>
+                        </div>
+                        <span className="text-[11px] font-medium text-purple-200/70 text-right">
+                          {isDuringNight ? `Until Fajr at ${fajrTime}` : `Begins at ${tahajjudInfo.startTimeStr}`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-black/40 border border-white/5">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tahajjud Begins</span>
@@ -987,32 +1099,40 @@ export default function PrayerTimesView() {
                 </div>
 
                 {/* Alarm Tone Sound Selector */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Wake Sound Tone</label>
                     <button
                       onClick={() => handlePreviewTahajjudSound(tahajjudSound)}
                       className="text-[10px] text-purple-300 hover:text-purple-200 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <Volume2 size={12} className={isPlayingChimePreview ? 'animate-bounce' : ''} />
-                      <span>{isPlayingChimePreview ? 'Playing Tone...' : 'Preview Tone'}</span>
+                      <Volume2 size={12} className={isPlayingChimePreview ? 'animate-bounce text-purple-400' : ''} />
+                      <span>{isPlayingChimePreview ? 'Playing Tone (Tap to Stop)' : 'Preview Tone'}</span>
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { id: 'noor_chime', label: 'Noor Chime 🔔' },
-                      { id: 'madinah_melody', label: 'Madinah 🌙' },
-                      { id: 'gentle_breeze', label: 'Serene Breeze 🍃' }
+                      { id: 'madinah_melody', label: 'Madinah Dawn 🌙' },
+                      { id: 'makkah_dawn', label: 'Makkah Subh 🕋' },
+                      { id: 'gentle_breeze', label: 'Serene Breeze 🍃' },
+                      { id: 'golden_adhan', label: 'Golden Adhan 🕌' },
+                      { id: 'tranquil_ney', label: 'Sufi Ney 🪈' },
+                      { id: 'desert_dawn', label: 'Desert Birds 🌅' },
+                      { id: 'custom', label: 'Custom Audio 🎵' }
                     ].map((tone) => (
                       <button
                         key={tone.id}
                         onClick={() => {
                           handleChangeTahajjudSound(tone.id);
-                          handlePreviewTahajjudSound(tone.id);
+                          if (tone.id !== 'custom') {
+                            handlePreviewTahajjudSound(tone.id);
+                          }
                         }}
-                        className={`py-2 px-2 rounded-xl text-[10px] font-bold text-center transition-all border ${
+                        className={`py-2 px-2.5 rounded-xl text-[10px] font-bold text-center transition-all border ${
                           tahajjudSound === tone.id
-                            ? 'bg-purple-500/30 text-white border-purple-400'
+                            ? 'bg-purple-500/30 text-white border-purple-400 shadow-md shadow-purple-500/10'
                             : 'bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10'
                         }`}
                       >
@@ -1020,6 +1140,47 @@ export default function PrayerTimesView() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Custom Audio Upload / URL section when Custom Audio is selected */}
+                  {tahajjudSound === 'custom' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-2.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-purple-200">Custom Alarm Audio File / URL</span>
+                        {tahajjudCustomName && (
+                          <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full truncate max-w-[150px]">
+                            {tahajjudCustomName}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <label className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 border border-purple-500/30 rounded-xl cursor-pointer flex items-center justify-center gap-2 text-[11px] font-semibold text-purple-200 transition-colors">
+                          <Upload size={13} />
+                          <span>{tahajjudCustomName ? 'Change File' : 'Upload Audio (MP3/WAV)'}</span>
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            onChange={handleCustomAudioFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+
+                        <div className="flex-[1.5] flex gap-1.5">
+                          <input
+                            type="url"
+                            placeholder="Or paste direct audio URL..."
+                            value={tahajjudCustomUrl.startsWith('data:') ? '' : tahajjudCustomUrl}
+                            onChange={(e) => handleCustomAudioUrlSave(e.target.value)}
+                            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-purple-500/5 border border-purple-500/15 flex items-start gap-3">
@@ -1039,7 +1200,7 @@ export default function PrayerTimesView() {
                     {testingTahajjud ? 'Triggering Alarm...' : 'Test Tahajjud Wake Alarm'}
                   </button>
                   <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                    <Sparkles size={11} /> Ready & Armed
+                    <Sparkles size={11} /> Ready & Armed (Even Closed)
                   </span>
                 </div>
               </motion.div>
@@ -1075,11 +1236,32 @@ export default function PrayerTimesView() {
                   </button>
                 </div>
 
+                {/* 3-Day Early Alert Toggle Badge */}
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-amber-400" />
+                    <div>
+                      <p className="text-xs font-bold text-white">3-Day Advance Early Alerts</p>
+                      <p className="text-[10px] text-amber-200/70">Sends reminders 3 days, 2 days, and 1 day before the White Days arrive</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleWhiteDaysAdvance}
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                      whiteDaysAdvanceAlerts
+                        ? 'bg-amber-400/30 text-amber-300 border-amber-400/50'
+                        : 'bg-white/5 text-slate-500 border-white/5'
+                    }`}
+                  >
+                    {whiteDaysAdvanceAlerts ? 'Active (T-3)' : 'Off'}
+                  </button>
+                </div>
+
                 {/* 3 White Days Strip */}
                 <div className="grid grid-cols-3 gap-2.5">
-                  {whiteDaysData.currentMonthDays.map((day) => (
+                  {whiteDaysData.currentMonthDays.map((day, idx) => (
                     <div
-                      key={day.hijriDay}
+                      key={`whiteday-${day.hijriDay}-${day.dateStr || idx}`}
                       className={`p-3.5 rounded-2xl border text-center transition-all ${
                         day.isToday
                           ? 'bg-amber-500/25 border-amber-400 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400'
@@ -1128,7 +1310,9 @@ export default function PrayerTimesView() {
                     {testingWhiteDays ? <Loader2 size={13} className="animate-spin" /> : <Smartphone size={13} />}
                     {testingWhiteDays ? 'Testing Alarm...' : 'Test White Days Lockscreen Alert'}
                   </button>
-                  <span className="text-[10px] text-slate-500 font-bold">Suhoor & Evening Reminders</span>
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                    <Sparkles size={11} /> 3-Day Countdown Active
+                  </span>
                 </div>
               </motion.div>
 

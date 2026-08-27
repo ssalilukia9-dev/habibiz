@@ -32,26 +32,44 @@ var import_firestore = require("firebase-admin/firestore");
 var import_fs = __toESM(require("fs"), 1);
 var import_crypto = __toESM(require("crypto"), 1);
 import_dotenv.default.config();
-var firebaseConfigRaw = JSON.parse(
-  import_fs.default.readFileSync(import_path.default.join(process.cwd(), "firebase-applet-config.json"), "utf-8")
-);
-var app;
-if ((0, import_app.getApps)().length === 0) {
-  app = (0, import_app.initializeApp)({
-    projectId: firebaseConfigRaw.projectId
-  });
-} else {
-  app = (0, import_app.getApp)();
+var firebaseConfigRaw = {};
+try {
+  const configPath = import_path.default.join(process.cwd(), "firebase-applet-config.json");
+  if (import_fs.default.existsSync(configPath)) {
+    firebaseConfigRaw = JSON.parse(import_fs.default.readFileSync(configPath, "utf-8"));
+  }
+} catch (e) {
+  console.warn("Could not load firebase-applet-config.json:", e);
 }
-var fdb = (0, import_firestore.getFirestore)(app, firebaseConfigRaw.firestoreDatabaseId || "(default)");
+var fbAdminApp = null;
+try {
+  if ((0, import_app.getApps)().length === 0 && firebaseConfigRaw.projectId) {
+    fbAdminApp = (0, import_app.initializeApp)({
+      projectId: firebaseConfigRaw.projectId
+    });
+  } else if ((0, import_app.getApps)().length > 0) {
+    fbAdminApp = (0, import_app.getApp)();
+  }
+} catch (e) {
+  console.warn("Firebase Admin App Init error:", e);
+}
+var fdb = null;
+try {
+  if (fbAdminApp) {
+    fdb = (0, import_firestore.getFirestore)(fbAdminApp, firebaseConfigRaw.firestoreDatabaseId || "(default)");
+  }
+} catch (e) {
+  console.warn("Firestore Admin Init error:", e);
+}
 function hashPassword(password) {
   return import_crypto.default.createHash("sha256").update(password).digest("hex");
 }
 async function startServer() {
-  const app2 = (0, import_express.default)();
+  const app = (0, import_express.default)();
   const PORT = 3e3;
-  app2.use(import_express.default.json());
+  app.use(import_express.default.json());
   async function validateSession(req) {
+    if (!fdb) return null;
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return null;
@@ -68,7 +86,7 @@ async function startServer() {
     }
     return session;
   }
-  app2.post("/api/db/auth/register", async (req, res) => {
+  app.post("/api/db/auth/register", async (req, res) => {
     try {
       const { email, password, displayName } = req.body;
       if (!email || !password || !displayName) {
@@ -110,7 +128,7 @@ async function startServer() {
       res.status(500).json({ error: "Registration service encountered a temporary error. Please try again or use Instant Guest entry.", details: err?.message });
     }
   });
-  app2.post("/api/db/auth/login", async (req, res) => {
+  app.post("/api/db/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
@@ -142,7 +160,7 @@ async function startServer() {
       res.status(500).json({ error: "Login service encountered a temporary error. Please try again or use Instant Guest entry.", details: err?.message });
     }
   });
-  app2.post("/api/db/user/sync", async (req, res) => {
+  app.post("/api/db/user/sync", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
@@ -165,7 +183,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to sync user data", details: err?.message });
     }
   });
-  app2.get("/api/db/user/profile", async (req, res) => {
+  app.get("/api/db/user/profile", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
@@ -184,20 +202,23 @@ async function startServer() {
       res.status(500).json({ error: "Failed to retrieve profile", details: err?.message });
     }
   });
-  app2.post("/api/db/feed/posts", async (req, res) => {
+  app.post("/api/db/feed/posts", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
         return res.status(401).json({ error: "Unauthorized" });
       }
-      const { content, category, image, poll } = req.body;
+      const { content, category, image, poll, privacy, bgStyle, caption } = req.body;
       const userDoc = await fdb.collection("app_users").doc(session.email).get();
       const userDisplayName = userDoc.exists ? userDoc.data().displayName : "Spiritual Soul";
       const postData = {
         userId: session.uid,
         user: userDisplayName,
-        content,
+        content: content || caption || "",
+        caption: caption || content || "",
         category: category || "How I Feel",
+        privacy: privacy || "public",
+        bgStyle: bgStyle || "default",
         time: import_firestore.Timestamp.now(),
         supportCount: 0,
         reconsiderCount: 0,
@@ -215,7 +236,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to add feed post" });
     }
   });
-  app2.get("/api/db/feed/posts", async (req, res) => {
+  app.get("/api/db/feed/posts", async (req, res) => {
     try {
       const snapshot = await fdb.collection("posts").orderBy("time", "desc").limit(50).get();
       const list = snapshot.docs.map((doc) => {
@@ -232,7 +253,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch feed posts" });
     }
   });
-  app2.post("/api/db/feed/vote", async (req, res) => {
+  app.post("/api/db/feed/vote", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
@@ -277,7 +298,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to submit vote" });
     }
   });
-  app2.delete("/api/db/feed/posts/:postId", async (req, res) => {
+  app.delete("/api/db/feed/posts/:postId", async (req, res) => {
     try {
       const session = await validateSession(req);
       const { postId } = req.params;
@@ -298,7 +319,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to delete post" });
     }
   });
-  app2.delete("/api/db/feed/posts/:postId/comments/:commentId", async (req, res) => {
+  app.delete("/api/db/feed/posts/:postId/comments/:commentId", async (req, res) => {
     try {
       const { postId, commentId } = req.params;
       const postRef = fdb.collection("posts").doc(postId);
@@ -315,7 +336,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to delete comment" });
     }
   });
-  app2.get("/api/db/chat/rooms", async (req, res) => {
+  app.get("/api/db/chat/rooms", async (req, res) => {
     try {
       const snapshot = await fdb.collection("rooms").orderBy("timestamp", "desc").get();
       const list = snapshot.docs.map((doc) => ({
@@ -328,7 +349,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch chat rooms" });
     }
   });
-  app2.post("/api/db/chat/rooms", async (req, res) => {
+  app.post("/api/db/chat/rooms", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
@@ -350,14 +371,14 @@ async function startServer() {
       res.status(500).json({ error: "Failed to create room" });
     }
   });
-  app2.post("/api/db/feed/posts/:postId/comments", async (req, res) => {
+  app.post("/api/db/feed/posts/:postId/comments", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
         return res.status(401).json({ error: "Unauthorized" });
       }
       const { postId } = req.params;
-      const { text } = req.body;
+      const { text, replyToCommentId, replyToUser, parentCommentId } = req.body;
       if (!postId || !text) {
         return res.status(400).json({ error: "postId and text are required" });
       }
@@ -369,16 +390,36 @@ async function startServer() {
       const userDoc = await fdb.collection("app_users").doc(session.email).get();
       const userDisplayName = userDoc.exists ? userDoc.data().displayName : "Spiritual Soul";
       const newComment = {
-        id: `c-${Date.now()}`,
+        id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         userId: session.uid,
         user: userDisplayName,
         text,
+        replyToCommentId: replyToCommentId || parentCommentId || null,
+        replyToUser: replyToUser || null,
         time: (/* @__PURE__ */ new Date()).toISOString(),
         replies: []
       };
       const postData = postDoc.data();
-      const comments = postData.comments || [];
-      comments.push(newComment);
+      let comments = postData.comments || [];
+      const targetParentId = parentCommentId || replyToCommentId;
+      if (targetParentId) {
+        let parentFound = false;
+        comments = comments.map((c) => {
+          if (c.id === targetParentId) {
+            parentFound = true;
+            return {
+              ...c,
+              replies: [...c.replies || [], newComment]
+            };
+          }
+          return c;
+        });
+        if (!parentFound) {
+          comments.push(newComment);
+        }
+      } else {
+        comments.push(newComment);
+      }
       await postRef.update({ comments });
       res.json({ success: true, comment: newComment });
     } catch (err) {
@@ -386,7 +427,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to submit comment" });
     }
   });
-  app2.post("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
+  app.post("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
     try {
       const session = await validateSession(req);
       if (!session) {
@@ -410,7 +451,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to send message" });
     }
   });
-  app2.get("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
+  app.get("/api/db/chat/rooms/:roomId/messages", async (req, res) => {
     try {
       const { roomId } = req.params;
       const snapshot = await fdb.collection("rooms").doc(roomId).collection("messages").orderBy("timestamp", "asc").limit(100).get();
@@ -428,7 +469,7 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch messages" });
     }
   });
-  app2.post("/api/ai/chat", async (req, res) => {
+  app.post("/api/ai/chat", async (req, res) => {
     try {
       const { contents, systemInstruction } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -481,7 +522,7 @@ async function startServer() {
       } else if (typeof contents === "string") {
         normalizedContents = [{ role: "user", parts: [{ text: contents }] }];
       }
-      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      const candidateModels = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
       let responseText = null;
       let lastErr = null;
       for (const modelName of candidateModels) {
@@ -524,7 +565,7 @@ async function startServer() {
       res.status(500).json({ error: errorMessage, details: error?.message });
     }
   });
-  app2.post("/api/ai/reflection", async (req, res) => {
+  app.post("/api/ai/reflection", async (req, res) => {
     try {
       const { text } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -545,7 +586,7 @@ async function startServer() {
       const prompt = `Here is my reflection about my day: "${text}"
 
 Please find 3-4 comforting, guiding Quranic verses for me.`;
-      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      const candidateModels = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
       let responseText = "[]";
       let lastErr = null;
       for (const modelName of candidateModels) {
@@ -598,7 +639,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(500).json({ error: error?.message || "Failed to analyze reflection" });
     }
   });
-  app2.get("/api/ai/daily-banner-image", async (req, res) => {
+  app.get("/api/ai/daily-banner-image", async (req, res) => {
     try {
       const dateStr = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       const attributeId = parseInt(req.query.attributeId || "1", 10);
@@ -674,10 +715,10 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(500).json({ error: "Failed to generate daily banner image", details: err?.message });
     }
   });
-  app2.get("/api/health", (req, res) => {
+  app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
-  app2.get("/api/proxy/aladhan/*", async (req, res) => {
+  app.get("/api/proxy/aladhan/*", async (req, res) => {
     try {
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/aladhan\//, "");
       const targetUrl = `https://api.aladhan.com/v1/${subPath}`;
@@ -698,7 +739,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(502).json({ error: "Failed to fetch from prayer times service", details: err?.message });
     }
   });
-  app2.get("/api/proxy/alquran/*", async (req, res) => {
+  app.get("/api/proxy/alquran/*", async (req, res) => {
     try {
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/alquran\//, "");
       const targetUrl = `https://api.alquran.cloud/v1/${subPath}`;
@@ -719,7 +760,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(502).json({ error: "Failed to fetch from Quran service", details: err?.message });
     }
   });
-  app2.get("/api/proxy/audio", async (req, res) => {
+  app.get("/api/proxy/audio", async (req, res) => {
     try {
       const audioUrl = req.query.url;
       if (!audioUrl) {
@@ -820,7 +861,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     }
   });
   const ttsCache = /* @__PURE__ */ new Map();
-  app2.get("/api/tts", async (req, res) => {
+  app.get("/api/tts", async (req, res) => {
     try {
       const text = (req.query.text || "").trim();
       const lang = (req.query.lang || "ar").toLowerCase();
@@ -884,7 +925,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     { id: "log_2", recipientEmail: "fatima.z@sanctuary.org", recipientName: "Fatima Zahra", templateId: "how_to_use_guide", templateName: "How to Use & Habibi AI Tips", subject: "3 Ways to Elevate Your Daily Worship with Habibi AI \u{1F4A1}", sentAt: "18 mins ago", status: "clicked", intervalTrigger: "24h" },
     { id: "log_3", recipientEmail: "pilgrim.makkah@hajj.sa", recipientName: "Pilgrim in Makkah", templateId: "milestone_celebration", templateName: "Hasanat Milestone", subject: "Mabrook! You Achieved a New Spiritual Milestone \u{1F3C6}", sentAt: "1 hour ago", status: "opened", intervalTrigger: "Milestone" }
   ];
-  app2.post("/api/mailing/send", async (req, res) => {
+  app.post("/api/mailing/send", async (req, res) => {
     try {
       const { recipientEmail, recipientName, templateId, templateName, subject, htmlContent, intervalTrigger } = req.body;
       if (!recipientEmail || !subject) {
@@ -920,7 +961,7 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(500).json({ error: "Failed to dispatch email", details: err?.message });
     }
   });
-  app2.post("/api/mailing/broadcast", async (req, res) => {
+  app.post("/api/mailing/broadcast", async (req, res) => {
     try {
       const { audienceSegment, templateId, subject, customMessage, actionUrl } = req.body;
       console.log(`[Mailing Engine] Broadcast campaign triggered for cohort: ${audienceSegment} | Subject: "${subject}"`);
@@ -951,38 +992,44 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       res.status(500).json({ error: "Failed to broadcast email campaign", details: err?.message });
     }
   });
-  app2.get("/api/mailing/logs", async (req, res) => {
+  app.get("/api/mailing/logs", async (req, res) => {
     return res.json({ logs: emailLogs.slice(0, 50) });
   });
-  app2.post("/api/mailing/run-lifecycle-scan", async (req, res) => {
+  app.post("/api/mailing/run-lifecycle-scan", async (req, res) => {
     try {
       console.log("[Mailing Engine] Automated lifecycle sweep initiated...");
       const now = Date.now();
       const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1e3;
       let sevenDaysCount = 0;
       let threeDaysCount = 0;
-      const usersSnap = await fdb.collection("app_users").limit(100).get();
-      usersSnap.forEach((doc) => {
-        const data = doc.data();
-        const lastSeen = data.lastSeen?.toDate ? data.lastSeen.toDate().getTime() : 0;
-        const diff = now - lastSeen;
-        if (diff >= SEVEN_DAYS_MS) {
-          sevenDaysCount++;
-          const newRevivalLog = {
-            id: "revival_" + Date.now() + "_" + Math.random().toString(36).substring(7),
-            recipientEmail: data.email || doc.id,
-            recipientName: data.displayName || "Devoted Pilgrim",
-            templateId: "inactivity_7d_revival",
-            templateName: "7-Day Inactivity Revival (Email + Push)",
-            subject: "\u{1F54A}\uFE0F We Miss You in Sanctuary \u2014 Rekindle Your Spiritual Haven (+100 Bonus Hasanat)",
-            sentAt: "Just now",
-            status: "delivered",
-            intervalTrigger: "7 Days Inactive",
-            pushTriggered: true
-          };
-          emailLogs.unshift(newRevivalLog);
+      if (fdb) {
+        try {
+          const usersSnap = await fdb.collection("app_users").limit(100).get();
+          usersSnap.forEach((doc) => {
+            const data = doc.data();
+            const lastSeen = data.lastSeen?.toDate ? data.lastSeen.toDate().getTime() : 0;
+            const diff = now - lastSeen;
+            if (diff >= SEVEN_DAYS_MS) {
+              sevenDaysCount++;
+              const newRevivalLog = {
+                id: "revival_" + Date.now() + "_" + Math.random().toString(36).substring(7),
+                recipientEmail: data.email || doc.id,
+                recipientName: data.displayName || "Devoted Pilgrim",
+                templateId: "inactivity_7d_revival",
+                templateName: "7-Day Inactivity Revival (Email + Push)",
+                subject: "\u{1F54A}\uFE0F We Miss You in Sanctuary \u2014 Rekindle Your Spiritual Haven (+100 Bonus Hasanat)",
+                sentAt: "Just now",
+                status: "delivered",
+                intervalTrigger: "7 Days Inactive",
+                pushTriggered: true
+              };
+              emailLogs.unshift(newRevivalLog);
+            }
+          });
+        } catch (dbScanErr) {
+          console.warn("Firestore user scan warning:", dbScanErr);
         }
-      });
+      }
       if (sevenDaysCount === 0) {
         sevenDaysCount = 4;
         const sampleEmails = ["ahmed.k@deen.app", "maryam.s@ummah.io", "bilal.h@sanctuary.org", "zainab.r@alnoor.net"];
@@ -1024,15 +1071,15 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       server: { middlewareMode: true },
       appType: "spa"
     });
-    app2.use(vite.middlewares);
+    app.use(vite.middlewares);
   } else {
     const distPath = import_path.default.join(process.cwd(), "dist");
-    app2.use(import_express.default.static(distPath));
-    app2.get("*", (req, res) => {
+    app.use(import_express.default.static(distPath));
+    app.get("*", (req, res) => {
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-  app2.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

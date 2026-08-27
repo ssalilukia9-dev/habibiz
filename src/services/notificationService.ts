@@ -239,7 +239,7 @@ class NotificationService {
 
   async scheduleWhiteDaysNotifications() {
     const saved = localStorage.getItem('whitedays-reminder-settings');
-    const settings = saved ? JSON.parse(saved) : { enabled: true, eveningBefore: true, suhoorMorning: true };
+    const settings = saved ? JSON.parse(saved) : { enabled: true, advanceAlerts: true, eveningBefore: true, suhoorMorning: true };
 
     if (!settings.enabled) {
       console.log("White days alarms are disabled by user preference.");
@@ -247,66 +247,121 @@ class NotificationService {
     }
 
     const { currentMonthDays, nextMonthDays } = getUpcomingWhiteDays();
-    const allDays = [...currentMonthDays, ...nextMonthDays];
+    const allMonths = [
+      { name: currentMonthDays[0]?.hijriMonthName || 'Islamic Month', days: currentMonthDays },
+      { name: nextMonthDays[0]?.hijriMonthName || 'Next Month', days: nextMonthDays }
+    ];
 
     const nativeWhiteDaysList: any[] = [];
     const webWhiteDaysList: any[] = [];
     let idCounter = 5001;
 
-    for (const wd of allDays) {
-      // 1. Evening before (at 20:00 / 8:00 PM)
-      if (settings.eveningBefore) {
-        const eveningDate = new Date(wd.gregorianDate);
-        eveningDate.setDate(eveningDate.getDate() - 1);
-        eveningDate.setHours(20, 0, 0, 0);
+    allMonths.forEach(({ name: monthName, days }) => {
+      const day13 = days.find(d => d.hijriDay === 13);
+      if (!day13) return;
 
-        if (eveningDate.getTime() > Date.now()) {
-          const bodyText = `Tomorrow is the ${wd.hijriDay}th of ${wd.hijriMonthName} (Sunnah White Day Fast). Prepare your intention and Suhoor.`;
-          
-          webWhiteDaysList.push({
-            time: eveningDate.toISOString(),
-            title: `🌙 White Day Fast Tomorrow (${wd.hijriDay}th ${wd.hijriMonthName})`,
-            body: bodyText,
-            actionUrl: '/?tab=resources&resId=calendar'
-          });
+      const day13Date = new Date(day13.gregorianDate);
 
-          nativeWhiteDaysList.push({
-            id: idCounter++,
-            title: `🌙 White Day Fast Tomorrow (${wd.hijriDay}th ${wd.hijriMonthName})`,
-            body: bodyText,
-            channelId: 'whitedays',
-            schedule: { at: eveningDate },
-            extra: { actionUrl: '/?tab=resources&resId=calendar' }
-          });
-        }
+      // 1. 3 Days Before (Day 10 at 20:00 / 8 PM)
+      const alert3DaysEarly = new Date(day13Date);
+      alert3DaysEarly.setDate(alert3DaysEarly.getDate() - 3);
+      alert3DaysEarly.setHours(20, 0, 0, 0);
+
+      if (alert3DaysEarly.getTime() > Date.now()) {
+        const title = `🌙 White Days in 3 Days (13th ${monthName})`;
+        const body = `Prepare your soul and schedule: The 3 blessed Sunnah White Days fasts begin in 3 days.`;
+        webWhiteDaysList.push({
+          time: alert3DaysEarly.toISOString(),
+          title,
+          body,
+          actionUrl: '/?tab=resources&resId=calendar'
+        });
+        nativeWhiteDaysList.push({
+          id: idCounter++,
+          title,
+          body,
+          channelId: 'whitedays',
+          schedule: { at: alert3DaysEarly },
+          extra: { actionUrl: '/?tab=resources&resId=calendar' }
+        });
       }
 
-      // 2. Morning of White Day (at 04:30 AM for Suhoor)
-      if (settings.suhoorMorning) {
+      // 2. 2 Days Before (Day 11 at 20:00 / 8 PM)
+      const alert2DaysEarly = new Date(day13Date);
+      alert2DaysEarly.setDate(alert2DaysEarly.getDate() - 2);
+      alert2DaysEarly.setHours(20, 0, 0, 0);
+
+      if (alert2DaysEarly.getTime() > Date.now()) {
+        const title = `🌙 White Days in 2 Days (13th ${monthName})`;
+        const body = `Fasting 3 days of each month equals fasting the entire lifetime. Set your intention for Sunnah fasting.`;
+        webWhiteDaysList.push({
+          time: alert2DaysEarly.toISOString(),
+          title,
+          body,
+          actionUrl: '/?tab=resources&resId=calendar'
+        });
+        nativeWhiteDaysList.push({
+          id: idCounter++,
+          title,
+          body,
+          channelId: 'whitedays',
+          schedule: { at: alert2DaysEarly },
+          extra: { actionUrl: '/?tab=resources&resId=calendar' }
+        });
+      }
+
+      // 3. 1 Day Before / Eve of 13th (Day 12 at 20:00 / 8 PM)
+      const alert1DayEarly = new Date(day13Date);
+      alert1DayEarly.setDate(alert1DayEarly.getDate() - 1);
+      alert1DayEarly.setHours(20, 0, 0, 0);
+
+      if (alert1DayEarly.getTime() > Date.now()) {
+        const title = `🌙 White Days Fasting Begins Tomorrow! (13th ${monthName})`;
+        const body = `Tomorrow is the 13th of ${monthName}. Make your Niyyah (intention) and set your Suhoor alarm.`;
+        webWhiteDaysList.push({
+          time: alert1DayEarly.toISOString(),
+          title,
+          body,
+          actionUrl: '/?tab=resources&resId=calendar'
+        });
+        nativeWhiteDaysList.push({
+          id: idCounter++,
+          title,
+          body,
+          channelId: 'whitedays',
+          schedule: { at: alert1DayEarly },
+          extra: { actionUrl: '/?tab=resources&resId=calendar' }
+        });
+      }
+
+      // 4. Individual White Days (13th, 14th, 15th) - Suhoor Morning Alert at 04:30 AM
+      days.forEach((wd) => {
         const morningDate = new Date(wd.gregorianDate);
         morningDate.setHours(4, 30, 0, 0);
 
         if (morningDate.getTime() > Date.now()) {
-          const bodyText = `Suhoor time for the ${wd.hijriDay}th of ${wd.hijriMonthName}. Fasting 3 days every month carries the reward of fasting the whole year.`;
+          const ordinal = wd.hijriDay === 13 ? '1st' : wd.hijriDay === 14 ? '2nd' : '3rd';
+          const title = `✨ ${ordinal} White Day Fast Today (${wd.hijriDay}th ${wd.hijriMonthName})`;
+          const body = `Suhoor Mubarak! Fasting on the ${wd.hijriDay}th of ${wd.hijriMonthName} brings multiplied blessings.`;
 
           webWhiteDaysList.push({
             time: morningDate.toISOString(),
-            title: `✨ Suhoor for White Day Fast (${wd.hijriDay}th ${wd.hijriMonthName})`,
-            body: bodyText,
+            title,
+            body,
             actionUrl: '/?tab=resources&resId=calendar'
           });
 
           nativeWhiteDaysList.push({
             id: idCounter++,
-            title: `✨ Suhoor for White Day Fast (${wd.hijriDay}th ${wd.hijriMonthName})`,
-            body: bodyText,
+            title,
+            body,
             channelId: 'whitedays',
             schedule: { at: morningDate },
             extra: { actionUrl: '/?tab=resources&resId=calendar' }
           });
         }
-      }
-    }
+      });
+    });
 
     // Sync to SW
     if ('serviceWorker' in navigator) {
@@ -328,7 +383,7 @@ class NotificationService {
       try {
         const pending = await LocalNotifications.getPending();
         const existing = pending.notifications
-          .filter(n => n.id >= 5000 && n.id <= 5050)
+          .filter(n => n.id >= 5000 && n.id <= 5090)
           .map(n => ({ id: n.id }));
 
         if (existing.length > 0) {
@@ -337,7 +392,7 @@ class NotificationService {
 
         if (nativeWhiteDaysList.length > 0) {
           await LocalNotifications.schedule({ notifications: nativeWhiteDaysList });
-          console.log(`Scheduled ${nativeWhiteDaysList.length} native White Days fasting alarms.`);
+          console.log(`Scheduled ${nativeWhiteDaysList.length} native White Days 3-day advance & fasting alarms.`);
         }
       } catch (err) {
         console.warn("Failed to schedule native White Days alarms:", err);

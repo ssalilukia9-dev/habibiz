@@ -11,20 +11,37 @@ import crypto from "crypto";
 dotenv.config();
 
 // Initialize Firebase Admin SDK for Server-Side Database Proxy
-const firebaseConfigRaw = JSON.parse(
-  fs.readFileSync(path.join(process.cwd(), "firebase-applet-config.json"), "utf-8")
-);
-
-let app;
-if (getApps().length === 0) {
-  app = initializeApp({
-    projectId: firebaseConfigRaw.projectId
-  });
-} else {
-  app = getApp();
+let firebaseConfigRaw: any = {};
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfigRaw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  }
+} catch (e) {
+  console.warn("Could not load firebase-applet-config.json:", e);
 }
 
-const fdb = getFirestore(app, firebaseConfigRaw.firestoreDatabaseId || "(default)");
+let fbAdminApp: any = null;
+try {
+  if (getApps().length === 0 && firebaseConfigRaw.projectId) {
+    fbAdminApp = initializeApp({
+      projectId: firebaseConfigRaw.projectId
+    });
+  } else if (getApps().length > 0) {
+    fbAdminApp = getApp();
+  }
+} catch (e) {
+  console.warn("Firebase Admin App Init error:", e);
+}
+
+let fdb: any = null;
+try {
+  if (fbAdminApp) {
+    fdb = getFirestore(fbAdminApp, firebaseConfigRaw.firestoreDatabaseId || "(default)");
+  }
+} catch (e) {
+  console.warn("Firestore Admin Init error:", e);
+}
 
 // Password hashing helper (uses secure native crypto to avoid native bcrypt compile issues on some devices)
 function hashPassword(password: string): string {
@@ -41,6 +58,7 @@ async function startServer() {
   
   // Helper to validate REST session tokens
   async function validateSession(req: express.Request) {
+    if (!fdb) return null;
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return null;
@@ -594,7 +612,7 @@ async function startServer() {
       }
       
       // Helper to generate with model fallback
-      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      const candidateModels = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
       let responseText: string | null = null;
       let lastErr: any = null;
 
@@ -669,7 +687,7 @@ async function startServer() {
 
       const prompt = `Here is my reflection about my day: "${text}"\n\nPlease find 3-4 comforting, guiding Quranic verses for me.`;
 
-      const candidateModels = ["gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"];
+      const candidateModels = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
       let responseText: string = "[]";
       let lastErr: any = null;
 
@@ -1172,30 +1190,36 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
       let sevenDaysCount = 0;
       let threeDaysCount = 0;
 
-      // Scan Firestore app_users
-      const usersSnap = await fdb.collection("app_users").limit(100).get();
-      usersSnap.forEach((doc) => {
-        const data = doc.data();
-        const lastSeen = data.lastSeen?.toDate ? data.lastSeen.toDate().getTime() : 0;
-        const diff = now - lastSeen;
+      // Scan Firestore app_users if fdb is available
+      if (fdb) {
+        try {
+          const usersSnap = await fdb.collection("app_users").limit(100).get();
+          usersSnap.forEach((doc: any) => {
+            const data = doc.data();
+            const lastSeen = data.lastSeen?.toDate ? data.lastSeen.toDate().getTime() : 0;
+            const diff = now - lastSeen;
 
-        if (diff >= SEVEN_DAYS_MS) {
-          sevenDaysCount++;
-          const newRevivalLog = {
-            id: "revival_" + Date.now() + "_" + Math.random().toString(36).substring(7),
-            recipientEmail: data.email || doc.id,
-            recipientName: data.displayName || "Devoted Pilgrim",
-            templateId: "inactivity_7d_revival",
-            templateName: "7-Day Inactivity Revival (Email + Push)",
-            subject: "🕊️ We Miss You in Sanctuary — Rekindle Your Spiritual Haven (+100 Bonus Hasanat)",
-            sentAt: "Just now",
-            status: "delivered",
-            intervalTrigger: "7 Days Inactive",
-            pushTriggered: true
-          };
-          emailLogs.unshift(newRevivalLog);
+            if (diff >= SEVEN_DAYS_MS) {
+              sevenDaysCount++;
+              const newRevivalLog = {
+                id: "revival_" + Date.now() + "_" + Math.random().toString(36).substring(7),
+                recipientEmail: data.email || doc.id,
+                recipientName: data.displayName || "Devoted Pilgrim",
+                templateId: "inactivity_7d_revival",
+                templateName: "7-Day Inactivity Revival (Email + Push)",
+                subject: "🕊️ We Miss You in Sanctuary — Rekindle Your Spiritual Haven (+100 Bonus Hasanat)",
+                sentAt: "Just now",
+                status: "delivered",
+                intervalTrigger: "7 Days Inactive",
+                pushTriggered: true
+              };
+              emailLogs.unshift(newRevivalLog);
+            }
+          });
+        } catch (dbScanErr) {
+          console.warn("Firestore user scan warning:", dbScanErr);
         }
-      });
+      }
 
       if (sevenDaysCount === 0) {
         // Mock fallback if local test

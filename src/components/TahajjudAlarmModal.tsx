@@ -23,33 +23,34 @@ export default function TahajjudAlarmModal({
   alarmInfo
 }: TahajjudAlarmModalProps) {
   const [hasClaimedHasanat, setHasClaimedHasanat] = useState(false);
+  const [snoozeFeedback, setSnoozeFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setHasClaimedHasanat(false);
+      setSnoozeFeedback(null);
     }
   }, [isOpen]);
 
   const handleDismiss = () => {
     TahajjudAlarmService.stopAlarm();
+    TahajjudAlarmService.cancelSnooze();
     onClose();
   };
 
-  const handleSnooze = () => {
-    TahajjudAlarmService.stopAlarm();
-    onClose();
-    // Re-trigger in 10 minutes
+  const handleSnooze = (minutes: 5 | 10) => {
+    TahajjudAlarmService.snooze(minutes);
+    const snoozeTimeStr = new Date(Date.now() + minutes * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setSnoozeFeedback(`Alarm deferred by ${minutes} minutes (Will ring at ${snoozeTimeStr})`);
+    
     setTimeout(() => {
-      TahajjudAlarmService.triggerAlarm({
-        timeStr: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        label: 'Snoozed 10m',
-        message: 'Tahajjud wake alert reminder'
-      });
-    }, 10 * 60 * 1000);
+      onClose();
+    }, 1200);
   };
 
   const handleStartQiyam = () => {
     TahajjudAlarmService.stopAlarm();
+    TahajjudAlarmService.cancelSnooze();
     if (addHasanat && !hasClaimedHasanat) {
       addHasanat(5);
       setHasClaimedHasanat(true);
@@ -147,23 +148,44 @@ export default function TahajjudAlarmModal({
               <ArrowRight size={16} />
             </button>
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleSnooze}
-                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-white/10 flex items-center justify-center gap-2 cursor-pointer"
+            {snoozeFeedback ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-3 rounded-xl bg-purple-500/20 border border-purple-400/40 text-purple-200 text-xs font-bold flex items-center justify-center gap-2 shadow-inner"
               >
-                <Clock size={14} />
-                <span>Snooze (10m)</span>
-              </button>
+                <Clock size={14} className="text-amber-400 animate-spin" />
+                <span>{snoozeFeedback}</span>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <button
+                  onClick={() => handleSnooze(5)}
+                  className="py-3 bg-white/5 hover:bg-purple-500/20 text-purple-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-purple-500/20 hover:border-purple-400/40 flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Defer alarm by 5 minutes"
+                >
+                  <Clock size={13} className="text-purple-400" />
+                  <span>Snooze (5m)</span>
+                </button>
 
-              <button
-                onClick={handleDismiss}
-                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-all border border-white/10 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <BellOff size={14} />
-                <span>Dismiss Alarm</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => handleSnooze(10)}
+                  className="py-3 bg-white/5 hover:bg-purple-500/20 text-purple-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-purple-500/20 hover:border-purple-400/40 flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Defer alarm by 10 minutes"
+                >
+                  <Clock size={13} className="text-amber-400" />
+                  <span>Snooze (10m)</span>
+                </button>
+
+                <button
+                  onClick={handleDismiss}
+                  className="py-3 bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-all border border-white/10 hover:border-red-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <BellOff size={13} />
+                  <span>Dismiss</span>
+                </button>
+              </div>
+            )}
           </div>
 
         </motion.div>

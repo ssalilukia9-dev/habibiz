@@ -10,8 +10,13 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "cap:build": "vite build && npx cap sync",
-    "cap:sync": "npx cap sync",
-    "cap:open": "npx cap open android"
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "build:mobile": "vite build && npx cap sync android",
+    "build:android": "vite build && npx cap sync android",
+    "build:apk": "vite build && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "build:apk:release": "vite build && npx cap sync android && cd android && ./gradlew assembleRelease",
+    "build:aab": "vite build && npx cap sync android && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.3",

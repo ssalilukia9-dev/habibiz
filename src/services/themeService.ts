@@ -47,25 +47,47 @@ export interface CustomThemeConfig {
 export const CURATED_THEMES: SpiritualTheme[] = [
   {
     id: 'aloha',
-    name: 'Aloha Oceanic Gold',
-    arabicTitle: 'السكينة الذهبية',
-    mood: 'Serenity & Reflection',
-    moodDescription: 'Warm bronze gold paired with deep oceanic obsidian for peaceful mindfulness.',
-    reflection: '“Unquestionably, by the remembrance of Allah hearts are assured.” (13:28)',
+    name: 'Aloha Royal Gold & Navy',
+    arabicTitle: 'السكينة والتقويم الإيماني',
+    mood: 'Serenity, Majesty & Reflection',
+    moodDescription: 'Imperial desert gold paired with deep oceanic navy and starlight ivory, inspired by the Aloha Sanctuary.',
+    reflection: '“And hold firmly to the rope of Allah all together and do not become divided.” (3:103)',
     category: 'tranquility',
     colors: {
-      primary: '#c58f54',
-      secondary: '#1b4d6e',
-      accent: '#e2b789',
-      depth: '#0a1c2a',
-      sidebar: '#06121c',
-      border: 'rgba(197, 143, 84, 0.22)',
+      primary: '#d4af37',      // Imperial Desert Gold from crescent & lanterns
+      secondary: '#163853',    // Deep Royal Navy from Aloha brand
+      accent: '#f3d082',       // Warm Golden Starlight
+      depth: '#0b1a28',        // Aloha Night Obsidian Canvas
+      sidebar: '#06121d',      // Deep Ocean Abyss
+      border: 'rgba(212, 175, 55, 0.25)',
+      text: '#fcfbfa',         // Pure Starlight Ivory
+      textMuted: '#cbdbe8',    // Soft Slate
+      textDim: '#8ea3b8'       // Muted Steel Indigo
+    },
+    glowColor: 'rgba(212, 175, 55, 0.4)',
+    patternType: 'arabesque'
+  },
+  {
+    id: 'aloha_calendar',
+    name: 'Aloha Sacred Calendar',
+    arabicTitle: 'التقويم الإسلامي — ألوها',
+    mood: 'Barakah, Clarity & Calendar Illumination',
+    moodDescription: 'Warm bronze gold and Sandstone amber with coastal ocean navy for daily Islamic scheduling.',
+    reflection: '“Indeed, the number of months with Allah is twelve [lunar] months.” (9:36)',
+    category: 'tranquility',
+    colors: {
+      primary: '#c58f54',      // Warm Bronze Gold
+      secondary: '#1b4d6e',    // Aloha Oceanic Blue
+      accent: '#e8c37d',       // Radiant Sandstone Gold
+      depth: '#0a1c2a',        // Deep Oceanic Obsidian
+      sidebar: '#06121c',      // Night Abyss
+      border: 'rgba(197, 143, 84, 0.25)',
       text: '#fdfbf7',
       textMuted: '#cbd5e1',
       textDim: '#94a3b8'
     },
-    glowColor: 'rgba(197, 143, 84, 0.35)',
-    patternType: 'arabesque'
+    glowColor: 'rgba(197, 143, 84, 0.38)',
+    patternType: 'star_quds'
   },
   {
     id: 'emerald',
@@ -511,4 +533,247 @@ export class ThemeService {
   static getThemeById(id: string): SpiritualTheme | undefined {
     return CURATED_THEMES.find(t => t.id === id);
   }
+
+  /**
+   * Typography & Font Style Management
+   */
+  static applyFontStyle(styleId: string): void {
+    if (typeof document === 'undefined') return;
+    const preset = FONT_STYLE_PRESETS.find(f => f.id === styleId) || FONT_STYLE_PRESETS[0];
+    localStorage.setItem('sanctuary_font_style', preset.id);
+    document.documentElement.setAttribute('data-font-style', preset.id);
+
+    const root = document.documentElement;
+    root.style.setProperty('--font-sans', preset.fontSans);
+    root.style.setProperty('--font-display', preset.fontDisplay);
+    root.style.setProperty('--font-serif', preset.fontSerif);
+    root.style.setProperty('--font-arabic', preset.fontArabic);
+    root.style.setProperty('--font-mono', preset.fontMono);
+
+    window.dispatchEvent(new CustomEvent('font_style_changed', { 
+      detail: { fontStyle: preset.id, config: preset } 
+    }));
+  }
+
+  static getActiveFontStyle(): string {
+    if (typeof localStorage === 'undefined') return 'modern_sanctum';
+    return localStorage.getItem('sanctuary_font_style') || 'modern_sanctum';
+  }
+
+  static applyArabicFont(arabicFontId: string): void {
+    if (typeof document === 'undefined') return;
+    const option = ARABIC_FONT_OPTIONS.find(a => a.id === arabicFontId) || ARABIC_FONT_OPTIONS[0];
+    localStorage.setItem('sanctuary_arabic_font', option.id);
+    document.documentElement.setAttribute('data-arabic-font', option.id);
+    document.documentElement.style.setProperty('--font-arabic', option.fontFamily);
+
+    window.dispatchEvent(new CustomEvent('arabic_font_changed', { 
+      detail: { arabicFont: option.id, fontFamily: option.fontFamily } 
+    }));
+  }
+
+  static getActiveArabicFont(): string {
+    if (typeof localStorage === 'undefined') return 'amiri_quran';
+    return localStorage.getItem('sanctuary_arabic_font') || 'amiri_quran';
+  }
+
+  static applyFontSize(size: 'compact' | 'standard' | 'comfort' | 'grand'): void {
+    if (typeof document === 'undefined') return;
+    localStorage.setItem('sanctuary_font_size', size);
+    document.documentElement.setAttribute('data-font-size', size);
+
+    const scaleMap: Record<string, string> = {
+      compact: '14.5px',
+      standard: '16px',
+      comfort: '17.5px',
+      grand: '19px'
+    };
+    document.documentElement.style.fontSize = scaleMap[size] || '16px';
+
+    window.dispatchEvent(new CustomEvent('font_size_changed', { 
+      detail: { fontSize: size } 
+    }));
+  }
+
+  static getActiveFontSize(): 'compact' | 'standard' | 'comfort' | 'grand' {
+    if (typeof localStorage === 'undefined') return 'standard';
+    return (localStorage.getItem('sanctuary_font_size') as any) || 'standard';
+  }
 }
+
+export interface FontStyleOption {
+  id: string;
+  name: string;
+  arabicName: string;
+  tag: string;
+  description: string;
+  fontSans: string;
+  fontDisplay: string;
+  fontSerif: string;
+  fontArabic: string;
+  fontMono: string;
+  badgeBg: string;
+  sampleEn: string;
+  sampleAr: string;
+  iconName?: string;
+}
+
+export const FONT_STYLE_PRESETS: FontStyleOption[] = [
+  {
+    id: 'modern_sanctum',
+    name: 'Modern Sanctum (Default)',
+    arabicName: 'الحرم العصري',
+    tag: 'Modern & Clean',
+    description: 'Crisp geometric humanist typeface paired with modern Quranic calligraphy for superior mobile clarity.',
+    fontSans: "'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    fontDisplay: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+    fontSerif: "'Playfair Display', 'Cinzel', serif",
+    fontArabic: "'Amiri Quran', 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    sampleEn: 'Peace & Tranquility in Daily Worship',
+    sampleAr: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'
+  },
+  {
+    id: 'sacred_medina',
+    name: 'Sacred Medina (Classical)',
+    arabicName: 'المدينة المنورة',
+    tag: 'Spiritual & Traditional',
+    description: 'Classical literary serif with authentic Ottoman and Madinah Mushaf Arabic calligraphy script.',
+    fontSans: "'Amiri', 'Noto Naskh Arabic', 'Plus Jakarta Sans', Georgia, serif",
+    fontDisplay: "'Cinzel', 'Playfair Display', serif",
+    fontSerif: "'Cinzel', 'Playfair Display', Georgia, serif",
+    fontArabic: "'Amiri Quran', 'Amiri', serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    sampleEn: 'In Remembrance of Allah Hearts Find Rest',
+    sampleAr: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ'
+  },
+  {
+    id: 'royal_heritage',
+    name: 'Royal Heritage (Imperial)',
+    arabicName: 'التراث السلطاني',
+    tag: 'Majestic & Editorial',
+    description: 'High-contrast luxury serif display font with Scheherazade calligraphy for noble presence.',
+    fontSans: "'Playfair Display', 'Cormorant Garamond', 'Plus Jakarta Sans', Georgia, serif",
+    fontDisplay: "'Cinzel', 'Playfair Display', serif",
+    fontSerif: "'Cinzel', 'Cormorant Garamond', Georgia, serif",
+    fontArabic: "'Scheherazade New', 'Amiri', serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    sampleEn: 'Majesty, Divine Light & Eternal Reverence',
+    sampleAr: 'اللَّهُ نُورُ السَّمَاوَاتِ وَالْأَرْضِ'
+  },
+  {
+    id: 'minimal_noor',
+    name: 'Minimal Noor (Contemporary)',
+    arabicName: 'النور النقي',
+    tag: 'Minimal & Focus',
+    description: 'Ultra-sleek, distraction-free modern typography designed for contemplative focus.',
+    fontSans: "'Outfit', 'Alexandria', 'Plus Jakarta Sans', sans-serif",
+    fontDisplay: "'Outfit', 'Alexandria', sans-serif",
+    fontSerif: "'Playfair Display', serif",
+    fontArabic: "'Noto Naskh Arabic', 'Tajawal', 'Amiri', serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+    sampleEn: 'Clarity, Barakah and Daily Reflection',
+    sampleAr: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً'
+  },
+  {
+    id: 'alexandria_modern',
+    name: 'Alexandria Geometric',
+    arabicName: 'الإسكندرية المعاصرة',
+    tag: 'Contemporary Arabic',
+    description: 'Distinctive contemporary Arabic geometric typography with sleek modern proportions.',
+    fontSans: "'Alexandria', 'Tajawal', 'Plus Jakarta Sans', sans-serif",
+    fontDisplay: "'Alexandria', 'Outfit', sans-serif",
+    fontSerif: "'Playfair Display', serif",
+    fontArabic: "'Alexandria', 'Tajawal', 'Noto Naskh Arabic', sans-serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    sampleEn: 'Illuminated Path & Spiritual Awakening',
+    sampleAr: 'اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ'
+  },
+  {
+    id: 'obsidian_mono',
+    name: 'Obsidian Precision (Mono)',
+    arabicName: 'البيان المحكم',
+    tag: 'Precise & Structured',
+    description: 'Technical monospace styling for seekers who value tabular prayer precision and clean metrics.',
+    fontSans: "'JetBrains Mono', 'Plus Jakarta Sans', monospace",
+    fontDisplay: "'JetBrains Mono', sans-serif",
+    fontSerif: "'Playfair Display', serif",
+    fontArabic: "'Amiri', 'Noto Naskh Arabic', serif",
+    fontMono: "'JetBrains Mono', monospace",
+    badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+    sampleEn: 'Fajr 05:12 • Dhuhr 12:45 • Maghrib 18:30',
+    sampleAr: 'وَأَقِمِ الصَّلَاةَ لِذِكْرِي'
+  }
+];
+
+export interface ArabicFontOption {
+  id: string;
+  name: string;
+  arabicName: string;
+  fontFamily: string;
+  style: string;
+  sample: string;
+}
+
+export const ARABIC_FONT_OPTIONS: ArabicFontOption[] = [
+  {
+    id: 'amiri_quran',
+    name: 'Amiri Quran',
+    arabicName: 'أميري مصحف',
+    fontFamily: "'Amiri Quran', 'Amiri', serif",
+    style: 'Madinah Mushaf Classical',
+    sample: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'
+  },
+  {
+    id: 'noto_naskh',
+    name: 'Noto Naskh Arabic',
+    arabicName: 'خط النسخ العربي',
+    fontFamily: "'Noto Naskh Arabic', serif",
+    style: 'Crisp Digital Naskh',
+    sample: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ'
+  },
+  {
+    id: 'scheherazade',
+    name: 'Scheherazade New',
+    arabicName: 'شهرزاد التراثية',
+    fontFamily: "'Scheherazade New', 'Amiri', serif",
+    style: 'Classical Ottoman & Indo-Pak',
+    sample: 'صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ'
+  },
+  {
+    id: 'alexandria',
+    name: 'Alexandria',
+    arabicName: 'الإسكندرية الحديث',
+    fontFamily: "'Alexandria', sans-serif",
+    style: 'Modern Geometric Display',
+    sample: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ'
+  },
+  {
+    id: 'tajawal',
+    name: 'Tajawal',
+    arabicName: 'خط تجوال الأنيق',
+    fontFamily: "'Tajawal', sans-serif",
+    style: 'Clean Contemporary Sans',
+    sample: 'مَالِكِ يَوْمِ الدِّينِ'
+  }
+];
+
+export interface FontSizeOption {
+  id: 'compact' | 'standard' | 'comfort' | 'grand';
+  label: string;
+  scale: string;
+  description: string;
+}
+
+export const FONT_SIZE_OPTIONS: FontSizeOption[] = [
+  { id: 'compact', label: 'Compact', scale: '90%', description: 'Dense & high information density' },
+  { id: 'standard', label: 'Standard', scale: '100%', description: 'Default balanced proportions' },
+  { id: 'comfort', label: 'Comfort', scale: '112%', description: 'Relaxed reading & larger touch targets' },
+  { id: 'grand', label: 'Grand', scale: '125%', description: 'Maximum legibility & high readability' }
+];
+

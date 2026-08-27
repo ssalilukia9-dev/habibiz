@@ -10,27 +10,36 @@ import {
   Sparkles, 
   Zap, 
   Video, 
-  Volume2, 
   BookOpen, 
-  Check,
   Brain,
   Compass,
   DollarSign,
   Users,
   CreditCard,
-  ExternalLink,
-  Globe
+  Ticket,
+  AlertCircle,
+  KeyRound,
+  Check
 } from 'lucide-react';
+import { gatePassService } from '../services/gatePassService.ts';
 
 interface PremiumGatewayProps {
   onActivate: () => void;
   onClose?: () => void;
+  currentUser?: any;
 }
 
-export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayProps) {
+export default function PremiumGateway({ onActivate, onClose, currentUser }: PremiumGatewayProps) {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual' | 'lifetime'>('annual');
   const [selectedRail, setSelectedRail] = useState<'instant' | 'external' | 'mobile'>('instant');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // VIP Gate Pass Redemption state
+  const [gatePassCode, setGatePassCode] = useState<string>('');
+  const [gatePassStatus, setGatePassStatus] = useState<{
+    type: 'idle' | 'loading' | 'success' | 'error';
+    message: string;
+  }>({ type: 'idle', message: '' });
 
   const handleConfirm = () => {
     setIsProcessing(true);
@@ -38,6 +47,43 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
       onActivate();
       setIsProcessing(false);
     }, 600);
+  };
+
+  const handleRedeemPass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gatePassCode.trim()) {
+      setGatePassStatus({
+        type: 'error',
+        message: 'Please enter your VIP Gate Pass code (starts with MH-VIP).'
+      });
+      return;
+    }
+
+    setGatePassStatus({ type: 'loading', message: 'Validating Gate Pass...' });
+
+    try {
+      const result = await gatePassService.redeemGatePass(gatePassCode, currentUser || { uid: 'guest_' + Date.now() });
+      if (result.success) {
+        setGatePassStatus({
+          type: 'success',
+          message: result.message
+        });
+        setTimeout(() => {
+          onActivate();
+          if (onClose) onClose();
+        }, 1200);
+      } else {
+        setGatePassStatus({
+          type: 'error',
+          message: result.message
+        });
+      }
+    } catch (err: any) {
+      setGatePassStatus({
+        type: 'error',
+        message: err?.message || 'Failed to redeem pass. Please try again.'
+      });
+    }
   };
 
   const lockedFeatures = [
@@ -147,22 +193,89 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
           </div>
         </div>
 
-        {/* Right Side: Tier Selector, External Gateway Rails & Instant Activation */}
+        {/* Right Side: Tier Selector, External Gateway Rails & Gate Pass Redemption */}
         <div className="flex-1 p-6 md:p-10 space-y-5 bg-black/40 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Choose Spiritual Pass</span>
+            
+            {/* VIP Gate Pass Redemption Box (MH-VIP Code System) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 via-brand-depth to-purple-900/20 border border-amber-500/30 space-y-2.5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <Ticket size={16} />
+                  <span className="text-xs font-black uppercase tracking-wider text-white">Have a VIP Gate Pass?</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
+                  1 Mo Free
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-tight">
+                Enter your pass code starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> for 1 month of full VIP access. Single-use only.
+              </p>
+
+              <form onSubmit={handleRedeemPass} className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400" />
+                    <input
+                      type="text"
+                      value={gatePassCode}
+                      onChange={(e) => {
+                        setGatePassCode(e.target.value.toUpperCase());
+                        if (gatePassStatus.type !== 'idle') {
+                          setGatePassStatus({ type: 'idle', message: '' });
+                        }
+                      }}
+                      placeholder="e.g. MH-VIP-2026"
+                      className="w-full bg-black/50 border border-amber-500/30 focus:border-amber-400 rounded-xl py-2 pl-9 pr-3 text-xs text-white uppercase font-mono tracking-wider placeholder:text-slate-500 outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={gatePassStatus.type === 'loading'}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-brand-depth font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {gatePassStatus.type === 'loading' ? 'Checking...' : 'Redeem'}
+                  </button>
+                </div>
+
+                {/* Gate Pass Feedback Alerts */}
+                <AnimatePresence>
+                  {gatePassStatus.message && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className={`p-2 rounded-xl text-[10px] font-bold flex items-center gap-1.5 ${
+                        gatePassStatus.type === 'success'
+                          ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                          : 'bg-red-500/20 border border-red-500/40 text-red-300'
+                      }`}
+                    >
+                      {gatePassStatus.type === 'success' ? (
+                        <CheckCircle2 size={12} className="shrink-0 text-emerald-400" />
+                      ) : (
+                        <AlertCircle size={12} className="shrink-0 text-red-400" />
+                      )}
+                      <span>{gatePassStatus.message}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </form>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Or Select Membership Pass</span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase font-mono">
                 EXTERNAL GATEWAY READY
               </span>
             </div>
 
             {/* Tier Selectors */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {/* Annual (Best Value) */}
               <div
                 onClick={() => setSelectedPlan('annual')}
-                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative flex items-center justify-between ${
+                className={`p-3 rounded-2xl border-2 transition-all cursor-pointer relative flex items-center justify-between ${
                   selectedPlan === 'annual'
                     ? 'border-amber-400 bg-amber-500/15 shadow-xl shadow-amber-500/10'
                     : 'border-white/10 bg-white/5 hover:border-white/20'
@@ -178,15 +291,15 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
                   <p className="text-[10px] text-slate-400">+5,000 Hasanat Bonus • Unlimited AI</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-black text-amber-400 font-mono">$20.00</span>
-                  <span className="text-[9px] text-slate-400 block font-medium">/year</span>
+                  <span className="text-sm font-black text-amber-400 font-mono">$20.00</span>
+                  <span className="text-[8px] text-slate-400 block font-medium">/year</span>
                 </div>
               </div>
 
               {/* Monthly */}
               <div
                 onClick={() => setSelectedPlan('monthly')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                   selectedPlan === 'monthly'
                     ? 'border-amber-400 bg-amber-500/15 shadow-xl'
                     : 'border-white/10 bg-white/5 hover:border-white/20'
@@ -197,15 +310,15 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
                   <p className="text-[10px] text-slate-400">Cancel anytime • Full Access</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-black text-white font-mono">$3.00</span>
-                  <span className="text-[9px] text-slate-400 block font-medium">/month</span>
+                  <span className="text-sm font-black text-white font-mono">$3.00</span>
+                  <span className="text-[8px] text-slate-400 block font-medium">/month</span>
                 </div>
               </div>
 
               {/* Lifetime */}
               <div
                 onClick={() => setSelectedPlan('lifetime')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                   selectedPlan === 'lifetime'
                     ? 'border-purple-400 bg-purple-500/15 shadow-xl'
                     : 'border-white/10 bg-white/5 hover:border-white/20'
@@ -216,14 +329,14 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
                   <p className="text-[10px] text-slate-400">+15,000 Hasanat + VIP Gold Badge</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-black text-purple-300 font-mono">$79.99</span>
-                  <span className="text-[9px] text-slate-400 block font-medium">/one-time</span>
+                  <span className="text-sm font-black text-purple-300 font-mono">$79.99</span>
+                  <span className="text-[8px] text-slate-400 block font-medium">/one-time</span>
                 </div>
               </div>
             </div>
 
             {/* Payment Gateway Rails */}
-            <div className="p-3.5 bg-white/5 border border-white/10 rounded-2xl space-y-2 text-xs">
+            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl space-y-2 text-xs">
               <span className="text-[10px] font-black uppercase text-slate-400 block">Select Gateway Method</span>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -267,14 +380,14 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
               </div>
 
               {selectedRail === 'mobile' && (
-                <div className="pt-2 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
+                <div className="pt-1.5 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
                   <p>Sendwave / Airtel / MTN Mobile Money Transfer:</p>
                   <p>Recipient: <strong className="text-amber-400 font-mono">+256 708515639</strong></p>
                 </div>
               )}
 
               {selectedRail === 'external' && (
-                <div className="pt-2 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
+                <div className="pt-1.5 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
                   <p>External Gateway Checkout will connect directly to secure card processing.</p>
                 </div>
               )}
@@ -285,7 +398,7 @@ export default function PremiumGateway({ onActivate, onClose }: PremiumGatewayPr
             <button 
               onClick={handleConfirm}
               disabled={isProcessing}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Crown size={16} />
               <span>{isProcessing ? 'Activating VIP Pass...' : 'Unlock Sanctuary VIP Pass'}</span>

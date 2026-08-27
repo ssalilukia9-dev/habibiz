@@ -251,9 +251,33 @@
         "addedBy": { "type": "string" }
       },
       "required": ["title", "url", "createdAt"]
+    },
+    "IslamicTeaching": {
+      "title": "IslamicTeaching",
+      "description": "Curated sacred Islamic wisdom teaching, Hadith pearl, or visual graphic card",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "categoryLabel": { "type": "string" },
+        "arabicText": { "type": "string" },
+        "content": { "type": "string" },
+        "scholarOrSource": { "type": "string" },
+        "featured": { "type": "boolean" },
+        "likes": { "type": "number" },
+        "views": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "addedBy": { "type": "string" }
+      },
+      "required": ["title", "content", "createdAt"]
     }
   },
   "firestore": {
+    "/islamic_teachings/{teachingId}": {
+      "schema": "IslamicTeaching",
+      "description": "Curated visual teachings and Hadith picture cards"
+    },
     "/khatam_videos/{videoId}": {
       "schema": "KhatamVideo",
       "description": "Curated videos for the Khatam Journey"

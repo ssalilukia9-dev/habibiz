@@ -75,6 +75,7 @@ export default function GlobalNavigationControls() {
     if (clean === 'babynames' || clean === 'baby-names') return 'Islamic Baby Names';
     if (clean === 'qibla') return 'Qibla Direction';
     if (clean === 'premium') return 'Habibi Sanctuary Pass';
+    if (clean === 'about-creators' || clean === 'creators' || clean === 'about') return 'About App Creators';
     return clean.charAt(0).toUpperCase() + clean.slice(1);
   };
 

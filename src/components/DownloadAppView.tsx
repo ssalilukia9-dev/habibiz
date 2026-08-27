@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Smartphone, 
@@ -12,110 +12,184 @@ import {
   Loader2,
   AlertTriangle,
   Github,
-  X
+  X,
+  Copy,
+  Check,
+  Apple,
+  Terminal,
+  Layers,
+  Sparkles,
+  Share2
 } from 'lucide-react';
 
 export default function DownloadAppView() {
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [selectedGuide, setSelectedGuide] = useState<'android' | 'ios' | 'pwa'>('android');
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      setSelectedGuide('pwa');
+      setShowModal(true);
+    }
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(id);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
 
   const handleDownload = (format: string) => {
     setDownloadingFormat(format);
-    // Simulate prep time for export
+    if (format === 'ios') setSelectedGuide('ios');
+    else if (format === 'pwa') setSelectedGuide('pwa');
+    else setSelectedGuide('android');
+
     setTimeout(() => {
       setDownloadingFormat(null);
       setShowModal(true);
-    }, 1500);
+    }, 600);
   };
 
   const downloadOptions = [
     {
       id: 'apk',
-      title: "Android Package (APK)",
-      version: "v2.5.0-cap",
-      size: "42.5 MB",
-      desc: "Ready for native compilation via Capacitor. Supports sideloading on all Android 8.0+ devices.",
+      title: "Android APK & Play Store (Capacitor)",
+      version: "v3.0.0-mobile",
+      size: "~28 MB",
+      desc: "One-click compilation ready. Compile directly to Android APK for sideloading or Google Play AAB bundle.",
       icon: Smartphone,
       format: "APK",
-      highlight: "Capacitor Ready"
+      highlight: "Capacitor 8.x Ready",
+      actionLabel: "View Compilation Steps"
     },
     {
-      id: 'aab',
-      title: "Android App Bundle (AAB)",
-      version: "v2.5.0-cap",
-      size: "38.2 MB",
-      desc: "Optimized for the Google Play Store. Requires Android Studio build environment.",
-      icon: Zap,
-      format: "AAB",
-      highlight: "App Store Optimized"
+      id: 'ios',
+      title: "iOS Native App (Xcode / Capacitor)",
+      version: "v3.0.0-ios",
+      size: "~32 MB",
+      desc: "Ready for iOS compilation via Capacitor. Open with Xcode to deploy on iPhone, iPad, or TestFlight.",
+      icon: Apple,
+      format: "IPA",
+      highlight: "iOS 15+ Native",
+      actionLabel: "View iOS Guide"
+    },
+    {
+      id: 'pwa',
+      title: "Instant Progressive Web App (PWA)",
+      version: "Universal Web",
+      size: "< 3 MB",
+      desc: "Zero-installation instant app. Runs offline with full-screen experience and native sound audio.",
+      icon: Globe,
+      format: "PWA",
+      highlight: "Instant 1-Tap Install",
+      actionLabel: "Install to Home Screen"
     }
   ];
 
   return (
-    <div className="space-y-12 pb-24 relative">
-      <header className="text-center space-y-4">
+    <div className="space-y-12 pb-24 relative max-w-5xl mx-auto px-4">
+      <header className="text-center space-y-4 pt-4">
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary">
+          <div className="w-16 h-16 bg-brand-primary/10 border border-brand-primary/30 rounded-2xl flex items-center justify-center text-brand-primary shadow-lg shadow-brand-primary/20">
             <Smartphone size={32} />
           </div>
         </div>
-        <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
-          Native <span className="text-brand-primary">Builds</span>
+        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight uppercase">
+          Compile to <span className="text-brand-primary">Mobile App</span>
         </h1>
         <p className="text-slate-400 max-w-xl mx-auto text-sm font-medium">
-          I have configured this project with <strong>Capacitor</strong>. Follow the guide below to generate your AAB/APK files.
+          Compile into native <strong>Android (APK/AAB)</strong>, <strong>iOS (Xcode)</strong>, or install immediately as an offline <strong>PWA</strong>.
         </p>
+
+        {/* 1-Tap PWA Install Bar */}
+        <div className="pt-2">
+          <button
+            onClick={handleInstallPWA}
+            className="inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-brand-primary text-brand-depth font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand-primary/25 cursor-pointer"
+          >
+            <Sparkles size={16} />
+            {isInstalled ? "App Installed on Device ✓" : "1-Tap Install on Mobile / Desktop"}
+          </button>
+        </div>
       </header>
 
-      {/* Main Download Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      {/* Main Download & Build Options Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {downloadOptions.map((opt) => (
           <motion.div 
             key={opt.id}
             whileHover={{ y: -5 }}
-            className="glass-panel p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group"
+            className="glass-panel p-6 rounded-[2.5rem] border-white/5 relative overflow-hidden group flex flex-col justify-between"
           >
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             
-            <div className="space-y-6 relative z-10">
+            <div className="space-y-5 relative z-10">
               <div className="flex justify-between items-start">
-                <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-brand-primary">
+                <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-brand-primary">
                   <opt.icon size={24} />
                 </div>
-                <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] rounded-full">
-                  Configured
+                <span className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/30 text-[8px] font-black text-brand-primary uppercase tracking-[0.2em] rounded-full">
+                  {opt.format}
                 </span>
               </div>
 
               <div>
-                <h3 className="text-xl font-black text-white">{opt.title}</h3>
+                <h3 className="text-lg font-black text-white">{opt.title}</h3>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{opt.version}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{opt.version}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">{opt.size}</span>
                 </div>
               </div>
 
               <p className="text-xs text-slate-400 leading-relaxed font-medium">
                 {opt.desc}
               </p>
+            </div>
 
+            <div className="pt-6 relative z-10 space-y-3">
               <button 
                 onClick={() => handleDownload(opt.id)}
                 disabled={!!downloadingFormat}
-                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all group/btn ${
-                  downloadingFormat === opt.id 
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
-                  : 'bg-brand-primary text-brand-depth hover:shadow-brand-primary/20'
-                }`}
+                className="w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all bg-white/10 hover:bg-brand-primary hover:text-brand-depth text-white border border-white/10 hover:border-brand-primary cursor-pointer"
               >
                 {downloadingFormat === opt.id ? (
-                  <>Preparing Project <Loader2 size={14} className="animate-spin" /></>
+                  <>Preparing Guide <Loader2 size={14} className="animate-spin" /></>
                 ) : (
-                  <>View Build Guide <Download size={14} className="group-hover/btn:translate-y-1 transition-transform" /></>
+                  <>{opt.actionLabel} <Download size={14} /></>
                 )}
               </button>
 
-              <div className="pt-4 border-t border-white/5 flex items-center gap-2">
-                <CheckCircle2 size={12} className="text-emerald-500" />
+              <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                <CheckCircle2 size={12} className="text-brand-primary" />
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{opt.highlight}</span>
               </div>
             </div>
@@ -123,126 +197,198 @@ export default function DownloadAppView() {
         ))}
       </div>
 
-      {/* Modal for "Next Steps" */}
-      <AnimatePresence>
-        {showModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-brand-sidebar border border-white/10 p-8 rounded-[3rem] max-w-lg w-full relative space-y-6 shadow-2xl overflow-y-auto max-h-[90vh]"
-            >
-              <button 
-                onClick={() => setShowModal(false)}
-                className="absolute top-6 right-6 text-slate-500 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary mx-auto">
-                <Smartphone size={32} />
-              </div>
-
-              <div className="text-center space-y-2">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Your Android Build Path</h3>
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Follow these instructions locally</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="p-5 bg-white/5 rounded-2xl space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Info size={14} className="text-brand-primary" />
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Phase 1: Export</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">Click the <strong>Settings</strong> cog in the sidebar, then <strong>Export to ZIP</strong>. Unzip the file on your computer.</p>
-                </div>
-
-                <div className="p-5 bg-black/40 rounded-2xl space-y-3 font-mono text-[10px]">
-                  <p className="text-brand-primary font-black uppercase tracking-widest mb-1">Phase 2: Local Commands</p>
-                  <div className="bg-black/60 p-3 rounded-lg text-slate-300 space-y-1">
-                    <p># Install Project Dependencies</p>
-                    <p className="text-white">npm install</p>
-                    <p className="mt-2"># Build & Sync for Android in 1-Click</p>
-                    <p className="text-white">npm run cap:build</p>
-                    <p className="mt-2"># Launch Project in Android Studio</p>
-                    <p className="text-white">npm run cap:open</p>
-                  </div>
-                </div>
-
-                <div className="p-5 bg-white/5 rounded-2xl space-y-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-emerald-500" />
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Phase 3: Android Studio</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">Once Android Studio opens, go to <strong>Build &gt; Generate Signed Bundle / APK</strong> to create your AAB file.</p>
-                </div>
-
-                <button 
-                  onClick={() => setShowModal(false)}
-                  className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand-primary/20"
-                >
-                  I'm Ready to Export
-                </button>
-              </div>
-            </motion.div>
+      {/* Quick 3-Command Compilation Terminal Box */}
+      <section className="bg-brand-sidebar border border-brand-border rounded-[2.5rem] p-6 sm:p-8 space-y-6 shadow-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary">
+              <Terminal size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white uppercase tracking-tight">Easy 1-Minute Mobile Compilation</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Run in your downloaded project folder</p>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
-
-      {/* Installation Guide */}
-      <section className="max-w-4xl mx-auto space-y-8 bg-white/[0.02] border border-white/5 rounded-[3rem] p-10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
-            <ShieldCheck size={24} />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tighter">Installation Protocol</h2>
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Safe & Secure Setup Guide</p>
-          </div>
+          <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-full self-start sm:self-auto">
+            Ready to Build
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="space-y-3 font-mono text-xs">
           {[
-            { step: "01", title: "Enable Sources", desc: "Go to Settings > Security and enable 'Unknown Sources' for direct installs." },
-            { step: "02", title: "Download File", desc: "Select your preferred format above and wait for the download to complete." },
-            { step: "03", title: "Install & Sync", desc: "Open the file, follow prompts, and log in to sync your spiritual progress." }
-          ].map((item, i) => (
-            <div key={i} className="space-y-3">
-              <span className="text-3xl font-black text-brand-primary/20 italic">{item.step}</span>
-              <h4 className="text-sm font-black text-white uppercase tracking-tighter">{item.title}</h4>
-              <p className="text-[10px] text-slate-400 leading-relaxed font-medium">{item.desc}</p>
+            { id: "cmd1", label: "1. Install packages", cmd: "npm install" },
+            { id: "cmd2", label: "2. Build web bundle & sync with Android/iOS", cmd: "npm run cap:build" },
+            { id: "cmd3", label: "3. Open in Android Studio to export APK/AAB", cmd: "npm run cap:open" }
+          ].map((item) => (
+            <div key={item.id} className="bg-black/60 border border-white/5 p-4 rounded-2xl flex items-center justify-between gap-4 group">
+              <div className="space-y-1 min-w-0">
+                <p className="text-[10px] text-slate-500 font-sans font-bold uppercase tracking-wider">{item.label}</p>
+                <p className="text-brand-primary font-bold truncate select-all">{item.cmd}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(item.cmd, item.id)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-brand-primary hover:text-brand-depth text-slate-300 transition-all active:scale-90 shrink-0 cursor-pointer"
+                title="Copy command"
+              >
+                {copiedIndex === item.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              </button>
             </div>
           ))}
         </div>
       </section>
 
-      {/* PWA Section */}
-      <section className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-8 glass-panel p-8 rounded-[2.5rem] border-brand-primary/10">
-        <div className="w-20 h-20 bg-brand-primary/10 rounded-3xl flex items-center justify-center text-brand-primary flex-shrink-0">
-          <Globe size={40} className="animate-spin-slow" />
+      {/* Modal for "Compilation Guides" */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-brand-sidebar border border-white/10 p-6 sm:p-8 rounded-[3rem] max-w-xl w-full relative space-y-6 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <button 
+                onClick={() => setShowModal(false)}
+                className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary">
+                  {selectedGuide === 'android' && <Smartphone size={24} />}
+                  {selectedGuide === 'ios' && <Apple size={24} />}
+                  {selectedGuide === 'pwa' && <Globe size={24} />}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                    {selectedGuide === 'android' && "Android APK & Play Store Compilation"}
+                    {selectedGuide === 'ios' && "iOS Xcode Build Guide"}
+                    {selectedGuide === 'pwa' && "Install as Native App (PWA)"}
+                  </h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Step-by-step instructions</p>
+                </div>
+              </div>
+
+              {/* Guide Switcher Tabs */}
+              <div className="flex gap-2 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+                {[
+                  { id: 'android', label: 'Android APK' },
+                  { id: 'ios', label: 'iOS Xcode' },
+                  { id: 'pwa', label: 'PWA Mobile' }
+                ].map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedGuide(t.id as any)}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      selectedGuide === t.id ? 'bg-brand-primary text-brand-depth font-bold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {selectedGuide === 'android' && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">Step 1: Export Code</p>
+                    <p className="text-slate-400 text-[11px]">Download your repository or export files to your computer.</p>
+                  </div>
+
+                  <div className="p-4 bg-black/50 border border-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-brand-primary uppercase tracking-wider text-[11px]">Step 2: Terminal Execution</p>
+                    <pre className="text-slate-300 font-mono text-[11px] bg-black/40 p-3 rounded-xl select-all">
+                      npm install{"\n"}
+                      npm run cap:build{"\n"}
+                      npm run cap:open
+                    </pre>
+                  </div>
+
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">Step 3: Generate APK / AAB</p>
+                    <p className="text-slate-400 text-[11px]">Inside Android Studio, navigate to <strong className="text-white">Build &gt; Build Bundle(s) / APK(s) &gt; Build APK(s)</strong> or <strong className="text-white">Generate Signed Bundle</strong> for the Play Store.</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedGuide === 'ios' && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">Step 1: Add iOS Target</p>
+                    <pre className="text-slate-300 font-mono text-[11px] bg-black/40 p-3 rounded-xl select-all">
+                      npm install{"\n"}
+                      npx cap add ios{"\n"}
+                      npm run build{"\n"}
+                      npx cap sync ios
+                    </pre>
+                  </div>
+
+                  <div className="p-4 bg-black/50 border border-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-brand-primary uppercase tracking-wider text-[11px]">Step 2: Launch Xcode</p>
+                    <pre className="text-slate-300 font-mono text-[11px] bg-black/40 p-3 rounded-xl select-all">
+                      npx cap open ios
+                    </pre>
+                  </div>
+
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">Step 3: Archive & Deploy</p>
+                    <p className="text-slate-400 text-[11px]">In Xcode, select your signing team and click <strong className="text-white">Product &gt; Archive</strong> to export to TestFlight or the Apple App Store.</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedGuide === 'pwa' && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">iPhone & iPad (Safari)</p>
+                    <p className="text-slate-400 text-[11px]">Tap the <strong className="text-white">Share</strong> button at the bottom of Safari, then scroll down and tap <strong className="text-brand-primary">Add to Home Screen</strong>.</p>
+                  </div>
+
+                  <div className="p-4 bg-white/5 rounded-2xl space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-[11px]">Android (Chrome / Edge / Firefox)</p>
+                    <p className="text-slate-400 text-[11px]">Tap the three dots <strong className="text-white">⋮</strong> menu in the top right and tap <strong className="text-brand-primary">Install App</strong> or <strong className="text-brand-primary">Add to Home Screen</strong>.</p>
+                  </div>
+                </div>
+              )}
+
+              <button 
+                onClick={() => setShowModal(false)}
+                className="w-full py-4 bg-brand-primary text-brand-depth rounded-2xl text-[11px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand-primary/20 cursor-pointer"
+              >
+                Close Guide
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Safe & Secure Guarantee */}
+      <section className="space-y-6 bg-white/[0.02] border border-white/5 rounded-[3rem] p-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight">Mobile Native Compatibility</h2>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Capacitor 8.x + Offline Support + Adhan Notifications</p>
+          </div>
         </div>
-        <div className="flex-1 text-center md:text-left space-y-2">
-          <h3 className="text-lg font-black text-white uppercase tracking-tighter">Universal Web Access</h3>
-          <p className="text-xs text-slate-400 font-medium">Add to your Home Screen directly from your browser for light-weight sanctuary access without a download.</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[
+            { step: "01", title: "Local Notifications", desc: "Native local notifications configured for all 5 daily prayers and Adhan." },
+            { step: "02", title: "Offline Holy Quran", desc: "Cached Quran text, Arabic fonts, and translations for offline access." },
+            { step: "03", title: "Instant Sync", desc: "Automatic Firestore cloud synchronization of Hasanat, Duas, and memorisation progress." }
+          ].map((item, i) => (
+            <div key={i} className="space-y-2">
+              <span className="text-2xl font-black text-brand-primary/30 font-mono">{item.step}</span>
+              <h4 className="text-sm font-black text-white uppercase tracking-tight">{item.title}</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-medium">{item.desc}</p>
+            </div>
+          ))}
         </div>
-        <button className="px-8 py-4 bg-white/5 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 hover:bg-white/10 transition-colors">
-          View Guide
-        </button>
       </section>
-
-      <div className="flex justify-center gap-4 text-slate-600">
-        <SmartphoneNfc size={20} />
-        <Globe size={20} />
-        <CheckCircle2 size={20} />
-      </div>
-
-      <footer className="text-center pt-8">
-         <div className="inline-flex items-center gap-2 bg-rose-500/10 text-rose-400 px-4 py-2 rounded-full border border-rose-500/10">
-            <Info size={12} />
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em]">Beta Build • Use with Reflection</p>
-         </div>
-      </footer>
     </div>
   );
 }

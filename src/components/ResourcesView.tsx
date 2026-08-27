@@ -37,13 +37,16 @@ import {
   ArrowRight,
   Copy,
   Check,
-  Award
+  Award,
+  Heart,
+  Lock
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
 import HadithLibraryView from './HadithLibraryView.tsx';
 import FeedView from './FeedView.tsx';
 import ToolsView from './ToolsView.tsx';
 import AdhkarView from './AdhkarView.tsx';
+import MarriageDuasCategoryView from './MarriageDuasCategoryView.tsx';
 import ZakatCalculator from './ZakatCalculator.tsx';
 import IslamicGuides from './IslamicGuides.tsx';
 import NamesOfAllahView from './NamesOfAllahView.tsx';
@@ -59,6 +62,7 @@ import QiblaView from './QiblaView.tsx';
 import HijriCalendarView from './HijriCalendarView.tsx';
 import HifzMemorizeView from './HifzMemorizeView.tsx';
 import KhatamJourneyView from './KhatamJourneyView.tsx';
+import TrialExpiredPaywallModal from './TrialExpiredPaywallModal.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
@@ -85,7 +89,7 @@ interface ResourcesViewProps {
   currentUser: any;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system' | 'marriage_duas' | 'dua_categories';
 
 export default function ResourcesView({
   selectedSurah,
@@ -111,9 +115,28 @@ export default function ResourcesView({
   const [isListening, setIsListening] = useState(false);
   const [selectedAnatomyTab, setSelectedAnatomyTab] = useState<'map' | 'navigation' | 'conservatory' | 'rewards' | 'market' | 'auth'>('map');
   const [copyStatus, setCopyStatus] = useState<string>('Copy Developer Prompt');
+  const [lockedFeatureModal, setLockedFeatureModal] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const FREE_RESOURCE_IDS = [
+    'quran',
+    'prayer_times',
+    'mosques',
+    'qibla',
+    'tasbih',
+    'tools',
+    'adhkar',
+    'names',
+    'marriage_duas',
+    'dua_categories',
+    'calendar',
+    'offline',
+    'creators',
+    'about-creators',
+    'chat'
+  ];
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -153,14 +176,36 @@ export default function ResourcesView({
 
   const categories = [
     {
+      title: 'DUA CATEGORIES',
+      cards: [
+        { 
+          id: 'marriage_duas', 
+          title: 'Marriage & Spousal Duas', 
+          icon: Heart, 
+          image: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800' 
+        },
+        { 
+          id: 'adhkar', 
+          title: 'Daily Athkar & Duas', 
+          icon: Moon, 
+          image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' 
+        },
+        { 
+          id: 'guides', 
+          title: 'Islamic Wisdom & Etiquettes', 
+          icon: GraduationCap, 
+          image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' 
+        },
+      ]
+    },
+    {
       title: 'DEEN',
       cards: [
         { id: 'prayer_times', title: 'Prayer Times', icon: Clock, image: 'https://images.unsplash.com/photo-1565552645632-d725f8bfc19a?auto=format&fit=crop&q=80&w=800' },
         { id: 'quran', title: 'Quran', icon: BookOpen, image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800' },
         { id: 'tasbih', title: 'Tasbih', icon: History, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
         { id: 'qibla', title: 'Qibla', icon: Compass, image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=800' },
-        { id: 'adhkar', title: 'Duas & Adhkar', icon: Moon, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
-        { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800' },
+        { id: 'khatam', title: 'Khatam Journey', icon: Star, image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800' },
         { id: 'mosques', title: 'Sanctuaries Near You', icon: MapPin, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' },
         { id: 'immerse', title: 'Immersion', icon: Eye, image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
         { id: 'memorise', title: 'Aliyah Memorise', icon: Brain, image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800' },
@@ -191,6 +236,7 @@ export default function ResourcesView({
     {
       title: 'COMMUNITY',
       cards: [
+        { id: 'creators', title: 'About App Creators', icon: Heart, image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=600', premium: false },
         { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300', premium: false },
         { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300', premium: false },
         { id: 'offline', title: 'Offline Sanctuary', icon: WifiOff, image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=300', premium: false }
@@ -205,11 +251,18 @@ export default function ResourcesView({
     }
   ];
 
-  const handleCardClick = (id: string) => {
+  const handleCardClick = (id: string, title?: string) => {
+    const isFree = FREE_RESOURCE_IDS.includes(id);
+    if (!isPremium && !isFree) {
+      setLockedFeatureModal(title || id);
+      return;
+    }
     if (id === 'chat') {
       navigate('/chat');
     } else if (id === 'companion') {
       navigate('/companion');
+    } else if (id === 'creators' || id === 'about-creators') {
+      navigate('/about-creators');
     } else if (id === 'market') {
       navigate('/market');
     } else if (id === 'activity' || id === 'notifications') {
@@ -312,11 +365,13 @@ export default function ResourcesView({
                       {/* Featured Hero for each category */}
                       {(() => {
                         const Icon = filteredCards[0].icon;
+                        const isCardLocked = !isPremium && !FREE_RESOURCE_IDS.includes(filteredCards[0].id);
                         return (
                           <motion.button
+                            id={`tour-resource-${filteredCards[0].id}`}
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => handleCardClick(filteredCards[0].id)}
+                            onClick={() => handleCardClick(filteredCards[0].id, filteredCards[0].title)}
                             className="md:col-span-8 relative h-80 rounded-[3rem] overflow-hidden group shadow-2xl border border-white/5 bg-brand-depth/40"
                           >
                             <img 
@@ -329,6 +384,13 @@ export default function ResourcesView({
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                             
+                            {isCardLocked && (
+                              <div className="absolute top-6 right-6 px-4 py-2 bg-black/80 backdrop-blur-md rounded-2xl border border-amber-500/40 flex items-center gap-2 text-amber-400 z-10 shadow-xl">
+                                <Lock size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Premium</span>
+                              </div>
+                            )}
+
                             <span className="absolute inset-x-12 bottom-12 flex flex-col md:flex-row items-end justify-between gap-8 text-left">
                               <span className="space-y-4">
                                 <span className="w-20 h-20 bg-brand-primary rounded-[2.5rem] flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/20">
@@ -340,7 +402,7 @@ export default function ResourcesView({
                                 </span>
                               </span>
                               <span className="px-10 py-5 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-primary transition-colors flex items-center gap-4">
-                                Open Module <ArrowRight size={18} />
+                                {isCardLocked ? 'Unlock Module' : 'Open Module'} <ArrowRight size={18} />
                               </span>
                             </span>
 
@@ -353,12 +415,14 @@ export default function ResourcesView({
                       <div className="md:col-span-4 grid grid-cols-2 gap-4">
                         {filteredCards.slice(1, 5).map((card) => {
                           const CardIcon = card.icon;
+                          const isSideCardLocked = !isPremium && !FREE_RESOURCE_IDS.includes(card.id);
                           return (
                             <motion.button
-                              key={card.id}
+                              id={`tour-resource-${card.id}`}
+                              key={`${category.title}-${card.id}`}
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => handleCardClick(card.id)}
+                              onClick={() => handleCardClick(card.id, card.title)}
                               className="relative aspect-square rounded-[2rem] overflow-hidden group border border-white/5 shadow-xl bg-brand-depth/40"
                             >
                               <img 
@@ -379,11 +443,15 @@ export default function ResourcesView({
                                 <span className="block text-[10px] font-black text-white uppercase tracking-widest">{card.title}</span>
                               </span>
                               
-                              {(card as any).premium && (
+                              {isSideCardLocked ? (
+                                <div className="absolute top-3 right-3 p-1.5 bg-black/80 backdrop-blur-md rounded-xl border border-amber-500/40 text-amber-400 shadow-md">
+                                  <Lock size={12} />
+                                </div>
+                              ) : (card as any).premium ? (
                                 <div className="absolute top-4 right-4 text-amber-500">
                                   <Star size={10} fill="currentColor" />
                                 </div>
-                              )}
+                              ) : null}
                             </motion.button>
                           );
                         })}
@@ -395,18 +463,24 @@ export default function ResourcesView({
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                          {filteredCards.slice(5).map((card) => {
                            const ListIcon = card.icon;
+                           const isListLocked = !isPremium && !FREE_RESOURCE_IDS.includes(card.id);
                            return (
                              <motion.button
-                               key={card.id}
+                               key={`${category.title}-${card.id}`}
                                whileHover={{ scale: 1.02 }}
                                whileTap={{ scale: 0.98 }}
-                               onClick={() => handleCardClick(card.id)}
+                               onClick={() => handleCardClick(card.id, card.title)}
                                className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/5 hover:border-brand-primary/30 transition-all group"
                              >
                                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-brand-primary transition-colors">
                                   <ListIcon size={18} />
                                 </div>
                                 <span className="text-[10px] font-bold text-white uppercase tracking-widest">{card.title}</span>
+                                {isListLocked && (
+                                  <div className="ml-auto text-amber-400 p-1">
+                                    <Lock size={12} />
+                                  </div>
+                                )}
                              </motion.button>
                            );
                          })}
@@ -807,9 +881,16 @@ export default function ResourcesView({
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {activeRes === 'mosques' && <NearbyMosquesMap />}
                   {activeRes === 'qibla' && <QiblaView />}
-                  {(activeRes === 'tools' || activeRes === 'tasbih') && <ToolsView />}
+                  {(activeRes === 'tools' || activeRes === 'tasbih') && <ToolsView addHasanat={addHasanat} />}
                  {activeRes === 'adhkar' && <AdhkarView addHasanat={addHasanat} incrementDua={incrementDua} searchQuery={searchQuery} />}
                  {activeRes === 'names' && <NamesOfAllahView searchQuery={searchQuery} />}
+                 {(activeRes === 'marriage_duas' || activeRes === 'dua_categories') && (
+                   <MarriageDuasCategoryView 
+                     addHasanat={addHasanat} 
+                     incrementDua={incrementDua} 
+                     searchQuery={searchQuery} 
+                   />
+                 )}
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView isPremium={isPremium} onShowPremium={onShowPremium} />}
                  {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
@@ -888,6 +969,26 @@ export default function ResourcesView({
             )}
          </AnimatePresence>
       </div>
+
+      {lockedFeatureModal && (
+        <TrialExpiredPaywallModal
+          currentUser={currentUser}
+          featureName={lockedFeatureModal}
+          onUnlocked={() => {
+            setLockedFeatureModal(null);
+            if (onShowPremium) onShowPremium();
+          }}
+          onOpenFullGateway={onShowPremium}
+          onContinueFree={() => {
+            setLockedFeatureModal(null);
+            setActiveRes(null);
+          }}
+          onClose={() => {
+            setLockedFeatureModal(null);
+            setActiveRes(null);
+          }}
+        />
+      )}
     </div>
   );
 }

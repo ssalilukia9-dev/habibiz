@@ -18,17 +18,95 @@ export interface IslamicTeachingItem {
   category: 'hadith_pearls' | 'quran_insights' | 'akhlaq_character' | 'daily_reminders' | 'prophetic_sunnah' | 'spirituality';
   categoryLabel?: string;
   arabicText?: string;
+  arabic?: string;
   content: string;
   scholarOrSource?: string;
+  scholar?: string;
   featured?: boolean;
+  isVisible?: boolean;
   likes?: number;
   views?: number;
   createdAt: string;
   addedBy?: string;
 }
 
+export const ISLAMIC_IMAGE_PRESETS = [
+  { label: '🕌 Mosque Minarets', url: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000' },
+  { label: '🕋 Sacred Kaaba', url: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000' },
+  { label: '📜 Quran Manuscript', url: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000' },
+  { label: '🌿 Tranquil Mountain', url: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000' },
+  { label: '✨ Sacred Arch & Lantern', url: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000' },
+  { label: '🌅 Golden Fajr Dawn', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1000' },
+  { label: '🌙 Crescent & Stars', url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=1000' },
+  { label: '💧 Pure Stream', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000' }
+];
+
+/**
+ * Compress an image file to a lightweight data URL for Firestore direct storage
+ */
+export function compressImageFile(file: File, maxWidth = 1200, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Selected file is not an image'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        // Try WebP first for optimal compression, fallback to JPEG
+        try {
+          const webpData = canvas.toDataURL('image/webp', quality);
+          if (webpData && webpData.startsWith('data:image/webp')) {
+            resolve(webpData);
+            return;
+          }
+        } catch {}
+        const jpegData = canvas.toDataURL('image/jpeg', quality);
+        resolve(jpegData || (e.target?.result as string));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // Built-in starter collection of Sacred Islamic Wisdom & Teachings
 export const DEFAULT_ISLAMIC_TEACHINGS: IslamicTeachingItem[] = [
+  {
+    id: 'wisdom_sahih_muslim_2739',
+    title: 'Supplication for Continual Blessing & Well-Being (Sahih Muslim 2739)',
+    imageUrl: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+    category: 'hadith_pearls',
+    categoryLabel: 'Hadith Pearls',
+    arabicText: 'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ زَوَالِ نِعْمَتِكَ، وَتَحَوُّلِ عَافِيَتِكَ، وَفُجَاءَةِ نِقْمَتِكَ، وَجَمِيعِ سَخَطِكَ',
+    content: 'The Messenger of Allah (ﷺ) used to supplicate: "O Allah, I seek refuge in You from the cessation of Your blessings, the turning away of Your good health and safety, the suddenness of Your punishment, and all of Your displeasure." (Sahih Muslim 2739)',
+    scholarOrSource: 'Sahih Muslim (2739) • Abdullah bin Umar',
+    featured: true,
+    isVisible: true,
+    likes: 780,
+    views: 3420,
+    createdAt: new Date('2026-01-01').toISOString()
+  },
   {
     id: 'wisdom_kindness_creation',
     title: 'Mercy Towards All Living Creatures',
@@ -39,6 +117,7 @@ export const DEFAULT_ISLAMIC_TEACHINGS: IslamicTeachingItem[] = [
     content: 'The Prophet Muhammad (ﷺ) said: "The merciful will be shown mercy by the Most Merciful. Be merciful to those on the earth, and the One in the heavens will have mercy upon you." (Sunan al-Tirmidhi 1924)',
     scholarOrSource: 'Sunan al-Tirmidhi (Sahih)',
     featured: true,
+    isVisible: true,
     likes: 342,
     views: 1820,
     createdAt: new Date('2026-01-01').toISOString()
@@ -204,6 +283,7 @@ export class IslamicWisdomService {
               content: data.content || '',
               scholarOrSource: data.scholarOrSource || 'Islamic Classical Tradition',
               featured: !!data.featured,
+              isVisible: data.isVisible !== false,
               likes: data.likes || 0,
               views: data.views || 0,
               createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
@@ -354,6 +434,25 @@ export class IslamicWisdomService {
       return true;
     } catch (e) {
       console.warn("Firestore featured toggle fallback:", e);
+      return true;
+    }
+  }
+
+  /**
+   * Toggle Visibility status (Admin control)
+   */
+  static async toggleVisibility(teachingId: string, currentVisible: boolean): Promise<boolean> {
+    const nextVisible = !currentVisible;
+    const current = this.getLocalTeachings();
+    const updated = current.map(t => t.id === teachingId ? { ...t, isVisible: nextVisible } : t);
+    this.saveLocalTeachings(updated);
+
+    try {
+      const docRef = doc(db, 'islamic_teachings', teachingId);
+      await setDoc(docRef, { isVisible: nextVisible, updatedAt: serverTimestamp() }, { merge: true });
+      return true;
+    } catch (e) {
+      console.warn("Firestore visibility toggle fallback:", e);
       return true;
     }
   }

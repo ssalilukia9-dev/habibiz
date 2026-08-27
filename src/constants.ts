@@ -127,7 +127,7 @@ export const NAVIGATION_TABS = [
   { id: 'chat', label: 'Habibi Chat', icon: 'MessageCircle' },
   { id: 'market', label: 'Market', icon: 'ShoppingBag' },
   { id: 'settings', label: 'Diagnostics', icon: 'Settings' },
-  { id: 'premium', label: 'Premium', icon: 'Sparkles' }
+  { id: 'premium', label: 'Premium', icon: 'Crown' }
 ];
 
 export const LANGUAGES = [

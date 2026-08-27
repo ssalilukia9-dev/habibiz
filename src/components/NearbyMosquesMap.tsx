@@ -199,16 +199,23 @@ export default function NearbyMosquesMap() {
 
         // Fetch real-time OpenStreetMap / Overpass mosques around user
         try {
-          const query = `[out:json][timeout:15];node(around:8000,${latitude},${longitude})["amenity"="place_of_worship"]["religion"="muslim"];out;`;
+          const query = `[out:json][timeout:10];node(around:8000,${latitude},${longitude})["amenity"="place_of_worship"]["religion"="muslim"];out;`;
           const mirrors = [
             'https://overpass-api.de/api/interpreter',
-            'https://overpass.kumi.systems/api/interpreter'
+            'https://overpass.kumi.systems/api/interpreter',
+            'https://lz4.overpass-api.de/api/interpreter',
+            'https://overpass.osm.ch/api/interpreter'
           ];
           
           let fetched: any[] = [];
           for (const mirror of mirrors) {
             try {
-              const res = await fetch(`${mirror}?data=${encodeURIComponent(query)}`);
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 3500);
+              const res = await fetch(`${mirror}?data=${encodeURIComponent(query)}`, {
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
               if (res.ok) {
                 const data = await res.json();
                 if (data.elements && data.elements.length > 0) {
@@ -216,8 +223,8 @@ export default function NearbyMosquesMap() {
                   break;
                 }
               }
-            } catch (e) {
-              console.warn("Overpass mirror error:", e);
+            } catch {
+              // Silently try next mirror
             }
           }
 

@@ -19,7 +19,8 @@ import {
   Check,
   Languages,
   Coffee,
-  Heart
+  Heart,
+  Users
 } from 'lucide-react';
 import { 
   doc, 
@@ -58,7 +59,8 @@ const iconMap: Record<string, any> = {
   Shield,
   Award,
   Sparkles,
-  Heart
+  Heart,
+  Users
 };
 
 const ADHKAR: DhikrCategory[] = ALL_ADHKAR_CATEGORIES.map(cat => ({
@@ -71,14 +73,16 @@ const ADHKAR: DhikrCategory[] = ALL_ADHKAR_CATEGORIES.map(cat => ({
 export default function AdhkarView({
   addHasanat,
   incrementDua,
-  searchQuery = ''
+  searchQuery = '',
+  initialCategory = 'all'
 }: {
   addHasanat: (amount: number) => void;
   incrementDua: () => void;
   searchQuery?: string;
+  initialCategory?: string;
 }) {
   const [activeTab, setActiveTab] = useState<'adhkar' | 'names'>('adhkar');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
   const [counterMap, setCounterMap] = useState<Record<string, number>>({});
   const [playbackState, setPlaybackState] = useState<VoicePlaybackState>(VoiceService.getState());

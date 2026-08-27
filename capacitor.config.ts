@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'co.median.android.jboner',
-  appName: 'Sanctuary',
+  appName: 'Habibi Sanctuary',
   webDir: 'dist',
   backgroundColor: '#0b0614',
   android: {
@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
   plugins: {
     LocalNotifications: {
       smallIcon: 'ic_launcher',
-      iconColor: '#A855F7',
+      iconColor: '#10b981',
       sound: 'adhan.wav'
     },
     CapacitorHttp: {

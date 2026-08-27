@@ -1,76 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Volume2, VolumeX, Watch, ArrowRight } from 'lucide-react';
+import { Volume2, VolumeX, ArrowRight, Sparkles, Moon } from 'lucide-react';
 import habibiFocusSplashBg from '../assets/images/habibi_focus_splash_1786912886877.jpg';
+import FirdawsLogo from './FirdawsLogo';
 
 interface SplashScreenProps {
   onEnter?: () => void;
 }
 
 export default function SplashScreen({ onEnter }: SplashScreenProps) {
-  // Stage 1: 'aloha' (First to appear), Stage 2: 'sanctuary' (Original sanctuary splash screen matching Aloha theme)
-  const [currentStage, setCurrentStage] = useState<'aloha' | 'sanctuary'>('aloha');
+  // 3 distinct animated sequential splash screens:
+  // 1. 'aloha' (Official Aloha Group of Companies)
+  // 2. 'firdaws' (Official Firdaws Charity Organization)
+  // 3. 'habibi' (Habibi Sanctuary Haven with majestic animated background & crescent)
+  const [currentScreen, setCurrentScreen] = useState<'aloha' | 'firdaws' | 'habibi'>('aloha');
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [progress, setProgress] = useState(0);
 
-  // Gentle synthesized spiritual chime using Web Audio API in 528Hz Solfeggio frequency
+  // Synthesized harmonic crystal chime (528Hz Solfeggio frequency)
   const playHarmonicChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
-      const frequencies = [528, 660, 792, 1056]; // Sacred harmonics
+      const frequencies = [528, 660, 792, 1056, 1320];
       
       frequencies.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.14);
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.1);
         
-        gain.gain.setValueAtTime(0.001, ctx.currentTime + idx * 0.14);
-        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + idx * 0.14 + 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.14 + 2.5);
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + idx * 0.1 + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.1 + 2.4);
         
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + idx * 0.14);
-        osc.stop(ctx.currentTime + idx * 0.14 + 2.8);
+        osc.start(ctx.currentTime + idx * 0.1);
+        osc.stop(ctx.currentTime + idx * 0.1 + 2.8);
       });
     } catch (e) {
       console.warn("Audio chime skipped:", e);
     }
   };
 
-  // Stage 1: Aloha Splash (Runs for 2.6 seconds, then transitions into sanctuary stage)
+  // Screen 1: Aloha Display for 2.8 seconds -> Screen 2: Firdaws
   useEffect(() => {
-    if (currentStage === 'aloha') {
-      const alohaTimer = setTimeout(() => {
-        setCurrentStage('sanctuary');
-      }, 2600);
-      return () => clearTimeout(alohaTimer);
+    if (currentScreen === 'aloha') {
+      const timer = setTimeout(() => {
+        setCurrentScreen('firdaws');
+      }, 2800);
+      return () => clearTimeout(timer);
     }
-  }, [currentStage]);
+  }, [currentScreen]);
 
-  // Stage 2: Sanctuary loading progress (5 seconds smooth progress)
+  // Screen 2: Firdaws Display for 2.8 seconds -> Screen 3: Habibi
   useEffect(() => {
-    if (currentStage === 'sanctuary') {
-      const stepDurationMs = 50;
-      const timer = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(timer);
-            setTimeout(() => {
-              if (onEnter) onEnter();
-            }, 350);
-            return 100;
-          }
-          return prev + 1;
-        });
-      }, stepDurationMs);
-
-      return () => clearInterval(timer);
+    if (currentScreen === 'firdaws') {
+      const timer = setTimeout(() => {
+        setCurrentScreen('habibi');
+      }, 2800);
+      return () => clearTimeout(timer);
     }
-  }, [currentStage, onEnter]);
+  }, [currentScreen]);
+
+  // Screen 3: Habibi Display for 3.5 seconds -> Enter application
+  useEffect(() => {
+    if (currentScreen === 'habibi') {
+      const timer = setTimeout(() => {
+        if (onEnter) onEnter();
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentScreen, onEnter]);
 
   const handleSoundToggle = () => {
     if (!soundEnabled) {
@@ -79,189 +81,248 @@ export default function SplashScreen({ onEnter }: SplashScreenProps) {
     setSoundEnabled(!soundEnabled);
   };
 
-  const handleSkipAll = () => {
+  const handleSkip = () => {
     if (onEnter) onEnter();
   };
 
   return (
     <motion.div 
       initial={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
+      exit={{ opacity: 0, scale: 1.03, filter: 'blur(14px)' }}
       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-between overflow-hidden select-none"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden select-none"
     >
+      {/* Top subtle floating controls (Sound & Skip) */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-3">
+        <button
+          onClick={handleSoundToggle}
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md backdrop-blur-md ${
+            currentScreen === 'aloha'
+              ? 'bg-[#0A3656]/10 text-[#0A3656] hover:bg-[#0A3656]/20 border border-[#0A3656]/20'
+              : currentScreen === 'firdaws'
+              ? 'bg-[#031F19]/80 text-[#F5D061] border border-emerald-700/40 hover:bg-[#031F19]'
+              : 'bg-[#06121C]/80 text-[#F5D061] border border-white/15 hover:bg-white/10'
+          }`}
+          title={soundEnabled ? "Mute Sound" : "Play Harmonic Chime (528Hz)"}
+        >
+          {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+        </button>
+
+        <button
+          onClick={handleSkip}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md active:scale-95 backdrop-blur-md ${
+            currentScreen === 'aloha'
+              ? 'bg-[#0A3656] text-[#F5EDE0] hover:bg-[#06243A]'
+              : currentScreen === 'firdaws'
+              ? 'bg-gradient-to-r from-[#D4AF37] to-[#F5D061] text-[#031F19] hover:brightness-110 shadow-[#D4AF37]/30'
+              : 'bg-gradient-to-r from-[#C58F54] to-[#E2B789] text-[#06121C] hover:brightness-110 shadow-[#C58F54]/30'
+          }`}
+        >
+          <span>Skip</span>
+          <ArrowRight size={12} />
+        </button>
+      </div>
+
       <AnimatePresence mode="wait">
         {/* ========================================================================= */}
-        {/* STAGE 1: FIRST TO APPEAR - ALOHA GROUP OF COMPANIES SPLASH SCREEN        */}
+        {/* 1. SEPARATE SCREEN 1: ALOHA GROUP OF COMPANIES (ANIMATED LUXURY REPLICA)  */}
         {/* ========================================================================= */}
-        {currentStage === 'aloha' && (
+        {currentScreen === 'aloha' && (
           <motion.div
-            key="aloha-splash"
+            key="screen-aloha"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05, filter: 'blur(8px)' }}
+            exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }}
             transition={{ duration: 0.7 }}
-            className="absolute inset-0 bg-[#F4EFE6] flex flex-col items-center justify-between p-6 md:p-12 overflow-hidden"
+            className="absolute inset-0 bg-[#F5EDE0] flex flex-col items-center justify-center p-6 text-center overflow-hidden"
           >
-            {/* Soft Warm Linen Background Overlay & Radial Glow */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.92)_0%,rgba(244,239,230,0.65)_60%,rgba(230,222,208,0.95)_100%)]" />
+            {/* Ambient Radial Lighting & Elegant Rotating Geometry */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7)_0%,rgba(245,237,224,0.9)_60%,rgba(235,224,208,1)_100%)] pointer-events-none" />
             
-            {/* Floating Aloha Gold & Teal Particles */}
-            <div className="absolute inset-0 pointer-events-none">
+            {/* Subtle Animated Compass & Concentric Rings */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
+                className="w-[480px] h-[480px] sm:w-[650px] sm:h-[650px] rounded-full border border-[#C58F54]/30 border-dashed"
+              />
+              <div className="absolute w-[360px] h-[360px] sm:w-[480px] sm:h-[480px] rounded-full border border-[#0A3656]/15" />
+            </div>
+
+            {/* Floating Soft Dust Particles */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
               {[...Array(14)].map((_, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0.15, y: '100vh', x: `${i * 7}vw` }}
-                  animate={{ opacity: [0.15, 0.45, 0.15], y: '-10vh' }}
-                  transition={{ duration: 6 + (i % 3), repeat: Infinity, ease: 'linear' }}
-                  className="absolute w-1.5 h-1.5 rounded-full bg-[#C58F54]/50 blur-[0.5px]"
+                  initial={{ opacity: 0.2, y: '105vh', x: `${i * 7.2}vw` }}
+                  animate={{ opacity: [0.2, 0.65, 0.2], y: '-10vh' }}
+                  transition={{ duration: 5 + (i % 3), repeat: Infinity, ease: 'linear', delay: i * 0.25 }}
+                  className="absolute w-1.5 h-1.5 rounded-full bg-gradient-to-tr from-[#C58F54] to-[#0A3656] opacity-40"
                 />
               ))}
             </div>
 
-            {/* Top Bar with Skip */}
-            <header className="relative z-10 w-full max-w-5xl flex items-center justify-between">
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0A2A3F]/5 border border-[#0A2A3F]/10">
-                <span className="w-2 h-2 rounded-full bg-[#C58F54] animate-pulse" />
-                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-[#0A2A3F]/80">
-                  Global Partner
-                </span>
+            {/* Center Animated Brand Lockup */}
+            <motion.div
+              initial={{ scale: 0.88, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8 max-w-xl mx-auto"
+            >
+              {/* Four Stylized Waves with Staggered Fluid Wave Animation */}
+              <div className="w-32 h-24 sm:w-40 sm:h-30 shrink-0 filter drop-shadow-md">
+                <svg viewBox="0 0 200 160" className="w-full h-full" fill="none">
+                  {/* Top Wave 1 (Tan Gold) */}
+                  <motion.path
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 0.9, delay: 0.1, ease: "easeOut" }}
+                    d="M 95 32 C 120 16, 150 14, 180 26 C 150 32, 125 42, 100 59 C 80 46, 87 36, 95 32 Z"
+                    fill="#C58F54"
+                  />
+                  {/* Top Wave 2 (Tan Gold Light) */}
+                  <motion.path
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 0.9, delay: 0.22, ease: "easeOut" }}
+                    d="M 70 56 C 100 36, 140 34, 185 54 C 150 64, 110 74, 75 89 C 60 76, 65 62, 70 56 Z"
+                    fill="#B8824A"
+                  />
+                  {/* Bottom Wave 3 (Deep Royal Navy) */}
+                  <motion.path
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 0.9, delay: 0.34, ease: "easeOut" }}
+                    d="M 27 92 C 55 72, 100 72, 145 96 C 170 110, 180 110, 180 110 C 145 122, 100 120, 60 102 C 43 94, 30 92, 27 92 Z"
+                    fill="#0A3656"
+                  />
+                  {/* Bottom Wave 4 (Darkest Navy) */}
+                  <motion.path
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 0.9, delay: 0.46, ease: "easeOut" }}
+                    d="M 5 122 C 40 98, 90 100, 135 130 C 165 148, 180 146, 180 146 C 140 162, 85 156, 40 132 C 20 122, 10 122, 5 122 Z"
+                    fill="#062A45"
+                  />
+                </svg>
               </div>
 
-              <button
-                onClick={() => setCurrentStage('sanctuary')}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#0A2A3F]/10 hover:bg-[#0A2A3F]/15 text-[10px] font-black uppercase tracking-widest text-[#0A2A3F] transition-all cursor-pointer border border-[#0A2A3F]/15"
+              {/* Animated Typography */}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                className="text-center sm:text-left flex flex-col justify-center"
               >
-                <span>Continue</span>
-                <ArrowRight size={12} />
-              </button>
-            </header>
-
-            {/* Center: Aloha Authentic Wave Logo & Typography */}
-            <div className="relative z-10 flex flex-col items-center text-center my-auto space-y-6 max-w-md">
-              {/* Animated Wave Emblem + Wordmark Container */}
-              <motion.div
-                initial={{ scale: 0.85, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-                className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-6"
-              >
-                {/* Flowing Navy and Copper-Gold Waves SVG */}
-                <div className="w-24 h-20 md:w-32 md:h-24 shrink-0 relative filter drop-shadow-md">
-                  <svg viewBox="0 0 180 150" className="w-full h-full">
-                    <defs>
-                      <linearGradient id="alohaGoldUpper" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#E2B789" />
-                        <stop offset="100%" stopColor="#C58F54" />
-                      </linearGradient>
-                      <linearGradient id="alohaGoldLower" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#D4A373" />
-                        <stop offset="100%" stopColor="#A97138" />
-                      </linearGradient>
-                      <linearGradient id="alohaNavyUpper" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#1B4D6E" />
-                        <stop offset="100%" stopColor="#0D3049" />
-                      </linearGradient>
-                      <linearGradient id="alohaNavyLower" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#0F3B56" />
-                        <stop offset="100%" stopColor="#061C2C" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Top Gold Wave Upper */}
-                    <motion.path 
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 1 }}
-                      d="M 90 28 C 115 12, 145 10, 175 22 C 145 28, 120 38, 95 55 C 75 42, 82 32, 90 28 Z" 
-                      fill="url(#alohaGoldUpper)" 
-                    />
-                    
-                    {/* Middle Gold Wave Main */}
-                    <motion.path 
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 1, delay: 0.1 }}
-                      d="M 65 52 C 95 32, 135 30, 180 50 C 145 60, 105 70, 70 85 C 55 72, 60 58, 65 52 Z" 
-                      fill="url(#alohaGoldLower)" 
-                    />
-                    
-                    {/* Upper Navy Wave */}
-                    <motion.path 
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 1, delay: 0.2 }}
-                      d="M 22 88 C 50 68, 95 68, 140 92 C 165 106, 175 106, 175 106 C 140 118, 95 116, 55 98 C 38 90, 25 88, 22 88 Z" 
-                      fill="url(#alohaNavyUpper)" 
-                    />
-                    
-                    {/* Lower Deep Navy Wave */}
-                    <motion.path 
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 1, delay: 0.3 }}
-                      d="M 0 118 C 35 94, 85 96, 130 126 C 160 144, 175 142, 175 142 C 135 158, 80 152, 35 128 C 15 118, 5 118, 0 118 Z" 
-                      fill="url(#alohaNavyLower)" 
-                    />
-                  </svg>
-                </div>
-
-                {/* Typography: ALOHA Group of Companies */}
-                <div className="text-center sm:text-left leading-tight">
-                  <h1 className="text-4xl sm:text-5xl font-black tracking-[0.12em] text-[#0A2A3F] font-sans">
-                    ALOHA
-                  </h1>
-                  <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#0A2A3F]/80 mt-1">
-                    Group of Companies
-                  </p>
-                </div>
+                <h1 className="text-5xl sm:text-7xl font-black tracking-[0.06em] text-[#0A3656] font-sans leading-none">
+                  ALOHA
+                </h1>
+                <p className="text-lg sm:text-2xl font-medium text-[#0A3656] tracking-normal mt-2.5">
+                  Group of Companies
+                </p>
+                <p className="text-[10px] font-bold tracking-[0.25em] text-[#C58F54] uppercase mt-2">
+                  Precision • Innovation • Excellence
+                </p>
               </motion.div>
-
-              {/* Tagline */}
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-                className="text-[10px] font-black uppercase tracking-[0.35em] text-[#8C7A6B] pt-4 border-t border-[#0A2A3F]/10 w-full"
-              >
-                In Partnership with Digital Sanctuary
-              </motion.p>
-            </div>
-
-            {/* Bottom Footer */}
-            <footer className="relative z-10 text-center">
-              <span className="text-[9px] font-mono font-bold tracking-[0.25em] uppercase text-[#0A2A3F]/60">
-                Precision • Innovation • Excellence
-              </span>
-            </footer>
+            </motion.div>
           </motion.div>
         )}
 
         {/* ========================================================================= */}
-        {/* STAGE 2: REDESIGNED SANCTUARY SPLASH SCREEN (MATCHING ALOHA THEME)        */}
+        {/* 2. SEPARATE SCREEN 2: FIRDAWS CHARITY ORGANIZATION (ANIMATED PRESTIGE)    */}
         {/* ========================================================================= */}
-        {currentStage === 'sanctuary' && (
+        {currentScreen === 'firdaws' && (
           <motion.div
-            key="sanctuary-splash"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
+            key="screen-firdaws"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }}
+            transition={{ duration: 0.7 }}
+            className="absolute inset-0 bg-[#031F19] flex flex-col items-center justify-center p-6 text-center overflow-hidden"
+          >
+            {/* Sacred Emerald Gradient Depth & Radial Ambient Glow */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#02130F] via-[#031F19] to-[#042A22]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.2)_0%,rgba(212,175,55,0.08)_45%,transparent_75%)] pointer-events-none" />
+
+            {/* Glowing Golden Particle Sparks */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {[...Array(18)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0.2, y: '105vh', x: `${i * 5.6}vw` }}
+                  animate={{ opacity: [0.2, 0.8, 0.2], y: '-10vh' }}
+                  transition={{ duration: 4.5 + (i % 3), repeat: Infinity, ease: 'linear', delay: i * 0.2 }}
+                  className="absolute w-1.5 h-1.5 rounded-full bg-gradient-to-t from-[#D4AF37] to-[#FFF2B2] shadow-[0_0_10px_#F5D061]"
+                />
+              ))}
+            </div>
+
+            {/* Center Animated Firdaws Emblem */}
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 flex flex-col items-center space-y-5 max-w-md mx-auto"
+            >
+              {/* Radiant Glow behind Emblem */}
+              <div className="relative">
+                <motion.div 
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.75, 0.4] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 bg-[#D4AF37]/25 rounded-full blur-2xl -m-4 pointer-events-none"
+                />
+                
+                <div className="w-28 h-28 sm:w-36 sm:h-36 filter drop-shadow-[0_6px_30px_rgba(212,175,55,0.5)]">
+                  <FirdawsLogo variant="icon" size="xl" />
+                </div>
+              </div>
+
+              {/* Typography */}
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.25 }}
+                className="space-y-2"
+              >
+                <h2 className="text-4xl sm:text-5xl font-black tracking-[0.08em] text-white font-sans">
+                  FIRDAWS
+                </h2>
+                <p className="text-xs sm:text-sm font-black tracking-[0.25em] text-[#F5D061] uppercase">
+                  Charity Organization
+                </p>
+                <p className="text-sm sm:text-base font-serif italic text-emerald-300/90 pt-1">
+                  "Empowering Lives, Shaping Futures"
+                </p>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 3. SEPARATE SCREEN 3: HABIBI SANCTUARY (THE FULL MAJESTIC SPIRITUAL HAVEN)*/}
+        {/* ========================================================================= */}
+        {currentScreen === 'habibi' && (
+          <motion.div
+            key="screen-habibi"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
             transition={{ duration: 0.8 }}
-            className="absolute inset-0 bg-[#0A1C2A] flex flex-col items-center justify-between overflow-hidden"
+            className="absolute inset-0 bg-[#06121C] flex flex-col items-center justify-between p-6 sm:p-10 text-center overflow-hidden"
           >
-            {/* Background Islamic Calligraphy & Watercolor Splashes Art (splash.jpg / splash.svg) */}
+            {/* Background Texture & Sacred Calligraphy Depth with Parallax/Scale */}
             <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-75 md:opacity-90 scale-105 transform-gpu transition-all duration-1000"
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60 md:opacity-75 scale-105 transform-gpu transition-all duration-1000"
               style={{ 
-                backgroundImage: `url(/splash.jpg), url(https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?auto=format&fit=crop&q=85&w=1600), url(/splash.svg), url(${habibiFocusSplashBg})` 
+                backgroundImage: `url(/splash.jpg), url(https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?auto=format&fit=crop&q=85&w=1600), url(${habibiFocusSplashBg})` 
               }}
             />
 
-            {/* Aloha Deep Oceanic Navy & Warm Bronze Vignette Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#06121C] via-[#0A1C2A]/75 to-[#06121C]/90 backdrop-blur-[0.5px]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(197,143,84,0.25)_0%,rgba(27,77,110,0.2)_45%,transparent_80%)]" />
+            {/* Obsidian & Deep Oceanic Radial Glow Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#030910] via-[#06121C]/80 to-[#030910]/95 backdrop-blur-[0.5px]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(226,183,137,0.25)_0%,rgba(16,185,129,0.08)_40%,transparent_75%)] pointer-events-none" />
 
-            {/* Animated Floating Stardust Particles matching Aloha Bronze Gold */}
+            {/* Glowing Golden Floating Particles */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               {[...Array(24)].map((_, i) => (
                 <motion.div
@@ -269,158 +330,114 @@ export default function SplashScreen({ onEnter }: SplashScreenProps) {
                   initial={{ 
                     opacity: 0.2 + Math.random() * 0.7,
                     y: '105vh',
-                    x: `${(i * 4.2 + Math.random() * 6)}vw`,
+                    x: `${(i * 4.2 + Math.random() * 5)}vw`,
                     scale: 0.5 + Math.random() * 0.8
                   }}
                   animate={{ 
                     y: '-10vh',
-                    opacity: [0.15, 0.85, 0.15],
-                    scale: [0.5, 1.25, 0.4]
+                    opacity: [0.15, 0.9, 0.15],
+                    scale: [0.5, 1.3, 0.4]
                   }}
                   transition={{ 
-                    duration: 7 + Math.random() * 6,
+                    duration: 5.5 + Math.random() * 4,
                     repeat: Infinity,
                     ease: "linear",
-                    delay: (i * 0.3) % 4
+                    delay: (i * 0.2) % 3
                   }}
-                  className="absolute w-1.5 h-1.5 rounded-full bg-[#E2B789] shadow-[0_0_10px_#c58f54]"
+                  className="absolute w-1.5 h-1.5 rounded-full bg-gradient-to-t from-[#F5D061] to-[#FFE27A] shadow-[0_0_12px_#F5D061]"
                 />
               ))}
             </div>
 
-            {/* Top Header: ALOHA GROUP BADGE + ISIS WRIST + AUDIO CHIME + SKIP */}
-            <header className="relative z-20 w-full max-w-5xl mx-auto px-6 pt-6 md:pt-10 flex items-center justify-between gap-4">
-              {/* Aloha Group of Companies Brand Badge in Sanctuary */}
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
+            {/* Top Subtitle Brand Identifier */}
+            <div className="relative z-20 w-full flex items-center justify-center pt-2">
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
-                className="flex items-center gap-3 bg-[#06121C]/70 backdrop-blur-xl px-4 py-2.5 rounded-2xl border border-[#C58F54]/30 shadow-2xl"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#C58F54]/15 border border-[#C58F54]/30 rounded-full shadow-lg backdrop-blur-md"
               >
-                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#E2B789] to-[#C58F54] flex items-center justify-center text-[#06121C] font-black shadow-lg shadow-[#C58F54]/30 text-xs">
-                  🌴
-                </div>
-                <div className="leading-tight text-left">
-                  <span className="text-[11px] font-black text-[#E2B789] tracking-[0.25em] uppercase block">
-                    ALOHA
-                  </span>
-                  <span className="text-[8px] font-bold text-slate-300 tracking-widest uppercase block">
-                    GROUP OF COMPANIES
-                  </span>
-                </div>
+                <Sparkles size={12} className="text-[#F5D061] animate-pulse" />
+                <span className="text-[10px] font-mono font-black tracking-[0.28em] text-[#F5D061] uppercase">
+                  Aloha × Firdaws Sanctuary
+                </span>
               </motion.div>
+            </div>
 
-              {/* Right side: Isis Wrist + Audio Control + Skip */}
+            {/* Center Hero: Glowing 3D Crescent & Sacred Title */}
+            <div className="relative z-20 flex flex-col items-center text-center px-4 my-auto max-w-lg space-y-6">
+              {/* 3D Crescent Emblem with Pulsing Aura */}
               <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                className="flex items-center gap-3"
-              >
-                {/* Isis Wrist Companion Badge in Aloha Theme */}
-                <div className="hidden sm:flex items-center gap-2 bg-[#06121C]/70 backdrop-blur-xl px-3.5 py-2 rounded-2xl border border-[#1B4D6E]/50 shadow-xl">
-                  <Watch size={14} className="text-[#E2B789] animate-pulse" />
-                  <div className="leading-tight text-left">
-                    <span className="text-[10px] font-black text-[#E2B789] tracking-[0.2em] uppercase block">
-                      ISIS WRIST
-                    </span>
-                    <span className="text-[7px] font-bold text-slate-400 tracking-widest uppercase block">
-                      COMPANION
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSoundToggle}
-                  className="w-10 h-10 rounded-2xl bg-[#06121C]/70 backdrop-blur-xl border border-[#C58F54]/30 flex items-center justify-center text-[#E2B789] hover:text-white hover:bg-[#C58F54]/20 transition-all cursor-pointer shadow-lg"
-                  title={soundEnabled ? "Mute Sacred Sound" : "Play Sacred Sound (528Hz)"}
-                >
-                  {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-                </button>
-                
-                <button
-                  onClick={handleSkipAll}
-                  className="px-4 py-2 rounded-2xl bg-[#F4EFE6]/10 hover:bg-[#F4EFE6]/20 backdrop-blur-xl border border-[#F4EFE6]/20 text-[10px] font-black uppercase tracking-widest text-[#FDFBF7] transition-all cursor-pointer"
-                >
-                  Skip
-                </button>
-              </motion.div>
-            </header>
-
-            {/* Center Hero Branding: Aloha x Habibi + hami.code */}
-            <div className="relative z-20 flex flex-col items-center text-center px-4 my-auto max-w-2xl">
-              {/* Glowing Bronze-Gold Crescent Emblem in Aloha Oceanic Frame */}
-              <motion.div
-                initial={{ scale: 0.7, opacity: 0, y: 25 }}
+                initial={{ scale: 0.75, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
-                className="relative mb-6"
+                className="relative"
               >
                 <motion.div 
-                  animate={{ scale: [1, 1.08, 1], opacity: [0.35, 0.75, 0.35] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute inset-0 bg-[#C58F54]/30 rounded-full blur-2xl -m-6 pointer-events-none"
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.35, 0.8, 0.35] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 bg-gradient-to-tr from-[#C58F54]/40 via-[#F5D061]/30 to-[#10B981]/20 rounded-full blur-3xl -m-6 pointer-events-none"
                 />
 
-                <div className="w-28 h-28 md:w-36 md:h-36 rounded-[2.8rem] bg-gradient-to-b from-[#E2B789] via-[#C58F54] to-[#1B4D6E] p-[1.5px] shadow-[0_0_45px_rgba(197,143,84,0.45)] relative overflow-hidden group">
-                  <div className="w-full h-full bg-[#06121C]/95 backdrop-blur-xl rounded-[2.7rem] flex flex-col items-center justify-center text-[#E2B789] relative overflow-hidden">
-                    <span className="text-4xl md:text-5xl filter drop-shadow-[0_0_15px_rgba(197,143,84,0.9)]">
-                      🌙
-                    </span>
+                <div className="w-28 h-28 md:w-36 md:h-36 rounded-[2.8rem] bg-gradient-to-b from-[#FFE8A3] via-[#C58F54] to-[#0A2A3F] p-[2px] shadow-[0_0_50px_rgba(245,208,97,0.5)] relative overflow-hidden group">
+                  <div className="w-full h-full bg-[#040D15]/95 backdrop-blur-xl rounded-[2.7rem] flex flex-col items-center justify-center relative overflow-hidden p-2">
+                    {/* Glowing Sacred Crescent & Radiant Star */}
+                    <div className="relative flex items-center justify-center">
+                      <Moon 
+                        size={56} 
+                        className="text-[#F5D061] fill-[#F5D061]/25 transform -rotate-12 filter drop-shadow-[0_0_20px_rgba(245,208,97,0.9)]" 
+                      />
+                      <Sparkles 
+                        size={24} 
+                        className="text-white absolute -top-1 -right-1 animate-pulse filter drop-shadow-[0_0_12px_#ffffff]" 
+                      />
+                    </div>
                     
-                    {/* Light Sweep Animation */}
+                    {/* Dynamic Light Sweep */}
                     <motion.div 
-                      animate={{ x: ['-150%', '200%'] }}
+                      animate={{ x: ['-160%', '220%'] }}
                       transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.2 }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-[#E2B789]/35 to-transparent -skew-x-12 pointer-events-none"
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/35 to-transparent -skew-x-12 pointer-events-none"
                     />
                   </div>
                 </div>
               </motion.div>
 
-              {/* Title & hami.code badge in Aloha Theme */}
+              {/* Title & Slogan */}
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.9 }}
-                className="space-y-4"
+                className="space-y-3"
               >
-                {/* hami.code Pill in Aloha Bronze */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#C58F54]/15 border border-[#C58F54]/35 rounded-full shadow-lg">
-                  <Sparkles size={12} className="text-[#E2B789] animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold tracking-[0.25em] text-[#E2B789] uppercase">
-                    hami.code
-                  </span>
-                </div>
-
-                {/* Clean 2-Word App Name in Aloha Warm Linen-Gold Gradient */}
-                <h1 className="text-6xl md:text-8xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-[#FDFBF7] via-[#E2B789] to-[#C58F54] tracking-tight drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)]">
+                <h1 className="text-5xl md:text-7xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-[#FFFBF0] via-[#F5D061] to-[#C58F54] tracking-tight drop-shadow-[0_4px_30px_rgba(0,0,0,0.95)]">
                   habibi
                 </h1>
 
-                {/* Isis Wrist Mobile Badge for Small Screens */}
-                <div className="sm:hidden flex items-center justify-center gap-2 pt-2">
-                  <span className="text-[9px] font-black uppercase tracking-[0.25em] text-[#E2B789] bg-[#C58F54]/15 px-3 py-1 rounded-full border border-[#C58F54]/30">
-                    ISIS WRIST
-                  </span>
-                </div>
+                <p className="text-xs md:text-sm text-slate-300 max-w-sm mx-auto leading-relaxed font-medium">
+                  Your Heart’s Digital Spiritual Haven — Inspiring Peace, Precision Worship & Humanitarian Purpose.
+                </p>
               </motion.div>
             </div>
 
-            {/* Bottom Footer: Serene Sacred Inscription in Aloha Linen Gold */}
-            <footer className="relative z-20 w-full max-w-xl mx-auto px-6 pb-8 md:pb-12 text-center">
+            {/* Bottom Sacred Opening Inscription */}
+            <footer className="relative z-20 w-full max-w-md mx-auto text-center pb-4">
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 1, delay: 0.3 }}
-                className="flex flex-col items-center justify-center gap-2"
+                className="flex flex-col items-center justify-center gap-1.5"
               >
-                <span className="text-[#E2B789] font-serif text-lg md:text-xl tracking-wide drop-shadow-[0_2px_12px_rgba(197,143,84,0.6)]">
+                <span className="text-[#F5D061] font-serif text-lg md:text-xl tracking-wide drop-shadow-[0_2px_15px_rgba(245,208,97,0.7)]">
                   بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
                 </span>
-                <span className="text-[9px] font-mono font-bold tracking-[0.3em] uppercase text-[#CBD5E1]/80">
-                  Aloha Sanctuary • Spiritual Focus
-                </span>
+                <div className="flex items-center justify-center gap-2 text-[8px] font-mono font-bold tracking-[0.25em] uppercase text-slate-400">
+                  <span className="text-[#E2B789]">Aloha</span>
+                  <span className="text-[#C58F54]">•</span>
+                  <span className="text-[#10B981]">Firdaws</span>
+                  <span className="text-[#C58F54]">•</span>
+                  <span>Habibi Sanctuary</span>
+                </div>
               </motion.div>
             </footer>
           </motion.div>

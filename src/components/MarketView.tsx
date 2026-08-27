@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   Mic,
   Truck,
+  Shield,
   ShieldCheck,
   Check,
   CheckCircle2,
@@ -46,13 +47,15 @@ import {
   Share2,
   Flag,
   AlertTriangle,
-  AlertCircle
+  AlertCircle,
+  ZoomIn
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import CoinShopModal, { getStoredCoins, deductStoredCoins } from './CoinShopModal';
 import { STARTER_MARKET_LISTINGS } from '../data/marketData';
 import { shareService } from '../services/shareService';
 import { ActivityLoggerService } from '../services/activityLoggerService';
+import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal';
 import { 
   collection, 
   addDoc, 
@@ -90,7 +93,8 @@ export interface Listing {
   sellerId: string;
   sellerName: string;
   sellerPhoto?: string;
-  status: 'active' | 'sold' | 'deleted';
+  status: 'active' | 'sold' | 'deleted' | 'hidden';
+  isVisible?: boolean;
   createdAt: Timestamp | any;
   rating?: number;
   condition?: 'New' | 'Like New' | 'Good' | 'Fair';
@@ -165,6 +169,24 @@ export default function MarketView({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  // 🖼️ Universal Media Lightbox Expansion State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxMediaItems, setLightboxMediaItems] = useState<LightboxMediaItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openProductGalleryLightbox = (product: Listing, startIdx: number = 0) => {
+    const allPhotos = [product.imageUrl, ...(product.images || [])].filter(u => u && u.trim() !== '');
+    const items: LightboxMediaItem[] = allPhotos.map((url, idx) => ({
+      url,
+      title: `${product.title} (Photo ${idx + 1}/${allPhotos.length})`,
+      caption: `${product.description} • Price: ${product.price || (product.coinPrice ? product.coinPrice + ' Coins' : 'Free')}`,
+      author: `${product.sellerName || 'Verified Suq Merchant'} • ${product.cityLocation || 'Sanctuary Marketplace'}`
+    }));
+    setLightboxMediaItems(items.length > 0 ? items : [{ url: product.imageUrl, title: product.title, caption: product.description }]);
+    setLightboxIndex(Math.min(startIdx, Math.max(0, items.length - 1)));
+    setIsLightboxOpen(true);
+  };
 
   // Form State
   const [newListing, setNewListing] = useState({
@@ -437,8 +459,37 @@ export default function MarketView({
         setUserCoins(e.detail.coins);
       }
     };
+    const handleMarketSync = () => {
+      const localKey = 'sanctuary_local_market_listings';
+      const deletedKey = 'sanctuary_deleted_market_ids';
+      let deletedIds = new Set<string>();
+      try {
+        const storedDeleted = localStorage.getItem(deletedKey);
+        if (storedDeleted) deletedIds = new Set(JSON.parse(storedDeleted));
+      } catch (e) {}
+
+      const stored = localStorage.getItem(localKey);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setListings(parsed.filter((p: Listing) => !deletedIds.has(p.id)));
+          }
+        } catch (e) {}
+      }
+    };
+
     window.addEventListener('sanctuary_coins_updated', handleSync);
-    return () => window.removeEventListener('sanctuary_coins_updated', handleSync);
+    window.addEventListener('sanctuary_market_updated', handleMarketSync);
+    window.addEventListener('sanctuary_listing_deleted', handleMarketSync);
+    window.addEventListener('storage', handleMarketSync);
+
+    return () => {
+      window.removeEventListener('sanctuary_coins_updated', handleSync);
+      window.removeEventListener('sanctuary_market_updated', handleMarketSync);
+      window.removeEventListener('sanctuary_listing_deleted', handleMarketSync);
+      window.removeEventListener('storage', handleMarketSync);
+    };
   }, []);
 
   // Helper for generating WhatsApp Direct Chat link
@@ -460,44 +511,63 @@ export default function MarketView({
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  // Instant purchase with Noor Coins (Unlocks digital downloads immediately)
-  const handleBuyWithCoins = (product: Listing) => {
-    const coinCost = product.coinPrice || Math.round(product.price * 100);
+  // Instant purchase / unlock with Noor Coins (Unlocks cards and digital resources immediately without blocking alert/confirm)
+  const handleBuyWithCoins = (product: Listing, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const coinCost = product.coinPrice || (product.price > 0 ? Math.round(product.price * 100) : 100);
     const currentBalance = getStoredCoins();
+    
     if (currentBalance < coinCost && coinCost > 0) {
-      alert(`⚠️ Insufficient Noor Coins: You need ${coinCost.toLocaleString()} Coins (current balance: ${currentBalance.toLocaleString()}). You can exchange your Hasanat or get coins in the Coin Shop!`);
+      setPurchaseSuccessToast(`⚠️ Insufficient Noor Coins: You need ${coinCost.toLocaleString()} Coins (current balance: ${currentBalance.toLocaleString()}). Opening Coin Shop to exchange Hasanat...`);
       setIsCoinShopOpen(true);
       return;
     }
 
-    if (coinCost === 0 || confirm(`Confirm purchase of "${product.title}" for ${coinCost.toLocaleString()} Noor Coins?`)) {
-      const ok = coinCost === 0 ? true : deductStoredCoins(coinCost, activeUser);
-      if (ok) {
-        const updatedBalance = getStoredCoins();
-        setUserCoins(updatedBalance);
-        
-        // Credit seller if seller exists and is another user
-        if (product.sellerId && product.sellerId !== activeUser?.uid && !product.sellerId.startsWith('mock_')) {
-          try {
-            const sellerRef = doc(db, 'users', product.sellerId);
-            updateDoc(sellerRef, { coins: increment(coinCost) }).catch(e => console.warn("Seller coin credit:", e));
-          } catch (e) {
-            // ignore
-          }
+    const ok = coinCost === 0 ? true : deductStoredCoins(coinCost, activeUser);
+    if (ok) {
+      const updatedBalance = getStoredCoins();
+      setUserCoins(updatedBalance);
+      
+      // Credit seller if seller exists and is another user
+      if (product.sellerId && product.sellerId !== activeUser?.uid && !product.sellerId.startsWith('mock_')) {
+        try {
+          const sellerRef = doc(db, 'users', product.sellerId);
+          updateDoc(sellerRef, { coins: increment(coinCost) }).catch(err => console.warn("Seller coin credit:", err));
+        } catch (err) {
+          // ignore
         }
-
-        // Unlock download if digital
-        if (product.isDigital) {
-          const updated = { ...unlockedDownloads, [product.id]: true };
-          setUnlockedDownloads(updated);
-          localStorage.setItem('sanctuary_unlocked_downloads', JSON.stringify(updated));
-          setPurchaseSuccessToast(`🎉 Order Complete! Deducted ${coinCost.toLocaleString()} Noor Coins (New Balance: ${updatedBalance.toLocaleString()}). Your digital file "${product.downloadFileName || product.title}" is now unlocked for instant download!`);
-        } else {
-          setPurchaseSuccessToast(`🎉 Halal Order Confirmed! Deducted ${coinCost.toLocaleString()} Noor Coins (New Balance: ${updatedBalance.toLocaleString()}) for "${product.title}". The seller (${product.sellerName}) has been notified.`);
-        }
-
-        setTimeout(() => setPurchaseSuccessToast(null), 6000);
       }
+
+      // Unlock card and download
+      const updated = { ...unlockedDownloads, [product.id]: true };
+      setUnlockedDownloads(updated);
+      localStorage.setItem('sanctuary_unlocked_downloads', JSON.stringify(updated));
+
+      if (product.isDigital) {
+        setPurchaseSuccessToast(`🎉 Card Unlocked! Deducted ${coinCost.toLocaleString()} Noor Coins (New Balance: ${updatedBalance.toLocaleString()}). "${product.downloadFileName || product.title}" is now unlocked for instant download!`);
+      } else {
+        setPurchaseSuccessToast(`🎉 Card Unlocked! Deducted ${coinCost.toLocaleString()} Noor Coins (New Balance: ${updatedBalance.toLocaleString()}) for "${product.title}". You now have full access to this card & seller priority!`);
+      }
+
+      // Also auto-trigger file download if digital
+      if (product.isDigital && product.downloadUrl) {
+        setTimeout(() => {
+          try {
+            const link = document.createElement('a');
+            link.href = product.downloadUrl!;
+            link.download = product.downloadFileName || `${product.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${(product.downloadFormat || 'pdf').toLowerCase()}`;
+            link.target = '_blank';
+            link.rel = 'noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (e) {
+            console.warn("Direct download trigger:", e);
+          }
+        }, 600);
+      }
+
+      setTimeout(() => setPurchaseSuccessToast(null), 6000);
     }
   };
 
@@ -511,7 +581,7 @@ export default function MarketView({
     const isUnlocked = unlockedDownloads[product.id] || isOwner || isFree;
 
     if (!isUnlocked) {
-      handleBuyWithCoins(product);
+      handleBuyWithCoins(product, e);
       return;
     }
 
@@ -611,11 +681,7 @@ export default function MarketView({
       return;
     }
 
-    const q = query(
-      collection(db, 'listings'),
-      where('status', '==', 'active'),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(collection(db, 'listings'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       // Reload deleted IDs
@@ -625,14 +691,21 @@ export default function MarketView({
         if (storedDel) currentDeleted = new Set(JSON.parse(storedDel));
       } catch (e) {}
 
-      const docs = snapshot.docs
-        .map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }))
-        .filter((d: any) => !currentDeleted.has(d.id)) as Listing[];
-      
-      if (docs.length > 0) {
+      if (!snapshot.empty) {
+        const docs = snapshot.docs
+          .map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data()
+          }))
+          .filter((d: any) => !currentDeleted.has(d.id)) as Listing[];
+        
+        // Sort by newest first
+        docs.sort((a: any, b: any) => {
+          const timeA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
+          const timeB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        });
+
         // Merge starter items if not present and not deleted
         const firestoreIds = new Set(docs.map(d => d.id));
         const merged = [
@@ -640,6 +713,7 @@ export default function MarketView({
           ...(STARTER_MARKET_LISTINGS as Listing[]).filter(s => !firestoreIds.has(s.id) && !currentDeleted.has(s.id))
         ];
         setListings(merged);
+        localStorage.setItem(localKey, JSON.stringify(merged));
         if (productId) {
           const found = merged.find(p => p.id === productId);
           if (found) setActiveProduct(found);
@@ -813,6 +887,7 @@ export default function MarketView({
     if (e) e.stopPropagation();
     const itemToDelete = listings.find(p => p.id === id) || activeProduct;
     const itemTitle = itemToDelete?.title || 'Market Item';
+    const isOwner = itemToDelete?.sellerId === activeUser?.uid;
 
     if (!confirm(`Are you certain you want to permanently remove "${itemTitle}" from Suq Al-Mubaraki?`)) return;
     
@@ -1028,7 +1103,11 @@ export default function MarketView({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12">
           {/* Multimedia Gallery Section (Left Panel) - lg:col-span-6 */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="relative aspect-[4/3] rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-brand-depth/40 group">
+            <div 
+              onClick={() => openProductGalleryLightbox(activeProduct, actionImageIndex)}
+              className="relative aspect-[4/3] rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-brand-depth/40 group cursor-pointer"
+              title="Click to expand full high-res photo gallery"
+            >
               {currentMainPhoto ? (
                 <img src={currentMainPhoto} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
               ) : (
@@ -1037,6 +1116,12 @@ export default function MarketView({
                   <span className="text-xs font-black uppercase tracking-widest">No pictures available</span>
                 </div>
               )}
+
+              {/* Hover Expansion Notice Overlay */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-bold backdrop-blur-[2px] pointer-events-none">
+                <ZoomIn size={18} className="text-amber-400" />
+                <span>Tap to Expand & Zoom Photos</span>
+              </div>
 
               {/* Pricing Mode Badge */}
               <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
@@ -1276,21 +1361,44 @@ export default function MarketView({
                       </button>
                     </div>
 
-                    {/* Admin Delete Action for non-owner Admins */}
+                    {/* Admin Moderation Action for non-owner Admins (Delete only flagged items) */}
                     {isAdmin && (
-                      <div className="p-3 rounded-2xl bg-red-950/40 border border-red-500/40 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-red-300 text-xs">
-                          <AlertTriangle size={15} className="shrink-0" />
-                          <span className="font-bold">Admin Moderation Action</span>
+                      activeProduct.isFlagged ? (
+                        <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-500/50 flex items-center justify-between gap-3 shadow-lg shadow-rose-950/30">
+                          <div className="flex items-center gap-2 text-rose-300 text-xs">
+                            <AlertTriangle size={15} className="shrink-0 text-rose-400" />
+                            <div>
+                              <p className="font-bold text-white">Item Flagged for Review</p>
+                              <p className="text-[10px] text-rose-300/80 line-clamp-1">{activeProduct.flagReason || 'Reported by community'}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => handleDeleteListing(activeProduct.id, e)}
+                            className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-600/30 shrink-0"
+                          >
+                            <Trash2 size={13} />
+                            <span>Delete Flagged</span>
+                          </button>
                         </div>
-                        <button
-                          onClick={(e) => handleDeleteListing(activeProduct.id, e)}
-                          className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-red-600/30"
-                        >
-                          <Trash2 size={13} />
-                          <span>Admin Delete</span>
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-amber-300 text-xs">
+                            <Shield size={15} className="shrink-0 text-amber-400" />
+                            <div>
+                              <p className="font-bold text-white">Admin Policy</p>
+                              <p className="text-[10px] text-slate-400">Only flagged items can be deleted</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => handleOpenFlagModal(activeProduct, e)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                            title="Flag this item to enable admin deletion"
+                          >
+                            <Flag size={12} />
+                            <span>Flag to Audit</span>
+                          </button>
+                        </div>
+                      )
                     )}
                   </>
                 ) : (
@@ -1663,6 +1771,21 @@ export default function MarketView({
                     </div>
                   )}
 
+                  {/* Quick Expand Button on hover */}
+                  {p.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openProductGalleryLightbox(p, 0);
+                      }}
+                      className="absolute top-3.5 right-3.5 p-2 rounded-xl bg-black/70 hover:bg-black text-white opacity-0 group-hover:opacity-100 transition-all border border-white/20 hover:scale-110 shadow-lg cursor-pointer"
+                      title="Quick Expand Photo"
+                    >
+                      <ZoomIn size={14} className="text-amber-300" />
+                    </button>
+                  )}
+
                   {/* Digital Item Badge Top Left */}
                   {p.isDigital && (
                     <div className="absolute top-3.5 left-3.5 bg-cyan-500/90 text-black px-2.5 py-1 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-lg">
@@ -1782,9 +1905,9 @@ export default function MarketView({
                     </p>
                   </div>
 
-                  {/* 1-Click Digital Download Trigger on Card */}
-                  {p.isDigital && (
-                    <div className="pt-2" onClick={(e) => e.stopPropagation()}>
+                  {/* 1-Click Card Unlock / Download Trigger on Card */}
+                  <div className="pt-2" onClick={(e) => e.stopPropagation()}>
+                    {p.isDigital ? (
                       <button
                         onClick={(e) => handleTriggerDownload(p, e)}
                         className={`w-full py-2 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
@@ -1794,10 +1917,22 @@ export default function MarketView({
                         }`}
                       >
                         <Download size={13} />
-                        <span>{isUnlocked ? 'Download File 📥' : `Unlock (${(p.coinPrice || 0).toLocaleString()} Coins)`}</span>
+                        <span>{isUnlocked ? 'Download File 📥' : `Unlock Card (${(p.coinPrice || (p.price > 0 ? Math.round(p.price * 100) : 100)).toLocaleString()} Coins)`}</span>
                       </button>
-                    </div>
-                  )}
+                    ) : (
+                      <button
+                        onClick={(e) => isUnlocked ? navigate(`/market/${p.id}`) : handleBuyWithCoins(p, e)}
+                        className={`w-full py-2 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
+                          isUnlocked
+                            ? 'bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black border border-emerald-500/40'
+                            : 'bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-black shadow-amber-500/20'
+                        }`}
+                      >
+                        {isUnlocked ? <CheckCircle2 size={13} /> : <Coins size={13} />}
+                        <span>{isUnlocked ? 'Card Unlocked ✓ (View Details)' : `Unlock Card (${(p.coinPrice || (p.price > 0 ? Math.round(p.price * 100) : 100)).toLocaleString()} Coins)`}</span>
+                      </button>
+                    )}
+                  </div>
 
                   {/* Direct Contact Actions */}
                   <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
@@ -2493,6 +2628,14 @@ export default function MarketView({
         onCoinsPurchased={() => {
           setUserCoins(getStoredCoins());
         }}
+      />
+
+      {/* Universal Media Lightbox Expansion Modal */}
+      <MediaLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        media={lightboxMediaItems}
+        initialIndex={lightboxIndex}
       />
     </div>
   );

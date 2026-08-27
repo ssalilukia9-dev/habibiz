@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
   Mic, 
+  MicOff,
   Volume2, 
   VolumeX, 
   Trash2, 
@@ -13,19 +14,29 @@ import {
   Crown,
   Plus,
   History,
-  Menu,
   X,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronRight,
   MoreVertical,
   BookOpen,
-  Image as ImageIcon,
   FileText,
   Paperclip,
   Play,
   StopCircle,
-  Loader2
+  Loader2,
+  PhoneCall,
+  PhoneOff,
+  Radio,
+  RefreshCw,
+  Heart,
+  Smile,
+  Compass,
+  Lightbulb,
+  Headphones,
+  Sliders,
+  Copy,
+  Check
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -44,20 +55,35 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
-
-const SYSTEM_INSTRUCTION = `You are "Habibi Aliyah" (The Nur Companion), a wise, serene, compassionate, and deeply knowledgeable Islamic Spiritual AI Companion within the Sanctuary app.
-Your goal is to provide deep, spiritual, comforting, and scholarly guidance rooted in the Holy Quran and authentic Sunnah of Prophet Muhammad (peace be upon him).
-Maintain a serene, compassionate, uplifting, and wise tone at all times.
-Keep your responses insightful, focusing on the spiritual essence of the user's queries.
-For short, direct, simple, or straightforward questions, give clear, warm, and concise replies. Avoid overly lengthy walls of text when a brief answer is sufficient.
-Always reference specific Quranic verses (Surah:Verse) and authentic Hadith to support your guidance with beauty and clarity.
-Format your responses beautifully using Markdown: use headers for key concepts, bolding for emphasis, and blockquotes for scriptural citations.
-If a user seeks advice beyond Islamic jurisprudence, gently bridge the topic back to moral excellence (Ihsan) or prophetic wisdom.
-If a query requires technical legal expertise (Fatwa) beyond your capacity, respectfully advise consulting a qualified local Mufti or scholar.
-Greet the user with "Assalamu Alaikum wa Rahmatullahi wa Barakatuh" in your first response of a session if they haven't initiated the greeting.`;
-
 import { apiFetch } from '../lib/api';
 import { telemetryService } from '../services/telemetryService.ts';
+import { VoiceService } from '../services/voiceService.ts';
+
+const ALIYAH_SYSTEM_INSTRUCTION = `You are "Aliyah", an intelligent, warm, witty, empathetic, and open-minded AI Talk Pal and Nur Companion powered by Gemini.
+You listen attentively and respond freely, genuinely, and engagingly to ANY topic the user brings up.
+
+Topics include but are not limited to:
+1. Daily Life & Chit-chat: Your day, feelings, venting, friendship, laughter, hobbies, routines, advice.
+2. Deep & Philosophical: Life purpose, human nature, ethics, consciousness, the universe, creativity, books, science.
+3. Spiritual & Heart: Quranic wisdom, peace of heart, Islamic history, beautiful supplications, hope, forgiveness, compassion.
+4. Curiosity & Learning: Tech, coding, psychology, nature, history, languages, world cultures.
+
+Personality & Rules:
+- Friendly, warm, authentic, uplifting, and curious about what the user has to say.
+- Conversational and natural: for brief messages or casual greetings, give clear, warm, and natural replies (don't write overwhelming essays unless requested).
+- For deep questions, offer thoughtful, nuanced, and illuminating perspectives.
+- Always respect the user's emotions, providing encouragement, wisdom, and a safe, non-judgmental space to talk freely about anything.
+- If asked about spirituality or Islam, speak with profound beauty, grace, authentic wisdom, and peaceful hope.
+- Greet the user with warmth (e.g. "Assalamu Alaikum!" or a friendly greeting) when appropriate.`;
+
+const CONVERSATION_STARTERS = [
+  { topic: "Free Talk", title: "Let's talk about anything", prompt: "Hey Aliyah! How's your day going? I'd love to chat about whatever is on our minds." },
+  { topic: "Life & Emotions", title: "Finding peace today", prompt: "I've been feeling a bit overwhelmed lately. How can I regain clarity and calmness?" },
+  { topic: "Curiosity & Science", title: "Universe & Wonder", prompt: "Tell me something astonishing about our cosmos or the human mind that inspires awe." },
+  { topic: "Spiritual Wisdom", title: "Quranic reflection", prompt: "What is a beautiful Quranic ayah or story of hope that always touches the heart?" },
+  { topic: "Creative & Fun", title: "Tell me a short story", prompt: "Can you tell me an engaging, thought-provoking short story with a memorable lesson?" },
+  { topic: "Habits & Growth", title: "Building consistency", prompt: "What are your best practical tips for staying disciplined and building noble daily habits?" }
+];
 
 interface Attachment {
   id: string;
@@ -95,65 +121,242 @@ export default function CompanionView({
   addHasanat: (amount: number) => void;
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  
-  // Return Gateway if not premium
-  if (!isPremium) {
-    return (
-      <div className="h-[calc(100vh-140px)] min-h-[480px] md:h-[650px] flex flex-col items-center justify-center space-y-8 glass-panel rounded-[2rem] md:rounded-[2.5rem] border-white/10 relative overflow-hidden bg-brand-sidebar/20">
-        <div className="absolute inset-0 islamic-pattern opacity-5 pointer-events-none" />
-        <div className="w-24 h-24 bg-brand-primary/10 rounded-[2.5rem] flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-2xl animate-pulse">
-           <Sparkles size={48} />
-        </div>
-        <div className="text-center max-w-sm px-6 space-y-4 relative z-10">
-           <h2 className="text-3xl font-black text-white tracking-tight uppercase italic">Divine Consultation</h2>
-           <p className="text-slate-400 font-medium text-sm leading-relaxed">
-             Unlock the power of our **Premium AI Companion**. Deep Quranic insights, personalized spiritual guidance, and voice interaction.
-           </p>
-           <button 
-             onClick={onShowPremium}
-             className="w-full bg-brand-primary text-brand-depth font-black py-4 rounded-2xl shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs uppercase"
-           >
-              Upgrade to Premium
-              <Crown size={20} className="text-brand-depth/40" />
-           </button>
-        </div>
-        <div className="flex gap-4 opacity-30 pt-4">
-           {[Bot, MessageSquare, History, Mic].map((Icon, i) => <Icon key={i} size={16} className="text-slate-500" />)}
-        </div>
-      </div>
-    );
-  }
-
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'chat' | 'reflections'>('chat');
+  const [activeTab, setActiveTab] = useState<'talk' | 'chat' | 'reflections'>('talk');
+  
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Live Talk Pal Voice Call Mode
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [autoListenContinuous, setAutoListenContinuous] = useState(true);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [audioWaveLevel, setAudioWaveLevel] = useState<number[]>([12, 24, 18, 32, 16, 28, 14, 20]);
+  const [selectedVoice, setSelectedVoice] = useState<string>('default');
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Reflection Journal state
   const [reflections, setReflections] = useState<any[]>([]);
   const [isReflectionsLoading, setIsReflectionsLoading] = useState(false);
   const [reflectionInput, setReflectionInput] = useState('');
   const [isRecordingReflection, setIsRecordingReflection] = useState(false);
   const [reflectionVerses, setReflectionVerses] = useState<any[]>([]);
   const [isAnalyzingReflection, setIsAnalyzingReflection] = useState(false);
-  const reflectionRecognitionRef = useRef<any>(null);
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const talkRecognitionRef = useRef<any>(null);
+  const reflectionRecognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
+  const isSpeakingRef = useRef(false);
 
-  // Initialize sidebar based on screen size
+  // Initialize Speech Synthesis Voices
   useEffect(() => {
-    if (window.innerWidth >= 1024) {
-      setShowSidebar(true);
+    if ('speechSynthesis' in window) {
+      const updateVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        setAvailableVoices(voices);
+      };
+      updateVoices();
+      window.speechSynthesis.onvoiceschanged = updateVoices;
     }
+  }, []);
+
+  // Audio wave animation simulation when speaking or listening
+  useEffect(() => {
+    let interval: any;
+    if (isSpeaking || isListening || isCallActive) {
+      interval = setInterval(() => {
+        setAudioWaveLevel(
+          Array.from({ length: 8 }, () => Math.floor(Math.random() * 38) + 8)
+        );
+      }, 120);
+    } else {
+      setAudioWaveLevel([10, 16, 12, 20, 14, 18, 10, 12]);
+    }
+    return () => clearInterval(interval);
+  }, [isSpeaking, isListening, isCallActive]);
+
+  // Subscribe to VoiceService for audio playback state
+  useEffect(() => {
+    const unsub = VoiceService.subscribe((state) => {
+      if (state.activeId === 'aliyah' || state.activeId === null) {
+        setIsSpeaking(state.isPlaying);
+        isSpeakingRef.current = state.isPlaying;
+      }
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  // Cleanup: Stop all mic listeners and TTS when unmounting
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.stop(); } catch {}
+      try { talkRecognitionRef.current?.stop(); } catch {}
+      VoiceService.stop();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      setIsListening(false);
+      setIsSpeaking(false);
+      isSpeakingRef.current = false;
+    };
+  }, []);
+
+  // Stop mic and audio when switching between Talk and Chat tabs
+  useEffect(() => {
+    try { recognitionRef.current?.stop(); } catch {}
+    try { talkRecognitionRef.current?.stop(); } catch {}
+    setIsListening(false);
+    stopSpeech();
+  }, [activeTab]);
+
+  // Handle Voice Synthesis with high clarity Islamic voice matching Hadith Library
+  const speakText = useCallback((text: string, onEndCallback?: () => void) => {
+    VoiceService.stop();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    
+    // Clean text for natural spoken delivery
+    const cleanText = text
+      .replace(/[*_#`~]/g, '')
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+      .replace(/\((.*?)\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .trim();
+
+    if (!cleanText) {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
+
+    setIsSpeaking(true);
+    isSpeakingRef.current = true;
+
+    // Detect if the text contains predominant Arabic letters or Islamic supplications
+    const hasArabic = /[\u0600-\u06FF]/.test(cleanText);
+    const lang = hasArabic ? 'ar' : 'en';
+
+    VoiceService.speak(
+      cleanText,
+      lang,
+      'aliyah',
+      () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        if (onEndCallback) onEndCallback();
+      }
+    );
+  }, []);
+
+  const stopSpeech = useCallback(() => {
+    VoiceService.stop();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    isSpeakingRef.current = false;
+  }, []);
+
+  // Initialize Standard Speech Recognition for Chat input
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => prev ? `${prev} ${transcript}` : transcript);
+        setIsListening(false);
+      };
+
+      rec.onerror = () => setIsListening(false);
+      rec.onend = () => setIsListening(false);
+
+      recognitionRef.current = rec;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      stopSpeech();
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (e) {
+        console.warn("Failed to start voice input", e);
+      }
+    }
+  };
+
+  // Live Talk Pal Voice Call Speech Recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        setLiveTranscript(transcript);
+
+        if (event.results[0] && event.results[0].isFinal) {
+          const finalPrompt = transcript.trim();
+          if (finalPrompt) {
+            handleTalkSend(finalPrompt);
+          }
+        }
+      };
+
+      rec.onerror = (err: any) => {
+        console.warn("Talk mode speech error:", err);
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      talkRecognitionRef.current = rec;
+    }
+  }, []);
+
+  const startTalkListening = useCallback(() => {
+    if (isSpeakingRef.current) return;
+    try {
+      setLiveTranscript('');
+      talkRecognitionRef.current?.start();
+      setIsListening(true);
+    } catch (e) {
+      // Already running
+    }
+  }, []);
+
+  const stopTalkListening = useCallback(() => {
+    try {
+      talkRecognitionRef.current?.stop();
+    } catch (e) {}
+    setIsListening(false);
   }, []);
 
   // Fetch Conversation History
@@ -167,7 +370,6 @@ export default function CompanionView({
         setConversations(raw ? JSON.parse(raw) : []);
       };
       loadLocal();
-      // Listen to storage event in case of updates
       window.addEventListener('storage', loadLocal);
       return () => window.removeEventListener('storage', loadLocal);
     } else {
@@ -220,166 +422,7 @@ export default function CompanionView({
     }
   }, [activeConvId, currentUser]);
 
-  // Fetch Reflections from Firestore or LocalStorage
-  useEffect(() => {
-    if (!currentUser || activeView !== 'reflections') return;
-
-    if (currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_')) {
-      const key = `sanctuary_voice_reflections_${currentUser.uid}`;
-      const loadLocal = () => {
-        const raw = localStorage.getItem(key);
-        setReflections(raw ? JSON.parse(raw) : []);
-      };
-      loadLocal();
-      window.addEventListener('storage', loadLocal);
-      return () => window.removeEventListener('storage', loadLocal);
-    } else {
-      setIsReflectionsLoading(true);
-      const q = query(
-        collection(db, 'users', currentUser.uid, 'voiceReflections'),
-        orderBy('createdAt', 'desc')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setReflections(list);
-        setIsReflectionsLoading(false);
-      }, (error) => {
-        console.error("Error loading voice reflections:", error);
-        setIsReflectionsLoading(false);
-      });
-
-      return () => unsubscribe();
-    }
-  }, [currentUser, activeView]);
-
-  // Continuous speech recognition for structured reflections
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = 'en-US';
-
-      rec.onresult = (event: any) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          }
-        }
-        if (finalTranscript) {
-          setReflectionInput(prev => prev + finalTranscript);
-        }
-      };
-
-      rec.onerror = (err: any) => {
-        console.error("Speech recognition error:", err);
-        setIsRecordingReflection(false);
-      };
-      rec.onend = () => {
-        setIsRecordingReflection(false);
-      };
-
-      reflectionRecognitionRef.current = rec;
-    }
-  }, []);
-
-  const toggleRecordingReflection = () => {
-    if (isRecordingReflection) {
-      reflectionRecognitionRef.current?.stop();
-      setIsRecordingReflection(false);
-    } else {
-      setReflectionInput('');
-      setReflectionVerses([]);
-      try {
-        reflectionRecognitionRef.current?.start();
-        setIsRecordingReflection(true);
-      } catch (e) {
-        console.error("Failed to start speech recognition:", e);
-      }
-    }
-  };
-
-  const analyzeReflection = async () => {
-    if (!reflectionInput.trim() || isAnalyzingReflection) return;
-    setIsAnalyzingReflection(true);
-    try {
-      const res = await apiFetch('/api/ai/reflection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: reflectionInput })
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to get verse suggestions");
-      }
-
-      const data = await res.json();
-      const suggestedVerses = data.verses || [];
-      setReflectionVerses(suggestedVerses);
-
-      // Save to database
-      if (currentUser) {
-        const isLocalUser = currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_');
-        const newReflection = {
-          text: reflectionInput,
-          createdAt: new Date().toISOString(),
-          verses: suggestedVerses
-        };
-
-        if (isLocalUser) {
-          const key = `sanctuary_voice_reflections_${currentUser.uid}`;
-          const raw = localStorage.getItem(key);
-          const list = raw ? JSON.parse(raw) : [];
-          localStorage.setItem(key, JSON.stringify([newReflection, ...list]));
-          setReflections([newReflection, ...list]);
-        } else {
-          await addDoc(collection(db, 'users', currentUser.uid, 'voiceReflections'), {
-            text: reflectionInput,
-            createdAt: serverTimestamp(),
-            verses: suggestedVerses
-          });
-        }
-        addHasanat(50);
-      }
-    } catch (e: any) {
-      console.error("Reflection analysis failed:", e);
-      alert("Spiritual analysis failed: " + e.message);
-    } finally {
-      setIsAnalyzingReflection(false);
-    }
-  };
-
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onerror = () => setIsListening(false);
-      recognitionRef.current.onend = () => setIsListening(false);
-    }
-  }, []);
-
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
-    }
-  };
-
+  // Scroll to bottom on message updates
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -387,127 +430,21 @@ export default function CompanionView({
         behavior: 'smooth'
       });
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, liveTranscript]);
 
-  const isRecentConv = (conv: Conversation) => {
-    if (!conv.updatedAt) return true;
-    try {
-      const timeMs = typeof conv.updatedAt?.toDate === 'function'
-        ? conv.updatedAt.toDate().getTime()
-        : (typeof conv.updatedAt?.seconds === 'number' ? conv.updatedAt.seconds * 1000 : new Date(conv.updatedAt).getTime());
-      if (!isNaN(timeMs)) {
-        const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
-        return diffHours <= 168; // within 7 days
-      }
-    } catch (e) {
-      return true;
-    }
-    return true;
-  };
+  // Core Send Logic for Aliyah (both Chat & Talk Mode)
+  const sendToAliyah = async (userText: string, currentAttachments: Attachment[] = [], isFromTalkMode = false) => {
+    if ((!userText.trim() && currentAttachments.length === 0) || isLoading || !currentUser) return;
 
-  const isRecentAiMessage = (m: Message) => {
-    if (m.role !== 'user') return false;
-    if (!m.timestamp) return true;
-    try {
-      const timeMs = typeof m.timestamp?.toDate === 'function'
-        ? m.timestamp.toDate().getTime()
-        : (typeof m.timestamp?.seconds === 'number' ? m.timestamp.seconds * 1000 : new Date(m.timestamp).getTime());
-      if (isNaN(timeMs)) return true;
-      const diffHours = (Date.now() - timeMs) / (1000 * 60 * 60);
-      return diffHours <= 24;
-    } catch (e) {
-      return true;
-    }
-  };
-
-  const handleDeleteRecentMessage = async (msgToDelete: Message, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!currentUser) return;
-
-    if (!confirm("Delete this recent prompt and consultation step?")) return;
-
-    try {
-      // 1. Update state
-      const filtered = messages.filter(m => (m.id ? m.id !== msgToDelete.id : m !== msgToDelete));
-      setMessages(filtered);
-
-      // 2. Remove from LocalStorage
-      if (activeConvId) {
-        const keyMsgs = `sanctuary_ai_msgs_${activeConvId}`;
-        localStorage.setItem(keyMsgs, JSON.stringify(filtered));
-
-        // 3. Remove from Firestore
-        if (!currentUser.uid.startsWith('local_') && !currentUser.uid.startsWith('rest_') && msgToDelete.id) {
-          try {
-            await deleteDoc(doc(db, `ai_conversations/${activeConvId}/messages`, msgToDelete.id));
-          } catch (err) {
-            console.warn("Firestore AI msg delete error:", err);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting recent AI message:", error);
-    }
-  };
-
-  const startNewChat = async () => {
-    setActiveConvId(null);
-    setMessages([]);
-    setInput('');
-  };
-
-  const deleteConversation = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const conv = conversations.find(c => c.id === id);
-    if (conv && !isRecentConv(conv)) {
-      alert("Only recent chat consultations can be deleted.");
-      return;
-    }
-    if (!confirm("Are you sure you want to delete this recent conversation?")) return;
-    
-    try {
-      if (activeConvId === id) setActiveConvId(null);
-      
-      if (currentUser && (currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_'))) {
-        const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
-        const existingConvs = localStorage.getItem(keyConvs);
-        if (existingConvs) {
-          const parsed = JSON.parse(existingConvs);
-          const updated = parsed.filter((c: any) => c.id !== id);
-          localStorage.setItem(keyConvs, JSON.stringify(updated));
-          setConversations(updated);
-        }
-        localStorage.removeItem(`sanctuary_ai_msgs_${id}`);
-      } else {
-        // Delete messages subcollection first
-        const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
-        for (const m of msgs.docs) {
-          await deleteDoc(m.ref);
-        }
-        await deleteDoc(doc(db, 'ai_conversations', id));
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `ai_conversations/${id}`);
-    }
-  };
-
-  const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0) || isLoading || !currentUser) return;
-
-    const userText = input.trim();
-    const currentAttachments = [...attachments];
-    setInput('');
-    setAttachments([]);
     setIsLoading(true);
-
     const isLocalUser = currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_');
 
     try {
       let currentConvId = activeConvId;
 
-      // 1. Create conversation if it doesn't exist
+      // 1. Create conversation if not exists
       if (!currentConvId) {
-        const titleText = userText || (currentAttachments.length > 0 ? `Shared ${currentAttachments[0].type}` : 'New Consult');
+        const titleText = userText || (currentAttachments.length > 0 ? `Shared ${currentAttachments[0].type}` : 'Talk with Aliyah');
         const shortTitle = titleText.slice(0, 40) + (titleText.length > 40 ? '...' : '');
 
         if (isLocalUser) {
@@ -536,7 +473,6 @@ export default function CompanionView({
           setActiveConvId(currentConvId);
         }
       } else {
-        // Update updatedAt
         if (isLocalUser) {
           const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
           const raw = localStorage.getItem(keyConvs);
@@ -583,7 +519,7 @@ export default function CompanionView({
         });
       }
 
-      // 3. Call AI Proxy / Google Gemini API client-side fallback
+      // 3. Build contents array
       const allMsgs = messages.concat(userMsg);
       const contents = allMsgs.map(m => {
         const parts: any[] = [];
@@ -615,25 +551,22 @@ export default function CompanionView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          systemInstruction: SYSTEM_INSTRUCTION
+          systemInstruction: ALIYAH_SYSTEM_INSTRUCTION
         })
       });
       const latencyMs = Date.now() - startTime;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to get AI response');
+        throw new Error(errorData.error || 'Failed to communicate with Aliyah');
       }
       
       const data = await response.json();
-      const assistantText = data.text || "I apologize, I couldn't process that. Please try again.";
+      const assistantText = data.text || "I'm right here listening! What's on your mind?";
 
-      // Record in Real-Time Telemetry for Admin Hub
-      if (userText) {
-        telemetryService.recordHabibiQuery(userText, 'Salah & Fiqh', latencyMs);
-      }
+      telemetryService.recordHabibiQuery(userText, 'General Deen', latencyMs);
 
-      // 4. Add assistant message
+      // 4. Add Aliyah's response
       const assistantMsg: Message = {
         id: `msg_model_${Date.now()}`,
         role: 'model',
@@ -657,24 +590,26 @@ export default function CompanionView({
         });
       }
 
-      addHasanat(30);
+      addHasanat(25);
 
-      if (voiceEnabled) {
-        speak(assistantText);
+      // Voice response handling
+      if (voiceEnabled || isFromTalkMode || isCallActive) {
+        speakText(assistantText, () => {
+          // If in Continuous Auto-Talk mode, restart microphone automatically!
+          if ((isFromTalkMode || isCallActive) && autoListenContinuous) {
+            setTimeout(() => {
+              startTalkListening();
+            }, 400);
+          }
+        });
       }
 
     } catch (error: any) {
-      console.warn("AI Conversation notice:", error);
-      
-      const isQuotaOrKey = error.message?.includes('quota') || error.message?.includes('Key') || error.message?.includes('API');
-      const guidanceText = isQuotaOrKey
-        ? `*Assalamu Alaykum*. I am currently having difficulty connecting to the cloud intelligence engine (${error.message}). You can provide your personal Google Gemini API key in **Settings** (bottom-left) to continue chatting smoothly.\n\n*“And whoever relies upon Allah – then He is sufficient for him.”* (Surah At-Talaq 65:3)`
-        : `*Assalamu Alaykum*. I encountered a momentary connection interruption. Please try sending your reflection or question again.\n\n*“Verily, with hardship comes ease.”* (Surah Ash-Sharh 94:6)`;
-
-      const assistantMsg: Message = {
+      console.warn("Aliyah Conversation notice:", error);
+      const fallbackMsg: Message = {
         id: `msg_info_${Date.now()}`,
         role: 'model',
-        content: guidanceText,
+        content: `*Assalamu Alaikum!* I heard you, but I had a quick connection flicker. Please tell me again, I'm eager to hear your thoughts!`,
         timestamp: new Date().toISOString()
       };
 
@@ -682,45 +617,76 @@ export default function CompanionView({
         const keyMsgs = `sanctuary_ai_msgs_${activeConvId || 'error'}`;
         const rawMsgs = localStorage.getItem(keyMsgs);
         const existingMsgs = rawMsgs ? JSON.parse(rawMsgs) : [];
-        const updatedMsgs = [...existingMsgs, assistantMsg];
+        const updatedMsgs = [...existingMsgs, fallbackMsg];
         localStorage.setItem(keyMsgs, JSON.stringify(updatedMsgs));
         setMessages(updatedMsgs);
       } else {
-        const targetConvId = activeConvId || 'default';
-        const msgRef = collection(db, `ai_conversations/${targetConvId}/messages`);
-        await addDoc(msgRef, {
-          role: 'model',
-          content: guidanceText,
-          timestamp: serverTimestamp()
-        }).catch(() => {
-          // If firestore write fails, fallback to local state
-          setMessages(prev => [...prev, assistantMsg]);
-        });
+        setMessages(prev => [...prev, fallbackMsg]);
       }
     } finally {
       setIsLoading(false);
+      setLiveTranscript('');
     }
   };
 
-  const speak = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+  const handleSend = () => {
+    if (!input.trim() && attachments.length === 0) return;
+    const text = input.trim();
+    const atts = [...attachments];
+    setInput('');
+    setAttachments([]);
+    sendToAliyah(text, atts, false);
+  };
+
+  const handleTalkSend = (spokenText: string) => {
+    stopTalkListening();
+    sendToAliyah(spokenText, [], true);
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const startNewChat = () => {
+    stopSpeech();
+    setActiveConvId(null);
+    setMessages([]);
+    setInput('');
+    setLiveTranscript('');
+  };
+
+  const deleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Delete this conversation with Aliyah?")) return;
     
-    // Clean text for speech
-    const cleanText = text.replace(/[*_#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
-    
-    const utterance = new window.SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices[0];
-    if (voice) utterance.voice = voice;
-    
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    
-    window.speechSynthesis.speak(utterance);
+    try {
+      if (activeConvId === id) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+      
+      if (currentUser && (currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_'))) {
+        const keyConvs = `sanctuary_ai_convs_${currentUser.uid}`;
+        const existingConvs = localStorage.getItem(keyConvs);
+        if (existingConvs) {
+          const parsed = JSON.parse(existingConvs);
+          const updated = parsed.filter((c: any) => c.id !== id);
+          localStorage.setItem(keyConvs, JSON.stringify(updated));
+          setConversations(updated);
+        }
+        localStorage.removeItem(`sanctuary_ai_msgs_${id}`);
+      } else {
+        const msgs = await getDocs(collection(db, `ai_conversations/${id}/messages`));
+        for (const m of msgs.docs) {
+          await deleteDoc(m.ref);
+        }
+        await deleteDoc(doc(db, 'ai_conversations', id));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `ai_conversations/${id}`);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -744,65 +710,13 @@ export default function CompanionView({
     });
   };
 
-  const startVoiceRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64 = e.target?.result as string;
-          setAttachments(prev => [...prev, {
-            id: 'voice-' + Date.now(),
-            type: 'voice',
-            name: 'Voice Message',
-            url: URL.createObjectURL(blob),
-            base64,
-            mimeType: 'audio/webm'
-          }]);
-        };
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      recorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Recording error:", err);
-    }
-  };
-
-  const stopVoiceRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const removeAttachment = (id: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== id));
-  };
-
-  const stopSpeech = () => {
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  };
-
   return (
-    <div className="flex h-[calc(100vh-140px)] min-h-[480px] md:h-[650px] max-w-6xl mx-auto glass-panel rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-white/10 shadow-2xl relative">
-      {/* Sidebar - Mobile Drawer / Desktop Static */}
+    <div className="flex h-[calc(100vh-140px)] min-h-[520px] md:h-[700px] max-w-6xl mx-auto glass-panel rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-white/10 shadow-2xl relative">
+      
+      {/* Sidebar - Chat History */}
       <AnimatePresence mode="wait">
         {showSidebar && (
           <>
-            {/* Backdrop for mobile */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -816,11 +730,11 @@ export default function CompanionView({
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -280, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed lg:relative inset-y-0 left-0 w-[280px] lg:w-[280px] bg-brand-sidebar/95 lg:bg-brand-sidebar/50 border-r border-white/5 flex flex-col z-50 lg:z-auto overflow-hidden whitespace-nowrap"
+              className="fixed lg:relative inset-y-0 left-0 w-[280px] bg-brand-sidebar/95 lg:bg-brand-sidebar/50 border-r border-white/5 flex flex-col z-50 lg:z-auto overflow-hidden"
             >
               <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <History size={14} className="text-brand-primary" /> Past Chats
+                <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                  <History size={14} className="text-brand-primary" /> Past Talks with Aliyah
                 </h3>
                 <button 
                   onClick={() => setShowSidebar(false)}
@@ -831,261 +745,440 @@ export default function CompanionView({
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
-                {conversations.map(conv => {
-                  const isRecent = isRecentConv(conv);
-                  return (
-                    <div
-                      key={conv.id}
-                      onClick={() => {
-                        setActiveConvId(conv.id);
-                        if (window.innerWidth < 1024) setShowSidebar(false);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          setActiveConvId(conv.id);
-                          if (window.innerWidth < 1024) setShowSidebar(false);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      className={`w-full group text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
-                        activeConvId === conv.id 
-                          ? 'bg-brand-primary/10 border border-brand-primary/20 text-brand-primary' 
-                          : 'hover:bg-white/5 text-slate-400'
-                      }`}
+                {conversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    onClick={() => {
+                      setActiveConvId(conv.id);
+                      if (window.innerWidth < 1024) setShowSidebar(false);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className={`w-full group text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer outline-none ${
+                      activeConvId === conv.id 
+                        ? 'bg-brand-primary/15 border border-brand-primary/30 text-brand-primary font-bold' 
+                        : 'hover:bg-white/5 text-slate-400'
+                    }`}
+                  >
+                    <MessageSquare size={16} className={`${activeConvId === conv.id ? 'text-brand-primary' : 'text-slate-500'}`} />
+                    <span className="flex-1 text-xs truncate">{conv.title}</span>
+                    <button 
+                      onClick={(e) => deleteConversation(conv.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all focus:opacity-100 outline-none"
+                      title="Delete conversation"
                     >
-                      <MessageSquare size={16} className={`${activeConvId === conv.id ? 'text-brand-primary' : 'text-slate-500'}`} />
-                      <span className="flex-1 text-xs font-medium truncate">{conv.title}</span>
-                      {isRecent && (
-                        <button 
-                          onClick={(e) => deleteConversation(conv.id, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all focus:opacity-100 outline-none"
-                          title="Delete recent consultation"
-                          aria-label="Delete recent conversation"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
                 
                 {conversations.length === 0 && (
-                  <div className="text-center py-10 opacity-30">
-                    <Sparkles size={32} className="mx-auto mb-4" />
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">No history yet</p>
+                  <div className="text-center py-12 opacity-40">
+                    <Sparkles size={28} className="mx-auto mb-3 text-brand-primary" />
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No past talks yet</p>
                   </div>
                 )}
               </div>
 
               <div className="p-4 border-t border-white/5">
-                 <button 
-                   onClick={() => {
-                     startNewChat();
-                     if (window.innerWidth < 1024) setShowSidebar(false);
-                   }}
-                   className="w-full flex items-center justify-center gap-2 py-3 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-xl font-bold text-xs hover:bg-brand-primary/20 transition-all"
-                 >
-                   <Plus size={16} /> NEW CONSULTATION
-                 </button>
+                <button 
+                  onClick={() => {
+                    startNewChat();
+                    if (window.innerWidth < 1024) setShowSidebar(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-xl font-bold text-xs hover:bg-brand-primary/20 transition-all cursor-pointer"
+                >
+                  <Plus size={16} /> NEW TALK
+                </button>
               </div>
             </motion.aside>
           </>
         )}
       </AnimatePresence>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col relative islamic-pattern">
-        {/* Header */}
-        <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-brand-sidebar/40 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-4">
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col relative islamic-pattern overflow-hidden">
+        
+        {/* Top Header Bar */}
+        <header className="p-3.5 md:p-5 border-b border-white/5 flex items-center justify-between bg-brand-sidebar/60 backdrop-blur-xl sticky top-0 z-30">
+          <div className="flex items-center gap-3 md:gap-4">
             <button 
               onClick={() => setShowSidebar(prev => !prev)} 
-              className="p-2 text-slate-400 hover:text-brand-primary transition-colors"
+              className="p-2 text-slate-400 hover:text-brand-primary transition-colors cursor-pointer rounded-lg hover:bg-white/5"
+              title="Toggle Past Talks"
             >
               {showSidebar ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
             </button>
-            <div className="w-10 h-10 bg-brand-primary/20 rounded-xl flex items-center justify-center border border-brand-primary/30 group">
-              <Sparkles size={20} className="text-brand-primary group-hover:scale-110 transition-transform" />
-            </div>
-            <div>
-              <h2 className="text-sm md:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Habibi Aliyah
-                <span className="hidden xs:inline text-[8px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase font-black tracking-wider">AI Spiritual Companion</span>
-              </h2>
-              <p className="text-[9px] font-bold text-brand-primary uppercase tracking-widest">Holy Nur Companion</p>
+
+            {/* Aliyah Avatar Badge */}
+            <div className="relative">
+              <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-gradient-to-tr from-brand-primary via-emerald-400 to-teal-200 p-0.5 shadow-lg shadow-brand-primary/20 flex items-center justify-center">
+                <div className="w-full h-full bg-brand-sidebar rounded-[14px] flex items-center justify-center text-brand-primary">
+                  <Sparkles size={20} className="animate-pulse text-brand-primary" />
+                </div>
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 border-2 border-brand-sidebar rounded-full shadow" />
             </div>
 
-            <div className="flex items-center bg-white/5 rounded-xl p-0.5 border border-white/10 sm:ml-4">
-              <button 
-                onClick={() => setActiveView('chat')}
-                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${activeView === 'chat' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                Consult
-              </button>
-              <button 
-                onClick={() => setActiveView('reflections')}
-                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${activeView === 'reflections' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                Reflection Journal
-              </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base md:text-lg font-black text-white tracking-tight">
+                  Aliyah
+                </h2>
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-primary/15 text-brand-primary border border-brand-primary/30">
+                  Gemini Talk Pal
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
+                Listens and responds freely to any topic with warmth & wisdom
+              </p>
             </div>
           </div>
-          
+
+          {/* Navigation Pill Switches */}
           <div className="flex items-center gap-2">
+            <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+              <button 
+                onClick={() => setActiveTab('talk')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'talk' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                <Radio size={13} />
+                <span>Talk Pal</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('chat')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'chat' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                <MessageSquare size={13} />
+                <span>Chat</span>
+              </button>
+            </div>
+
+            {/* Voice Sound Toggle */}
             <button 
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className={`p-2.5 rounded-xl transition-all ${voiceEnabled ? 'text-brand-primary bg-brand-primary/10' : 'text-slate-500 hover:bg-white/5'}`}
+              onClick={() => {
+                if (voiceEnabled && isSpeaking) stopSpeech();
+                setVoiceEnabled(!voiceEnabled);
+              }}
+              className={`p-2.5 rounded-xl transition-all border border-white/5 cursor-pointer ${voiceEnabled ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20' : 'text-slate-500 hover:bg-white/5'}`}
+              title={voiceEnabled ? "Voice Output Active" : "Voice Output Muted"}
             >
               {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
-            <button className="p-2.5 text-slate-500 hover:text-white rounded-xl transition-all">
-              <MoreVertical size={18} />
-            </button>
           </div>
-        </div>
+        </header>
 
-        {activeView === 'chat' ? (
-          <>
-            {/* Messages */}
-            <div 
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide"
-            >
-              {activeConvId === null && messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-6">
-                  <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shadow-2xl relative">
-                    <Sparkles size={40} className="text-brand-primary" />
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-brand-primary text-brand-depth rounded-full flex items-center justify-center">
-                      <BookOpen size={12} />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-2">Speak with Holy Aliyah</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                      "Invite to the way of your Lord with wisdom and good instruction." (16:125)
+        {/* TAB 1: LIVE TALK PAL MODE (Voice & Conversation Center) */}
+        {activeTab === 'talk' && (
+          <div className="flex-1 flex flex-col justify-between p-4 md:p-8 overflow-y-auto scrollbar-hide relative">
+            
+            {/* Top Status & Personality Insight */}
+            <div className="max-w-2xl mx-auto w-full text-center space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 inline-block">
+                {isListening ? '🎙️ Aliyah is listening to you...' : isSpeaking ? '🔊 Aliyah is talking...' : isLoading ? '✨ Aliyah is thinking...' : '🌿 Ready to talk freely about any topic'}
+              </span>
+            </div>
+
+            {/* Central Animated Interactive Voice Visualizer */}
+            <div className="my-auto py-6 flex flex-col items-center justify-center max-w-lg mx-auto w-full text-center space-y-6">
+              
+              {/* Outer Glowing Ripple Orb */}
+              <div className="relative flex items-center justify-center">
+                <motion.div 
+                  animate={{ 
+                    scale: isSpeaking || isListening ? [1, 1.15, 1] : 1,
+                    opacity: isSpeaking || isListening ? [0.2, 0.45, 0.2] : 0.15
+                  }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  className="absolute w-48 h-48 md:w-56 md:h-56 rounded-full bg-brand-primary blur-3xl pointer-events-none"
+                />
+
+                {/* Main Orb */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    if (isListening) {
+                      stopTalkListening();
+                    } else if (isSpeaking) {
+                      stopSpeech();
+                    } else {
+                      startTalkListening();
+                    }
+                  }}
+                  className={`w-32 h-32 md:w-36 md:h-36 rounded-[2.5rem] flex flex-col items-center justify-center transition-all shadow-2xl relative border-2 cursor-pointer ${
+                    isListening 
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-400 ring-8 ring-rose-500/15 animate-pulse'
+                      : isSpeaking 
+                      ? 'bg-brand-primary/20 border-brand-primary text-brand-primary ring-8 ring-brand-primary/20 shadow-brand-primary/30'
+                      : 'bg-white/5 border-white/10 hover:border-brand-primary/40 text-slate-300'
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <Mic size={36} className="animate-bounce" />
+                      <span className="text-[10px] font-black uppercase tracking-wider mt-2">Listening...</span>
+                    </>
+                  ) : isSpeaking ? (
+                    <>
+                      <Volume2 size={36} className="animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-wider mt-2">Speaking</span>
+                    </>
+                  ) : isLoading ? (
+                    <>
+                      <Loader2 size={36} className="animate-spin text-brand-primary" />
+                      <span className="text-[10px] font-black uppercase tracking-wider mt-2 text-brand-primary">Thinking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic size={36} className="text-brand-primary" />
+                      <span className="text-[10px] font-black uppercase tracking-wider mt-2 text-slate-300">Tap to Talk</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+
+              {/* Audio Wave Visualizer Bars */}
+              <div className="flex items-center justify-center gap-1.5 h-10">
+                {audioWaveLevel.map((height, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ height: `${height}px` }}
+                    transition={{ duration: 0.15 }}
+                    className={`w-1.5 rounded-full ${
+                      isListening ? 'bg-rose-400' : isSpeaking ? 'bg-brand-primary' : 'bg-slate-600'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Live Transcript / Last Spoken Message Display */}
+              <div className="w-full max-w-md min-h-[70px] flex items-center justify-center p-4 rounded-2xl bg-brand-sidebar/80 border border-white/10 shadow-inner text-center">
+                {liveTranscript ? (
+                  <p className="text-xs md:text-sm text-slate-200 italic font-medium animate-pulse">
+                    "{liveTranscript}"
+                  </p>
+                ) : messages.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-wider">
+                      {messages[messages.length - 1].role === 'user' ? 'You said:' : 'Aliyah said:'}
+                    </p>
+                    <p className="text-xs md:text-sm text-slate-300 font-medium line-clamp-2">
+                      "{messages[messages.length - 1].content.slice(0, 160)}"
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 w-full">
-                    {["How can I find peace during anxiety?", "Prophet Muhammad's sublime character", "Quranic verses about patience & hope", "How to increase Khushu (focus) in prayer"].map((query) => (
-                      <button 
-                        key={query}
-                        onClick={() => { setInput(query); }}
-                        className="p-4 glass-panel border-white/5 text-xs text-slate-300 hover:border-brand-primary/30 hover:text-brand-primary transition-all text-left flex items-center justify-between"
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium">
+                    "Say anything! How you feel, ask life advice, explore the universe, or talk about spirituality..."
+                  </p>
+                )}
+              </div>
+
+              {/* Continuous Conversation Toggle */}
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                <button
+                  onClick={() => setAutoListenContinuous(!autoListenContinuous)}
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+                    autoListenContinuous ? 'bg-brand-primary border-brand-primary' : 'border-slate-500'
+                  }`}
+                >
+                  {autoListenContinuous && <Check size={10} className="text-brand-depth font-black" />}
+                </button>
+                <span className="text-[11px] font-bold text-slate-300">
+                  Continuous Spoken Conversation (Hands-Free)
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Conversation Starters Carousel */}
+            <div className="space-y-2 max-w-3xl mx-auto w-full pt-2">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Topic Inspiration
+                </p>
+                <button 
+                  onClick={() => setActiveTab('chat')}
+                  className="text-[10px] font-bold text-brand-primary hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  View Full Chat <ChevronRight size={12} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                {CONVERSATION_STARTERS.slice(0, 4).map((item, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      sendToAliyah(item.prompt, [], true);
+                    }}
+                    className="p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-brand-primary/30 transition-all text-left group cursor-pointer"
+                  >
+                    <span className="text-[9px] font-bold text-brand-primary uppercase block mb-0.5">
+                      {item.topic}
+                    </span>
+                    <p className="text-xs font-semibold text-white group-hover:text-brand-primary transition-colors truncate">
+                      {item.title}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2: RICH CHAT MODE */}
+        {activeTab === 'chat' && (
+          <>
+            {/* Messages Container */}
+            <div 
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scrollbar-hide"
+            >
+              {messages.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6 py-8">
+                  <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center border border-brand-primary/20 shadow-2xl">
+                    <Sparkles size={32} className="text-brand-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1.5">Talk Freely with Aliyah</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                      Aliyah listens and responds openly to any topic — your thoughts, feelings, deep reflections, curiosities, or stories.
+                    </p>
+                  </div>
+
+                  {/* Suggestion Prompts */}
+                  <div className="grid grid-cols-1 gap-2.5 w-full">
+                    {CONVERSATION_STARTERS.map((s, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setInput(s.prompt);
+                        }}
+                        className="p-3.5 rounded-xl bg-white/5 border border-white/5 hover:border-brand-primary/40 hover:bg-white/10 text-xs text-slate-300 hover:text-brand-primary transition-all text-left flex items-center justify-between cursor-pointer group"
                       >
-                        {query}
-                        <ChevronRight size={14} className="opacity-30" />
+                        <div>
+                          <span className="text-[9px] font-black uppercase text-brand-primary block">{s.topic}</span>
+                          <span className="font-medium text-slate-200">{s.title}</span>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-500 group-hover:text-brand-primary transition-colors" />
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
+              {/* Message List */}
               <AnimatePresence initial={false}>
                 {messages.map((m, idx) => (
                   <motion.div
                     key={m.id || idx}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`flex gap-4 max-w-[90%] md:max-w-[75%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg ${
-                        m.role === 'user' ? 'bg-slate-700 text-slate-300' : 'bg-brand-primary text-brand-depth'
+                    <div className={`flex gap-3 max-w-[92%] md:max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                      
+                      {/* Avatar */}
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                        m.role === 'user' ? 'bg-slate-700 text-slate-200' : 'bg-brand-primary text-brand-depth font-black'
                       }`}>
-                        {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                        {m.role === 'user' ? <User size={15} /> : <Sparkles size={15} />}
                       </div>
-                      <div className={`relative group ${m.role === 'user' ? 'order-1' : ''}`}>
-                        <div className={`p-4 md:p-5 rounded-2xl text-[13px] md:text-sm leading-relaxed shadow-xl relative ${
+
+                      {/* Content Box */}
+                      <div className="relative group/msg">
+                        <div className={`p-4 md:p-5 rounded-2xl text-xs md:text-sm leading-relaxed shadow-lg relative ${
                           m.role === 'user' 
-                            ? 'bg-brand-primary text-brand-depth font-semibold' 
-                            : 'glass-panel text-slate-200 border-white/10'
+                            ? 'bg-brand-primary text-brand-depth font-semibold rounded-tr-none' 
+                            : 'glass-panel text-slate-200 border-white/10 rounded-tl-none'
                         }`}>
-                          {m.role === 'user' && isRecentAiMessage(m) && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteRecentMessage(m, e)}
-                              title="Delete recent message"
-                              className="absolute -top-2 -left-2 bg-brand-depth/90 text-slate-400 hover:text-red-400 p-1 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )}
+                          {/* Attachments */}
                           {m.attachments && m.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-3">
                               {m.attachments.map(a => (
-                                <div key={a.id} className="relative group/att">
+                                <div key={a.id} className="relative">
                                   {a.type === 'image' ? (
-                                    <img src={a.url} alt={a.name} className="w-40 h-40 object-cover rounded-lg border border-white/10" />
-                                  ) : a.type === 'voice' ? (
-                                    <div className="bg-brand-depth/40 p-3 rounded-xl flex items-center gap-3 border border-white/5">
-                                       <div className="w-8 h-8 bg-brand-primary/20 rounded-full flex items-center justify-center text-brand-primary">
-                                          <Mic size={14} />
-                                       </div>
-                                       <audio src={a.url} controls className="h-8 w-48 opacity-60" />
-                                    </div>
+                                    <img src={a.url} alt={a.name} className="w-36 h-36 object-cover rounded-lg border border-white/10" />
                                   ) : (
-                                    <div className="bg-white/5 p-3 rounded-lg flex items-center gap-2 border border-white/5 min-w-[120px]">
-                                      <FileText size={16} className="text-brand-primary" />
-                                      <span className="text-[10px] font-bold truncate max-w-[100px]">{a.name}</span>
+                                    <div className="bg-white/10 p-2.5 rounded-lg flex items-center gap-2 border border-white/5">
+                                      <FileText size={15} className="text-brand-primary" />
+                                      <span className="text-[10px] font-bold truncate max-w-[120px]">{a.name}</span>
                                     </div>
                                   )}
                                 </div>
                               ))}
                             </div>
                           )}
+
+                          {/* Markdown Text */}
                           <div className="markdown-body prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-brand-primary">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {m.content}
                             </ReactMarkdown>
                           </div>
                         </div>
+
+                        {/* Action Toolbar on Hover */}
+                        <div className={`flex items-center gap-1.5 mt-1 opacity-0 group-hover/msg:opacity-100 transition-opacity ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <button
+                            onClick={() => speakText(m.content)}
+                            className="p-1 text-slate-400 hover:text-brand-primary transition-colors cursor-pointer"
+                            title="Read out loud"
+                          >
+                            <Volume2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => copyToClipboard(m.content, m.id || String(idx))}
+                            className="p-1 text-slate-400 hover:text-brand-primary transition-colors cursor-pointer"
+                            title="Copy text"
+                          >
+                            {copiedId === (m.id || String(idx)) ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                          </button>
+                        </div>
                       </div>
+
                     </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
-              
+
               {isLoading && (
                 <div className="flex justify-start">
-                   <div className="bg-white/5 border border-white/10 p-5 rounded-2xl rounded-tl-none flex gap-2 shadow-inner">
-                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" />
-                   </div>
+                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 shadow-inner">
+                    <div className="w-2 h-2 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-2 h-2 bg-brand-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-2 h-2 bg-brand-primary rounded-full animate-bounce" />
+                    <span className="text-[10px] text-slate-400 font-bold ml-2">Aliyah is typing...</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Input */}
-            <div className="p-4 md:p-8 bg-gradient-to-t from-brand-sidebar/80 to-transparent">
-              <div className="max-w-3xl mx-auto relative group">
-                {/* Attachment Preview */}
+            {/* Chat Input Bar */}
+            <div className="p-3 md:p-6 bg-gradient-to-t from-brand-sidebar/90 via-brand-sidebar/60 to-transparent border-t border-white/5">
+              <div className="max-w-3xl mx-auto space-y-2">
+                
+                {/* Attachments Preview */}
                 <AnimatePresence>
                   {attachments.length > 0 && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="mb-4 flex flex-wrap gap-3 p-4 glass-panel border-white/10 rounded-2xl"
+                      className="flex flex-wrap gap-2 p-3 glass-panel border-white/10 rounded-xl"
                     >
                       {attachments.map(a => (
-                        <div key={a.id} className="relative group/preview">
-                          {a.type === 'image' ? (
-                            <div className="w-16 h-16 rounded-xl overflow-hidden border border-white/10">
-                               <img src={a.url} alt="" className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className="h-16 px-4 bg-white/5 rounded-xl flex items-center gap-2 border border-white/10">
-                               {a.type === 'voice' ? <Mic size={16} className="text-brand-primary" /> : <FileText size={16} className="text-brand-primary" />}
-                               <span className="text-[10px] font-bold max-w-[80px] truncate">{a.name}</span>
-                            </div>
-                          )}
+                        <div key={a.id} className="relative group/prev">
+                          <div className="h-12 px-3 bg-white/5 rounded-lg flex items-center gap-2 border border-white/10 text-xs">
+                            {a.type === 'image' ? <img src={a.url} alt="" className="w-8 h-8 object-cover rounded" /> : <FileText size={14} className="text-brand-primary" />}
+                            <span className="text-[10px] font-bold max-w-[80px] truncate">{a.name}</span>
+                          </div>
                           <button 
-                            onClick={() => removeAttachment(a.id)}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-brand-depth group-hover/preview:scale-110 transition-transform shadow-lg"
+                            onClick={() => setAttachments(prev => prev.filter(x => x.id !== a.id))}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow"
                           >
-                            <X size={12} />
+                            <X size={10} />
                           </button>
                         </div>
                       ))}
@@ -1093,8 +1186,7 @@ export default function CompanionView({
                   )}
                 </AnimatePresence>
 
-                <div className="absolute inset-0 bg-brand-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
-                <div className="relative glass-panel p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-2xl">
+                <div className="relative glass-panel p-1.5 md:p-2 rounded-2xl flex items-center gap-2 border-white/10 focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/50 transition-all shadow-xl bg-brand-sidebar/80">
                   <input 
                     type="file" 
                     ref={fileInputRef} 
@@ -1103,241 +1195,61 @@ export default function CompanionView({
                     multiple 
                     accept="image/*,application/pdf,text/plain"
                   />
-                  
-                  <div className="flex items-center gap-1">
-                    <button 
-                       onClick={() => fileInputRef.current?.click()}
-                       className="p-3 text-slate-500 hover:text-brand-primary hover:bg-white/5 rounded-xl transition-all"
-                       title="Attach media"
-                    >
-                      <Paperclip size={20} />
-                    </button>
-                    <button 
-                      onClick={toggleListening}
-                      className={`p-3 rounded-xl transition-all ${isListening ? 'bg-brand-primary/20 text-brand-primary animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
-                      title="Voice Type (Speech back)"
-                    >
-                      <Mic size={20} />
-                    </button>
-                    <button 
-                      onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-                      className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-500 hover:text-brand-primary hover:bg-white/5'}`}
-                      title={isRecording ? "Stop recording" : "Send Voice Message"}
-                    >
-                      {isRecording ? <StopCircle size={20} /> : <Play size={20} />}
-                    </button>
-                  </div>
+
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2.5 text-slate-400 hover:text-brand-primary hover:bg-white/5 rounded-xl transition-all cursor-pointer"
+                    title="Attach image or file"
+                  >
+                    <Paperclip size={18} />
+                  </button>
+
+                  <button 
+                    onClick={toggleListening}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                      isListening 
+                        ? 'bg-rose-500/20 text-rose-400 animate-pulse border border-rose-500/40' 
+                        : 'text-slate-400 hover:text-brand-primary hover:bg-white/5'
+                    }`}
+                    title={isListening ? "Listening... (Click to stop)" : "Speech-to-text"}
+                  >
+                    <Mic size={18} />
+                  </button>
 
                   <input 
                     type="text" 
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask Sanctuary for wisdom..." 
-                    className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-100 placeholder:text-slate-600 text-sm md:text-base selection:bg-brand-primary/30"
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                    placeholder="Talk to Aliyah about anything..." 
+                    className="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-slate-100 placeholder:text-slate-500 text-xs md:text-sm"
                   />
+
                   <button 
                     onClick={handleSend}
                     disabled={isLoading || (!input.trim() && attachments.length === 0)}
-                    className="bg-brand-primary text-brand-depth w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-brand-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 disabled:shadow-none font-bold"
+                    className="bg-brand-primary text-brand-depth w-10 h-10 md:w-11 md:h-11 rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 font-bold shadow-lg shadow-brand-primary/25 cursor-pointer shrink-0"
+                    title="Send message"
                   >
-                    <Send size={18} />
+                    <Send size={16} />
                   </button>
                 </div>
-                <div className="flex justify-between items-center px-4 mt-3">
-                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <Sparkles size={10} className="text-brand-primary" /> 
-                    Holy Quran Chat • {activeConvId ? 'Deep Memory' : 'Active Heart'}
-                  </p>
+
+                <div className="flex justify-between items-center px-3 text-[10px] text-slate-500 font-medium">
+                  <span>Gemini 3.7 Flash Intelligence</span>
                   <button 
-                    onClick={() => setVoiceEnabled(!voiceEnabled)}
-                    className="text-[9px] font-bold text-slate-600 hover:text-brand-primary transition-colors flex items-center gap-1.5 uppercase tracking-widest"
+                    onClick={() => setActiveTab('talk')}
+                    className="text-brand-primary hover:underline flex items-center gap-1 cursor-pointer font-bold"
                   >
-                    <Volume2 size={10} /> {voiceEnabled ? 'Audio On' : 'Audio Off'}
+                    <Radio size={11} /> Switch to Live Voice Call
                   </button>
                 </div>
+
               </div>
             </div>
           </>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide">
-            {/* Daily Reflection Journal UI */}
-            <div className="max-w-3xl mx-auto space-y-8">
-              
-              {/* Introduction / Card */}
-              <div className="glass-panel p-6 rounded-[2rem] border-white/5 space-y-3 relative overflow-hidden bg-brand-sidebar/20">
-                <div className="absolute top-0 right-0 p-6 opacity-5 text-brand-primary pointer-events-none">
-                  <Mic size={64} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Spiritual Accounting</p>
-                  <h3 className="text-xl font-bold text-white">Daily Voice Reflections</h3>
-                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                    Speak freely about your day, your struggles, feelings, or things you are grateful for. We will convert your voice reflection to text and suggest comforting Quranic verses.
-                  </p>
-                </div>
-              </div>
-
-              {/* Recording Interface Card */}
-              <div className="glass-panel p-8 rounded-[2.5rem] border-white/5 space-y-6 flex flex-col items-center justify-center relative overflow-hidden">
-                <div className="flex flex-col items-center gap-4 text-center">
-                  <button 
-                    onClick={toggleRecordingReflection}
-                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-2xl relative ${
-                      isRecordingReflection 
-                        ? 'bg-rose-500 text-white animate-pulse shadow-rose-500/20 ring-8 ring-rose-500/15' 
-                        : 'bg-brand-primary text-brand-depth hover:scale-105 active:scale-95 shadow-brand-primary/25'
-                    }`}
-                  >
-                    {isRecordingReflection ? <StopCircle size={32} /> : <Mic size={32} />}
-                    {isRecordingReflection && (
-                      <span className="absolute -inset-2 rounded-full border border-rose-500 animate-ping opacity-30" />
-                    )}
-                  </button>
-                  <div className="space-y-1">
-                    <p className="text-xs font-black uppercase tracking-widest text-white">
-                      {isRecordingReflection ? 'Recording your voice...' : 'Tap to start reflecting'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                      Uses the browser's high-fidelity SpeechRecognition API
-                    </p>
-                  </div>
-                </div>
-
-                {/* Transcript Display */}
-                {(reflectionInput || isRecordingReflection) && (
-                  <div className="w-full space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Live Transcript Preview</p>
-                    <textarea 
-                      value={reflectionInput}
-                      onChange={(e) => setReflectionInput(e.target.value)}
-                      placeholder={isRecordingReflection ? "Please speak clearly, your voice is being transcribed..." : "Type or edit your reflection here..."}
-                      className="w-full h-32 p-4 bg-brand-depth/40 border border-white/5 rounded-2xl text-slate-200 placeholder:text-slate-600 text-xs md:text-sm focus:outline-none focus:border-brand-primary/30 resize-none font-medium leading-relaxed"
-                    />
-                  </div>
-                )}
-
-                {reflectionInput && !isRecordingReflection && (
-                  <button 
-                    onClick={analyzeReflection}
-                    disabled={isAnalyzingReflection || !reflectionInput.trim()}
-                    className="w-full py-4 bg-brand-primary text-brand-depth font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-brand-primary/25 flex items-center justify-center gap-2"
-                  >
-                    {isAnalyzingReflection ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Analyzing Spiritual Resonance...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={16} />
-                        Analyze & Suggest Verses
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Currently suggested verses display */}
-              {reflectionVerses.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary flex items-center gap-2">
-                    <Sparkles size={14} /> Divine Suggestions for Your Day
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4">
-                    {reflectionVerses.map((verse, idx) => (
-                      <div key={idx} className="glass-panel p-6 rounded-3xl border-white/5 space-y-4 relative overflow-hidden bg-brand-sidebar/10">
-                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                          <span>Surah {verse.surahName} • {verse.surah}:{verse.ayah}</span>
-                        </div>
-                        <p className="text-right text-lg md:text-xl font-arabic text-white leading-loose font-bold tracking-wide">
-                          {verse.text}
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-xs text-brand-primary italic leading-relaxed font-semibold">
-                            "{verse.translation}"
-                          </p>
-                          <p className="text-[11px] text-slate-300 leading-relaxed font-medium pt-2 border-t border-white/5">
-                            {verse.relevance}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Past Reflections Section */}
-              <div className="space-y-4 pt-4">
-                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Past Spiritual Milestones</h4>
-                {isReflectionsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="animate-spin text-brand-primary" size={24} />
-                  </div>
-                ) : reflections.length === 0 ? (
-                  <div className="text-center py-10 opacity-30 glass-panel rounded-3xl border-white/5">
-                    <History size={32} className="mx-auto mb-3" />
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Your journal is empty</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {reflections.map((ref, idx) => (
-                      <div key={ref.id || idx} className="glass-panel p-6 rounded-3xl border-white/5 space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                            {ref.createdAt ? new Date(ref.createdAt.seconds ? ref.createdAt.seconds * 1000 : ref.createdAt).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Spiritual Moment'}
-                          </span>
-                          <span className="text-[8px] bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded-full border border-brand-primary/20 uppercase">Reflection Journal</span>
-                        </div>
-                        <p className="text-xs md:text-sm text-slate-200 leading-relaxed italic font-medium">
-                          "{ref.text}"
-                        </p>
-                        
-                        {ref.verses && ref.verses.length > 0 && (
-                          <div className="border-t border-white/5 pt-4 space-y-4">
-                            <p className="text-[9px] font-black uppercase tracking-wider text-brand-primary">Suggested Verses:</p>
-                            <div className="space-y-3">
-                              {ref.verses.map((v: any, vIdx: number) => (
-                                <div key={vIdx} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-                                  <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 uppercase">
-                                    <span>{v.surahName} ({v.surah}:{v.ayah})</span>
-                                  </div>
-                                  <p className="text-right text-sm font-arabic text-white font-bold leading-relaxed">{v.text}</p>
-                                  <p className="text-[11px] text-brand-primary italic font-medium">"{v.translation}"</p>
-                                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed pt-1">{v.relevance}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </div>
         )}
 
-        {isSpeaking && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 px-6 py-3 bg-brand-primary text-brand-depth rounded-full shadow-2xl flex items-center gap-3 font-bold text-xs ring-4 ring-brand-primary/20 z-30"
-          >
-            <div className="flex gap-1">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="w-1 h-3 bg-brand-depth/40 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.1}s` }} />
-              ))}
-            </div>
-            Sanctuary is speaking...
-            <button onClick={stopSpeech} className="p-1 px-2 border border-brand-depth/20 hover:bg-brand-depth/10 rounded-lg transition-colors ml-2 uppercase text-[8px] font-black">
-              Stop
-            </button>
-          </motion.div>
-        )}
       </div>
     </div>
   );

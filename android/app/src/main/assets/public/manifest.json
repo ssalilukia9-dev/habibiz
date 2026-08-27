@@ -1,22 +1,22 @@
 {
-  "name": "Muslim Deen Habibi",
-  "short_name": "Deen Habibi",
-  "description": "Your Heart's Spiritual Companion",
+  "name": "Habibi Sanctuary",
+  "short_name": "Habibi",
+  "description": "Digital Spiritual Haven by Aloha Group of Companies & Firdaws Charity Organization",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#05070A",
-  "theme_color": "#A855F7",
+  "background_color": "#06121C",
+  "theme_color": "#E5B842",
   "icons": [
     {
-      "src": "/muslim_deen_habibi_icon.jpg",
-      "sizes": "192x192",
-      "type": "image/jpeg",
+      "src": "/habibi-logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/muslim_deen_habibi_icon.jpg",
+      "src": "/habibi-logo.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

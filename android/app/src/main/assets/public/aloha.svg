@@ -1,17 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
-  <rect width="600" height="600" fill="#F4EFE6"/>
-  <g transform="translate(60, 200)">
+  <defs>
+    <linearGradient id="alohaGoldUpper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2B789" />
+      <stop offset="100%" stop-color="#C58F54" />
+    </linearGradient>
+    <linearGradient id="alohaGoldLower" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4A373" />
+      <stop offset="100%" stop-color="#A97138" />
+    </linearGradient>
+    <linearGradient id="alohaNavyUpper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1B4D6E" />
+      <stop offset="100%" stop-color="#0D3049" />
+    </linearGradient>
+    <linearGradient id="alohaNavyLower" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F3B56" />
+      <stop offset="100%" stop-color="#061C2C" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="600" rx="40" fill="#F4EFE6"/>
+
+  <g transform="translate(60, 180)">
+    <!-- Waves Icon Group -->
     <g transform="translate(0, 0)">
-      <path d="M 100,50 C 130,25 180,25 210,40 C 175,55 130,55 100,50 Z" fill="#C08B57" />
-      <path d="M 75,70 C 115,40 170,40 205,65 C 165,75 115,75 75,70 Z" fill="#C08B57" opacity="0.9" />
-      <path d="M 20,85 C 65,60 125,70 175,100 C 120,110 65,95 20,85 Z" fill="#134B68" />
-      <path d="M 45,100 C 85,85 135,90 170,115 C 125,120 80,110 45,100 Z" fill="#134B68" />
-      <path d="M 15,115 C 65,110 115,130 160,145 C 110,150 55,140 15,115 Z" fill="#0C293D" />
+      <!-- Top Gold Wave -->
+      <path d="M 90 28 C 115 12, 145 10, 175 22 C 145 28, 120 38, 95 55 C 75 42, 82 32, 90 28 Z" fill="url(#alohaGoldUpper)" />
+      <!-- Middle Gold Wave -->
+      <path d="M 65 52 C 95 32, 135 30, 180 50 C 145 60, 105 70, 70 85 C 55 72, 60 58, 65 52 Z" fill="url(#alohaGoldLower)" />
+      <!-- Upper Navy Wave -->
+      <path d="M 22 88 C 50 68, 95 68, 140 92 C 165 106, 175 106, 175 106 C 140 118, 95 116, 55 98 C 38 90, 25 88, 22 88 Z" fill="url(#alohaNavyUpper)" />
+      <!-- Lower Navy Wave -->
+      <path d="M 0 118 C 35 94, 85 96, 130 126 C 160 144, 175 142, 175 142 C 135 158, 80 152, 35 128 C 15 118, 5 118, 0 118 Z" fill="url(#alohaNavyLower)" />
     </g>
 
-    <g transform="translate(225, 60)">
-      <text x="0" y="45" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="62" font-weight="900" fill="#0B2B3F" letter-spacing="3">ALOHA</text>
-      <text x="2" y="85" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="600" fill="#1A4A63" letter-spacing="1">Group of Companies</text>
+    <!-- ALOHA Typography -->
+    <g transform="translate(205, 55)">
+      <text x="0" y="52" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" fill="#0A2A3F" letter-spacing="4">ALOHA</text>
+      <text x="2" y="94" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="700" fill="#1B4D6E" letter-spacing="2">Group of Companies</text>
+      <text x="3" y="122" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="800" fill="#C58F54" letter-spacing="3">PRECISION • INNOVATION • EXCELLENCE</text>
     </g>
   </g>
 </svg>

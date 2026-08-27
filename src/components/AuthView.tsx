@@ -42,6 +42,14 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSavedEmail, setIsSavedEmail] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('sanctuary_remember_me');
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
   const [secretClickCount, setSecretClickCount] = useState(0);
 
   // Hidden admin trigger via icon tapping
@@ -301,7 +309,7 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
             className="relative w-16 h-16 rounded-3xl bg-brand-primary/15 border border-brand-primary/30 flex items-center justify-center shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
             title="Habibi Sanctuary"
           >
-            <Compass size={32} className="text-brand-primary" />
+            <Moon size={32} className="text-brand-primary fill-brand-primary/20 -rotate-12" />
             {showAdminMode && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-brand-sidebar flex items-center justify-center text-[8px] font-black text-white">
                 ★
@@ -459,6 +467,32 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
               </div>
             </motion.div>
           )}
+
+          {/* Remember Me Session Persistence Toggle */}
+          <div className="flex items-center justify-between px-1 py-1">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  setRememberMe(val);
+                  localStorage.setItem('sanctuary_remember_me', String(val));
+                  if (!val) {
+                    localStorage.removeItem('saved-auth-email');
+                  } else if (email.trim()) {
+                    localStorage.setItem('saved-auth-email', email.trim().toLowerCase());
+                  }
+                }}
+                className="w-4 h-4 rounded border-white/20 bg-black/40 accent-brand-primary cursor-pointer transition-all"
+              />
+              <span className="text-[11px] text-slate-300">Remember Me (Persist Session)</span>
+            </label>
+
+            <span className="text-[10px] text-brand-primary/80 font-mono font-bold">
+              {rememberMe ? '🔒 Saved' : '⚡ 1-Session'}
+            </span>
+          </div>
 
           <button 
             disabled={loading}

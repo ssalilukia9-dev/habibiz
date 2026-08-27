@@ -24,13 +24,30 @@ import { HADITH_DATABASE, HadithEntry } from '../data/hadiths.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import { shareService } from '../services/shareService.ts';
 
-const COLLECTIONS = [
-  { id: 'all', name: 'All Collections', count: HADITH_DATABASE.length },
-  { id: 'Sahih Bukhari', name: 'Sahih Bukhari', count: HADITH_DATABASE.filter(h => h.collection === 'Sahih Bukhari').length },
-  { id: 'Sahih Muslim', name: 'Sahih Muslim', count: HADITH_DATABASE.filter(h => h.collection === 'Sahih Muslim').length },
-  { id: 'Tirmidhi', name: 'Sunan al-Tirmidhi', count: HADITH_DATABASE.filter(h => h.collection === 'Tirmidhi').length },
-  { id: 'Al-Adab Al-Mufrad', name: 'Al-Adab Al-Mufrad', count: HADITH_DATABASE.filter(h => h.collection === 'Al-Adab Al-Mufrad').length }
+const KNOWN_COLLECTION_KEYS = [
+  { id: 'all', name: 'All Collections' },
+  { id: 'Sahih Bukhari', name: 'Sahih al-Bukhari' },
+  { id: 'Sahih Muslim', name: 'Sahih Muslim' },
+  { id: 'Tirmidhi', name: 'Jami` at-Tirmidhi' },
+  { id: 'Abi Dawud', name: 'Sunan Abi Dawud' },
+  { id: 'Nasa', name: 'Sunan an-Nasa\'i' },
+  { id: 'Ibn Majah', name: 'Sunan Ibn Majah' },
+  { id: 'Riyad', name: 'Riyad as-Salihin' },
+  { id: 'Nawawi', name: '40 Hadith Nawawi' },
+  { id: 'Qudsi', name: 'Hadith Qudsi' },
+  { id: 'Al-Adab Al-Mufrad', name: 'Al-Adab Al-Mufrad' },
+  { id: 'Muwatta', name: 'Muwatta Malik' }
 ];
+
+const COLLECTIONS = KNOWN_COLLECTION_KEYS.map(c => {
+  if (c.id === 'all') {
+    return { ...c, count: HADITH_DATABASE.length };
+  }
+  const count = HADITH_DATABASE.filter(h => 
+    h.collection.toLowerCase().includes(c.id.toLowerCase())
+  ).length;
+  return { ...c, count };
+}).filter(c => c.id === 'all' || c.count > 0);
 
 export default function HadithLibraryView({ 
   initialCollection, 
@@ -201,7 +218,9 @@ export default function HadithLibraryView({
   const TOPICS = ['all', ...Array.from(new Set(HADITH_DATABASE.map(h => h.topic)))].sort();
 
   const filteredHadith = HADITH_DATABASE.filter(h => {
-    const matchesCollection = selectedCollection === 'all' || h.collection === selectedCollection;
+    const matchesCollection = selectedCollection === 'all' || 
+      h.collection === selectedCollection || 
+      h.collection.toLowerCase().includes(selectedCollection.toLowerCase());
     const matchesTopic = selectedTopic === 'all' || h.topic === selectedTopic;
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = !searchQuery || 

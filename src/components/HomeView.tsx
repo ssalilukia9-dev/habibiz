@@ -36,7 +36,8 @@ import {
   Layers,
   Globe,
   Share2,
-  Music2
+  Music2,
+  ZoomIn
 } from 'lucide-react';
 import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
 import { getDailyHadith } from '../data/hadiths.ts';
@@ -48,12 +49,16 @@ import { getPrayerTimes, formatTime, PrayerTimeData } from '../services/prayerSe
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import { YoutubeNamesService, YoutubeNamesState } from '../services/youtubeNamesService.ts';
 import RamadanHub from './RamadanHub.tsx';
+import RamadanCountdownWidget from './RamadanCountdownWidget.tsx';
+import WhiteDaysWidget from './WhiteDaysWidget.tsx';
+import { getRamadanStatus } from '../services/islamicScheduleService.ts';
 import salamSoulBg from '../assets/images/salam_soul_bg_1783445291609.jpg';
 import { 
   fetchDailyBanner, 
   getSynchronousDailyBannerFallback, 
   DailyBannerData 
 } from '../services/dailyBannerService.ts';
+import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal.tsx';
 
 // Comprehensive Hijri Month metadata with English transliteration, meaning, and sacred status
 const HIJRI_MONTHS_MAP: Record<number, { en: string; ar: string; meaning: string; sacred: boolean }> = {
@@ -119,6 +124,9 @@ export default function HomeView({
   const [voicePlayback, setVoicePlayback] = useState<VoicePlaybackState>(VoiceService.getState());
   const [ytState, setYtState] = useState<YoutubeNamesState>(YoutubeNamesService.getState());
   const [copiedAyah, setCopiedAyah] = useState(false);
+
+  // 🖼️ Media Lightbox Modal State
+  const [isBannerLightboxOpen, setIsBannerLightboxOpen] = useState(false);
 
   useEffect(() => {
     const unsubVoice = VoiceService.subscribe(setVoicePlayback);
@@ -302,6 +310,9 @@ export default function HomeView({
   const isWhiteDays = hDayNum >= 13 && hDayNum <= 15;
   const isFriday = currentTime.getDay() === 5;
   const isRamadanActive = !!(hMonthNum === 9 || forceRamadan);
+  const ramadanStatus = useMemo(() => getRamadanStatus(currentTime), [currentTime]);
+  const [previewRamadanCountdown, setPreviewRamadanCountdown] = useState(false);
+  const shouldShowRamadanCountdown = (ramadanStatus.daysUntilRamadan <= 3 && !isRamadanActive) || previewRamadanCountdown;
 
   const dailyHadith = getDailyHadith();
 
@@ -317,15 +328,20 @@ export default function HomeView({
     return getDailyQuoteForDate(currentTime);
   }, [currentTime.toDateString()]);
 
-  // Interchanging Daily Wisdom Mode (Ayah of the Day, Hadith of the Day, Quote of the Day)
+  // Auto-Rotating Daily Wisdom Mode (Automatically switches each new day: Ayah -> Hadith -> Quote)
   const [wisdomMode, setWisdomMode] = useState<WisdomMode>(() => {
-    const saved = localStorage.getItem('sanctuary_wisdom_mode');
-    return (saved as WisdomMode) || 'ayah';
+    return dailyWisdomService.getDailyRotatingWisdomMode(new Date());
   });
 
-  const handleSelectWisdomMode = (mode: WisdomMode) => {
-    setWisdomMode(mode);
-    localStorage.setItem('sanctuary_wisdom_mode', mode);
+  // Automatically update wisdom mode on every new day
+  useEffect(() => {
+    setWisdomMode(dailyWisdomService.getDailyRotatingWisdomMode(currentTime));
+  }, [currentTime.toDateString()]);
+
+  const handleNextWisdomMode = () => {
+    const modes: WisdomMode[] = ['ayah', 'hadith', 'quote'];
+    const nextIndex = (modes.indexOf(wisdomMode) + 1) % modes.length;
+    setWisdomMode(modes[nextIndex]);
   };
 
   const currentWisdom: DailyWisdomSummary = useMemo(() => {
@@ -369,6 +385,97 @@ export default function HomeView({
   // Quote / Wisdom audio & copy state
   const [isPlayingQuoteVoice, setIsPlayingQuoteVoice] = useState(false);
   const [copiedQuote, setCopiedQuote] = useState(false);
+
+  // Daily Wisdom Like & Heart Engagement State
+  const [isWisdomLiked, setIsWisdomLiked] = useState<boolean>(() => {
+    return localStorage.getItem(`daily_wisdom_liked_${todayKey}_${wisdomMode}`) === 'true';
+  });
+  const [wisdomLikesCount, setWisdomLikesCount] = useState<number>(() => {
+    const base = 142 + (dayOfYear * 7) % 89;
+    const isLiked = localStorage.getItem(`daily_wisdom_liked_${todayKey}_${wisdomMode}`) === 'true';
+    return base + (isLiked ? 1 : 0);
+  });
+  const [showHeartPop, setShowHeartPop] = useState(false);
+
+  // Network & Connectivity Speed State (Responsive to WiFi and Mobile Data)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [connectionType, setConnectionType] = useState<string>('fast');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (typeof navigator !== 'undefined' && (navigator as any).connection) {
+      const conn = (navigator as any).connection;
+      const updateConn = () => {
+        setConnectionType(conn.effectiveType || conn.type || 'fast');
+      };
+      conn.addEventListener('change', updateConn);
+      updateConn();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Soothing crystal sound chime for Likes and Dhikr clicks
+  const playTactileChime = (type: 'like' | 'dhikr' | 'streak') => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+
+      if (type === 'like') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.14); // A5
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.28);
+      } else if (type === 'dhikr') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      } else if (type === 'streak') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(554.37, now + 0.08);
+        osc.frequency.setValueAtTime(659.25, now + 0.16);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      }
+    } catch {}
+  };
+
+  const handleToggleLikeWisdom = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playTactileChime('like');
+    const next = !isWisdomLiked;
+    setIsWisdomLiked(next);
+    setWisdomLikesCount(prev => next ? prev + 1 : Math.max(1, prev - 1));
+    localStorage.setItem(`daily_wisdom_liked_${todayKey}_${wisdomMode}`, String(next));
+
+    if (next) {
+      setShowHeartPop(true);
+      if (addHasanat) addHasanat(2);
+      setTimeout(() => setShowHeartPop(false), 900);
+    }
+  };
 
   // Daily AI Banner Image & Spiritual Atmosphere State
   const [bannerVariation, setBannerVariation] = useState<number>(() => {
@@ -554,36 +661,129 @@ export default function HomeView({
   };
 
   return (
-    <div className="space-y-8 md:space-y-10 pb-24 max-w-7xl mx-auto">
+    <div className="relative space-y-8 md:space-y-10 pb-24 max-w-7xl mx-auto">
       
-      {/* 1. OFFICIAL SANCTUARY PARTNER RIBBON */}
-      <div className="glass-panel border-white/5 p-3.5 sm:p-4 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between bg-gradient-to-r from-amber-500/10 via-[#061828]/70 to-emerald-500/10 gap-3 shadow-lg border border-amber-400/20">
+      {/* 🌌 Atmospheric Background Animated Ambient Orbs & Celestial Particles */}
+      <div className="absolute inset-0 -top-10 overflow-hidden pointer-events-none -z-10 select-none">
+        {/* Luminous Gold Celestial Orb */}
+        <motion.div 
+          animate={{ 
+            x: [0, 25, -20, 0], 
+            y: [0, -20, 15, 0],
+            scale: [1, 1.12, 0.95, 1],
+            opacity: [0.12, 0.22, 0.14, 0.12]
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-10 left-1/4 w-[380px] h-[380px] rounded-full bg-gradient-to-br from-amber-400/30 to-amber-600/0 blur-[100px]"
+        />
+
+        {/* Luminous Emerald Deep Spiritual Orb */}
+        <motion.div 
+          animate={{ 
+            x: [0, -30, 20, 0], 
+            y: [0, 25, -15, 0],
+            scale: [0.95, 1.15, 1, 0.95],
+            opacity: [0.10, 0.20, 0.12, 0.10]
+          }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute top-48 right-10 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-emerald-500/25 via-teal-500/10 to-transparent blur-[110px]"
+        />
+
+        {/* Luminous Midnight Purple / Sapphire Light */}
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.2, 1],
+            opacity: [0.08, 0.16, 0.08]
+          }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+          className="absolute top-1/2 left-10 w-[460px] h-[460px] rounded-full bg-gradient-to-r from-purple-600/15 via-indigo-600/10 to-transparent blur-[120px]"
+        />
+
+        {/* Subtle Floating Star Sparkles */}
+        <div className="absolute inset-0 opacity-40">
+          {[
+            { top: '8%', left: '15%', delay: 0, duration: 4 },
+            { top: '18%', left: '82%', delay: 1.5, duration: 5 },
+            { top: '35%', left: '48%', delay: 0.8, duration: 3.8 },
+            { top: '55%', left: '12%', delay: 2.2, duration: 4.5 },
+            { top: '72%', left: '88%', delay: 1.1, duration: 4.2 },
+            { top: '85%', left: '35%', delay: 2.8, duration: 5.2 }
+          ].map((star, sIdx) => (
+            <motion.div
+              key={`star-${sIdx}`}
+              style={{ top: star.top, left: star.left }}
+              animate={{ 
+                opacity: [0.15, 0.85, 0.15],
+                scale: [0.8, 1.3, 0.8]
+              }}
+              transition={{ 
+                duration: star.duration, 
+                repeat: Infinity, 
+                ease: "easeInOut", 
+                delay: star.delay 
+              }}
+              className="absolute w-1.5 h-1.5 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+            />
+          ))}
+        </div>
+      </div>
+      
+      {/* 1. OFFICIAL SANCTUARY PARTNER RIBBON (Animated Card 1) */}
+      <motion.div 
+        initial={{ opacity: 0, y: -16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        whileHover={{ scale: 1.006 }}
+        className="relative overflow-hidden glass-panel border-white/5 p-3.5 sm:p-4 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between bg-gradient-to-r from-amber-500/10 via-[#061828]/80 to-emerald-500/10 gap-3 shadow-xl border border-amber-400/25 group"
+      >
+        {/* Shimmering Border Light Sweep */}
+        <motion.div 
+          animate={{ x: ['-100%', '200%'] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+          className="absolute top-0 left-0 h-[2px] w-1/3 bg-gradient-to-r from-transparent via-amber-300 to-transparent pointer-events-none opacity-60"
+        />
+
         <div className="flex items-center gap-3.5 w-full sm:w-auto">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0 text-sm">
+          <motion.div 
+            whileHover={{ rotate: [0, -10, 10, 0], scale: 1.1 }}
+            className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0 text-sm cursor-pointer"
+          >
             🌴
-          </div>
+          </motion.div>
           <div>
             <div className="flex items-center gap-2">
               <p className="text-[9px] font-black text-amber-400 uppercase tracking-[0.3em]">Sanctuary Foundation</p>
-              <span className="text-[9px] px-2 py-0.5 rounded-md bg-amber-400/15 text-amber-300 font-bold border border-amber-400/30">ALOHA GROUP</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-md bg-amber-400/15 text-amber-300 font-bold border border-amber-400/30 animate-pulse">ALOHA GROUP</span>
             </div>
             <h4 className="text-xs font-black text-white uppercase tracking-tight italic">Aloha Sanctuary &bull; Premium Spiritual Excellence</h4>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <button 
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+          {/* Responsive Network & Data Speed Indicator */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-[10px] font-bold text-slate-300 backdrop-blur-md">
+            <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span>{isOnline ? (connectionType === '4g' || connectionType === 'fast' ? '⚡ Ultra-Fast Sync' : '📶 Cloud Sync Active') : '💾 Fast Offline Cache'}</span>
+          </div>
+
+          <motion.button 
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => onNavigate('market')}
-            className="px-5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase rounded-xl transition-all tracking-[0.2em] cursor-pointer"
+            className="px-5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase rounded-xl transition-all tracking-[0.2em] cursor-pointer shadow-md shadow-amber-500/10"
           >
             Suq Al-Mubaraki
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
       
-      {/* 2. DYNAMIC DAILY HERO BANNER: ROTATING QUOTE OF THE DAY (High-Quality Daily Wisdom, Hadith & Quranic Gems) */}
-      <div 
+      {/* 2. DYNAMIC DAILY HERO BANNER (Animated Card 2) */}
+      <motion.div 
         id="tour-salam-soul"
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+        whileHover={{ scale: 1.003 }}
         className={`relative overflow-hidden rounded-[2.2rem] md:rounded-[2.8rem] border ${dailyBanner.borderClass} p-6 sm:p-8 md:p-9 min-h-[230px] md:min-h-[260px] flex flex-col justify-between shadow-2xl transition-all duration-700 group`}
       >
         {/* Dynamic High-Quality Background Image with Blur-Up & Fallback */}
@@ -615,32 +815,31 @@ export default function HomeView({
 
         <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
           
-          {/* Top Bar inside Banner: 3-Way Wisdom Interchange (Ayah / Hadith / Quote) + Notification Alert Toggle + Atmosphere */}
+          {/* Top Bar inside Banner: Single Daily Wisdom Header with Daily Rotation Pill + Notification Alert Toggle + Atmosphere */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            {/* 3-Way Wisdom Interchange Mode Tabs */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/60 border border-white/15 backdrop-blur-xl shadow-inner">
-              {[
-                { id: 'ayah', label: 'Ayah of Day', icon: BookOpen, color: 'text-emerald-400' },
-                { id: 'hadith', label: 'Hadith of Day', icon: Sparkles, color: 'text-amber-400' },
-                { id: 'quote', label: 'Quote of Day', icon: Quote, color: 'text-sky-400' }
-              ].map((tab) => {
-                const isActive = wisdomMode === tab.id;
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleSelectWisdomMode(tab.id as WisdomMode)}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-md shadow-amber-500/20 font-extrabold'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon size={12} className={isActive ? 'text-black' : tab.color} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
+            {/* Daily Wisdom Rotating Badge & Switcher */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-black/60 border border-amber-500/30 backdrop-blur-xl shadow-inner">
+                {wisdomMode === 'ayah' && <BookOpen size={14} className="text-emerald-400" />}
+                {wisdomMode === 'hadith' && <Sparkles size={14} className="text-amber-400" />}
+                {wisdomMode === 'quote' && <Quote size={14} className="text-sky-400" />}
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                  {wisdomMode === 'ayah' ? 'Ayah of the Day' : wisdomMode === 'hadith' ? 'Hadith of the Day' : 'Quote of the Day'}
+                </span>
+                <span className="text-[9px] font-bold text-amber-300 uppercase tracking-widest px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30">
+                  Daily Auto-Switch
+                </span>
+              </div>
+
+              {/* Interchange Button to cycle between Ayah, Hadith, Quote */}
+              <button
+                onClick={handleNextWisdomMode}
+                className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                title="Switch to next daily wisdom card (Ayah / Hadith / Quote)"
+              >
+                <RotateCcw size={11} className="text-amber-400" />
+                <span className="hidden sm:inline">Interchange</span>
+              </button>
             </div>
 
             {/* Right Action Icons: Notification Bell & Theme Atmosphere Switcher */}
@@ -732,8 +931,44 @@ export default function HomeView({
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 pt-1">
+          {/* Action Buttons with Interactive Like / Heart Button */}
+          <div className="flex flex-wrap items-center gap-3 pt-1 relative">
+            {/* Heart / Like Wisdom Engagement Button with live counter */}
+            <button 
+              onClick={handleToggleLikeWisdom}
+              className={`px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer relative overflow-hidden ${
+                isWisdomLiked
+                  ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/50 shadow-rose-500/20'
+                  : 'bg-white/10 hover:bg-white/15 text-slate-300 border border-white/15'
+              }`}
+              title={isWisdomLiked ? 'Liked (+2 Hasanat saved)' : 'Like & Save Daily Reflection (+2 Hasanat)'}
+            >
+              <Heart 
+                size={15} 
+                className={`transition-transform duration-300 ${
+                  isWisdomLiked ? 'fill-rose-500 text-rose-500 scale-110' : 'text-slate-400 group-hover:scale-110'
+                }`} 
+              />
+              <span>{isWisdomLiked ? 'Liked' : 'Like'}</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-black/40 text-[10px] font-mono font-bold text-rose-300">
+                {wisdomLikesCount}
+              </span>
+
+              {/* Floating Heart Burst Particle Animation */}
+              <AnimatePresence>
+                {showHeartPop && (
+                  <motion.div 
+                    initial={{ opacity: 1, scale: 0.5, y: 0 }}
+                    animate={{ opacity: 0, scale: 1.8, y: -25 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  >
+                    <Heart size={28} className="fill-rose-400 text-rose-400 drop-shadow-md" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+
             <button 
               onClick={handlePlayQuoteVoice}
               className={`px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer ${
@@ -773,6 +1008,16 @@ export default function HomeView({
               <span>{lastRead ? `Resume ${lastRead.title}` : 'Read Quran'}</span>
             </button>
 
+            {/* Expand Visual Artwork Lightbox Button */}
+            <button 
+              onClick={() => setIsBannerLightboxOpen(true)}
+              className="px-4 py-2.5 bg-white/10 text-white font-bold rounded-2xl border border-white/15 hover:bg-white/15 hover:border-brand-primary/40 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider backdrop-blur-md cursor-pointer"
+              title="Expand & view full sanctuary atmosphere artwork"
+            >
+              <ZoomIn size={14} className="text-amber-300" />
+              <span>Expand Visual</span>
+            </button>
+
             {isFriday ? (
               <button 
                 onClick={() => onNavigate('resources', { resId: 'quran', surahNumber: 18 })}
@@ -793,7 +1038,7 @@ export default function HomeView({
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 3. ARTISTIC PRAYER CONSOLE & SACRED ISLAMIC LUNAR-SOLAR CALENDAR */}
       <div 
@@ -972,11 +1217,11 @@ export default function HomeView({
         {/* Integrated 5-Prayer Ribbon Bar */}
         <div className="pt-4 border-t border-white/10">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {prayerTimes.map((p) => {
+            {prayerTimes.map((p, idx) => {
               const Icon = p.icon;
               return (
                 <div 
-                  key={p.name}
+                  key={`home-prayer-ribbon-${p.name}-${idx}`}
                   className={`p-3.5 rounded-2xl text-center border transition-all relative overflow-hidden flex flex-col items-center justify-between gap-1.5 ${
                     p.active 
                       ? 'bg-gradient-to-b from-brand-primary/25 to-brand-primary/10 border-brand-primary shadow-lg shadow-brand-primary/20' 
@@ -1004,11 +1249,37 @@ export default function HomeView({
         </div>
       </div>
 
-      {isRamadanActive && (
+      {/* 3. RAMADAN HUB / COUNTDOWN / WHITE DAYS WIDGET LOGIC */}
+      {isRamadanActive ? (
         <RamadanHub 
           currentTime={currentTime} 
           prayerData={prayerData} 
           addHasanat={addHasanat} 
+          onExitRamadanMode={() => {
+            localStorage.setItem('force-ramadan-mode', 'false');
+            setForceRamadan(false);
+            setPreviewRamadanCountdown(false);
+          }}
+        />
+      ) : shouldShowRamadanCountdown ? (
+        <RamadanCountdownWidget 
+          currentTime={currentTime}
+          onNavigate={onNavigate}
+          addHasanat={addHasanat}
+          onActivateRamadanMode={() => {
+            localStorage.setItem('force-ramadan-mode', 'true');
+            window.dispatchEvent(new CustomEvent('ramadan_mode_updated'));
+            setForceRamadan(true);
+          }}
+          onClosePreview={() => setPreviewRamadanCountdown(false)}
+        />
+      ) : (
+        /* SACRED WHITE DAYS (AYYAM AL-BEED) FASTING WIDGET (Replaced by Ramadan Countdown within 3 days of Ramadan) */
+        <WhiteDaysWidget 
+          addHasanat={addHasanat} 
+          onNavigateToFastTracker={() => onNavigate('resources', { resId: 'tracker' })} 
+          daysUntilRamadan={ramadanStatus.daysUntilRamadan}
+          onPreviewRamadanCountdown={() => setPreviewRamadanCountdown(true)}
         />
       )}
 
@@ -1057,93 +1328,7 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 5. CENTERPIECE: SACRED SPIRITUAL REVELATION (AYAH / HADITH OF THE DAY) */}
-      <div id="tour-daily-centerpiece" className="relative">
-        <div 
-          onClick={() => onNavigate(dailyRevelation.link.tab, dailyRevelation.link.extra)}
-          className="group relative p-8 sm:p-12 md:p-16 rounded-[2.8rem] bg-gradient-to-b from-[#061828]/95 via-[#03101C]/95 to-black border-2 border-brand-primary/30 text-center space-y-8 cursor-pointer overflow-hidden shadow-2xl hover:border-brand-primary/60 transition-all duration-300"
-        >
-          {/* Subtle Arabesque Grid Backdrop */}
-          <div className="absolute inset-0 opacity-[0.06] pointer-events-none mix-blend-overlay">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_1px,transparent_1px)] bg-[size:32px_32px]" />
-          </div>
-
-          <div className="relative z-10 flex flex-col items-center space-y-6">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 h-12 rounded-2xl bg-brand-primary/15 flex items-center justify-center text-brand-primary border border-brand-primary/30 shadow-md">
-                {dailyRevelation.type === 'quran' ? <BookOpen size={24} /> : <Sparkles size={24} />}
-              </div>
-              <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.5em]">
-                {dailyRevelation.type === 'quran' ? 'Illuminated Ayah of the Day' : 'Prophetic Hadith of the Day'}
-              </span>
-            </div>
-
-            {/* Arabic Script */}
-            <p className="arabic-text text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white leading-relaxed md:leading-loose max-w-5xl font-arabic font-bold text-amber-200/95 drop-shadow-md">
-              {dailyRevelation.arabic}
-            </p>
-
-            {/* Translation & Reference */}
-            <div className="max-w-3xl space-y-3">
-              <p className="text-base sm:text-xl md:text-2xl text-slate-200 font-light italic leading-relaxed">
-                "{dailyRevelation.translation}"
-              </p>
-              <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-brand-primary/40 to-transparent mx-auto" />
-              <p className="text-xs font-black text-amber-400/90 uppercase tracking-[0.3em]">
-                {dailyRevelation.reference}
-              </p>
-            </div>
-
-            {/* Action Bar inside Centerpiece */}
-            <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const id = 'home-daily-revelation';
-                  if (voicePlayback.isPlaying && voicePlayback.activeId === id) {
-                    VoiceService.stop();
-                  } else {
-                    VoiceService.speakBoth(dailyRevelation.arabic, dailyRevelation.translation, id);
-                  }
-                }}
-                className={`px-6 py-3 rounded-full font-black text-xs uppercase tracking-wider flex items-center gap-2.5 transition-all cursor-pointer shadow-lg active:scale-95 ${
-                  voicePlayback.isPlaying && voicePlayback.activeId === 'home-daily-revelation'
-                    ? 'bg-amber-500 text-black shadow-amber-500/25'
-                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-                }`}
-              >
-                {voicePlayback.isPlaying && voicePlayback.activeId === 'home-daily-revelation' ? (
-                  <>
-                    <Pause size={15} className="fill-current" />
-                    <span>Pause Audio</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 size={15} />
-                    <span>Recite Voice</span>
-                  </>
-                )}
-              </button>
-
-              <button 
-                onClick={handleCopyAyah}
-                className="px-5 py-3 bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
-                title="Copy verse to clipboard"
-              >
-                <Share2 size={14} />
-                <span>{copiedAyah ? 'Copied ✓' : 'Share'}</span>
-              </button>
-
-              <button className="px-7 py-3 bg-white text-black font-black rounded-full hover:bg-slate-100 active:scale-95 transition-all text-xs uppercase tracking-wider shadow-lg flex items-center gap-2 cursor-pointer">
-                <span>{dailyRevelation.type === 'quran' ? 'Open Quran' : 'Hadith Library'}</span>
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. DEVOTION STREAK FIRE CARD */}
+      {/* 5. DEVOTION STREAK FIRE CARD */}
       <div id="tour-streak-fire" className={`relative overflow-hidden rounded-[2.5rem] p-6 sm:p-7 transition-all duration-500 border ${
         streak >= 7
           ? 'bg-gradient-to-r from-orange-950/80 via-red-950/60 to-amber-950/80 border-orange-500/60 shadow-[0_0_50px_rgba(249,115,22,0.35)]'
@@ -1261,12 +1446,12 @@ export default function HomeView({
               { name: 'Asr', icon: CloudSun, time: prayerData ? formatTime(prayerData.asr) : '03:45 PM' },
               { name: 'Maghrib', icon: Sunset, time: prayerData ? formatTime(prayerData.maghrib) : '06:40 PM' },
               { name: 'Isha', icon: Moon, time: prayerData ? formatTime(prayerData.isha) : '08:05 PM' }
-            ].map((p) => {
+            ].map((p, idx) => {
               const isDone = !!prayersCompleted[p.name];
               const Icon = p.icon;
               return (
                 <button
-                  key={p.name}
+                  key={`ramadan-hub-prayer-${p.name}-${idx}`}
                   onClick={() => togglePrayerCompleted(p.name)}
                   className={`p-4 rounded-2xl border transition-all flex flex-col items-center text-center gap-2 cursor-pointer relative overflow-hidden group hover:scale-[1.02] active:scale-[0.98] ${
                     isDone 
@@ -1297,11 +1482,11 @@ export default function HomeView({
           </div>
         </div>
 
-        {/* DUAL INTERACTIVE TRACKERS: HADITH & QURAN */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* TRI-PILLAR INTERACTIVE TRACKERS: HADITH, QURAN & QUICK DHIKR BEAD */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           
           {/* Hadith Reflection Card */}
-          <div className="p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-brand-primary/40 transition-all">
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-brand-primary/40 transition-all">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -1320,7 +1505,7 @@ export default function HomeView({
                 )}
               </div>
 
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-wider">{dailyHadith.narrator}</p>
                 <p className="text-xs text-slate-200 font-medium leading-relaxed italic line-clamp-3">
                   "{dailyHadith.english}"
@@ -1350,7 +1535,7 @@ export default function HomeView({
           </div>
 
           {/* Quran Recitation Counter Card */}
-          <div className="p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-amber-500/40 transition-all">
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-amber-500/40 transition-all">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -1394,8 +1579,85 @@ export default function HomeView({
               </button>
             </div>
           </div>
+
+          {/* Quick Dhikr & Tasbih Interactive Bead Station */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-1">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <Activity size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider">Quick Dhikr Bead</h4>
+                    <p className="text-[10px] text-slate-400">Instant Remembrance</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setDhikrPhraseIdx(prev => (prev + 1) % dhikrPhrases.length);
+                      playTactileChime('dhikr');
+                    }}
+                    className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 text-[9px] font-bold uppercase cursor-pointer"
+                    title="Change Dhikr Phrase"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                  <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-xl border border-emerald-400/20">
+                    {dhikrCount} / 33
+                  </span>
+                </div>
+              </div>
+
+              {/* Phrase Display */}
+              <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-center space-y-0.5">
+                <p className="text-sm font-bold font-arabic text-emerald-300">
+                  {dhikrPhrases[dhikrPhraseIdx]?.ar}
+                </p>
+                <p className="text-[10px] font-semibold text-slate-300">
+                  {dhikrPhrases[dhikrPhraseIdx]?.en} &bull; <span className="text-slate-400 text-[9px]">{dhikrPhrases[dhikrPhraseIdx]?.tr}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button 
+                onClick={() => {
+                  playTactileChime('dhikr');
+                  incrementDhikr();
+                }}
+                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Tap Dhikr</span>
+                <span className="w-4 h-4 rounded-full bg-slate-950/30 text-white text-[9px] flex items-center justify-center font-mono font-bold">
+                  +1
+                </span>
+              </button>
+              <button 
+                onClick={() => onNavigate('resources', { resId: 'tasbih' })}
+                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-bold uppercase border border-white/10 transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Open Full 3D Digital Tasbih"
+              >
+                <span>Tasbih</span>
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
+
+      {/* Universal Media Lightbox Expansion Modal */}
+      <MediaLightboxModal
+        isOpen={isBannerLightboxOpen}
+        onClose={() => setIsBannerLightboxOpen(false)}
+        media={{
+          url: dailyBanner.imageUrl || dailyBanner.fallbackImageUrl,
+          title: dailyQuote.theme || 'Sanctuary Atmospheric Artwork',
+          caption: `${dailyQuote.quote || ''} — ${dailyQuote.source || ''}`,
+          author: 'Habibi Sanctuary Sacred Visuals'
+        }}
+      />
 
     </div>
   );

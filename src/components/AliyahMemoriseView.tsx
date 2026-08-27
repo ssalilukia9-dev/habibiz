@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import * as d3 from 'd3';
 import {
   Mic,
   MicOff,
   Volume2,
+  VolumeX,
   Sparkles,
   RefreshCw,
   Eye,
@@ -40,8 +42,38 @@ import {
   HelpCircle,
   X,
   Award,
-  Zap
+  Zap,
+  MessageSquare,
+  Send,
+  Bot,
+  User,
+  Trash2,
+  Copy,
+  Radio,
+  History,
+  Lightbulb,
+  Heart,
+  Smile,
+  Loader2,
+  Flame,
+  Layers
 } from 'lucide-react';
+import {
+  collection,
+  doc,
+  setDoc,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  deleteDoc,
+  updateDoc
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase.ts';
+import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { SURAH_LIST, JUZ_LIST } from '../constants.ts';
 import { apiFetch } from '../lib/api.ts';
 
@@ -56,6 +88,14 @@ export interface AyahWord {
   detectedSpoken?: string;
   problemReason?: string;
   tajweedTip?: string;
+}
+
+export interface AliyahMessage {
+  id: string;
+  role: 'user' | 'model';
+  content: string;
+  timestamp?: any;
+  topic?: string;
 }
 
 export interface PageAyah {
@@ -92,10 +132,11 @@ export type TarteelHifzMode = 'case1_detective' | 'case2_correction' | 'case3_re
 export type MushafTheme = 'parchment' | 'night' | 'emerald';
 
 interface AliyahMemoriseViewProps {
-  onBack: () => void;
-  addHasanat: (amount: number) => void;
+  onBack?: () => void;
+  addHasanat?: (amount: number) => void;
   isPremium?: boolean;
   onShowPremium?: () => void;
+  currentUser?: any;
 }
 
 // Comprehensive Multi-Ayah Opening Sequences for Instant 2-3 Ayah Detection
@@ -555,8 +596,11 @@ export default function AliyahMemoriseView({
   onBack,
   addHasanat,
   isPremium = true,
-  onShowPremium
+  onShowPremium,
+  currentUser
 }: AliyahMemoriseViewProps) {
+  const navigate = useNavigate();
+
   // 1. Initial State from localStorage
   const savedPage = Number(localStorage.getItem('aliyah_memorise_last_page')) || 1; // Default to Surah Al-Fatiha
   const savedTheme = (localStorage.getItem('aliyah_memorise_theme') as MushafTheme) || 'parchment';
@@ -621,6 +665,30 @@ export default function AliyahMemoriseView({
     pacingAdvice: string;
   } | null>(null);
 
+  // 🌟 6. ALIYAH TALK PAL & CONVERSATIONAL CONTEXT PERSISTENCE (FIRESTORE SYNC)
+  const [showAliyahTalkModal, setShowAliyahTalkModal] = useState<boolean>(false);
+  const [aliyahMessages, setAliyahMessages] = useState<AliyahMessage[]>([]);
+  const [aliyahTopicsSummary, setAliyahTopicsSummary] = useState<string[]>([
+    'Quran Memorisation Guidance',
+    'Tajweed Articulation & Makharij',
+    'Spiritual Reflections & Tranquility'
+  ]);
+  const [activeTopicTag, setActiveTopicTag] = useState<string>('Quran Memorisation & Life Guidance');
+  const [aliyahChatInput, setAliyahChatInput] = useState<string>('');
+  const [isAliyahGenerating, setIsAliyahGenerating] = useState<boolean>(false);
+  const [aliyahVoiceEnabled, setAliyahVoiceEnabled] = useState<boolean>(true);
+  const [isAliyahSpeaking, setIsAliyahSpeaking] = useState<boolean>(false);
+  const [isAliyahListening, setIsAliyahListening] = useState<boolean>(false);
+  const [aliyahLiveTranscript, setAliyahLiveTranscript] = useState<string>('');
+  const [firestoreSynced, setFirestoreSynced] = useState<boolean>(false);
+  const [aliyahTab, setAliyahTab] = useState<'talk' | 'chat' | 'topics'>('talk');
+
+  const aliyahRecognitionRef = useRef<any>(null);
+  const aliyahMessagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const activeUser = currentUser || auth.currentUser;
+  const convId = activeUser ? `aliyah_memorise_${activeUser.uid}` : 'aliyah_memorise_guest';
+
   // Test & Simulation Mode (for instant automated testing without mic)
   const [isTestModeOpen, setIsTestModeOpen] = useState<boolean>(false);
   const [isAutoSimulating, setIsAutoSimulating] = useState<boolean>(false);
@@ -645,6 +713,273 @@ export default function AliyahMemoriseView({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // 🌟 FIRESTORE PERSISTENCE LISTENER: Keep Aliyah's conversational context across app restarts
+  useEffect(() => {
+    if (!activeUser) return;
+
+    // 1. Listen to parent conversation doc for remembered topics and summary
+    const convDocRef = doc(db, 'ai_conversations', convId);
+    const unsubConv = onSnapshot(convDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.topicsSummary && Array.isArray(data.topicsSummary)) {
+          setAliyahTopicsSummary(data.topicsSummary);
+        }
+        if (data?.lastTopic) {
+          setActiveTopicTag(data.lastTopic);
+        }
+        setFirestoreSynced(true);
+      } else {
+        // Initialize doc in Firestore
+        setDoc(convDocRef, {
+          userId: activeUser.uid,
+          title: 'Aliyah Talk Pal & Memorisation Companion',
+          topicsSummary: [
+            'Quran Memorisation Guidance',
+            'Tajweed Articulation & Makharij',
+            'Spiritual Reflections & Tranquility'
+          ],
+          lastTopic: 'Quran Memorisation Guidance',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }).catch(err => handleFirestoreError(err, OperationType.CREATE, `ai_conversations/${convId}`));
+      }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `ai_conversations/${convId}`);
+    });
+
+    // 2. Listen to the messages subcollection in Firestore (ordered chronologically)
+    const msgsQuery = query(
+      collection(db, 'ai_conversations', convId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubMsgs = onSnapshot(msgsQuery, (snapshot) => {
+      const msgs: AliyahMessage[] = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        role: docSnap.data().role || 'user',
+        content: docSnap.data().content || '',
+        timestamp: docSnap.data().timestamp,
+        topic: docSnap.data().topic
+      }));
+
+      setAliyahMessages(msgs);
+      setFirestoreSynced(true);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, `ai_conversations/${convId}/messages`);
+    });
+
+    return () => {
+      unsubConv();
+      unsubMsgs();
+    };
+  }, [activeUser, convId]);
+
+  // Auto-scroll messages
+  useEffect(() => {
+    if (showAliyahTalkModal && aliyahMessagesEndRef.current) {
+      aliyahMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aliyahMessages, showAliyahTalkModal]);
+
+  // Hands-free voice speech recognition for Aliyah Talk Pal
+  const startAliyahVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("⚠️ Voice recognition available on Chrome, Safari, or Edge.");
+      return;
+    }
+
+    try {
+      if (aliyahRecognitionRef.current) {
+        try { aliyahRecognitionRef.current.abort(); } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      aliyahRecognitionRef.current = recognition;
+
+      recognition.onstart = () => {
+        setIsAliyahListening(true);
+        setAliyahLiveTranscript('');
+      };
+
+      recognition.onresult = (event: any) => {
+        let text = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          text += event.results[i][0].transcript;
+        }
+        setAliyahLiveTranscript(text);
+      };
+
+      recognition.onerror = () => {
+        setIsAliyahListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsAliyahListening(false);
+        if (aliyahLiveTranscript.trim()) {
+          sendAliyahMessage(aliyahLiveTranscript.trim());
+          setAliyahLiveTranscript('');
+        }
+      };
+
+      recognition.start();
+    } catch {
+      setIsAliyahListening(false);
+    }
+  };
+
+  const stopAliyahVoiceInput = () => {
+    setIsAliyahListening(false);
+    if (aliyahRecognitionRef.current) {
+      try { aliyahRecognitionRef.current.stop(); } catch {}
+    }
+    if (aliyahLiveTranscript.trim()) {
+      sendAliyahMessage(aliyahLiveTranscript.trim());
+      setAliyahLiveTranscript('');
+    }
+  };
+
+  // Send message to Aliyah with lifelong context & Firestore persistence
+  const sendAliyahMessage = async (customPrompt?: string) => {
+    const messageText = (customPrompt || aliyahChatInput).trim();
+    if (!messageText || isAliyahGenerating) return;
+
+    setAliyahChatInput('');
+    setIsAliyahGenerating(true);
+
+    const userPayload = {
+      role: 'user' as const,
+      content: messageText,
+      timestamp: serverTimestamp(),
+      topic: `Page ${currentPageNumber} • ${pageSurahInfo.englishName}`
+    };
+
+    // Save user message to Firestore
+    if (activeUser) {
+      try {
+        await addDoc(collection(db, 'ai_conversations', convId, 'messages'), userPayload);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `ai_conversations/${convId}/messages`);
+      }
+    } else {
+      setAliyahMessages(prev => [...prev, { id: `user_${Date.now()}`, ...userPayload }]);
+    }
+
+    try {
+      // Build conversation history for multi-turn context
+      const contentsPayload = aliyahMessages.slice(-8).map(m => ({
+        role: m.role === 'model' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+      contentsPayload.push({
+        role: 'user',
+        parts: [{ text: messageText }]
+      });
+
+      const systemInstruction = `You are "Aliyah", an empathetic, wise, warm, witty, and uplifting AI Talk Pal and Quran Memorisation Companion powered by Gemini.
+You listen and respond freely, genuinely, and engagingly to ANY topic the user brings up (daily life chit-chat, emotions, curiosity, philosophical questions, stories, or Quranic Hifz & Tajweed).
+
+Context & Lifelong Memory:
+- Current Mushaf Page: Page ${currentPageNumber} (${pageSurahInfo.englishName} - ${pageSurahInfo.surahName}, Juz ${pageSurahInfo.juz})
+- Remembered Topics & Context from Previous Sessions: ${aliyahTopicsSummary.join(', ') || 'Life reflections & Quran memorisation'}
+- Current Page Recitation Accuracy: ${pageAccuracy}%
+
+Rules:
+1. Warm, authentic, and naturally conversational. For casual messages, reply warmly and naturally without overwhelming essays.
+2. For deep questions, share thoughtful, inspiring perspectives.
+3. Seamlessly remember past discussions and reference previous topics when relevant.
+4. When talking about the Quran, offer gentle encouragement, mnemonic memory tips, Tajweed guidance, and spiritual solace.`;
+
+      const response = await apiFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: contentsPayload,
+          systemInstruction
+        })
+      });
+
+      const data = await response.json();
+      const replyText = data.text || "SubhanAllah, I hear you and remember our journey. Let's keep flourishing together.";
+
+      // Save Aliyah's response to Firestore
+      if (activeUser) {
+        try {
+          await addDoc(collection(db, 'ai_conversations', convId, 'messages'), {
+            role: 'model',
+            content: replyText,
+            timestamp: serverTimestamp(),
+            topic: `Page ${currentPageNumber}`
+          });
+
+          // Derive topic tag
+          const cleanSnippet = messageText.length > 30 ? messageText.slice(0, 30) + '...' : messageText;
+          const updatedTopics = Array.from(new Set([cleanSnippet, ...aliyahTopicsSummary])).slice(0, 6);
+
+          await updateDoc(doc(db, 'ai_conversations', convId), {
+            updatedAt: serverTimestamp(),
+            lastTopic: cleanSnippet,
+            topicsSummary: updatedTopics
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `ai_conversations/${convId}`);
+        }
+      } else {
+        setAliyahMessages(prev => [...prev, {
+          id: `model_${Date.now()}`,
+          role: 'model',
+          content: replyText,
+          timestamp: new Date().toISOString()
+        }]);
+      }
+
+      // Voice response
+      if (aliyahVoiceEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(replyText.replace(/[*#_`]/g, ''));
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
+        utterance.onstart = () => setIsAliyahSpeaking(true);
+        utterance.onend = () => setIsAliyahSpeaking(false);
+        utterance.onerror = () => setIsAliyahSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+      }
+
+      if (addHasanat) addHasanat(10);
+      setSessionHasanat(prev => prev + 10);
+    } catch (err) {
+      console.warn("Aliyah chat failed:", err);
+      showToast("⚠️ Reconnecting Aliyah Talk Pal...");
+    } finally {
+      setIsAliyahGenerating(false);
+    }
+  };
+
+  const clearAliyahHistory = async () => {
+    if (!activeUser) {
+      setAliyahMessages([]);
+      return;
+    }
+    try {
+      const snap = await getDocs(collection(db, 'ai_conversations', convId, 'messages'));
+      const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+      await updateDoc(doc(db, 'ai_conversations', convId), {
+        topicsSummary: ['Fresh Topic Started'],
+        lastTopic: 'Fresh Topic',
+        updatedAt: serverTimestamp()
+      });
+      showToast("✨ Aliyah conversation history cleared. Starting fresh!");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `ai_conversations/${convId}`);
+    }
   };
 
   // Safe Microphone Shutdown Helper
@@ -688,7 +1023,11 @@ export default function AliyahMemoriseView({
     if (audioRef.current) {
       audioRef.current.pause();
     }
-    onBack();
+    if (onBack) {
+      onBack();
+    } else {
+      navigate('/resources');
+    }
   };
 
   // 1. FETCH QURAN PAGE DATA (604 Madani Mushaf standard with server-proxy first)
@@ -1141,14 +1480,14 @@ export default function AliyahMemoriseView({
 
   // Continuous Seamless Ayah Completion & Auto-Switching Handler
   const handlePageAyahCompleted = (completedIdx: number, currentList: PageAyah[]) => {
-    addHasanat(20);
+    if (addHasanat) addHasanat(20);
     setSessionHasanat(prev => prev + 20);
 
     const isLastAyahOnPage = completedIdx >= currentList.length - 1;
 
     if (isLastAyahOnPage) {
       playAudioTone('surahComplete');
-      addHasanat(100);
+      if (addHasanat) addHasanat(100);
       setSessionHasanat(prev => prev + 100);
       showToast(`🏆 Alhamdulillah! Completed Page ${currentPageNumber}! (+100 Hasanat)`);
       
@@ -1240,7 +1579,7 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
       rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(rawText);
       setGeminiAuditResult(parsed);
-      addHasanat(50);
+      if (addHasanat) addHasanat(50);
       setSessionHasanat(prev => prev + 50);
     } catch (err) {
       console.warn("Gemini Tajweed Audit fallback:", err);
@@ -1426,29 +1765,46 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
               <ArrowLeft size={18} />
             </button>
             
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-                  Holy Aliyah Studio
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  604 Pages
-                </span>
-                {isPremium && (
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                    <Crown size={10} /> VIP
-                  </span>
-                )}
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-emerald-500/30 bg-black/40 p-0.5 shrink-0 shadow-md">
+                <img src="/habibi-logo.svg" alt="Habibi Sanctuary" className="w-full h-full object-contain" />
               </div>
-              <h1 className="text-base sm:text-lg font-black leading-tight">
-                {pageSurahInfo.englishName} ({pageSurahInfo.surahName}) • Page {currentPageNumber}
-              </h1>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                    Holy Aliyah Studio
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    604 Pages
+                  </span>
+                  {isPremium && (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      <Crown size={10} /> VIP
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-base sm:text-lg font-black leading-tight">
+                  {pageSurahInfo.englishName} ({pageSurahInfo.surahName}) • Page {currentPageNumber}
+                </h1>
+              </div>
             </div>
           </div>
 
           {/* Right Top Header Actions */}
           <div className="flex items-center gap-2">
             
+            {/* Aliyah Talk Pal Button */}
+            <button
+              onClick={() => setShowAliyahTalkModal(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer relative"
+              title="Talk Pal Aliyah • AI Companion & Context Memory"
+            >
+              <Bot size={14} />
+              <span className="hidden sm:inline">Aliyah Talk Pal</span>
+              <span className="sm:hidden">Aliyah</span>
+              <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+            </button>
+
             {/* Google Gemini Pro Tajweed Audit Trigger */}
             <button
               onClick={requestGeminiTajweedAudit}
@@ -2408,6 +2764,354 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
                   className="px-6 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider cursor-pointer hover:bg-amber-400 transition-all"
                 >
                   Continue Practice
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🌟 FLOATING ALIYAH TALK PAL QUICK PILL (FIXED BOTTOM DOCK) */}
+      <div className="fixed bottom-6 right-5 z-40">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowAliyahTalkModal(true)}
+          className="px-4 py-2.5 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-black text-xs shadow-2xl shadow-emerald-500/40 border border-emerald-400/40 flex items-center gap-2.5 cursor-pointer backdrop-blur-md hover:shadow-emerald-500/60 transition-all group"
+        >
+          <div className="relative">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping absolute inset-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-white block" />
+          </div>
+          <Bot size={16} className="text-emerald-200 group-hover:rotate-12 transition-transform" />
+          <div className="text-left leading-tight hidden sm:block">
+            <div className="text-[11px] font-black text-white">Talk with Aliyah</div>
+            <div className="text-[9px] text-emerald-200 font-medium">
+              {firestoreSynced ? '🧠 Remembers Previous Topics' : '☁️ Connecting Memory...'}
+            </div>
+          </div>
+          <span className="sm:hidden font-black">Aliyah Pal</span>
+        </motion.button>
+      </div>
+
+      {/* 🌟 7. COMPLETE ALIYAH TALK PAL INTERACTIVE MODAL / DIALOGUE HUB */}
+      <AnimatePresence>
+        {showAliyahTalkModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-2xl bg-gradient-to-b from-slate-900 via-[#0a1118] to-slate-950 border border-emerald-500/30 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Top Modal Header */}
+              <div className="p-4 sm:p-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 p-0.5 shadow-lg shadow-emerald-500/30">
+                      <div className="w-full h-full rounded-[14px] bg-slate-950 flex items-center justify-center">
+                        <Bot size={20} className="text-emerald-400" />
+                      </div>
+                    </div>
+                    {isAliyahSpeaking && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-400 rounded-full border-2 border-slate-950 animate-ping" />
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-white leading-tight">
+                        Aliyah • Gemini Talk Pal
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <Sparkles size={10} /> Lifelong Memory
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Context Synced to Firestore • Survives App Restarts</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Top Action Controls */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setAliyahVoiceEnabled(!aliyahVoiceEnabled);
+                      if (aliyahVoiceEnabled && 'speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsAliyahSpeaking(false);
+                      }
+                    }}
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                      aliyahVoiceEnabled
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-white/5 border-white/10 text-slate-400'
+                    }`}
+                    title={aliyahVoiceEnabled ? 'Voice Responses Enabled' : 'Voice Muted'}
+                  >
+                    {aliyahVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                  </button>
+
+                  <button
+                    onClick={clearAliyahHistory}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition-all cursor-pointer"
+                    title="Clear Conversation Memory"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if ('speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsAliyahSpeaking(false);
+                      }
+                      stopAliyahVoiceInput();
+                      setShowAliyahTalkModal(false);
+                    }}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Remembered Context & Topics Capsule Strip */}
+              <div className="px-4 py-2.5 bg-emerald-950/30 border-b border-emerald-500/20 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 overflow-x-auto py-0.5 scrollbar-none">
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    <History size={12} /> Remembered:
+                  </span>
+                  {aliyahTopicsSummary.map((topic, i) => (
+                    <span
+                      key={i}
+                      onClick={() => sendAliyahMessage(`Let's revisit what we discussed about "${topic}".`)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 border border-emerald-500/20 text-[10px] font-semibold shrink-0 cursor-pointer transition-all hover:scale-105"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-emerald-400 shrink-0">
+                  <span>☁️ Synced</span>
+                </div>
+              </div>
+
+              {/* Mode Switcher Tabs */}
+              <div className="flex items-center border-b border-white/10 bg-slate-950/40 p-1">
+                <button
+                  onClick={() => setAliyahTab('talk')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    aliyahTab === 'talk'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Radio size={14} />
+                  <span>Talk Voice Mode</span>
+                </button>
+
+                <button
+                  onClick={() => setAliyahTab('chat')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    aliyahTab === 'chat'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <MessageSquare size={14} />
+                  <span>Chat & History ({aliyahMessages.length})</span>
+                </button>
+              </div>
+
+              {/* Mode Content */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                {aliyahTab === 'talk' ? (
+                  <div className="flex flex-col items-center justify-center py-6 space-y-6 text-center">
+                    {/* Animated Pulsing Soundwave Orb */}
+                    <div className="relative">
+                      <motion.div
+                        animate={{
+                          scale: isAliyahSpeaking ? [1, 1.35, 1] : isAliyahListening ? [1, 1.25, 1] : [1, 1.05, 1],
+                          opacity: isAliyahSpeaking || isAliyahListening ? [0.6, 1, 0.6] : [0.3, 0.5, 0.3]
+                        }}
+                        transition={{ repeat: Infinity, duration: isAliyahSpeaking ? 1.2 : 2.0 }}
+                        className="absolute -inset-6 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-500 blur-xl pointer-events-none"
+                      />
+
+                      <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-500 p-1 shadow-2xl flex items-center justify-center">
+                        <div className="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center p-3 text-white">
+                          <Bot size={36} className="text-emerald-400 mb-1" />
+                          <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">
+                            {isAliyahSpeaking ? 'Speaking...' : isAliyahListening ? 'Listening...' : isAliyahGenerating ? 'Thinking...' : 'Aliyah Ready'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Feedback & Spoken Live Transcript */}
+                    <div className="max-w-md space-y-2">
+                      <h4 className="text-base font-black text-white">
+                        {isAliyahListening ? "I'm listening to you..." : isAliyahSpeaking ? "Aliyah is speaking..." : "Speak or ask anything"}
+                      </h4>
+                      <p className="text-xs text-slate-300">
+                        {aliyahLiveTranscript ? `"${aliyahLiveTranscript}"` : "Talk about your memorisation, life, questions, or reflections. Aliyah remembers our discussions across app restarts."}
+                      </p>
+                    </div>
+
+                    {/* Voice Trigger Button */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          if (isAliyahListening) {
+                            stopAliyahVoiceInput();
+                          } else {
+                            startAliyahVoiceInput();
+                          }
+                        }}
+                        className={`px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 shadow-xl cursor-pointer transition-all ${
+                          isAliyahListening
+                            ? 'bg-rose-500 text-white shadow-rose-500/40 animate-pulse'
+                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-emerald-500/30 hover:scale-105'
+                        }`}
+                      >
+                        {isAliyahListening ? <MicOff size={18} /> : <Mic size={18} />}
+                        <span>{isAliyahListening ? 'Tap to Send Voice' : 'Tap to Speak with Aliyah'}</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Prompts */}
+                    <div className="w-full pt-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                        Suggested Topics
+                      </span>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          onClick={() => sendAliyahMessage(`How can I memorize Page ${currentPageNumber} (${pageSurahInfo.englishName}) with ease and keep it firmly in memory?`)}
+                          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 cursor-pointer transition-all hover:scale-105"
+                        >
+                          📖 Memorising Page {currentPageNumber} tips
+                        </button>
+                        <button
+                          onClick={() => sendAliyahMessage(`What is the profound spiritual reflection of Surah ${pageSurahInfo.englishName}?`)}
+                          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 cursor-pointer transition-all hover:scale-105"
+                        >
+                          ✨ Reflection on {pageSurahInfo.englishName}
+                        </button>
+                        <button
+                          onClick={() => sendAliyahMessage("Let's talk about building daily calmness and peace in heart.")}
+                          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 cursor-pointer transition-all hover:scale-105"
+                        >
+                          🌱 Heart Peace & Routine
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {aliyahMessages.length === 0 ? (
+                      <div className="p-8 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                          <Bot size={24} />
+                        </div>
+                        <h4 className="text-sm font-bold text-white">
+                          Start your conversation with Aliyah
+                        </h4>
+                        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                          Ask anything about Surah {pageSurahInfo.englishName}, Tajweed, life, emotional peace, or let Aliyah quiz you on your memorization.
+                        </p>
+                      </div>
+                    ) : (
+                      aliyahMessages.map((msg, index) => (
+                        <div
+                          key={msg.id || index}
+                          className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {msg.role !== 'user' && (
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center justify-center shrink-0">
+                              <Bot size={16} />
+                            </div>
+                          )}
+
+                          <div
+                            className={`max-w-[82%] p-3.5 rounded-2xl text-xs leading-relaxed ${
+                              msg.role === 'user'
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-none shadow-md'
+                                : 'bg-slate-800/80 border border-white/10 text-slate-100 rounded-bl-none shadow-md'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                            {msg.topic && (
+                              <div className="mt-1.5 text-[9px] opacity-60 font-mono">
+                                📌 {msg.topic}
+                              </div>
+                            )}
+                          </div>
+
+                          {msg.role === 'user' && (
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 flex items-center justify-center shrink-0">
+                              <User size={16} />
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+
+                    {isAliyahGenerating && (
+                      <div className="flex items-center gap-2 p-3 text-xs text-slate-400">
+                        <Loader2 size={14} className="animate-spin text-emerald-400" />
+                        <span>Aliyah is crafting a thoughtful response...</span>
+                      </div>
+                    )}
+
+                    <div ref={aliyahMessagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input Footer */}
+              <div className="p-3.5 sm:p-4 border-t border-white/10 bg-slate-950/80 backdrop-blur-md flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (isAliyahListening) {
+                      stopAliyahVoiceInput();
+                    } else {
+                      startAliyahVoiceInput();
+                    }
+                  }}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shrink-0 ${
+                    isAliyahListening
+                      ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                  }`}
+                  title="Voice dictation"
+                >
+                  <Mic size={16} />
+                </button>
+
+                <input
+                  type="text"
+                  value={aliyahChatInput}
+                  onChange={(e) => setAliyahChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendAliyahMessage();
+                    }
+                  }}
+                  placeholder={`Message Aliyah (remembers previous topics)...`}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+
+                <button
+                  onClick={() => sendAliyahMessage()}
+                  disabled={!aliyahChatInput.trim() || isAliyahGenerating}
+                  className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold disabled:opacity-30 transition-all cursor-pointer shrink-0"
+                >
+                  <Send size={16} />
                 </button>
               </div>
             </motion.div>

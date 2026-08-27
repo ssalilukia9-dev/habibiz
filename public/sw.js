@@ -142,8 +142,8 @@ self.addEventListener('message', (event) => {
     const schedule = data.schedule || [];
     schedule.forEach((item) => {
       const delayMs = new Date(item.time).getTime() - Date.now();
-      if (delayMs > 0 && delayMs < 24 * 60 * 60 * 1000) {
-        setTimeout(() => {
+      if (delayMs > 0 && delayMs < 7 * 24 * 60 * 60 * 1000) { // Within 7 days
+        const timerId = setTimeout(() => {
           self.registration.showNotification(item.title || '🌌 Tahajjud & Qiyam Al-Layl', {
             body: item.body || 'The Lord descends to the lowest heaven in the last third of the night. Stand in Qiyam.',
             icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=8B5CF6',
@@ -151,32 +151,34 @@ self.addEventListener('message', (event) => {
             vibrate: [500, 150, 500, 150, 450, 150],
             requireInteraction: true,
             renotify: true,
-            tag: `tahajjud-${Date.now()}`,
-            data: { actionUrl: item.actionUrl || '/resources?tab=adhkar' },
+            tag: `tahajjud-${item.time || Date.now()}`,
+            data: { actionUrl: item.actionUrl || '/resources?tab=adhkar#tahajjud' },
             actions: [
               { action: 'open_tahajjud', title: '🤲 Read Tahajjud Duas' },
               { action: 'open_quran', title: '📖 Quran Recitation' }
             ]
           });
         }, delayMs);
+        scheduledTimers.push(timerId);
       }
     });
+    console.log(`Service Worker scheduled ${schedule.length} Tahajjud nocturnal alarms.`);
   }
 
   if (data.type === 'SCHEDULE_WHITEDAYS_NOTIFICATIONS') {
     const schedule = data.schedule || [];
     schedule.forEach((item) => {
       const delayMs = new Date(item.time).getTime() - Date.now();
-      if (delayMs > 0 && delayMs < 72 * 60 * 60 * 1000) { // Within 72 hours
-        setTimeout(() => {
+      if (delayMs > 0 && delayMs < 14 * 24 * 60 * 60 * 1000) { // Up to 14 days in advance
+        const timerId = setTimeout(() => {
           self.registration.showNotification(item.title || '🌙 White Days Sunnah Fast', {
             body: item.body || 'Reminder for Ayyam al-Beed Sunnah Fasting (13th, 14th, 15th of the lunar month).',
             icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=F59E0B',
             badge: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=F59E0B',
-            vibrate: [400, 100, 400, 100],
+            vibrate: [400, 100, 400, 100, 400, 100],
             requireInteraction: true,
             renotify: true,
-            tag: `whitedays-${Date.now()}`,
+            tag: `whitedays-${item.time || Date.now()}`,
             data: { actionUrl: item.actionUrl || '/resources?tab=calendar' },
             actions: [
               { action: 'open_fasting', title: '🌙 Set Fasting Intention' },
@@ -184,6 +186,30 @@ self.addEventListener('message', (event) => {
             ]
           });
         }, delayMs);
+        scheduledTimers.push(timerId);
+      }
+    });
+    console.log(`Service Worker scheduled ${schedule.length} White Days advance & fasting alarms.`);
+  }
+
+  if (data.type === 'SCHEDULE_ADHKAR_NOTIFICATIONS') {
+    const schedule = data.schedule || [];
+    schedule.forEach((item) => {
+      const delayMs = new Date(item.time).getTime() - Date.now();
+      if (delayMs > 0 && delayMs < 7 * 24 * 60 * 60 * 1000) {
+        const timerId = setTimeout(() => {
+          self.registration.showNotification(item.title || '📿 Daily Adhkar & Remembrance', {
+            body: item.body || 'Begin your remembrance of Allah.',
+            icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=10B981',
+            badge: 'https://api.dicebear.com/7.x/shapes/svg?seed=Sanctuary&backgroundColor=10B981',
+            vibrate: [300, 100, 300, 100],
+            requireInteraction: false,
+            renotify: true,
+            tag: `adhkar-${item.time || Date.now()}`,
+            data: { actionUrl: item.actionUrl || '/resources?tab=adhkar' }
+          });
+        }, delayMs);
+        scheduledTimers.push(timerId);
       }
     });
   }

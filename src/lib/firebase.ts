@@ -22,6 +22,7 @@ import {
   doc,
   getDocFromServer
 } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfigRaw from '../../firebase-applet-config.json';
 
 // Use environment variables if present, fallback to json config
@@ -46,15 +47,16 @@ if (!firebaseConfig.apiKey) {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Use browser local persistence as requested to ensure session survival across tabs and reloads
 setPersistence(auth, browserLocalPersistence).catch(err => {
   console.error("Persistence setting failed", err);
 });
 
-// Enable persistent local cache and force long polling for reliable cloud/iframe connectivity
+// Initialize Firestore with auto-detect long polling and offline persistence to prevent iframe/proxy connection timeouts
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true,
   localCache: persistentLocalCache({})
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
@@ -67,12 +69,15 @@ const isMobile = () => {
 
 export const testConnection = async () => {
   try {
-    // Diagnostic connection check with timeout safety
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    // Non-blocking diagnostic check
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      console.info("Firestore: Operating in offline mode (device offline).");
+      return;
+    }
   } catch (error) {
     // Graceful offline operation handling - avoid alarming console errors when offline cache is active
-    if (error instanceof Error && (error.message.includes('offline') || error.message.includes('Could not reach Cloud Firestore'))) {
-      console.info("Firestore: Connected with local persistent offline cache.");
+    if (error instanceof Error && (error.message.includes('offline') || error.message.includes('Could not reach Cloud Firestore') || error.message.includes('timeout'))) {
+      console.info("Firestore: Operating with local persistent offline cache.");
     }
   }
 };

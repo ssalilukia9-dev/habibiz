@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Islamic Wisdom Teachings bucket - Public read, write restricted strictly to authenticated Admins
+    match /islamic_teachings/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.email == 'ssalilukia9@gmail.com' ||
+        request.auth.token.email == 'admin@habibisanctuary.com' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Default media assets
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

@@ -34,8 +34,11 @@ import {
   Volume2,
   Play,
   Crown,
-  Leaf
+  Leaf,
+  Ticket,
+  KeyRound
 } from 'lucide-react';
+import { gatePassService } from '../services/gatePassService.ts';
 import { db, auth, signInWithGoogle, signInWithGithub } from '../lib/firebase.ts';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { updateProfile, deleteUser } from 'firebase/auth';
@@ -231,6 +234,50 @@ export default function ProfileView({
 
   const [preferredAdhan, setPreferredAdhan] = useState(() => localStorage.getItem('preferred-adhan-id') || 'makkah');
   const [customAdhanUrl, setCustomAdhanUrl] = useState(() => localStorage.getItem('preferred-adhan-custom-url') || '');
+
+  // VIP Gate Pass Redemption State (MH-VIP Code System)
+  const [vipPassInput, setVipPassInput] = useState('');
+  const [vipPassStatus, setVipPassStatus] = useState<{
+    type: 'idle' | 'loading' | 'success' | 'error';
+    message: string;
+  }>({ type: 'idle', message: '' });
+
+  const handleRedeemVipGatePass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vipPassInput.trim()) {
+      setVipPassStatus({
+        type: 'error',
+        message: 'Please enter a valid VIP Gate Pass code starting with MH-VIP.'
+      });
+      return;
+    }
+
+    setVipPassStatus({ type: 'loading', message: 'Validating Gate Pass...' });
+
+    try {
+      const result = await gatePassService.redeemGatePass(vipPassInput, currentUser);
+      if (result.success) {
+        setVipPassStatus({
+          type: 'success',
+          message: result.message
+        });
+        setVipPassInput('');
+        if (userData) {
+          setUserData({ ...userData, isPremium: true });
+        }
+      } else {
+        setVipPassStatus({
+          type: 'error',
+          message: result.message
+        });
+      }
+    } catch (err: any) {
+      setVipPassStatus({
+        type: 'error',
+        message: err?.message || 'Failed to redeem pass. Please try again.'
+      });
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -872,6 +919,84 @@ export default function ProfileView({
         )}
       </AnimatePresence>
 
+      {/* VIP GATE PASS REDEMPTION CARD (MH-VIP SYSTEM) */}
+      <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] border border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-brand-depth to-black/60 shadow-2xl relative overflow-hidden space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-lg shrink-0">
+              <Ticket size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">Sanctuary VIP Gate Pass</h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-brand-depth text-[9px] font-black uppercase tracking-widest">
+                  1 Mo Free
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Enter your exclusive pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (e.g. MH-VIP-2026) to unlock 1 Month of Free Sanctuary Elite Premium.
+              </p>
+            </div>
+          </div>
+
+          {userData?.isPremium && (
+            <div className="px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+              <Crown size={12} className="text-amber-400" /> Premium Active
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={handleRedeemVipGatePass} className="space-y-2">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <KeyRound size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400" />
+              <input
+                type="text"
+                value={vipPassInput}
+                onChange={(e) => {
+                  setVipPassInput(e.target.value.toUpperCase());
+                  if (vipPassStatus.type !== 'idle') {
+                    setVipPassStatus({ type: 'idle', message: '' });
+                  }
+                }}
+                placeholder="Enter Gate Pass (e.g. MH-VIP-2026)"
+                className="w-full bg-black/60 border border-amber-500/30 focus:border-amber-400 rounded-2xl py-3.5 pl-11 pr-4 text-xs text-white uppercase font-mono tracking-wider placeholder:text-slate-500 outline-none transition-all"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={vipPassStatus.type === 'loading'}
+              className="px-8 py-3.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-brand-depth font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-amber-500/20 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Ticket size={14} />
+              <span>{vipPassStatus.type === 'loading' ? 'Verifying Pass...' : 'Redeem VIP Pass'}</span>
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {vipPassStatus.message && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className={`p-3 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                  vipPassStatus.type === 'success'
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                    : 'bg-red-500/20 border border-red-500/40 text-red-300'
+                }`}
+              >
+                {vipPassStatus.type === 'success' ? (
+                  <CheckCircle size={14} className="shrink-0 text-emerald-400" />
+                ) : (
+                  <XCircle size={14} className="shrink-0 text-red-400" />
+                )}
+                <span>{vipPassStatus.message}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </form>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* SETTINGS SECTION 1: APPEARANCE */}
         <section className="space-y-6">
@@ -1236,47 +1361,6 @@ export default function ProfileView({
               </div>
             )}
          </div>
-      </section>
-
-      {/* SYSTEM ARCHITECTURE SETUP */}
-      <section className="space-y-6 pt-12 border-t border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
-            <Sparkles size={16} />
-          </div>
-          <h3 className="text-xs font-black text-white uppercase tracking-widest">Divine Intelligence Setup</h3>
-        </div>
-
-        <div className="p-8 glass-panel rounded-[2.5rem] border-indigo-500/20 bg-indigo-500/5 space-y-6 transition-all hover:border-indigo-500/40">
-           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="space-y-2 text-center md:text-left">
-                <h4 className="text-xl font-black text-white italic">Gemini API Integration</h4>
-                <p className="text-sm text-slate-400 max-w-sm">Activate Aliyah, your AI Spiritual Companion, by adding your API key.</p>
-              </div>
-              <div className="flex gap-3 shrink-0">
-                 <a 
-                   href="https://aistudio.google.com/app/apikey" 
-                   target="_blank" 
-                   rel="noreferrer"
-                   className="px-8 py-3 bg-indigo-500 text-indigo-950 text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-lg shadow-indigo-500/20"
-                 >
-                   Get Free Key
-                 </a>
-              </div>
-           </div>
-           
-           <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-3">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">How to connect:</p>
-              <div className="flex gap-4 items-start">
-                 <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 shrink-0">1</div>
-                 <p className="text-[10px] text-slate-400 leading-relaxed font-medium">Head to <span className="text-white font-bold">Settings</span> menu in AI Studio (bottom left).</p>
-              </div>
-              <div className="flex gap-4 items-start">
-                 <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 shrink-0">2</div>
-                 <p className="text-[10px] text-slate-400 leading-relaxed font-medium">Find <span className="text-white font-bold">GEMINI_API_KEY</span> and paste your key there.</p>
-              </div>
-           </div>
-        </div>
       </section>
 
       {/* CROPPER MODAL */}

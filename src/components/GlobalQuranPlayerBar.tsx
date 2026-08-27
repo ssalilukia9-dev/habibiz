@@ -21,6 +21,7 @@ export default function GlobalQuranPlayerBar({
   isInSurahView = false
 }: GlobalQuranPlayerBarProps) {
   const [audioState, setAudioState] = useState<QuranAudioState>(QuranAudioService.getState());
+  const [hoverProgress, setHoverProgress] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function GlobalQuranPlayerBar({
 
   const { currentTrack, isPlaying, isLoading, reciterName, progress, currentTime, duration, playbackRate } = audioState;
   const surahInfo = SURAH_LIST.find(s => s.number === currentTrack.surahNumber);
+  const progressPercent = Math.max(0, Math.min(100, (progress || 0) * 100));
 
   const formatTime = (secs: number) => {
     if (!secs || isNaN(secs)) return '0:00';
@@ -56,6 +58,17 @@ export default function GlobalQuranPlayerBar({
     const clickX = e.clientX - rect.left;
     const fraction = Math.max(0, Math.min(1, clickX / rect.width));
     QuranAudioService.seekProgress(fraction);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const hoverX = e.clientX - rect.left;
+    const frac = Math.max(0, Math.min(1, hoverX / rect.width));
+    setHoverProgress(frac);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverProgress(null);
   };
 
   const cycleSpeed = () => {
@@ -81,18 +94,56 @@ export default function GlobalQuranPlayerBar({
       >
         <div className="relative rounded-2xl bg-gradient-to-b from-[#0f172a]/95 via-[#090d16]/98 to-[#05070a] border border-brand-primary/30 backdrop-blur-2xl shadow-2xl shadow-black/90 overflow-hidden text-white">
           
-          {/* Top Progress Scrub Bar */}
+          {/* Top Progress Scrub Bar with Glowing Handle & Smooth Transitions */}
           <div 
             onClick={handleSeek}
-            className="group relative h-1.5 w-full bg-white/10 hover:h-2 transition-all cursor-pointer overflow-hidden"
-            title="Click to seek"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="group relative h-2.5 w-full bg-slate-900/90 hover:h-3 transition-all duration-200 cursor-pointer select-none flex items-center overflow-visible"
+            title={hoverProgress !== null && duration ? `Seek to ${formatTime(hoverProgress * duration)}` : "Click to seek"}
           >
+            {/* Background Track Line */}
+            <div className="absolute inset-x-0 h-1 group-hover:h-1.5 bg-white/10 transition-all" />
+
+            {/* Hover Track Preview */}
+            {hoverProgress !== null && (
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-white/15 pointer-events-none transition-opacity duration-150"
+                style={{ width: `${hoverProgress * 100}%` }}
+              />
+            )}
+
+            {/* Active Filled Progress Track with Smooth Width Interpolation */}
             <div 
-              className="h-full bg-gradient-to-r from-amber-400 via-brand-primary to-emerald-400 transition-all duration-150"
-              style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%` }}
-            />
+              className="relative h-1 group-hover:h-1.5 bg-gradient-to-r from-amber-400 via-brand-primary to-emerald-400 transition-[width] duration-300 ease-out rounded-r-full"
+              style={{ width: `${progressPercent}%` }}
+            >
+              {/* Soft luminous halo at leading edge */}
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-amber-400/40 rounded-full blur-[4px] pointer-events-none" />
+            </div>
+
+            {/* Glowing Seeker Handle Knob */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none transition-[left] duration-300 ease-out z-20 flex items-center justify-center"
+              style={{ left: `${progressPercent}%` }}
+            >
+              {/* Ambient Glow Aura */}
+              <div className="absolute w-5 h-5 rounded-full bg-amber-400/30 blur-sm group-hover:bg-amber-400/60 group-hover:w-6 group-hover:h-6 transition-all duration-200" />
+              
+              {/* Active Audio Pulse Ring when playing */}
+              {isPlaying && (
+                <div className="absolute w-4 h-4 rounded-full bg-amber-400/40 animate-ping opacity-60 pointer-events-none" />
+              )}
+
+              {/* Core Handle */}
+              <div className="relative w-2.5 h-2.5 group-hover:w-3.5 group-hover:h-3.5 rounded-full bg-gradient-to-br from-white via-amber-100 to-amber-300 border border-brand-primary/80 shadow-[0_0_10px_2px_rgba(245,158,11,0.7)] group-hover:shadow-[0_0_14px_4px_rgba(245,158,11,0.9)] transition-all duration-200 transform flex items-center justify-center">
+                <div className="w-1 h-1 rounded-full bg-amber-700/80 group-hover:bg-amber-900" />
+              </div>
+            </div>
+
+            {/* Loading Shimmer Indicator */}
             {isLoading && (
-              <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse pointer-events-none" />
             )}
           </div>
 

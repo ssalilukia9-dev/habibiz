@@ -46,6 +46,7 @@ interface ThemeCustomizerViewProps {
 }
 
 const PRESET_ACCENT_COLORS = [
+  { name: 'Imperial Desert Gold', hex: '#d4af37' },
   { name: 'Aloha Bronze Gold', hex: '#c58f54' },
   { name: 'Imperial Emerald', hex: '#10b981' },
   { name: 'Makkah Amber', hex: '#f59e0b' },
@@ -61,6 +62,7 @@ const PRESET_ACCENT_COLORS = [
 ];
 
 const PRESET_DEPTH_COLORS = [
+  { name: 'Aloha Night Obsidian', hex: '#0b1a28' },
   { name: 'Oceanic Obsidian', hex: '#0a1c2a' },
   { name: 'Imperial Forest', hex: '#041913' },
   { name: 'Desert Night', hex: '#170f06' },

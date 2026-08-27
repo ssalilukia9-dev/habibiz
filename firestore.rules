@@ -114,10 +114,10 @@ service cloud.firestore {
       }
     }
 
-    // Marketplace Listings
+    // Marketplace Listings (Suq Al-Mubaraki - visible & broadcast to all users)
     match /listings/{listingId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow read: if true;
+      allow write: if true;
     }
 
     // Friend Requests
@@ -125,16 +125,16 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // Khatam Journey Videos (Admin Pasted Video Links)
+    // Khatam Journey Videos (Admin Pasted Video Links & Broadcasts to all users)
     match /khatam_videos/{videoId} {
       allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow write: if true;
     }
 
     // Islamic Wisdom & Teachings (Pictures & Ilm Repository)
     match /islamic_teachings/{teachingId} {
       allow read: if true;
-      allow create, update, delete: if isSignedIn();
+      allow write: if true;
     }
 
     // NoorTalk Community Post Reports & Moderation

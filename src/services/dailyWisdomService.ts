@@ -32,6 +32,12 @@ class DailyWisdomManager {
     return getDailyQuoteForDate(date);
   }
 
+  getDailyRotatingWisdomMode(date: Date = new Date()): WisdomMode {
+    const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
+    const modes: WisdomMode[] = ['ayah', 'hadith', 'quote'];
+    return modes[Math.abs(dayOfYear) % 3];
+  }
+
   getWisdomSummary(mode: WisdomMode, date: Date = new Date()): DailyWisdomSummary {
     if (mode === 'ayah') {
       const ayah = this.getAyahOfDay(date);

@@ -156,6 +156,19 @@ export class KhatamVideoService {
   }
 
   /**
+   * Unmark a video as deleted (when adding or re-adding a video)
+   */
+  static unmarkVideoAsDeleted(videoId: string): void {
+    try {
+      const current = this.getDeletedVideoIds();
+      if (current.has(videoId)) {
+        current.delete(videoId);
+        localStorage.setItem(DELETED_VIDEOS_KEY, JSON.stringify(Array.from(current)));
+      }
+    } catch (e) {}
+  }
+
+  /**
    * Parse any video link (YouTube, Vimeo, MP4, WebM) into an embed URL and thumbnail
    */
   static parseVideoUrl(inputUrl: string): { embedUrl: string; thumbnailUrl: string; videoType: 'youtube' | 'vimeo' | 'direct' | 'other' } {
@@ -164,10 +177,9 @@ export class KhatamVideoService {
       return { embedUrl: '', thumbnailUrl: '', videoType: 'other' };
     }
 
-    // 1. YouTube variations (watch?v=, youtu.be, /embed/, /shorts/)
-    const ytWatchMatch = raw.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
-    const ytShortMatch = raw.match(/youtube\.com\/shorts\/([^"&?\/\s]{11})/i);
-    const youtubeId = ytWatchMatch?.[1] || ytShortMatch?.[1];
+    // 1. YouTube variations (watch?v=, youtu.be, /embed/, /shorts/, /live/)
+    const ytWatchMatch = raw.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    const youtubeId = ytWatchMatch?.[1];
 
     if (youtubeId) {
       return {
@@ -241,12 +253,21 @@ export class KhatamVideoService {
    * Realtime subscription to Firestore `khatam_videos` collection
    */
   static subscribeToVideos(callback: (videos: KhatamVideoItem[]) => void): () => void {
-    const local = this.getLocalVideos();
-    callback(local);
+    const initialLocal = this.getLocalVideos();
+    callback(initialLocal);
+
+    // Event listener for instant cross-tab / cross-component sync
+    const handleLocalUpdate = () => {
+      callback(this.getLocalVideos());
+    };
+    window.addEventListener('sanctuary_khatam_videos_updated', handleLocalUpdate);
+    window.addEventListener('storage', handleLocalUpdate);
+
+    let unsubscribeFirestore = () => {};
 
     try {
       const videosQuery = query(collection(db, 'khatam_videos'));
-      const unsubscribe = onSnapshot(videosQuery, (snapshot) => {
+      unsubscribeFirestore = onSnapshot(videosQuery, (snapshot) => {
         const deletedIds = this.getDeletedVideoIds();
         if (!snapshot.empty) {
           const list: KhatamVideoItem[] = [];
@@ -260,7 +281,7 @@ export class KhatamVideoService {
               embedUrl: data.embedUrl || data.url || '',
               thumbnailUrl: data.thumbnailUrl || 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800',
               category: data.category || 'general',
-              categoryLabel: data.categoryLabel || 'Khatam Reflection',
+              categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'general'),
               speaker: data.speaker || 'Scholar of the Ummah',
               description: data.description || '',
               duration: data.duration || '10:00',
@@ -272,7 +293,16 @@ export class KhatamVideoService {
             });
           });
 
-          // Sort by featured first, then by creation date
+          // Merge any locally added videos not yet in Firestore snapshot
+          const localList = this.getLocalVideos();
+          const firestoreIds = new Set(list.map(v => v.id));
+          for (const localVid of localList) {
+            if (!firestoreIds.has(localVid.id) && !deletedIds.has(localVid.id)) {
+              list.push(localVid);
+            }
+          }
+
+          // Sort by featured first, then by creation date (newest first)
           list.sort((a, b) => {
             if (a.featured && !b.featured) return -1;
             if (!a.featured && b.featured) return 1;
@@ -282,18 +312,23 @@ export class KhatamVideoService {
           this.saveLocalVideos(list);
           callback(list);
         } else {
+          // If Firestore is empty, seed defaults to Firestore
+          this.seedInitialVideosIfEmpty();
           callback(this.getLocalVideos());
         }
       }, (error) => {
         console.warn("Firestore khatam_videos subscription fallback:", error);
         callback(this.getLocalVideos());
       });
-
-      return unsubscribe;
     } catch (e) {
       console.warn("Error setting up khatam_videos listener:", e);
-      return () => {};
     }
+
+    return () => {
+      window.removeEventListener('sanctuary_khatam_videos_updated', handleLocalUpdate);
+      window.removeEventListener('storage', handleLocalUpdate);
+      unsubscribeFirestore();
+    };
   }
 
   /**
@@ -329,6 +364,9 @@ export class KhatamVideoService {
     const { embedUrl, thumbnailUrl } = this.parseVideoUrl(videoData.url);
     const videoId = `video_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // Ensure it's not marked as deleted
+    this.unmarkVideoAsDeleted(videoId);
+
     const newItem: KhatamVideoItem = {
       id: videoId,
       title: videoData.title?.trim() || `Sacred Khatam Video #${Date.now().toString().slice(-4)}`,
@@ -349,10 +387,15 @@ export class KhatamVideoService {
 
     // 1. Update local storage
     const currentLocal = this.getLocalVideos();
-    const updated = [newItem, ...currentLocal];
+    const updated = [newItem, ...currentLocal.filter(v => v.id !== videoId)];
     this.saveLocalVideos(updated);
 
-    // 2. Write to Firestore
+    // 2. Broadcast local update
+    try {
+      window.dispatchEvent(new CustomEvent('sanctuary_khatam_videos_updated', { detail: { video: newItem } }));
+    } catch (e) {}
+
+    // 3. Write to Firestore
     try {
       const videoRef = doc(db, 'khatam_videos', videoId);
       await setDoc(videoRef, {
@@ -429,7 +472,12 @@ export class KhatamVideoService {
     const next = current.filter(v => v.id !== videoId);
     this.saveLocalVideos(next);
 
-    // 3. Remove from Firestore
+    // 3. Broadcast local update
+    try {
+      window.dispatchEvent(new CustomEvent('sanctuary_khatam_videos_updated', { detail: { deletedId: videoId } }));
+    } catch (e) {}
+
+    // 4. Remove from Firestore
     try {
       const videoRef = doc(db, 'khatam_videos', videoId);
       await deleteDoc(videoRef);
@@ -448,6 +496,10 @@ export class KhatamVideoService {
     const current = this.getLocalVideos();
     const updated = current.map(v => v.id === videoId ? { ...v, featured: nextFeatured } : v);
     this.saveLocalVideos(updated);
+
+    try {
+      window.dispatchEvent(new CustomEvent('sanctuary_khatam_videos_updated', { detail: { videoId, featured: nextFeatured } }));
+    } catch (e) {}
 
     try {
       const videoRef = doc(db, 'khatam_videos', videoId);

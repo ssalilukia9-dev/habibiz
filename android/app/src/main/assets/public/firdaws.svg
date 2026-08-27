@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="firdawsGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B5345" />
+      <stop offset="100%" stop-color="#063E33" />
+    </linearGradient>
+    <linearGradient id="firdawsGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5D061" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#AA820A" />
+    </linearGradient>
+    <linearGradient id="firdawsHeartGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE27A" />
+      <stop offset="100%" stop-color="#D4AF37" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="600" rx="40" fill="#031F19"/>
+
+  <g transform="translate(60, 150)">
+    <!-- Emblem -->
+    <g transform="translate(0, 0)">
+      <!-- Gold Crescent Arch -->
+      <path d="M 52 108 C 50 72, 74 38, 114 32 C 146 27, 168 45, 172 65 C 160 52, 138 46, 118 52 C 86 62, 68 88, 70 120 C 72 138, 80 152, 92 162 C 68 152, 54 132, 52 108 Z" fill="url(#firdawsGold)" />
+      <!-- Star -->
+      <circle cx="102" cy="24" r="4.5" fill="url(#firdawsGold)" />
+      <path d="M 102 14 C 103 20, 108 23, 113 24 C 108 25, 103 28, 102 34 C 101 28, 96 25, 91 24 C 96 23, 101 20, 102 14 Z" fill="url(#firdawsGold)" />
+      <!-- Dome Arch -->
+      <path d="M 102 44 C 114 62, 134 78, 140 102 C 136 102, 130 92, 122 84 C 114 76, 106 68, 102 58 C 98 68, 90 76, 82 84 C 74 92, 68 102, 64 102 C 70 78, 90 62, 102 44 Z" fill="url(#firdawsGold)" />
+      <!-- Two Soul Heads -->
+      <circle cx="80" cy="94" r="8" fill="#10B981" />
+      <circle cx="124" cy="94" r="8" fill="#10B981" />
+      <!-- Caring Hands Embracing Heart -->
+      <path d="M 42 135 C 44 106, 68 88, 82 82 C 76 96, 78 112, 88 124 C 94 132, 102 136, 110 138 C 90 144, 68 140, 52 128 C 46 138, 48 150, 58 160 C 74 176, 108 184, 142 172 C 158 166, 168 154, 172 142 C 160 152, 142 158, 124 158 C 92 158, 62 146, 42 135 Z" fill="#059669" />
+      <path d="M 162 135 C 160 106, 136 88, 122 82 C 128 96, 126 112, 116 124 C 110 132, 102 136, 94 138 C 114 144, 136 140, 152 128 C 158 138, 156 150, 146 160 C 138 168, 120 176, 102 178 C 122 178, 146 170, 160 154 C 168 144, 166 138, 162 135 Z" fill="#059669" />
+      <!-- Central Heart -->
+      <path d="M 102 124 C 98 118, 92 108, 92 102 C 92 96, 96 92, 102 96 C 108 92, 112 96, 112 102 C 112 108, 106 118, 102 124 Z" fill="url(#firdawsHeartGold)" />
+    </g>
+
+    <!-- Typography -->
+    <g transform="translate(205, 55)">
+      <text x="0" y="48" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="900" fill="#FFFFFF" letter-spacing="3">FIRDAWS</text>
+      <text x="2" y="86" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="800" fill="#F5D061" letter-spacing="2">CHARITY ORGANIZATION</text>
+      <text x="3" y="118" font-family="Georgia, serif" font-size="16" font-style="italic" font-weight="400" fill="#6EE7B7" letter-spacing="1">"Empowering Lives, Shaping Futures"</text>
+    </g>
+  </g>
+</svg>

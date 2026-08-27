@@ -68,7 +68,14 @@ import {
   UserMinus,
   Mail,
   GraduationCap,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Cloud,
+  UploadCloud,
+  Split,
+  Maximize2,
+  ShieldAlert,
+  Share2,
+  Ticket
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase.ts';
 import { STARTER_MARKET_LISTINGS } from '../data/marketData.ts';
@@ -80,19 +87,21 @@ import {
   updateDoc, 
   deleteDoc, 
   setDoc, 
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp,
-  addDoc
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp, 
+  addDoc 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { notificationService } from '../services/notificationService.ts';
 import { ActivityLoggerService, ActivityLogItem } from '../services/activityLoggerService.ts';
 import { AdminConfigService, AdminConfig, DEFAULT_ADMIN_CONFIG } from '../services/adminConfigService.ts';
 import { KhatamVideoService, KhatamVideoItem, DEFAULT_KHATAM_VIDEOS } from '../services/khatamVideoService.ts';
-import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS } from '../services/islamicWisdomService.ts';
+import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS, compressImageFile, ISLAMIC_IMAGE_PRESETS } from '../services/islamicWisdomService.ts';
+import { StorageService } from '../services/storageService.ts';
 import { ReportService, PostReportItem, PREDEFINED_REPORT_REASONS } from '../services/reportService.ts';
+import { gatePassService, RedeemedPassRecord } from '../services/gatePassService.ts';
 
 interface AdminViewProps {
   currentUser: any;
@@ -140,7 +149,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'banned' | 'fire' | 'premium' | 'king'>('all');
-  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'khatam_videos' | 'market_moderation' | 'post_reports' | 'islamic_wisdom' | 'broadcast' | 'audit' | 'security'>('users');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'khatam_videos' | 'market_moderation' | 'market_and_wisdom' | 'post_reports' | 'islamic_wisdom' | 'broadcast' | 'audit' | 'security'>('users');
   const [userViewMode, setUserViewMode] = useState<'table' | 'grid'>('table');
   const [selectedUserUids, setSelectedUserUids] = useState<string[]>([]);
   const [sortField, setSortField] = useState<'displayName' | 'email' | 'hasanat' | 'streak' | 'level' | 'role' | 'status' | 'createdAt'>('hasanat');
@@ -156,6 +165,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const [teachings, setTeachings] = useState<IslamicTeachingItem[]>(DEFAULT_ISLAMIC_TEACHINGS);
   const [wisdomSearch, setWisdomSearch] = useState<string>('');
   const [wisdomCategoryFilter, setWisdomCategoryFilter] = useState<string>('all');
+  const [wisdomLayoutMode, setWisdomLayoutMode] = useState<'dual' | 'editor'>('dual');
   const [newTeachingTitle, setNewTeachingTitle] = useState<string>('');
   const [newTeachingImageUrl, setNewTeachingImageUrl] = useState<string>('https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000');
   const [newTeachingCategory, setNewTeachingCategory] = useState<'hadith_pearls' | 'quran_insights' | 'akhlaq_character' | 'daily_reminders' | 'prophetic_sunnah' | 'spirituality'>('spirituality');
@@ -164,10 +174,73 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const [newTeachingScholar, setNewTeachingScholar] = useState<string>('');
   const [newTeachingFeatured, setNewTeachingFeatured] = useState<boolean>(false);
   const [isAddingTeaching, setIsAddingTeaching] = useState<boolean>(false);
+  const [isCompressingWisdomImage, setIsCompressingWisdomImage] = useState<boolean>(false);
+  const [isUploadingToStorage, setIsUploadingToStorage] = useState<boolean>(false);
+  const [storageUploadProgress, setStorageUploadProgress] = useState<number>(0);
+  const [storageUploadSuccess, setStorageUploadSuccess] = useState<boolean>(false);
+  const [storagePathAttached, setStoragePathAttached] = useState<string | null>(null);
   const [showBulkWisdomModal, setShowBulkWisdomModal] = useState<boolean>(false);
   const [bulkWisdomText, setBulkWisdomText] = useState<string>('');
   const [isBulkSubmittingWisdom, setIsBulkSubmittingWisdom] = useState<boolean>(false);
   const [previewingTeaching, setPreviewingTeaching] = useState<IslamicTeachingItem | null>(null);
+
+  // 🛡️ SECURE ADMIN DELETION CONFIRMATION MODAL STATE
+  // Prevents accidental data loss for flagged market items, wisdom teaching posts, and Khatam Journey YouTube videos
+  const [pendingDeleteModal, setPendingDeleteModal] = useState<{
+    type: 'market_item' | 'wisdom_post' | 'khatam_video';
+    id: string;
+    title: string;
+    subtitle?: string;
+    imageUrl?: string;
+    badge?: string;
+    flagReason?: string;
+    sellerName?: string;
+    metadata?: any;
+  } | null>(null);
+  const [isProcessingDelete, setIsProcessingDelete] = useState<boolean>(false);
+
+  // Firebase Storage Upload Handler (Ensures Authenticated Admin Storage Write)
+  const handleUploadWisdomImageToStorage = async (file: File) => {
+    if (!file) return;
+    try {
+      setIsUploadingToStorage(true);
+      setStorageUploadProgress(15);
+      setStorageUploadSuccess(false);
+
+      const result = await StorageService.uploadWisdomImage(file, currentUser, (progress) => {
+        setStorageUploadProgress(progress);
+      });
+
+      setNewTeachingImageUrl(result.url);
+      setStoragePathAttached(result.path || 'firebase-storage/islamic_teachings');
+      setStorageUploadSuccess(true);
+      showActionFeedback(result.isCloudStorage 
+        ? "✅ Sacred visual uploaded to Firebase Storage and attached to Firestore document!" 
+        : "✅ Visual compressed and attached to Firestore document!"
+      );
+      logActivity('admin', `Uploaded wisdom picture card (${result.isCloudStorage ? 'Firebase Storage' : 'Compressed WebP'})`, currentUser?.displayName || 'Admin', 'STORAGE UPLOAD');
+    } catch (err: any) {
+      alert("Storage Upload Failed: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsUploadingToStorage(false);
+    }
+  };
+
+  const handleWisdomImageFileChange = async (file: File) => {
+    if (!file) return;
+    try {
+      setIsCompressingWisdomImage(true);
+      const dataUrl = await compressImageFile(file, 1280, 0.85);
+      setNewTeachingImageUrl(dataUrl);
+      setStoragePathAttached(null);
+      setStorageUploadSuccess(false);
+      showActionFeedback("Sacred visual compressed for instant Firestore storage!");
+    } catch (err: any) {
+      alert("Failed to process image: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsCompressingWisdomImage(false);
+    }
+  };
 
   // Subscribe to live Firestore post_reports and islamic_teachings
   useEffect(() => {
@@ -182,11 +255,304 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
       unsubTeachings();
     };
   }, []);
+
+  // 🎟️ VIP Gate Pass System State (MH-VIP Single-Use Passes)
+  const [redeemedPasses, setRedeemedPasses] = useState<RedeemedPassRecord[]>([]);
+  const [generatedPassList, setGeneratedPassList] = useState<string[]>([]);
+  const [isLoadingPasses, setIsLoadingPasses] = useState<boolean>(false);
+
+  const fetchRedeemedPasses = async () => {
+    try {
+      setIsLoadingPasses(true);
+      const passes = await gatePassService.getRedeemedPasses();
+      setRedeemedPasses(passes);
+    } catch (err) {
+      console.warn("Failed to fetch redeemed passes:", err);
+    } finally {
+      setIsLoadingPasses(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'security') {
+      fetchRedeemedPasses();
+    }
+  }, [activeTab]);
+
+  const handleGenerateNewVipPasses = (count: number = 3) => {
+    const newCodes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      newCodes.push(gatePassService.generatePassCode());
+    }
+    setGeneratedPassList(prev => [...newCodes, ...prev]);
+    showActionFeedback(`Generated ${count} new MH-VIP pass codes!`);
+  };
   
-  // Market Moderation State
+  // Market Moderation & Creation State
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
   const [marketFilter, setMarketFilter] = useState<'all' | 'flagged' | 'digital' | 'physical'>('all');
   const [marketSearch, setMarketSearch] = useState<string>('');
+  const [showAddMarketModal, setShowAddMarketModal] = useState<boolean>(false);
+  const [isAddingMarketProduct, setIsAddingMarketProduct] = useState<boolean>(false);
+
+  // YouTube Market Auto-Populator Form State
+  const [ytMarketUrl, setYtMarketUrl] = useState<string>('');
+  const [ytMarketTitle, setYtMarketTitle] = useState<string>('');
+  const [ytMarketCategory, setYtMarketCategory] = useState<string>('Digital Masterclasses');
+  const [ytMarketPrice, setYtMarketPrice] = useState<string>('0');
+  const [ytMarketCoins, setYtMarketCoins] = useState<string>('250');
+  const [ytMarketDescription, setYtMarketDescription] = useState<string>('');
+  const [ytMarketPreviewThumb, setYtMarketPreviewThumb] = useState<string>('');
+  const [ytMarketPreviewEmbed, setYtMarketPreviewEmbed] = useState<string>('');
+  const [isAddingYtMarketItem, setIsAddingYtMarketItem] = useState<boolean>(false);
+  const [marketWisdomSubTab, setMarketWisdomSubTab] = useState<'youtube_market' | 'wisdom_posts'>('youtube_market');
+  const [marketWisdomSearch, setMarketWisdomSearch] = useState<string>('');
+
+  const handleYtMarketUrlChange = (url: string) => {
+    setYtMarketUrl(url);
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setYtMarketPreviewThumb('');
+      setYtMarketPreviewEmbed('');
+      return;
+    }
+
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = trimmed.match(regExp);
+    if (match && match[2].length === 11) {
+      const videoId = match[2];
+      const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      const embed = `https://www.youtube-nocookie.com/embed/${videoId}`;
+      setYtMarketPreviewThumb(thumb);
+      setYtMarketPreviewEmbed(embed);
+      if (!ytMarketTitle) {
+        setYtMarketTitle(`Sacred Masterclass (Video #${videoId.slice(0, 5)})`);
+      }
+      if (!ytMarketDescription) {
+        setYtMarketDescription('Exclusive Islamic educational course and sacred video curriculum available in Suq Al-Mubaraki.');
+      }
+    }
+  };
+
+  const handleAddYouTubeMarketItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ytMarketUrl.trim()) {
+      alert("Please paste a valid YouTube URL.");
+      return;
+    }
+
+    setIsAddingYtMarketItem(true);
+    const numPrice = Number(ytMarketPrice) || 0;
+    const numCoins = Number(ytMarketCoins) || Math.round(numPrice * 100);
+    const videoId = ytMarketUrl.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || '';
+    const finalThumb = ytMarketPreviewThumb || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800');
+
+    const newListingData: Partial<Listing> = {
+      title: ytMarketTitle.trim() || `YouTube Course: ${ytMarketCategory}`,
+      description: ytMarketDescription.trim() || 'Authentic Islamic lecture and sacred video curriculum.',
+      price: numPrice,
+      coinPrice: numCoins,
+      pricingMode: numCoins > 0 ? 'both' : 'cash',
+      category: ytMarketCategory,
+      brand: 'Sanctuary Masterclasses',
+      sellerId: currentUser?.uid || 'admin',
+      sellerName: currentUser?.displayName || 'Sanctuary Scholar & Overseer',
+      sellerPhoto: currentUser?.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      status: 'active',
+      isVisible: true,
+      imageUrl: finalThumb,
+      videoUrl: ytMarketUrl.trim(),
+      downloadUrl: ytMarketUrl.trim(),
+      downloadFormat: 'MP4',
+      isDigital: true,
+      halalCertified: true,
+      cityLocation: 'Suq Al-Mubaraki Digital Hub',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      let createdDocId = `yt_market_${Date.now()}`;
+      try {
+        const docRef = await addDoc(collection(db, 'listings'), {
+          ...newListingData,
+          createdAt: serverTimestamp()
+        });
+        createdDocId = docRef.id;
+      } catch (err) {
+        console.warn("Firestore add listing fallback:", err);
+      }
+
+      const createdListing: Listing = {
+        ...newListingData,
+        id: createdDocId
+      } as Listing;
+
+      setAdminListings(prev => [createdListing, ...prev]);
+
+      const localKey = 'sanctuary_local_market_listings';
+      try {
+        const stored = localStorage.getItem(localKey);
+        const parsed = stored ? JSON.parse(stored) : [];
+        localStorage.setItem(localKey, JSON.stringify([createdListing, ...parsed]));
+      } catch (e) {}
+
+      setYtMarketUrl('');
+      setYtMarketTitle('');
+      setYtMarketDescription('');
+      setYtMarketPrice('0');
+      setYtMarketCoins('250');
+      setYtMarketPreviewThumb('');
+      setYtMarketPreviewEmbed('');
+
+      showActionFeedback(`✅ YouTube Market product "${createdListing.title}" added to database!`);
+      logActivity('admin', `Published YouTube product to market: "${createdListing.title}"`, currentUser?.displayName || 'Admin', 'MARKET PRODUCT');
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: createdDocId } }));
+    } catch (err: any) {
+      alert("Error adding YouTube product: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsAddingYtMarketItem(false);
+    }
+  };
+
+  const handleToggleListingVisibility = async (listingId: string, currentVisible?: boolean, currentStatus?: string) => {
+    const isCurrentlyVisible = currentVisible !== false && currentStatus !== 'hidden';
+    const nextVisible = !isCurrentlyVisible;
+    const nextStatus = nextVisible ? 'active' : 'hidden';
+
+    setAdminListings(prev => prev.map(l => l.id === listingId ? { ...l, isVisible: nextVisible, status: nextStatus as any } : l));
+    
+    const localKey = 'sanctuary_local_market_listings';
+    try {
+      const stored = localStorage.getItem(localKey);
+      if (stored) {
+        const parsed = JSON.parse(stored).map((l: any) => l.id === listingId ? { ...l, isVisible: nextVisible, status: nextStatus } : l);
+        localStorage.setItem(localKey, JSON.stringify(parsed));
+      }
+    } catch (e) {}
+
+    try {
+      await updateDoc(doc(db, 'listings', listingId), {
+        isVisible: nextVisible,
+        status: nextStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.warn("Firestore listing visibility update fallback:", e);
+    }
+
+    showActionFeedback(`Listing is now ${nextVisible ? 'VISIBLE' : 'HIDDEN'} in the marketplace.`);
+    window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: listingId } }));
+  };
+
+  const handleToggleWisdomVisibility = async (item: IslamicTeachingItem) => {
+    const isCurrentlyVisible = item.isVisible !== false;
+    const nextVisible = !isCurrentlyVisible;
+
+    setTeachings(prev => prev.map(t => t.id === item.id ? { ...t, isVisible: nextVisible } : t));
+    await IslamicWisdomService.toggleVisibility(item.id, isCurrentlyVisible);
+    showActionFeedback(`Wisdom card "${item.title}" is now ${nextVisible ? 'VISIBLE' : 'HIDDEN'}.`);
+  };
+  const [newMarketForm, setNewMarketForm] = useState({
+    title: '',
+    description: '',
+    price: '',
+    coinPrice: '',
+    category: 'Spiritual Decor',
+    brand: 'Sanctuary Crafts',
+    cityLocation: 'Suq Al-Mubaraki',
+    condition: 'New' as const,
+    imageUrl: 'https://images.unsplash.com/photo-1590076215667-875d4ef2d7ee?auto=format&fit=crop&q=80&w=800',
+    isDigital: false,
+    downloadUrl: '',
+    downloadFormat: 'PDF',
+    halalCertified: true
+  });
+
+  const handleAddAdminMarketProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMarketForm.title.trim()) {
+      alert("Please enter a product title.");
+      return;
+    }
+
+    setIsAddingMarketProduct(true);
+    const numPrice = Number(newMarketForm.price) || 0;
+    const numCoins = Number(newMarketForm.coinPrice) || Math.round(numPrice * 100);
+
+    const productData: Partial<Listing> = {
+      title: newMarketForm.title.trim(),
+      description: newMarketForm.description.trim() || 'Authentic Halal product curated by Sanctuary Overseers.',
+      price: numPrice,
+      coinPrice: numCoins,
+      pricingMode: numCoins > 0 ? 'both' : 'cash',
+      category: newMarketForm.category,
+      brand: newMarketForm.brand.trim() || 'Sanctuary Crafts',
+      sellerId: currentUser?.uid || 'admin',
+      sellerName: currentUser?.displayName || 'Sanctuary Overseer',
+      sellerPhoto: currentUser?.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      cityLocation: newMarketForm.cityLocation.trim() || 'Suq Al-Mubaraki',
+      condition: newMarketForm.condition,
+      imageUrl: newMarketForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1590076215667-875d4ef2d7ee?auto=format&fit=crop&q=80&w=800',
+      isDigital: newMarketForm.isDigital,
+      downloadUrl: newMarketForm.downloadUrl.trim(),
+      downloadFormat: newMarketForm.downloadFormat,
+      halalCertified: newMarketForm.halalCertified,
+      rating: 5.0,
+      status: 'active',
+      isFlagged: false,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      let newDocId = `market_admin_${Date.now()}`;
+      try {
+        const docRef = await addDoc(collection(db, 'listings'), {
+          ...productData,
+          createdAt: serverTimestamp()
+        });
+        newDocId = docRef.id;
+      } catch (err) {
+        console.warn("Firestore market add fallback:", err);
+      }
+
+      const completeListing: Listing = {
+        id: newDocId,
+        ...productData
+      } as Listing;
+
+      setAdminListings(prev => [completeListing, ...prev]);
+
+      const localKey = 'sanctuary_local_market_listings';
+      const stored = localStorage.getItem(localKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      localStorage.setItem(localKey, JSON.stringify([completeListing, ...parsed]));
+
+      showActionFeedback(`🛍️ Published "${completeListing.title}" to Marketplace Suq!`);
+      logActivity('admin', `Published new product to Marketplace: "${completeListing.title}"`, currentUser?.displayName || 'Admin', 'MARKETPLACE');
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: newDocId } }));
+
+      setNewMarketForm({
+        title: '',
+        description: '',
+        price: '',
+        coinPrice: '',
+        category: 'Spiritual Decor',
+        brand: 'Sanctuary Crafts',
+        cityLocation: 'Suq Al-Mubaraki',
+        condition: 'New',
+        imageUrl: 'https://images.unsplash.com/photo-1590076215667-875d4ef2d7ee?auto=format&fit=crop&q=80&w=800',
+        isDigital: false,
+        downloadUrl: '',
+        downloadFormat: 'PDF',
+        halalCertified: true
+      });
+      setShowAddMarketModal(false);
+    } catch (e: any) {
+      alert("Failed to add listing: " + (e?.message || 'Unknown error'));
+    } finally {
+      setIsAddingMarketProduct(false);
+    }
+  };
 
   // Subscribe / Load Market Listings for Admin Moderation
   useEffect(() => {
@@ -247,48 +613,127 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   }, []);
 
   // Admin delete listing action
-  const handleAdminDeleteListing = async (listingId: string, title: string) => {
+  // Admin flag listing for moderation (required prior to deletion)
+  const handleAdminFlagListing = async (listingId: string, title: string, customReason?: string) => {
+    const reason = customReason || 'Admin Audit: Flagged for community compliance review';
+    try {
+      const updated = adminListings.map(p => p.id === listingId ? {
+        ...p,
+        isFlagged: true,
+        flagReason: reason,
+        flaggedBy: currentUser?.displayName || 'Admin Overseer',
+        flaggedAt: new Date().toISOString()
+      } : p);
+      setAdminListings(updated);
+
+      const localKey = 'sanctuary_local_market_listings';
+      localStorage.setItem(localKey, JSON.stringify(updated));
+
+      try {
+        await updateDoc(doc(db, 'listings', listingId), {
+          isFlagged: true,
+          flagReason: reason,
+          flaggedBy: currentUser?.displayName || 'Admin Overseer',
+          flaggedAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn("Firestore flag listing fallback:", e);
+      }
+
+      logActivity('admin', `Admin flagged listing: "${title}" for compliance audit`, currentUser?.displayName || 'Admin', 'FLAGGED FOR AUDIT');
+      showActionFeedback(`🚩 Listing "${title}" flagged. You may now review or delete it.`);
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: listingId } }));
+    } catch (err) {
+      console.error("Error flagging listing:", err);
+    }
+  };
+
+  // Admin delete listing action (Direct Deletion Guard Modal)
+  const handleAdminDeleteListing = (listingId: string, title: string) => {
     const item = adminListings.find(p => p.id === listingId);
-    if (!window.confirm(`Admin Moderation: Permanently delete "${title}" from Suq Al-Mubaraki?`)) return;
+
+    // Trigger Secure Deletion Confirmation Modal to prevent accidental data loss
+    setPendingDeleteModal({
+      type: 'market_item',
+      id: listingId,
+      title,
+      subtitle: item?.category ? `${item.category} • ${item?.cityLocation || 'Suq Al-Mubaraki'}` : 'Market Item',
+      imageUrl: item?.imageUrl,
+      badge: item?.isFlagged ? '🚩 Flagged Market Item' : '🛍️ Marketplace Listing',
+      flagReason: item?.flagReason || 'Admin removal from marketplace catalog',
+      sellerName: item?.sellerName,
+      metadata: item
+    });
+  };
+
+  // Centralized Permanent Deletion Executor (Executed only upon Admin Confirmation Modal verification)
+  const handleConfirmPermanentDelete = async () => {
+    if (!pendingDeleteModal) return;
+    setIsProcessingDelete(true);
+    const { type, id, title, metadata } = pendingDeleteModal;
 
     try {
-      // 1. Record in permanently deleted market items
-      const deletedKey = 'sanctuary_deleted_market_ids';
-      try {
-        const storedDeleted = localStorage.getItem(deletedKey);
-        const parsed = storedDeleted ? JSON.parse(storedDeleted) : [];
-        if (!parsed.includes(listingId)) {
-          parsed.push(listingId);
-          localStorage.setItem(deletedKey, JSON.stringify(parsed));
+      if (type === 'market_item') {
+        // 1. Record in permanently deleted market items blacklist
+        const deletedKey = 'sanctuary_deleted_market_ids';
+        try {
+          const storedDeleted = localStorage.getItem(deletedKey);
+          const parsed = storedDeleted ? JSON.parse(storedDeleted) : [];
+          if (!parsed.includes(id)) {
+            parsed.push(id);
+            localStorage.setItem(deletedKey, JSON.stringify(parsed));
+          }
+        } catch (e) {}
+
+        // 2. Local state & localStorage update
+        setAdminListings(prev => prev.filter(p => p.id !== id));
+        const localKey = 'sanctuary_local_market_listings';
+        const stored = localStorage.getItem(localKey);
+        if (stored) {
+          const parsed = JSON.parse(stored).filter((p: any) => p.id !== id);
+          localStorage.setItem(localKey, JSON.stringify(parsed));
         }
-      } catch (e) {}
 
-      // 2. Local state & localStorage update
-      setAdminListings(prev => prev.filter(p => p.id !== listingId));
-      const localKey = 'sanctuary_local_market_listings';
-      const stored = localStorage.getItem(localKey);
-      if (stored) {
-        const parsed = JSON.parse(stored).filter((p: any) => p.id !== listingId);
-        localStorage.setItem(localKey, JSON.stringify(parsed));
+        // 3. Firestore deletion
+        try {
+          await deleteDoc(doc(db, 'listings', id));
+        } catch (e) {
+          console.warn("Firestore listing delete fallback:", e);
+        }
+
+        // 4. Log to Firestore /activity_logs
+        await ActivityLoggerService.logProductDeletion({
+          id,
+          title,
+          sellerName: metadata?.sellerName
+        }, currentUser?.displayName || 'Admin');
+
+        showActionFeedback(`🗑️ Flagged market listing "${title}" permanently removed from database.`);
+        window.dispatchEvent(new CustomEvent('sanctuary_listing_deleted', { detail: { id } }));
+        window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id } }));
+      } else if (type === 'wisdom_post') {
+        // 1. Delete teaching from service & Firestore
+        const success = await IslamicWisdomService.deleteTeaching(id);
+        if (success) {
+          setTeachings(prev => prev.filter(t => t.id !== id));
+          showActionFeedback(`🗑️ Wisdom post "${title}" permanently deleted from global feed.`);
+          logActivity('admin', `Permanently deleted wisdom post: "${title}"`, currentUser?.displayName || 'Admin', 'WISDOM PURGED');
+        }
+      } else if (type === 'khatam_video') {
+        // 1. Delete video from service & Firestore
+        const success = await KhatamVideoService.deleteVideo(id);
+        if (success) {
+          setKhatamVideos(prev => prev.filter(v => v.id !== id));
+          showActionFeedback(`🗑️ Video "${title}" permanently deleted from Khatam Journey.`);
+          logActivity('admin', `Permanently deleted Khatam video: "${title}"`, currentUser?.displayName || 'Admin', 'VIDEO PURGED');
+        }
       }
-
-      // 3. Firestore deletion
-      try {
-        await deleteDoc(doc(db, 'listings', listingId));
-      } catch (e) {
-        console.warn("Firestore listing delete fallback:", e);
-      }
-
-      // 4. Log to Firestore /activity_logs
-      await ActivityLoggerService.logProductDeletion({
-        id: listingId,
-        title,
-        sellerName: item?.sellerName
-      }, currentUser?.displayName || 'Admin');
-
-      showActionFeedback(`Listing "${title}" permanently removed.`);
     } catch (err) {
-      console.error("Error deleting listing:", err);
+      console.error("Error confirming permanent deletion:", err);
+      showActionFeedback(`Action completed with local sync.`);
+    } finally {
+      setIsProcessingDelete(false);
+      setPendingDeleteModal(null);
     }
   };
 
@@ -314,6 +759,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
 
       logActivity('admin', `Admin approved / unflagged listing: "${title}"`, currentUser?.displayName || 'Admin', 'FLAG DISMISSED');
       showActionFeedback(`Flag cleared for "${title}". Listing is active.`);
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: listingId } }));
     } catch (err) {
       console.error("Error unflagging listing:", err);
     }
@@ -338,6 +784,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
       }
 
       showActionFeedback(`Halal status updated to ${nextVal ? 'Verified' : 'Unverified'}.`);
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: listingId } }));
     } catch (err) {
       console.error("Error toggling halal:", err);
     }
@@ -504,6 +951,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
       }, currentUser?.displayName || 'Admin');
 
       showActionFeedback(`Product "${listingEditForm.title}" successfully edited!`);
+      window.dispatchEvent(new CustomEvent('sanctuary_market_updated', { detail: { id: editingListing.id } }));
       setIsEditingListing(false);
       setEditingListing(null);
     } catch (err) {
@@ -961,16 +1409,17 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
     }
   };
 
-  const handleDeleteKhatamVideo = async (video: KhatamVideoItem) => {
-    if (!window.confirm(`Delete "${video.title}" from Khatam Journey? Users will no longer see this video.`)) {
-      return;
-    }
-
-    const success = await KhatamVideoService.deleteVideo(video.id);
-    if (success) {
-      showActionFeedback(`Deleted video "${video.title}"`);
-      logActivity('admin', `Deleted Khatam video: ${video.title}`, currentUser?.displayName || 'Admin', 'VIDEO DELETED');
-    }
+  const handleDeleteKhatamVideo = (video: KhatamVideoItem) => {
+    // Open secure confirmation modal preventing accidental data loss
+    setPendingDeleteModal({
+      type: 'khatam_video',
+      id: video.id,
+      title: video.title,
+      subtitle: `${video.speaker || 'Sanctuary Scholar'} • ${video.categoryLabel || video.category}${video.duration ? ` (${video.duration})` : ''}`,
+      imageUrl: video.thumbnailUrl,
+      badge: `🎬 ${video.categoryLabel || 'Khatam Video'}`,
+      metadata: video
+    });
   };
 
   const handleToggleFeaturedKhatamVideo = async (video: KhatamVideoItem) => {
@@ -1089,14 +1538,17 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
     }
   };
 
-  const handleDeleteWisdom = async (item: IslamicTeachingItem) => {
-    if (!window.confirm(`Delete "${item.title}" from Islamic Wisdom? Seekers will no longer see this card.`)) return;
-
-    const success = await IslamicWisdomService.deleteTeaching(item.id);
-    if (success) {
-      showActionFeedback(`Deleted teaching "${item.title}"`);
-      logActivity('admin', `Deleted wisdom card: ${item.title}`, currentUser?.displayName || 'Admin', 'WISDOM DELETED');
-    }
+  const handleDeleteWisdom = (item: IslamicTeachingItem) => {
+    // Open secure confirmation modal preventing accidental data loss
+    setPendingDeleteModal({
+      type: 'wisdom_post',
+      id: item.id,
+      title: item.title,
+      subtitle: item.scholarOrSource || 'Prophetic Tradition',
+      imageUrl: item.imageUrl,
+      badge: item.categoryLabel || item.category,
+      metadata: item
+    });
   };
 
   const handleToggleFeaturedWisdom = async (item: IslamicTeachingItem) => {
@@ -1743,6 +2195,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
           {[
             { id: 'analytics', label: 'Realtime Graphs', icon: BarChart3 },
             { id: 'users', label: `Users (${users.length})`, icon: Users },
+            { id: 'market_and_wisdom', label: 'YouTube Market & Wisdom Hub', icon: Sparkles },
             { id: 'khatam_videos', label: `YouTube Videos (${khatamVideos.length})`, icon: Video },
             { id: 'islamic_wisdom', label: `Islamic Wisdom (${teachings.length})`, icon: GraduationCap },
             { id: 'post_reports', label: postReports.filter(r => r.status === 'pending').length > 0 ? `🚩 Reports (${postReports.filter(r => r.status === 'pending').length} Pending)` : `Reports (${postReports.length})`, icon: Flag },
@@ -3267,6 +3720,873 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
               </div>
             </div>
           </div>
+
+          {/* 🎟️ VIP GATE PASS SYSTEM MANAGER (MH-VIP Single-Use Code Generator & Ledger) */}
+          <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] border-white/10 bg-gradient-to-br from-amber-950/20 via-brand-depth to-black/60 shadow-2xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/30 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg">
+                  <Ticket size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase tracking-wider border border-amber-500/30">
+                      Single-Use Protection
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">Prefix: MH-VIP-XXXX</span>
+                  </div>
+                  <h3 className="text-lg font-black text-white mt-0.5">VIP Gate Pass Generator & Ledger</h3>
+                  <p className="text-xs text-slate-300">
+                    Generate instant 1-Month Free Premium passcodes and audit redeemed codes in Firestore.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleGenerateNewVipPasses(1)}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>+1 Pass</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleGenerateNewVipPasses(5)}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-500/20 cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Ticket size={14} />
+                  <span>Generate 5 Passes</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={fetchRedeemedPasses}
+                  disabled={isLoadingPasses}
+                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 transition-all cursor-pointer"
+                  title="Refresh Redeemed Ledger"
+                >
+                  <RefreshCw size={15} className={isLoadingPasses ? "animate-spin" : ""} />
+                </button>
+              </div>
+            </div>
+
+            {/* Generated Unclaimed / Ready Passes */}
+            {generatedPassList.length > 0 && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <Sparkles size={13} />
+                    <span>Newly Generated Gate Passes ({generatedPassList.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Click any code to copy</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  {generatedPassList.map((code, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        navigator.clipboard.writeText(code);
+                        showActionFeedback(`Copied ${code} to clipboard!`);
+                      }}
+                      className="p-3 rounded-xl bg-black/60 border border-amber-500/40 hover:border-amber-400 flex items-center justify-between font-mono font-bold text-amber-300 text-xs cursor-pointer transition-all hover:scale-[1.02] shadow-sm group"
+                    >
+                      <span>{code}</span>
+                      <Copy size={13} className="text-slate-400 group-hover:text-white" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Redeemed Ledger Table */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <span>Firestore Redeemed Passes Ledger</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400 font-mono text-[10px]">
+                    {redeemedPasses.length} Redeemed
+                  </span>
+                </h4>
+              </div>
+
+              {redeemedPasses.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl bg-black/30 border border-white/5 space-y-2">
+                  <Ticket size={24} className="mx-auto text-slate-600" />
+                  <p className="text-xs text-slate-400">No gate passes have been redeemed yet.</p>
+                  <p className="text-[11px] text-slate-500">Users can redeem MH-VIP passes in their Sanctuary Profile or Upgrade modal.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        <th className="py-3 px-4">Pass Code</th>
+                        <th className="py-3 px-4">Redeemed By</th>
+                        <th className="py-3 px-4">User Email / UID</th>
+                        <th className="py-3 px-4">Redemption Date</th>
+                        <th className="py-3 px-4">Premium Expiry</th>
+                        <th className="py-3 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-mono text-[11px]">
+                      {redeemedPasses.map((pass) => (
+                        <tr key={pass.code} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3 px-4 font-bold text-amber-300">{pass.code}</td>
+                          <td className="py-3 px-4 text-white font-sans font-medium">{pass.userName || 'Sanctuary Pilgrim'}</td>
+                          <td className="py-3 px-4 text-slate-400 truncate max-w-[150px]">{pass.userEmail || pass.redeemedBy}</td>
+                          <td className="py-3 px-4 text-slate-300">
+                            {pass.redeemedAt?.toDate ? pass.redeemedAt.toDate().toLocaleDateString() : 'Recent'}
+                          </td>
+                          <td className="py-3 px-4 text-emerald-400 font-bold">
+                            {pass.validUntil ? new Date(pass.validUntil).toLocaleDateString() : '30 Days'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-black uppercase">
+                              Used / Locked
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: YOUTUBE MARKET & ISLAMIC WISDOM CENTRAL HUB (ADMIN ONLY) */}
+      {activeTab === 'market_and_wisdom' && (
+        <div className="space-y-8">
+          {/* Header Banner */}
+          <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-r from-amber-950/40 via-brand-depth to-black/70 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-amber-400" /> Admin Command: YouTube Market & Wisdom Engine
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 text-slate-300 border border-white/10 text-[9px] font-mono">
+                  {adminListings.filter(l => l.videoUrl || l.isDigital).length} YouTube Products • {teachings.length} Wisdom Posts
+                </span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white italic">
+                YouTube Market & Islamic Wisdom Central Hub
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Seamlessly upload visual cards for Islamic wisdom, auto-populate YouTube products into the Suq Al-Mubaraki marketplace database from any URL, and toggle live visibility or delete items in 1-click.
+              </p>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-amber-400 font-mono">
+                  {adminListings.filter(l => (l.videoUrl || l.isDigital) && l.isVisible !== false && l.status !== 'hidden').length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Visible Market</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-rose-400 font-mono">
+                  {adminListings.filter(l => (l.videoUrl || l.isDigital) && (l.isVisible === false || l.status === 'hidden')).length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Hidden Market</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-emerald-400 font-mono">
+                  {teachings.filter(t => t.isVisible !== false).length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Visible Wisdom</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xl font-black text-cyan-400 font-mono">
+                  {teachings.filter(t => t.isVisible === false).length}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Hidden Wisdom</p>
+              </div>
+            </div>
+          </div>
+
+          {/* TWO CREATOR PANELS: YOUTUBE MARKET AUTO-POPULATOR & ISLAMIC WISDOM IMAGE UPLOADER */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            {/* CREATOR 1: YOUTUBE MARKET AUTO-POPULATOR */}
+            <div className="glass-panel p-6 sm:p-7 rounded-[2.5rem] border border-amber-500/30 bg-gradient-to-b from-amber-950/20 via-black/50 to-black/80 space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center shadow-lg">
+                    <Video size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <span>YouTube Market Auto-Populator</span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-black text-[9px] font-black uppercase">Database</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">Paste YouTube URL to auto-extract thumbnail & publish to Suq</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleAddYouTubeMarketItem} className="space-y-4">
+                {/* YouTube URL Input with Auto-detection */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-amber-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    <span>Paste YouTube Video URL *</span>
+                    <span className="text-[9px] text-slate-400 lowercase font-mono">youtube.com/watch?v=... or youtu.be/...</span>
+                  </label>
+                  <div className="relative">
+                    <Video className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400" size={16} />
+                    <input
+                      required
+                      type="text"
+                      value={ytMarketUrl}
+                      onChange={(e) => handleYtMarketUrlChange(e.target.value)}
+                      placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                      className="w-full bg-black/60 border border-amber-500/30 focus:border-amber-400 rounded-2xl py-3.5 pl-11 pr-4 text-white text-xs font-mono outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Instant YouTube Thumbnail Preview & Video Details */}
+                {ytMarketPreviewThumb && (
+                  <div className="p-3.5 rounded-2xl bg-black/60 border border-emerald-500/40 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 aspect-video rounded-xl bg-black overflow-hidden shrink-0 border border-white/20 relative group">
+                        <img src={ytMarketPreviewThumb} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <Play size={16} className="text-white fill-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-emerald-400 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Auto-Extracted YouTube Metadata
+                        </span>
+                        <p className="text-white text-xs font-bold truncate mt-0.5">{ytMarketTitle || 'YouTube Market Product'}</p>
+                        <p className="text-slate-400 font-mono text-[10px] truncate">{ytMarketUrl}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Product Title */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Product Title *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={ytMarketTitle}
+                    onChange={(e) => setYtMarketTitle(e.target.value)}
+                    placeholder="e.g. Complete Quran Tafsir Video Masterclass"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-amber-400 transition-colors"
+                  />
+                </div>
+
+                {/* Category & Price Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Category
+                    </label>
+                    <select
+                      value={ytMarketCategory}
+                      onChange={(e) => setYtMarketCategory(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-3 text-white text-xs outline-none focus:border-amber-400 transition-colors"
+                    >
+                      <option value="Digital Masterclasses">Digital Masterclasses</option>
+                      <option value="Quran Recitation & Tafsir">Quran & Tafsir</option>
+                      <option value="Islamic Media">Islamic Media</option>
+                      <option value="Spiritual Audio">Spiritual Audio</option>
+                      <option value="Prophetic Biographies">Prophetic Seerah</option>
+                      <option value="Youth & Family">Youth & Family</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Price ($ USD)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ytMarketPrice}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setYtMarketPrice(val);
+                        if (!ytMarketCoins || Number(ytMarketCoins) === Number(ytMarketPrice) * 100) {
+                          setYtMarketCoins(String(Number(val) * 100));
+                        }
+                      }}
+                      placeholder="0 (Free) or 15"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-amber-400 transition-colors font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
+                      <Coins size={11} className="text-amber-400" />
+                      <span>Hasanat Coins</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={ytMarketCoins}
+                      onChange={(e) => setYtMarketCoins(e.target.value)}
+                      placeholder="250"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-amber-300 text-xs outline-none focus:border-amber-400 transition-colors font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Product Description */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Course / Product Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={ytMarketDescription}
+                    onChange={(e) => setYtMarketDescription(e.target.value)}
+                    placeholder="Brief summary of the video course content, lessons included, and learning outcomes..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-amber-400 transition-colors resize-none"
+                  />
+                </div>
+
+                {/* Submit YouTube Market Product Button */}
+                <button
+                  type="submit"
+                  disabled={isAddingYtMarketItem}
+                  className="w-full py-3.5 bg-gradient-to-r from-red-600 via-amber-500 to-amber-600 text-black font-black rounded-2xl text-xs uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ShoppingBag size={16} />
+                  <span>{isAddingYtMarketItem ? 'Publishing to Database...' : '🚀 Publish YouTube Product to Market Database'}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* CREATOR 2: ISLAMIC WISDOM CARD CREATOR & IMAGE UPLOADER */}
+            <div className="glass-panel p-6 sm:p-7 rounded-[2.5rem] border border-emerald-500/30 bg-gradient-to-b from-emerald-950/20 via-black/50 to-black/80 space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg">
+                    <GraduationCap size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <span>Islamic Wisdom Card Image Uploader</span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black text-[9px] font-black uppercase">Visuals</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">Upload sacred imagery, add Hadith/Ayah, and publish to feed</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleAddWisdom} className="space-y-4">
+                {/* Image Upload Area with instant WebP & Storage */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    <span>Card Image / Visual Artwork *</span>
+                    <span className="text-[9px] text-slate-400">File upload or URL</span>
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Storage Upload */}
+                    <label className="p-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadWisdomImageToStorage(file);
+                        }}
+                        className="hidden"
+                      />
+                      <UploadCloud size={18} className="text-emerald-400" />
+                      <span className="text-[11px] font-bold">Upload to Storage</span>
+                      <span className="text-[9px] text-slate-400">Firebase Cloud Storage</span>
+                    </label>
+
+                    {/* Fast Local Compress */}
+                    <label className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleWisdomImageFileChange(file);
+                        }}
+                        className="hidden"
+                      />
+                      <Download size={18} className="text-slate-400 rotate-180" />
+                      <span className="text-[11px] font-bold">Fast Local Compress</span>
+                      <span className="text-[9px] text-slate-500">Client WebP</span>
+                    </label>
+                  </div>
+
+                  {/* Image Preview & URL Field */}
+                  <div className="flex gap-2 items-center">
+                    <input
+                      required
+                      type="text"
+                      value={newTeachingImageUrl}
+                      onChange={(e) => setNewTeachingImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-2.5 px-4 text-white text-xs font-mono outline-none focus:border-emerald-400 transition-colors truncate"
+                    />
+                    {newTeachingImageUrl && (
+                      <div className="w-11 h-10 rounded-xl overflow-hidden bg-black/60 border border-white/10 shrink-0">
+                        <img src={newTeachingImageUrl} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Card Title *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={newTeachingTitle}
+                    onChange={(e) => setNewTeachingTitle(e.target.value)}
+                    placeholder="e.g. Seeking Refuge from the Loss of Blessings"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                  />
+                </div>
+
+                {/* Category & Scholar Source */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Category
+                    </label>
+                    <select
+                      value={newTeachingCategory}
+                      onChange={(e) => setNewTeachingCategory(e.target.value as any)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 px-3 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                    >
+                      <option value="hadith_pearls">Hadith Pearls</option>
+                      <option value="quran_insights">Quranic Insights</option>
+                      <option value="prophetic_sunnah">Prophetic Sunnah</option>
+                      <option value="akhlaq_character">Akhlaq & Character</option>
+                      <option value="spirituality">Inner Spirituality & Tazkiyah</option>
+                      <option value="daily_reminders">Daily Reminders</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Scholar / Reference Source
+                    </label>
+                    <input
+                      type="text"
+                      value={newTeachingScholar}
+                      onChange={(e) => setNewTeachingScholar(e.target.value)}
+                      placeholder="e.g. Sahih Muslim 2739"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick 1-Click Source Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase">Quick Insert:</span>
+                  {[
+                    { label: 'Sahih Muslim 2739', arabic: 'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ زَوَالِ نِعْمَتِكَ، وَتَحَوُّلِ عَافِيَتِكَ، وَفُجَاءَةِ نِقْمَتِكَ، وَجَمِيعِ سَخَطِكَ', title: 'Seeking Refuge in Allah', scholar: 'Sahih Muslim 2739' },
+                    { label: 'Sahih al-Bukhari 1', arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ', title: 'Actions are by Intentions', scholar: 'Sahih al-Bukhari 1' },
+                    { label: 'Ayat al-Kursi', arabic: 'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ', title: 'The Verse of the Throne', scholar: 'Surah Al-Baqarah 2:255' }
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setNewTeachingTitle(p.title);
+                        setNewTeachingArabic(p.arabic);
+                        setNewTeachingScholar(p.scholar);
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-300 border border-white/5 text-[9px] font-mono transition-all cursor-pointer"
+                    >
+                      + {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Arabic Text (Optional) */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Arabic Matn / Calligraphy (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newTeachingArabic}
+                    onChange={(e) => setNewTeachingArabic(e.target.value)}
+                    placeholder="اللهم إني أعوذ بك من زوال نعمتك..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 px-4 text-amber-200 text-xs font-serif text-right outline-none focus:border-emerald-400 transition-colors"
+                  />
+                </div>
+
+                {/* Content / Reflection */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Wisdom Teaching / English Reflection *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={newTeachingContent}
+                    onChange={(e) => setNewTeachingContent(e.target.value)}
+                    placeholder="Reflect on the blessings of health, continuous gratitude, and steadfastness in faith..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors resize-none"
+                  />
+                </div>
+
+                {/* Submit Islamic Wisdom Card Button */}
+                <button
+                  type="submit"
+                  disabled={isAddingTeaching || isUploadingToStorage}
+                  className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black rounded-2xl text-xs uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <GraduationCap size={16} />
+                  <span>{isAddingTeaching ? 'Publishing Card...' : '📜 Publish Islamic Wisdom Card to Database'}</span>
+                </button>
+              </form>
+            </div>
+
+          </div>
+
+          {/* DASHBOARD SECTION: LIVE LIST OF YOUTUBE MARKET ITEMS & WISDOM POSTS */}
+          <div className="space-y-6">
+            
+            {/* Sub-tab Navigation Bar for Management Lists */}
+            <div className="p-4 sm:p-6 rounded-[2.5rem] bg-brand-sidebar/60 border border-white/10 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setMarketWisdomSubTab('youtube_market')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                    marketWisdomSubTab === 'youtube_market'
+                      ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  <ShoppingBag size={14} />
+                  <span>YouTube Market Products ({adminListings.filter(l => l.videoUrl || l.isDigital).length})</span>
+                </button>
+
+                <button
+                  onClick={() => setMarketWisdomSubTab('wisdom_posts')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                    marketWisdomSubTab === 'wisdom_posts'
+                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  <GraduationCap size={14} />
+                  <span>Wisdom Posts & Cards ({teachings.length})</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md w-full">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                <input
+                  type="text"
+                  value={marketWisdomSearch}
+                  onChange={(e) => setMarketWisdomSearch(e.target.value)}
+                  placeholder={`Search ${marketWisdomSubTab === 'youtube_market' ? 'YouTube products by title, seller...' : 'wisdom cards by title, scholar...'}`}
+                  className="w-full bg-black/50 border border-white/10 rounded-2xl py-2.5 pl-10 pr-10 text-xs text-white placeholder:text-slate-500 outline-none focus:border-amber-400 transition-all"
+                />
+                {marketWisdomSearch && (
+                  <button
+                    onClick={() => setMarketWisdomSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* LIST 1: CURRENT YOUTUBE MARKET ITEMS */}
+            {marketWisdomSubTab === 'youtube_market' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <Video size={16} />
+                    <span>All Current YouTube Market Listings</span>
+                  </h3>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Showing {adminListings.filter(l => l.videoUrl || l.isDigital).length} YouTube Items
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {adminListings
+                    .filter(l => l.videoUrl || l.isDigital)
+                    .filter(l => {
+                      if (!marketWisdomSearch.trim()) return true;
+                      const q = marketWisdomSearch.toLowerCase();
+                      return (
+                        l.title.toLowerCase().includes(q) ||
+                        l.category.toLowerCase().includes(q) ||
+                        (l.videoUrl && l.videoUrl.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((item) => {
+                      const isVisible = item.isVisible !== false && item.status !== 'hidden';
+                      return (
+                        <div
+                          key={item.id}
+                          className={`glass-panel rounded-[2rem] border overflow-hidden flex flex-col justify-between shadow-xl transition-all duration-300 ${
+                            isVisible 
+                              ? 'border-white/10 bg-slate-900/60 hover:border-amber-500/40' 
+                              : 'border-rose-500/30 bg-black/80 opacity-75'
+                          }`}
+                        >
+                          <div>
+                            {/* Thumbnail */}
+                            <div className="relative aspect-video bg-black/60 overflow-hidden group">
+                              <img
+                                src={item.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
+                                alt={item.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+
+                              {/* Visibility Status Badge */}
+                              <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md ${
+                                  isVisible 
+                                    ? 'bg-emerald-500 text-black font-extrabold' 
+                                    : 'bg-rose-500/90 text-white font-extrabold'
+                                }`}>
+                                  {isVisible ? <CheckCircle2 size={10} /> : <Eye size={10} />}
+                                  <span>{isVisible ? 'Visible in Market' : 'Hidden from Users'}</span>
+                                </span>
+                              </div>
+
+                              {/* Price / Coins */}
+                              <div className="absolute bottom-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-xl border border-white/10 text-xs font-mono font-black text-amber-400">
+                                {item.coinPrice ? `${item.coinPrice.toLocaleString()} 🪙 Coins` : `$${item.price}`}
+                              </div>
+
+                              {/* Open YouTube Preview Button */}
+                              {item.videoUrl && (
+                                <a
+                                  href={item.videoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute bottom-3 right-3 p-2 rounded-xl bg-red-600/90 hover:bg-red-500 text-white shadow-lg transition-all"
+                                  title="Watch Video on YouTube"
+                                >
+                                  <ExternalLink size={14} />
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Content Info */}
+                            <div className="p-5 space-y-2.5">
+                              <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                <span className="font-bold text-amber-400 uppercase tracking-wider">{item.category}</span>
+                                <span className="font-mono">{item.sellerName || 'Sanctuary Masterclass'}</span>
+                              </div>
+
+                              <h4 className="text-sm font-black text-white line-clamp-1">{item.title}</h4>
+                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{item.description}</p>
+                              
+                              {item.videoUrl && (
+                                <p className="text-[10px] font-mono text-slate-500 truncate">{item.videoUrl}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ACTION TOOLBAR: TOGGLE VISIBILITY & DELETE DIRECTLY */}
+                          <div className="p-4 bg-black/50 border-t border-white/10 flex items-center justify-between gap-2">
+                            {/* Toggle Visibility Button */}
+                            <button
+                              onClick={() => handleToggleListingVisibility(item.id, item.isVisible, item.status)}
+                              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 ${
+                                isVisible
+                                  ? 'bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/40'
+                                  : 'bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black border border-emerald-500/40'
+                              }`}
+                              title="Toggle marketplace visibility"
+                            >
+                              {isVisible ? <Eye size={13} /> : <CheckCircle2 size={13} />}
+                              <span>{isVisible ? 'Hide from Market' : 'Unhide / Make Visible'}</span>
+                            </button>
+
+                            {/* Direct Delete Button */}
+                            <button
+                              onClick={() => handleAdminDeleteListing(item.id, item.title)}
+                              className="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
+                              title="Permanently delete from database"
+                            >
+                              <Trash2 size={13} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {adminListings.filter(l => l.videoUrl || l.isDigital).length === 0 && (
+                    <div className="col-span-full py-16 text-center space-y-3 glass-panel rounded-3xl border-white/10 bg-slate-900/40">
+                      <Video size={40} className="mx-auto text-slate-600" />
+                      <p className="text-white font-bold text-sm">No YouTube market products added yet</p>
+                      <p className="text-xs text-slate-400">Paste any YouTube URL in the form above to add one instantly!</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* LIST 2: CURRENT WISDOM POSTS */}
+            {marketWisdomSubTab === 'wisdom_posts' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                    <GraduationCap size={16} />
+                    <span>All Current Islamic Wisdom Posts & Picture Cards</span>
+                  </h3>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Showing {teachings.length} Wisdom Teachings
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {teachings
+                    .filter(item => {
+                      if (!marketWisdomSearch.trim()) return true;
+                      const q = marketWisdomSearch.toLowerCase();
+                      return (
+                        item.title.toLowerCase().includes(q) ||
+                        item.content.toLowerCase().includes(q) ||
+                        (item.scholar && item.scholar.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((teaching) => {
+                      const isVisible = teaching.isVisible !== false;
+                      return (
+                        <div
+                          key={teaching.id}
+                          className={`glass-panel rounded-[2rem] border overflow-hidden flex flex-col justify-between shadow-xl transition-all duration-300 ${
+                            isVisible 
+                              ? 'border-white/10 bg-slate-900/60 hover:border-emerald-500/40' 
+                              : 'border-rose-500/30 bg-black/80 opacity-75'
+                          }`}
+                        >
+                          <div>
+                            {/* Card Image Thumbnail */}
+                            <div className="relative aspect-video bg-black/60 overflow-hidden group">
+                              <img
+                                src={teaching.imageUrl}
+                                alt={teaching.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+
+                              {/* Visibility Badge */}
+                              <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md ${
+                                  isVisible 
+                                    ? 'bg-emerald-500 text-black font-extrabold' 
+                                    : 'bg-rose-500/90 text-white font-extrabold'
+                                }`}>
+                                  {isVisible ? <CheckCircle2 size={10} /> : <Eye size={10} />}
+                                  <span>{isVisible ? 'Visible in Feed' : 'Hidden from Feed'}</span>
+                                </span>
+                              </div>
+
+                              {teaching.featured && (
+                                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-amber-500 text-black text-[9px] font-black uppercase tracking-wider shadow-md">
+                                  ⭐ Featured
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Wisdom Content Info */}
+                            <div className="p-5 space-y-3">
+                              <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                <span className="font-bold text-emerald-400 uppercase tracking-wider">
+                                  {teaching.category.replace('_', ' ')}
+                                </span>
+                                <span className="font-mono text-slate-300">{teaching.scholar || 'Sacred Tradition'}</span>
+                              </div>
+
+                              <h4 className="text-sm font-black text-white line-clamp-1">{teaching.title}</h4>
+
+                              {teaching.arabic && (
+                                <p className="text-xs font-serif text-amber-200/90 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 text-right leading-relaxed line-clamp-2">
+                                  {teaching.arabic}
+                                </p>
+                              )}
+
+                              <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">{teaching.content}</p>
+                            </div>
+                          </div>
+
+                          {/* ACTION TOOLBAR: TOGGLE VISIBILITY & DELETE DIRECTLY */}
+                          <div className="p-4 bg-black/50 border-t border-white/10 flex items-center justify-between gap-2">
+                            {/* Toggle Visibility Button */}
+                            <button
+                              onClick={() => handleToggleWisdomVisibility(teaching)}
+                              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 ${
+                                isVisible
+                                  ? 'bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/40'
+                                  : 'bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black border border-emerald-500/40'
+                              }`}
+                              title="Toggle visibility on user feed"
+                            >
+                              {isVisible ? <Eye size={13} /> : <CheckCircle2 size={13} />}
+                              <span>{isVisible ? 'Hide from Feed' : 'Unhide / Make Visible'}</span>
+                            </button>
+
+                            {/* Featured Toggle */}
+                            <button
+                              onClick={() => handleToggleFeaturedWisdom(teaching)}
+                              className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                teaching.featured
+                                  ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                                  : 'bg-white/5 hover:bg-white/15 text-slate-400'
+                              }`}
+                              title="Toggle Featured Pin"
+                            >
+                              ⭐
+                            </button>
+
+                            {/* Direct Delete Button */}
+                            <button
+                              onClick={() => handleDeleteWisdom(teaching)}
+                              className="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
+                              title="Permanently delete from database"
+                            >
+                              <Trash2 size={13} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {teachings.length === 0 && (
+                    <div className="col-span-full py-16 text-center space-y-3 glass-panel rounded-3xl border-white/10 bg-slate-900/40">
+                      <GraduationCap size={40} className="mx-auto text-slate-600" />
+                      <p className="text-white font-bold text-sm">No Islamic wisdom posts found</p>
+                      <p className="text-xs text-slate-400">Use the form above to upload a visual card and publish wisdom!</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
         </div>
       )}
 
@@ -3675,19 +4995,26 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
           {/* Header Banner */}
           <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-r from-emerald-950/40 via-brand-depth to-black/60 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
                   <ShoppingBag size={12} /> Suq Al-Mubaraki Moderation Hub
                 </span>
                 <span className="px-3 py-1 rounded-full bg-white/10 text-slate-300 border border-white/10 text-[9px] font-mono">
                   {adminListings.length} Active Listings
                 </span>
+                <button
+                  onClick={() => setShowAddMarketModal(true)}
+                  className="px-3.5 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer transition-transform active:scale-95 ml-auto sm:ml-0"
+                >
+                  <Plus size={12} />
+                  <span>+ Post New Product</span>
+                </button>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-white italic">
-                Market Moderation & Flagged Content Control
+                Market Moderation & Catalog Control
               </h2>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Super Admin authority: Instantly delete flagged, scam, or non-halal items listed by any user. Inspect reported products, verify Halal certifications, and manage spiritual digital downloads.
+                Oversee the Suq Al-Mubaraki marketplace: post new authentic Islamic products, edit listings, verify Halal badges, and manage or permanently purge inappropriate listings.
               </p>
             </div>
 
@@ -3928,14 +5255,31 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                       </button>
                     </div>
 
-                    <button
-                      onClick={() => handleAdminDeleteListing(p.id, p.title)}
-                      className="px-3.5 py-1.5 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-red-600/20 active:scale-95"
-                      title="Admin: Permanently delete listing from marketplace"
-                    >
-                      <Trash2 size={13} />
-                      <span>Delete</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {!p.isFlagged && (
+                        <button
+                          onClick={() => handleAdminFlagListing(p.id, p.title)}
+                          className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          title="Flag listing for community review"
+                        >
+                          <Flag size={12} />
+                          <span>Flag</span>
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => handleAdminDeleteListing(p.id, p.title)}
+                        className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                          p.isFlagged 
+                            ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 active:scale-95 animate-pulse' 
+                            : 'bg-red-500/15 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30'
+                        }`}
+                        title="Admin: Permanently delete listing from marketplace"
+                      >
+                        <Trash2 size={13} />
+                        <span>{p.isFlagged ? 'Delete Flagged' : 'Delete'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -4226,168 +5570,390 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
             </div>
           </div>
 
-          {/* Quick Add Form */}
+          {/* Quick Add Form with Dual-View Interface (Editor + Live Global Feed Preview) */}
           <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] border-white/10 bg-slate-900/60 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                   <Plus size={20} />
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white">Upload New Islamic Teaching Card</h3>
-                  <p className="text-xs text-slate-400">Add high-resolution picture, Arabic calligraphy, and reflection</p>
+                  <p className="text-xs text-slate-400">Add picture, Arabic calligraphy, and reflection with dual-view live preview</p>
                 </div>
+              </div>
+
+              {/* Dual-View / Full Editor Mode Selector */}
+              <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-white/10 shrink-0 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setWisdomLayoutMode('dual')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    wisdomLayoutMode === 'dual'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Split size={13} />
+                  <span>Dual View (Live Preview)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWisdomLayoutMode('editor')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    wisdomLayoutMode === 'editor'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Maximize2 size={13} />
+                  <span>Full Editor</span>
+                </button>
               </div>
             </div>
 
-            <form onSubmit={handleAddWisdom} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Title */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Teaching Title / Theme *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={newTeachingTitle}
-                    onChange={(e) => setNewTeachingTitle(e.target.value)}
-                    placeholder="e.g. Mercy Towards All Creation / The Light of Sabr"
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
-                  />
-                </div>
+            {/* Layout Grid: Dual-View (Editor + Live Mockup) vs Full Editor */}
+            <div className={`grid gap-8 items-start ${wisdomLayoutMode === 'dual' ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+              
+              {/* LEFT COLUMN: CREATOR & STORAGE FORM */}
+              <div className={wisdomLayoutMode === 'dual' ? 'lg:col-span-7 space-y-4' : 'space-y-4'}>
+                <form onSubmit={handleAddWisdom} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Title */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Teaching Title / Theme *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={newTeachingTitle}
+                        onChange={(e) => setNewTeachingTitle(e.target.value)}
+                        placeholder="e.g. Mercy Towards All Creation / The Light of Sabr"
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                      />
+                    </div>
 
-                {/* Picture URL */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
-                    <span>High-Resolution Picture / Image URL *</span>
-                    <span className="text-[9px] text-emerald-400 font-normal">Click preset pill below to auto-fill</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      required
-                      type="url"
-                      value={newTeachingImageUrl}
-                      onChange={(e) => setNewTeachingImageUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-mono outline-none focus:border-emerald-400 transition-colors"
-                    />
-                    {newTeachingImageUrl && (
-                      <div className="w-12 h-11 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shrink-0">
-                        <img src={newTeachingImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    {/* Firebase Storage Image Upload & Media Hub */}
+                    <div className="space-y-2 sm:col-span-2">
+                      <div className="flex items-center justify-between pl-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <ImageIcon size={13} className="text-emerald-400" />
+                          <span>Sacred Picture / Visual Card (Firebase Storage & Cloud URLs) *</span>
+                        </label>
+                        <span className="text-[9px] text-emerald-400 font-normal flex items-center gap-1">
+                          <ShieldCheck size={11} /> Admin Write Authenticated
+                        </span>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Preset Image Quick Selector Pills */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase">Presets:</span>
-                    {[
-                      { label: '🕌 Mosque Light', url: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000' },
-                      { label: '🕋 Sacred Kaaba', url: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000' },
-                      { label: '📜 Quran Manuscript', url: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000' },
-                      { label: '🌿 Tranquil Mountain', url: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000' },
-                      { label: '✨ Lantern & Arch', url: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000' },
-                      { label: '🌅 Sunrise Sky', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1000' },
-                    ].map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => setNewTeachingImageUrl(preset.url)}
-                        className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold transition-all border border-white/5 cursor-pointer"
+                      {/* Upload Actions: Firebase Storage vs Direct Device */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* 1. Dedicated Firebase Storage Cloud Upload */}
+                        <div>
+                          <label className={`w-full py-3.5 px-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                            isUploadingToStorage
+                              ? 'border-emerald-400 bg-emerald-500/10 text-emerald-300'
+                              : storageUploadSuccess
+                              ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300'
+                              : 'border-emerald-500/30 hover:border-emerald-400 bg-emerald-950/10 hover:bg-emerald-950/20 text-slate-200'
+                          }`}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={isUploadingToStorage}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleUploadWisdomImageToStorage(f);
+                              }}
+                            />
+                            {isUploadingToStorage ? (
+                              <div className="flex items-center gap-2">
+                                <RefreshCw size={14} className="animate-spin text-emerald-400" />
+                                <span className="text-xs font-bold">Uploading to Storage... {storageUploadProgress}%</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-emerald-300">
+                                <UploadCloud size={16} />
+                                <span className="text-xs font-black">Upload to Firebase Storage</span>
+                              </div>
+                            )}
+                            <span className="text-[9px] text-slate-400">
+                              {storageUploadSuccess ? '✅ Attached to Cloud Bucket' : 'Saves to storage bucket & attaches URL'}
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* 2. Direct Compressed WebP File Picker */}
+                        <div>
+                          <label className={`w-full py-3.5 px-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                            isCompressingWisdomImage
+                              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
+                              : 'border-white/15 hover:border-white/30 bg-black/30 hover:bg-black/50 text-slate-300'
+                          }`}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={isCompressingWisdomImage}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleWisdomImageFileChange(f);
+                              }}
+                            />
+                            {isCompressingWisdomImage ? (
+                              <div className="flex items-center gap-2">
+                                <RefreshCw size={14} className="animate-spin text-cyan-400" />
+                                <span className="text-xs font-bold">Compressing Image...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Download size={15} className="text-slate-400 rotate-180" />
+                                <span className="text-xs font-bold">Local File Compress</span>
+                              </div>
+                            )}
+                            <span className="text-[9px] text-slate-500">Fast WebP client compression</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Storage Progress Bar */}
+                      {isUploadingToStorage && (
+                        <div className="w-full bg-black/60 rounded-full h-1.5 overflow-hidden border border-emerald-500/20">
+                          <motion.div
+                            className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full"
+                            style={{ width: `${storageUploadProgress}%` }}
+                            transition={{ duration: 0.2 }}
+                          />
+                        </div>
+                      )}
+
+                      {/* URL Input & Attached Media Indicator */}
+                      <div className="flex gap-2 items-center pt-1">
+                        <input
+                          required
+                          type="text"
+                          value={newTeachingImageUrl}
+                          onChange={(e) => {
+                            setNewTeachingImageUrl(e.target.value);
+                            setStoragePathAttached(null);
+                          }}
+                          placeholder="https://images.unsplash.com/photo-..."
+                          className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-mono outline-none focus:border-emerald-400 transition-colors truncate"
+                        />
+                        {newTeachingImageUrl && (
+                          <div className="relative group w-12 h-11 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shrink-0">
+                            <img src={newTeachingImageUrl} alt="Preview thumbnail" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Preset Image Quick Selector Pills */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <span className="text-[9px] text-slate-500 font-bold uppercase">Sacred Themes:</span>
+                        {ISLAMIC_IMAGE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setNewTeachingImageUrl(preset.url);
+                              setStoragePathAttached(null);
+                            }}
+                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${
+                              newTeachingImageUrl === preset.url
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-sm'
+                                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/5'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Category *
+                      </label>
+                      <select
+                        value={newTeachingCategory}
+                        onChange={(e) => setNewTeachingCategory(e.target.value as any)}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
                       >
-                        {preset.label}
-                      </button>
-                    ))}
+                        <option value="hadith_pearls">Hadith Pearls</option>
+                        <option value="quran_insights">Quranic Insights</option>
+                        <option value="prophetic_sunnah">Prophetic Sunnah</option>
+                        <option value="akhlaq_character">Akhlaq & Character</option>
+                        <option value="spirituality">Inner Spirituality & Tazkiyah</option>
+                        <option value="daily_reminders">Daily Reminders</option>
+                      </select>
+                    </div>
+
+                    {/* Scholar / Source */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Scholar / Authenticated Source
+                      </label>
+                      <input
+                        type="text"
+                        value={newTeachingScholar}
+                        onChange={(e) => setNewTeachingScholar(e.target.value)}
+                        placeholder="e.g. Sahih al-Bukhari / Imam al-Ghazali"
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
+                      />
+                    </div>
+
+                    {/* Arabic Text (Optional) */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Arabic Matn / Quranic Text (Optional)
+                      </label>
+                      <input
+                        dir="rtl"
+                        type="text"
+                        value={newTeachingArabic}
+                        onChange={(e) => setNewTeachingArabic(e.target.value)}
+                        placeholder="الرَّاحِمُونَ يَرْحَمُهُمُ الرَّحْمَنُ..."
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-amber-200 text-sm font-serif outline-none focus:border-emerald-400 transition-colors text-right"
+                      />
+                    </div>
+
+                    {/* Content / Reflection Body */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Teaching Wisdom / Explanation *
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={newTeachingContent}
+                        onChange={(e) => setNewTeachingContent(e.target.value)}
+                        placeholder="Provide the explanation, translation, context, and spiritual benefit..."
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors resize-none leading-relaxed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submit & Featured checkbox */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-white/10">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={newTeachingFeatured}
+                        onChange={(e) => setNewTeachingFeatured(e.target.checked)}
+                        className="w-4 h-4 rounded border-white/20 accent-emerald-500 cursor-pointer"
+                      />
+                      <span>⭐ Feature this teaching at top of Islamic Wisdom feed</span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={isAddingTeaching || isUploadingToStorage}
+                      className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isAddingTeaching ? <RefreshCw className="animate-spin" size={14} /> : <Database size={14} />}
+                      <span>Publish Teaching Card to Firestore</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* RIGHT COLUMN: DUAL-VIEW LIVE GLOBAL FEED PREVIEW */}
+              {wisdomLayoutMode === 'dual' && (
+                <div className="lg:col-span-5 space-y-3 lg:sticky lg:top-6">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2 text-emerald-300 text-xs font-black uppercase tracking-wider">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                      <Eye size={14} />
+                      <span>Live Feed Preview Card</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Realtime Mockup</span>
+                  </div>
+
+                  {/* Visual Live Card Container */}
+                  <div className="glass-panel rounded-[2.2rem] border border-emerald-500/30 overflow-hidden shadow-2xl bg-gradient-to-b from-slate-900/90 to-black/90 flex flex-col justify-between transition-all">
+                    <div>
+                      {/* Image Header with Scrim */}
+                      <div className="relative aspect-video w-full bg-black/60 overflow-hidden group">
+                        <img
+                          src={newTeachingImageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000'}
+                          alt={newTeachingTitle || 'Teaching Preview'}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/20 to-transparent opacity-90" />
+
+                        {/* Category Badge */}
+                        <span className="absolute top-3.5 left-3.5 px-3 py-1 rounded-xl bg-black/80 backdrop-blur-md text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-white/10 shadow-lg">
+                          {IslamicWisdomService.getCategoryLabel(newTeachingCategory)}
+                        </span>
+
+                        {/* Featured Pill */}
+                        {newTeachingFeatured && (
+                          <span className="absolute top-3.5 right-3.5 px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1">
+                            ⭐ Featured
+                          </span>
+                        )}
+
+                        {/* Storage Badge */}
+                        {storagePathAttached && (
+                          <span className="absolute bottom-2.5 right-3 px-2 py-0.5 rounded-md bg-emerald-500/90 text-black text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <Cloud size={10} /> Storage Verified
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Card Content Body */}
+                      <div className="p-5 space-y-3.5">
+                        <h4 className="text-base font-black text-white leading-snug">
+                          {newTeachingTitle || 'Sacred Islamic Wisdom Title'}
+                        </h4>
+
+                        {/* Arabic Calligraphy Display */}
+                        {newTeachingArabic ? (
+                          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-base font-serif text-right leading-relaxed">
+                            {newTeachingArabic}
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded-2xl bg-white/5 border border-white/5 text-slate-500 text-xs italic text-center">
+                            (Arabic Calligraphy / Matn will render here)
+                          </div>
+                        )}
+
+                        {/* Reflection Content */}
+                        <p className="text-xs text-slate-300 leading-relaxed line-clamp-4">
+                          {newTeachingContent || 'Your wisdom explanation, prophetic reflection, and beneficial spiritual insights will appear formatted in this card on the global feed.'}
+                        </p>
+
+                        {/* Scholar / Authenticated Source */}
+                        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="truncate">
+                            Source: <strong className="text-slate-200">{newTeachingScholar || 'Authentic Islamic Tradition'}</strong>
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-bold shrink-0">
+                            +100 Hasanat
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mock Action Bar */}
+                    <div className="p-4 bg-black/50 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1 text-slate-400 text-[11px]">
+                          <Heart size={13} className="text-rose-400 fill-rose-400/20" /> 0 Likes
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-400 text-[11px]">
+                          <Eye size={13} /> 0 Views
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500">Live Preview Ready</span>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                {/* Category */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Category *
-                  </label>
-                  <select
-                    value={newTeachingCategory}
-                    onChange={(e) => setNewTeachingCategory(e.target.value as any)}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
-                  >
-                    <option value="hadith_pearls">Hadith Pearls</option>
-                    <option value="quran_insights">Quranic Insights</option>
-                    <option value="prophetic_sunnah">Prophetic Sunnah</option>
-                    <option value="akhlaq_character">Akhlaq & Character</option>
-                    <option value="spirituality">Inner Spirituality & Tazkiyah</option>
-                    <option value="daily_reminders">Daily Reminders</option>
-                  </select>
-                </div>
-
-                {/* Scholar / Source */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Scholar / Authenticated Source
-                  </label>
-                  <input
-                    type="text"
-                    value={newTeachingScholar}
-                    onChange={(e) => setNewTeachingScholar(e.target.value)}
-                    placeholder="e.g. Sahih al-Bukhari / Imam al-Ghazali"
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors"
-                  />
-                </div>
-
-                {/* Arabic Text (Optional) */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Arabic Matn / Quranic Text (Optional)
-                  </label>
-                  <input
-                    dir="rtl"
-                    type="text"
-                    value={newTeachingArabic}
-                    onChange={(e) => setNewTeachingArabic(e.target.value)}
-                    placeholder="الرَّاحِمُونَ يَرْحَمُهُمُ الرَّحْمَنُ..."
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-amber-200 text-sm font-serif outline-none focus:border-emerald-400 transition-colors text-right"
-                  />
-                </div>
-
-                {/* Content / Reflection Body */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Teaching Wisdom / Explanation *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={newTeachingContent}
-                    onChange={(e) => setNewTeachingContent(e.target.value)}
-                    placeholder="Provide the explanation, translation, context, and spiritual benefit..."
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-xs outline-none focus:border-emerald-400 transition-colors resize-none leading-relaxed"
-                  />
-                </div>
-              </div>
-
-              {/* Submit & Featured checkbox */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-white/10">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={newTeachingFeatured}
-                    onChange={(e) => setNewTeachingFeatured(e.target.checked)}
-                    className="w-4 h-4 rounded border-white/20 accent-emerald-500 cursor-pointer"
-                  />
-                  <span>⭐ Feature this teaching at top of Islamic Wisdom page</span>
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={isAddingTeaching}
-                  className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isAddingTeaching ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
-                  <span>Publish Teaching Card</span>
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
 
           {/* Search and Category Filter */}
@@ -5090,6 +6656,193 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
         )}
       </AnimatePresence>
 
+      {/* ADMIN POST NEW MARKETPLACE ITEM MODAL */}
+      <AnimatePresence>
+        {showAddMarketModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-white/10 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 my-8"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <ShoppingBag size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">Post New Market Product</h3>
+                    <p className="text-xs text-slate-400">Publish authentic items directly to Suq Al-Mubaraki</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAddMarketModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white bg-white/5 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddAdminMarketProduct} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Product Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newMarketForm.title}
+                    onChange={(e) => setNewMarketForm({ ...newMarketForm, title: e.target.value })}
+                    placeholder="e.g. Handmade Olive Wood Misbaha Tasbih"
+                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Category</label>
+                    <select
+                      value={newMarketForm.category}
+                      onChange={(e) => setNewMarketForm({ ...newMarketForm, category: e.target.value })}
+                      className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white focus:border-emerald-500 outline-none"
+                    >
+                      <option value="Spiritual Decor">Spiritual Decor</option>
+                      <option value="Prayer Mats & Rugs">Prayer Mats & Rugs</option>
+                      <option value="Tasbih & Misbaha">Tasbih & Misbaha</option>
+                      <option value="Oud & Perfumes">Oud & Perfumes</option>
+                      <option value="Islamic Books & Quran">Islamic Books & Quran</option>
+                      <option value="Digital Guides & Duas">Digital Guides & Duas</option>
+                      <option value="Modest Attire">Modest Attire</option>
+                      <option value="Dates & Halal Treats">Dates & Halal Treats</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Brand / Artisan</label>
+                    <input
+                      type="text"
+                      value={newMarketForm.brand}
+                      onChange={(e) => setNewMarketForm({ ...newMarketForm, brand: e.target.value })}
+                      placeholder="e.g. Sanctuary Crafts"
+                      className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Price (USD $)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newMarketForm.price}
+                      onChange={(e) => setNewMarketForm({ ...newMarketForm, price: e.target.value, coinPrice: String(Math.round(Number(e.target.value) * 100)) })}
+                      placeholder="25.00"
+                      className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Coins Price (Hasanat)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newMarketForm.coinPrice}
+                      onChange={(e) => setNewMarketForm({ ...newMarketForm, coinPrice: e.target.value })}
+                      placeholder="2500"
+                      className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Product Image URL</label>
+                  <input
+                    type="url"
+                    value={newMarketForm.imageUrl}
+                    onChange={(e) => setNewMarketForm({ ...newMarketForm, imageUrl: e.target.value })}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Description</label>
+                  <textarea
+                    rows={3}
+                    value={newMarketForm.description}
+                    onChange={(e) => setNewMarketForm({ ...newMarketForm, description: e.target.value })}
+                    placeholder="Describe the material, craft, spiritual benefits, and specifications..."
+                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none resize-none"
+                  />
+                </div>
+
+                {/* Digital Download Toggle */}
+                <div className="p-4 rounded-2xl bg-black/30 border border-white/5 space-y-3">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newMarketForm.isDigital}
+                      onChange={(e) => setNewMarketForm({ ...newMarketForm, isDigital: e.target.checked })}
+                      className="rounded accent-emerald-500"
+                    />
+                    <span className="text-xs font-bold text-white">Digital Downloadable Product (PDF/Audio)</span>
+                  </label>
+                  {newMarketForm.isDigital && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <input
+                        type="url"
+                        value={newMarketForm.downloadUrl}
+                        onChange={(e) => setNewMarketForm({ ...newMarketForm, downloadUrl: e.target.value })}
+                        placeholder="Direct download URL"
+                        className="px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white outline-none"
+                      />
+                      <select
+                        value={newMarketForm.downloadFormat}
+                        onChange={(e) => setNewMarketForm({ ...newMarketForm, downloadFormat: e.target.value })}
+                        className="px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white outline-none"
+                      >
+                        <option value="PDF">PDF Document</option>
+                        <option value="EPUB">EPUB E-Book</option>
+                        <option value="MP3">MP3 Audio</option>
+                        <option value="ZIP">ZIP Bundle</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMarketModal(false)}
+                    className="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingMarketProduct}
+                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isAddingMarketProduct ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Publishing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} />
+                        <span>Publish to Suq</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL 6: BULK ISLAMIC WISDOM / PICTURES IMPORT MODAL */}
       <AnimatePresence>
         {showBulkWisdomModal && (
@@ -5176,6 +6929,130 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                   </div>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 7: SECURE ADMIN DELETION CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {pendingDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 10 }}
+              className="w-full max-w-lg bg-slate-950 border-2 border-rose-500/40 rounded-[2.5rem] p-6 sm:p-8 space-y-6 shadow-3xl relative overflow-hidden"
+            >
+              {/* Decorative background glow */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/10">
+                    <ShieldAlert size={26} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-black uppercase tracking-widest inline-block mb-1">
+                      Destructive Action Guard
+                    </span>
+                    <h3 className="text-lg font-black text-white">
+                      Confirm Permanent Deletion
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !isProcessingDelete && setPendingDeleteModal(null)}
+                  disabled={isProcessingDelete}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white bg-white/5 cursor-pointer disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Warning Notice */}
+              <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 space-y-1 text-xs">
+                <p className="text-rose-200 font-bold flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-rose-400 shrink-0" />
+                  <span>This action cannot be undone.</span>
+                </p>
+                <p className="text-slate-300 text-[11px] leading-relaxed pl-5">
+                  {pendingDeleteModal.type === 'market_item'
+                    ? "This flagged marketplace listing will be permanently purged from the Firestore database and removed from all pilgrims' feeds."
+                    : pendingDeleteModal.type === 'khatam_video'
+                    ? "This YouTube video will be permanently removed from the Khatam Journey sanctuary and will no longer be visible to seekers."
+                    : "This Islamic wisdom card will be permanently deleted from the global ilm repository and will no longer be visible to seekers."}
+                </p>
+              </div>
+
+              {/* Item Preview Card */}
+              <div className="p-4 rounded-2xl bg-black/60 border border-white/10 flex items-center gap-4">
+                {pendingDeleteModal.imageUrl ? (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10">
+                    <img
+                      src={pendingDeleteModal.imageUrl}
+                      alt={pendingDeleteModal.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center shrink-0 text-slate-500">
+                    <Trash2 size={24} />
+                  </div>
+                )}
+
+                <div className="space-y-1 overflow-hidden flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[9px] font-black uppercase tracking-wider truncate">
+                      {pendingDeleteModal.badge || (pendingDeleteModal.type === 'market_item' ? 'Market Item' : 'Wisdom Card')}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white truncate">
+                    {pendingDeleteModal.title}
+                  </h4>
+                  {pendingDeleteModal.subtitle && (
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {pendingDeleteModal.subtitle}
+                    </p>
+                  )}
+                  {pendingDeleteModal.flagReason && (
+                    <p className="text-[10px] text-amber-300 font-mono truncate">
+                      Flag Reason: {pendingDeleteModal.flagReason}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isProcessingDelete}
+                  onClick={() => setPendingDeleteModal(null)}
+                  className="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancel, Keep Item
+                </button>
+                <button
+                  type="button"
+                  disabled={isProcessingDelete}
+                  onClick={handleConfirmPermanentDelete}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-rose-600/30 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isProcessingDelete ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      <span>Yes, Permanently Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

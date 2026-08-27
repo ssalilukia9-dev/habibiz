@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame, Palette, Sliders } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame, Palette, Sliders, Type, BookOpen } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
-import { CURATED_THEMES, ThemeService } from '../services/themeService';
+import { CURATED_THEMES, ThemeService, FONT_STYLE_PRESETS, ARABIC_FONT_OPTIONS, FONT_SIZE_OPTIONS } from '../services/themeService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SettingsViewProps {
@@ -19,32 +19,31 @@ interface SettingsViewProps {
 
 export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, onLogout, language, setLanguage }: SettingsViewProps) {
   const navigate = useNavigate();
-  // Custom client-side Gemini API Key State
-  const [customGeminiKey, setCustomGeminiKey] = useState(() => {
-    return localStorage.getItem('custom_gemini_api_key') || '';
+
+  // Typography & Font Style State
+  const [fontStyle, setFontStyle] = useState<string>(() => {
+    return ThemeService.getActiveFontStyle();
+  });
+  const [arabicFont, setArabicFont] = useState<string>(() => {
+    return ThemeService.getActiveArabicFont();
+  });
+  const [fontSize, setFontSize] = useState<'compact' | 'standard' | 'comfort' | 'grand'>(() => {
+    return ThemeService.getActiveFontSize();
   });
 
-  const saveGeminiKey = (key: string) => {
-    setCustomGeminiKey(key);
-    if (key.trim()) {
-      localStorage.setItem('custom_gemini_api_key', key.trim());
-    } else {
-      localStorage.removeItem('custom_gemini_api_key');
-    }
+  const handleFontStyleChange = (id: string) => {
+    setFontStyle(id);
+    ThemeService.applyFontStyle(id);
   };
 
-  // Custom API Server URL State
-  const [customApiUrl, setCustomApiUrl] = useState(() => {
-    return localStorage.getItem('custom_api_base_url') || '';
-  });
+  const handleArabicFontChange = (id: string) => {
+    setArabicFont(id);
+    ThemeService.applyArabicFont(id);
+  };
 
-  const saveApiUrl = (url: string) => {
-    setCustomApiUrl(url);
-    if (url.trim()) {
-      localStorage.setItem('custom_api_base_url', url.trim());
-    } else {
-      localStorage.removeItem('custom_api_base_url');
-    }
+  const handleFontSizeChange = (size: 'compact' | 'standard' | 'comfort' | 'grand') => {
+    setFontSize(size);
+    ThemeService.applyFontSize(size);
   };
 
   // Force Ramadan Mode State & Toggle
@@ -52,11 +51,19 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
     return localStorage.getItem('force-ramadan-mode') === 'true';
   });
 
+  useEffect(() => {
+    const handleRamadanUpdate = () => {
+      setForceRamadan(localStorage.getItem('force-ramadan-mode') === 'true');
+    };
+    window.addEventListener('ramadan_mode_updated', handleRamadanUpdate);
+    return () => window.removeEventListener('ramadan_mode_updated', handleRamadanUpdate);
+  }, []);
+
   const toggleForceRamadan = () => {
     const newValue = !forceRamadan;
     setForceRamadan(newValue);
     localStorage.setItem('force-ramadan-mode', String(newValue));
-    window.dispatchEvent(new Event('ramadan_mode_updated'));
+    window.dispatchEvent(new CustomEvent('ramadan_mode_updated'));
   };
 
   // Offline Mode Setting
@@ -485,6 +492,148 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
               {forceRamadan ? 'Active' : 'Disabled'}
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Typography & Font Aesthetics Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-primary/60 flex items-center gap-3">
+            <Type size={14} /> Typography & Script Aesthetics
+          </h3>
+          <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-3 py-1 rounded-full border border-white/5">
+            Active: <span className="text-brand-primary font-bold">{FONT_STYLE_PRESETS.find(f => f.id === fontStyle)?.name || 'Modern Sanctum'}</span>
+          </span>
+        </div>
+
+        <div className="bg-white/5 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl p-6 sm:p-8 space-y-8">
+          
+          {/* Section 1: English & Global App Font Styles */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-5 bg-brand-primary rounded-full" />
+              <div>
+                <h4 className="text-base font-black text-white">App-Wide Font Style</h4>
+                <p className="text-xs text-slate-400">Choose the typographic persona for headings, body text, and menus</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {FONT_STYLE_PRESETS.map((preset) => {
+                const isSelected = fontStyle === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleFontStyleChange(preset.id)}
+                    className={`p-4 sm:p-5 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer ${
+                      isSelected
+                        ? 'bg-brand-primary/10 border-brand-primary ring-1 ring-brand-primary/40 shadow-xl'
+                        : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-black/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <span className="text-xs font-black text-white block">{preset.name}</span>
+                        <span className="text-[9px] text-brand-primary font-bold uppercase tracking-wider">{preset.tag}</span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-brand-primary text-black font-bold' : 'border border-white/20'
+                      }`}>
+                        {isSelected && <CheckCircle2 size={13} />}
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-300 leading-relaxed mb-3">
+                      {preset.description}
+                    </p>
+
+                    {/* Interactive Font Preview Snippet */}
+                    <div className="p-3 rounded-xl bg-black/50 border border-white/5 space-y-1">
+                      <p className="text-xs font-semibold text-slate-200" style={{ fontFamily: preset.fontSans }}>
+                        "{preset.sampleEn}"
+                      </p>
+                      <p className="text-sm text-brand-primary text-right font-arabic leading-relaxed" style={{ fontFamily: preset.fontArabic }}>
+                        {preset.sampleAr}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <hr className="border-white/5" />
+
+          {/* Section 2: Quran & Hadith Arabic Calligraphy Font */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-5 bg-amber-400 rounded-full" />
+              <div>
+                <h4 className="text-base font-black text-white">Quran & Hadith Arabic Calligraphy Script</h4>
+                <p className="text-xs text-slate-400">Select the Arabic font family for sacred Ayahs, Duas, and Adhkar</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {ARABIC_FONT_OPTIONS.map((arOption) => {
+                const isSelected = arabicFont === arOption.id;
+                return (
+                  <button
+                    key={arOption.id}
+                    onClick={() => handleArabicFontChange(arOption.id)}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/30'
+                        : 'bg-black/30 border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-black text-white">{arOption.name}</span>
+                      <span className="text-[9px] text-amber-400 font-bold uppercase">{arOption.style}</span>
+                    </div>
+                    <p className="text-base sm:text-lg text-amber-200 text-right leading-loose pt-1" style={{ fontFamily: arOption.fontFamily }}>
+                      {arOption.sample}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <hr className="border-white/5" />
+
+          {/* Section 3: Interface Font Scale / Size */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-5 bg-sky-400 rounded-full" />
+              <div>
+                <h4 className="text-base font-black text-white">Interface Text Scaling</h4>
+                <p className="text-xs text-slate-400">Adjust text size across the entire application for comfort and legibility</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {FONT_SIZE_OPTIONS.map((sizeOpt) => {
+                const isSelected = fontSize === sizeOpt.id;
+                return (
+                  <button
+                    key={sizeOpt.id}
+                    onClick={() => handleFontSizeChange(sizeOpt.id)}
+                    className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-500/20 border-sky-400 text-white font-black shadow-lg'
+                        : 'bg-black/30 border-white/5 text-slate-300 hover:text-white hover:bg-black/50'
+                    }`}
+                  >
+                    <p className="text-sm font-black">{sizeOpt.label}</p>
+                    <p className="text-[10px] text-sky-300 font-mono mt-0.5">{sizeOpt.scale}</p>
+                    <p className="text-[9px] text-slate-400 mt-1">{sizeOpt.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -926,6 +1075,59 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
         </div>
       </section>
 
+      {/* About App Creators & Mobile Hub Section */}
+      <section className="space-y-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400/80 flex items-center gap-3">
+          <Heart size={14} className="text-amber-400 fill-amber-400" /> Creators & Mobile Build Hub
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* About App Creators Card */}
+          <div className="bg-white/5 hover:bg-white/10 rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl p-6 flex flex-col justify-between gap-4 transition-all">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                  Ummah Service
+                </span>
+              </div>
+              <h4 className="text-base font-black text-white">About App Creators</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Meet the builders, spiritual vision, and architectural pillars behind Muslim Deen Habibi.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/about-creators')}
+              className="px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-brand-depth font-black text-xs rounded-xl flex items-center justify-between shadow-lg shadow-amber-500/10 transition-all cursor-pointer"
+            >
+              <span>View Creators Page</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+
+          {/* Android APK & AAB Compilation Card */}
+          <div className="bg-white/5 hover:bg-white/10 rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl p-6 flex flex-col justify-between gap-4 transition-all">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                  Capacitor 8.x
+                </span>
+              </div>
+              <h4 className="text-base font-black text-white">APK & AAB Mobile Studio</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Compile standalone Android APKs and Google Play AAB bundles with ready scripts.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/resources', { state: { initialTab: 'mobile' } })}
+              className="px-5 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl flex items-center justify-between border border-white/10 transition-all cursor-pointer"
+            >
+              <span>Mobile Build Guide</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Admin Command Console Section */}
       <section className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400/80 flex items-center gap-3">
@@ -942,93 +1144,6 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
           >
             Launch Admin Hub <ArrowRight size={14} />
           </button>
-        </div>
-      </section>
-
-      {/* AI & Gateway Configuration Section */}
-      <section className="space-y-6">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-400/60 flex items-center gap-3">
-          <Sparkles size={14} /> AI & Gateway Configuration
-        </h3>
-        <div className="bg-white/5 rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl p-8 space-y-8">
-          {/* Companion Key */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-1 h-4 bg-indigo-400 rounded-full" />
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Aliyah Companion Key</p>
-            </div>
-            
-            <p className="text-xs text-slate-400 leading-relaxed">
-              If you are running Sanctuary on a custom deployment (such as Netlify) or as an APK on mobile, the built-in server-side AI proxy is unavailable. Paste your free Google Gemini API Key here to run Aliyah completely client-side.
-            </p>
-
-            <div className="space-y-2">
-              <input
-                type="password"
-                placeholder="AIzaSy..."
-                value={customGeminiKey || ''}
-                onChange={(e) => saveGeminiKey(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-indigo-400/50 focus:outline-none transition-all selection:bg-indigo-500/30 font-mono"
-              />
-              <div className="flex justify-between items-center px-1">
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="text-[10px] font-black text-indigo-400 hover:text-white uppercase tracking-wider transition-colors flex items-center gap-1"
-                >
-                  Get Free API Key <ChevronRight size={10} />
-                </a>
-                {customGeminiKey.trim() ? (
-                  <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
-                    <CheckCircle2 size={10} /> Saved locally
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-black uppercase text-amber-500/60 tracking-wider">
-                    Using hosted server by default
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-white/5" />
-
-          {/* Custom API Base URL */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-1 h-4 bg-purple-400 rounded-full" />
-              <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em]">Sync API Gateway URL</p>
-            </div>
-            
-            <p className="text-xs text-slate-400 leading-relaxed">
-              For native mobile apps (APK/iOS) or offline sync testing, specify the absolute URL of the hosted Sanctuary backend server.
-            </p>
-
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="https://your-deployment.run.app"
-                value={customApiUrl || ''}
-                onChange={(e) => saveApiUrl(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 px-5 py-4 rounded-2xl text-slate-100 placeholder:text-slate-600 text-sm focus:border-purple-400/50 focus:outline-none transition-all selection:bg-purple-500/30 font-mono"
-              />
-              <div className="flex justify-between items-center px-1">
-                <span className="text-[9px] text-slate-500 font-bold">
-                  Leave blank to use default auto-detection.
-                </span>
-                {customApiUrl.trim() ? (
-                  <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
-                    <CheckCircle2 size={10} /> Custom Gateway Active
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-black uppercase text-purple-400/80 tracking-wider animate-pulse">
-                    Auto-Detect Fallback Active
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 

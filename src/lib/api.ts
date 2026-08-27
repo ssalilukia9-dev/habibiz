@@ -22,13 +22,13 @@ export const getApiBaseUrl = () => {
     return '';
   }
   
-  // Check localStorage for a custom configured API URL
-  const customUrl = localStorage.getItem('custom_api_base_url');
+  // Check localStorage or window global for a custom configured API URL
+  const customUrl = (typeof window !== 'undefined' ? (localStorage.getItem('custom_api_base_url') || (window as any).__API_BASE_URL__) : '') || '';
   if (customUrl) {
     return customUrl.endsWith('/') ? customUrl.slice(0, -1) : customUrl;
   }
 
-  const productionUrl = import.meta.env.VITE_PRODUCTION_API_URL || '';
+  const productionUrl = import.meta.env.VITE_PRODUCTION_API_URL || import.meta.env.VITE_API_URL || '';
   if (productionUrl) {
     return productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
   }
@@ -155,14 +155,19 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
       console.warn('Server AI endpoint unreachable, attempting client-side fallback:', err);
     }
 
-    // Client-side Gemini fallback for static hostings (Netlify/Vercel)
-    const customKey = isWeb ? (localStorage.getItem('custom_gemini_api_key') || '') : '';
-    const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    // Client-side Gemini fallback for static hostings (Netlify/Vercel) & compiled standalone apps (APK/iOS)
+    const customKey = isWeb ? (
+      localStorage.getItem('custom_gemini_api_key') || 
+      localStorage.getItem('gemini_api_key') ||
+      (window as any).__GEMINI_API_KEY__ || 
+      (window as any).GEMINI_API_KEY || ''
+    ) : '';
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || '';
     const apiKey = customKey.trim() || envKey.trim();
 
     if (!apiKey) {
       return new Response(JSON.stringify({
-        error: "To chat with Aliyah on this hosted deployment, please go to Settings (bottom-left) and enter your free Google Gemini API Key."
+        error: "Aliyah AI requires a Gemini API key in compiled/standalone mode. Configure VITE_GEMINI_API_KEY in your environment build variables or provide GEMINI_API_KEY."
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
