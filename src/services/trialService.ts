@@ -66,6 +66,9 @@ const STORAGE_PREMIUM_EXPIRES_KEY = 'sanctuary_premium_expires_at';
 
 // Team inserted promo & VIP activation codes
 const SYSTEM_PROMO_CODES: Record<string, { tier: string; days: number; desc: string }> = {
+  'MH-VIP-2214': { tier: 'lifetime', days: 36500, desc: 'Master Sanctuary VIP - Permanent Unlimited Lifetime Access' },
+  'MH-VIP2214': { tier: 'lifetime', days: 36500, desc: 'Master Sanctuary VIP - Permanent Unlimited Lifetime Access' },
+  'MHVIP2214': { tier: 'lifetime', days: 36500, desc: 'Master Sanctuary VIP - Permanent Unlimited Lifetime Access' },
   'UMMAH2026': { tier: 'annual', days: 365, desc: '1 Year Free Ummah Global Access' },
   'RAMADAN': { tier: 'lifetime', days: 3650, desc: 'Ramadan Mubarak Lifetime Haven Access' },
   'BARAKAH': { tier: 'lifetime', days: 3650, desc: 'Lifetime Divine Barakah Pass' },
@@ -173,16 +176,18 @@ class TrialService {
     }
 
     // Check if it's a MH-VIP Gate Pass code
-    if (code.startsWith('MH-VIP')) {
+    if (code.startsWith('MH-VIP') || code.startsWith('MHVIP')) {
       const result = await gatePassService.redeemGatePass(code, currentUser || { uid: 'guest_' + Date.now() });
+      const tier = result.daysGranted && result.daysGranted > 365 ? 'lifetime' : 'monthly';
+      const days = result.daysGranted || 30;
       if (result.success) {
-        this.applyPremium('monthly', 30);
+        this.applyPremium(tier, days);
       }
       return {
         success: result.success,
         message: result.message,
-        tierGranted: 'monthly',
-        daysGranted: 30
+        tierGranted: tier,
+        daysGranted: days
       };
     }
 

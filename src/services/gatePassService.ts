@@ -33,6 +33,20 @@ export interface GatePassResult {
 class GatePassService {
   private static LOCAL_REDEEMED_KEY = 'sanctuary_redeemed_gate_passes';
   private static PREFIX = 'MH-VIP';
+  public static MASTER_VIP_CODE = 'MH-VIP-2214';
+
+  /**
+   * Checks if a code is the master VIP code for unlimited premium access
+   */
+  public isMasterCode(rawCode: string): boolean {
+    const sanitized = this.sanitizeCode(rawCode);
+    return (
+      sanitized === 'MH-VIP-2214' ||
+      sanitized === 'MH-VIP2214' ||
+      sanitized === 'MHVIP2214' ||
+      sanitized === 'MH_VIP_2214'
+    );
+  }
 
   /**
    * Sanitizes the input code into standard uppercase without spaces.
@@ -113,7 +127,109 @@ class GatePassService {
       };
     }
 
-    // Check if code has already been redeemed anywhere
+    const isMaster = this.isMasterCode(sanitized);
+
+    // If it's the Master Code MH-VIP-2214, grant permanent UNLIMITED VIP Access (lifetime / no expiry)
+    if (isMaster) {
+      const durationDays = 36500; // 100 years lifetime
+      const now = new Date();
+      const expiryDate = new Date('2099-12-31T23:59:59.999Z');
+
+      // 1. Update local storage profile & flags
+      try {
+        localStorage.setItem('sanctuary_is_premium', 'true');
+        localStorage.setItem('sanctuary_premium_tier', 'lifetime');
+        localStorage.setItem('sanctuary_premium_expires_at', expiryDate.toISOString());
+
+        const localProfileKey = `sanctuary_profile_${currentUser.uid}`;
+        const cached = localStorage.getItem(localProfileKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          parsed.isPremium = true;
+          parsed.subscriptionTier = 'lifetime';
+          parsed.unlimitedVip = true;
+          parsed.masterCodeRedeemed = true;
+          parsed.premiumActivatedAt = now.toISOString();
+          parsed.premiumExpiresAt = expiryDate.toISOString();
+          parsed.redeemedPasses = [...(parsed.redeemedPasses || []), 'MH-VIP-2214'];
+          localStorage.setItem(localProfileKey, JSON.stringify(parsed));
+        }
+      } catch (e) {
+        console.warn("Local storage master code update warning", e);
+      }
+
+      // 2. Sync to Firestore
+      const masterProfileFields = {
+        isPremium: true,
+        subscriptionTier: 'lifetime',
+        unlimitedVip: true,
+        masterCodeUsed: 'MH-VIP-2214',
+        premiumActivatedAt: serverTimestamp(),
+        premiumExpiresAt: expiryDate.toISOString(),
+        redeemedPasses: arrayUnion('MH-VIP-2214')
+      };
+
+      if (!currentUser.uid.startsWith('local_')) {
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          await updateDoc(userRef, masterProfileFields);
+        } catch (err) {
+          console.warn("Failed to update user doc with master code in Firestore:", err);
+        }
+      }
+
+      // 3. Mark in redeemed passes collection for admin logging
+      try {
+        const passRef = doc(db, 'redeemed_gate_passes', `MH-VIP-2214_${currentUser.uid}`);
+        await setDoc(passRef, {
+          code: 'MH-VIP-2214',
+          redeemedBy: currentUser.uid,
+          userEmail: currentUser.email || 'master_user',
+          userName: currentUser.displayName || 'Master VIP Seeker',
+          redeemedAt: serverTimestamp(),
+          validUntil: expiryDate.toISOString(),
+          durationDays: 36500,
+          isMasterCode: true
+        });
+      } catch (err) {
+        console.warn("Firestore master pass write log:", err);
+      }
+
+      // 4. Dispatch global UI events
+      window.dispatchEvent(new CustomEvent('sanctuary_user_updated', {
+        detail: {
+          uid: currentUser.uid,
+          isPremium: true,
+          subscriptionTier: 'lifetime',
+          unlimitedVip: true,
+          premiumActivatedAt: now.toISOString()
+        }
+      }));
+
+      window.dispatchEvent(new CustomEvent('sanctuary_gatepass_redeemed', {
+        detail: {
+          code: 'MH-VIP-2214',
+          durationDays: 36500,
+          isMaster: true
+        }
+      }));
+
+      window.dispatchEvent(new CustomEvent('sanctuary_premium_activated', {
+        detail: {
+          tier: 'lifetime',
+          days: 36500
+        }
+      }));
+
+      return {
+        success: true,
+        daysGranted: 36500,
+        validUntil: 'Lifetime Permanent Access',
+        message: `👑 ALLAHU AKBAR! Master Code MH-VIP-2214 verified! Unlimited Lifetime Sanctuary Elite VIP Premium Access permanently unlocked!`
+      };
+    }
+
+    // Standard single-use MH-VIP Pass flow: Check if code has already been redeemed anywhere
     const alreadyUsed = await this.isCodeRedeemed(sanitized);
     if (alreadyUsed) {
       return {

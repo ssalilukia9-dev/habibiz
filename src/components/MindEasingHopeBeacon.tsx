@@ -50,26 +50,27 @@ export default function MindEasingHopeBeacon({
 
   // 15-second countdown timer
   useEffect(() => {
-    if (isPaused || isExpandedModalOpen || isPlayingAudio) {
+    if (isPaused || isExpandedModalOpen || isPlayingAudio || timeLeft <= 0) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
 
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          if (onClose) onClose();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPaused, isExpandedModalOpen, isPlayingAudio, onClose]);
+  }, [isPaused, isExpandedModalOpen, isPlayingAudio, timeLeft]);
+
+  // Trigger auto-close when timer reaches 0 cleanly in an effect
+  useEffect(() => {
+    if (timeLeft <= 0 && !isPaused && !isExpandedModalOpen && !isPlayingAudio) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      onClose?.();
+    }
+  }, [timeLeft, isPaused, isExpandedModalOpen, isPlayingAudio, onClose]);
 
   // Check if current item is bookmarked in local storage
   useEffect(() => {

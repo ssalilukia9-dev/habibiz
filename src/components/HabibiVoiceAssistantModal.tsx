@@ -99,6 +99,11 @@ export default function HabibiVoiceAssistantModal({
   const [isAddCustomOpen, setIsAddCustomOpen] = useState(false);
   const [hasanatEarnedSession, setHasanatEarnedSession] = useState(0);
 
+  const addHasanatRef = useRef(addHasanat);
+  useEffect(() => {
+    addHasanatRef.current = addHasanat;
+  }, [addHasanat]);
+
   // Sync state to local storage
   useEffect(() => {
     localStorage.setItem('tasbih-count', tasbihCount.toString());
@@ -169,8 +174,8 @@ export default function HabibiVoiceAssistantModal({
         onSupplicationRecognized: (supp, countToAdd, raw) => {
           setTasbihCount(prev => prev + countToAdd);
           setHasanatEarnedSession(prev => prev + (5 * countToAdd));
-          if (addHasanat) {
-            addHasanat(5 * countToAdd);
+          if (addHasanatRef.current) {
+            addHasanatRef.current(5 * countToAdd);
           }
           setLastDhikrBadge(supp.name);
           setInterimVoiceText('');

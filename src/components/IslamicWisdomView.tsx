@@ -293,9 +293,9 @@ export default function IslamicWisdomView({
                   className="glass-panel border-white/10 rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-white/[0.04] to-black/60 shadow-xl flex flex-col group"
                 >
                   {/* Image with zoom click */}
-                  <div className="relative h-56 w-full overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setSelectedImageModal(item.imageUrl)}>
+                  <div className="relative h-56 w-full overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setSelectedImageModal(item.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800')}>
                     <img
-                      src={item.imageUrl}
+                      src={item.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                       alt={item.title}
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       onError={(e) => {
@@ -442,10 +442,10 @@ export default function IslamicWisdomView({
                     {/* Picture area */}
                     <div 
                       className="relative h-48 w-full overflow-hidden bg-slate-950 cursor-pointer"
-                      onClick={() => setSelectedImageModal(item.imageUrl)}
+                      onClick={() => setSelectedImageModal(item.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800')}
                     >
                       <img
-                        src={item.imageUrl}
+                        src={item.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                         alt={item.title}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                         onError={(e) => {

@@ -928,13 +928,13 @@ export default function ProfileView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">Sanctuary VIP Gate Pass</h3>
+                <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">Sanctuary VIP Gate Pass & Master Code</h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-brand-depth text-[9px] font-black uppercase tracking-widest">
-                  1 Mo Free
+                  VIP Elite
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Enter your exclusive pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (e.g. MH-VIP-2026) to unlock 1 Month of Free Sanctuary Elite Premium.
+                Enter your VIP pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (or Master Code <strong className="text-amber-300 font-mono">MH-VIP-2214</strong> for Unlimited Lifetime Sanctuary Elite Access).
               </p>
             </div>
           </div>

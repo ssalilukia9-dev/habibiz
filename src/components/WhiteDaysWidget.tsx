@@ -206,8 +206,23 @@ export default function WhiteDaysWidget({
   return (
     <div 
       id="white-days-widget"
-      className={`relative overflow-hidden rounded-[2.5rem] border border-amber-500/30 bg-gradient-to-br from-amber-950/40 via-[#131118] to-black/80 p-6 sm:p-8 backdrop-blur-xl shadow-[0_10px_40px_rgba(245,158,11,0.12)] space-y-6 ${className}`}
+      className={`relative overflow-hidden rounded-[2.5rem] border border-amber-500/30 bg-gradient-to-br from-amber-950/50 via-[#131118]/90 to-black/85 p-6 sm:p-8 backdrop-blur-xl shadow-[0_10px_40px_rgba(245,158,11,0.12)] space-y-6 group ${className}`}
     >
+      {/* Background Image of Radiant Full Moon over Desert */}
+      <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+        <img 
+          src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=1200" 
+          alt="White days moonscape"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          className="w-full h-full object-cover object-center opacity-20 filter contrast-125 brightness-90 group-hover:scale-105 transition-all duration-700"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-950/70 via-black/80 to-black/90 pointer-events-none" />
+      </div>
+
       {/* Ambient glowing lunar aura */}
       <div className="absolute -top-12 -right-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />

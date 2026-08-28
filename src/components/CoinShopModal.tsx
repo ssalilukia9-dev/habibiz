@@ -527,13 +527,17 @@ export default function CoinShopModal({
                 ))}
               </div>
 
-              {/* Mobile / Sendwave instructions */}
+              {/* Secure Card Payment Guarantee */}
               <div className="p-3.5 bg-white/5 border border-white/5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[10px] text-slate-400">
                 <div className="flex items-center gap-2 text-amber-400 font-bold">
-                  <Smartphone size={14} />
-                  <span>Direct Sendwave / Mobile Money Number:</span>
+                  <CreditCard size={14} />
+                  <span>Payment Method: Credit & Debit Cards Only</span>
                 </div>
-                <p className="text-white font-mono font-bold">+256 708515639</p>
+                <div className="flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[9px] font-bold">VISA</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[9px] font-bold">MC</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[9px] font-bold">AMEX</span>
+                </div>
               </div>
             </div>
           )}

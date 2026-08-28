@@ -103,6 +103,8 @@ interface HomeViewProps {
   updateStreak?: () => void;
   lastInteractionAt?: number;
   addHasanat?: (amount: number) => void;
+  isPremium?: boolean;
+  onShowPremium?: () => void;
 }
 
 export default function HomeView({ 
@@ -118,7 +120,9 @@ export default function HomeView({
   currentUser = null,
   updateStreak,
   lastInteractionAt,
-  addHasanat
+  addHasanat,
+  isPremium = false,
+  onShowPremium
 }: HomeViewProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -761,16 +765,31 @@ export default function HomeView({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         whileHover={{ scale: 1.006 }}
-        className="relative overflow-hidden glass-panel border-white/5 p-3.5 sm:p-4 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between bg-gradient-to-r from-amber-500/10 via-[#061828]/80 to-emerald-500/10 gap-3 shadow-xl border border-amber-400/25 group"
+        className="relative overflow-hidden glass-panel border-white/5 p-3.5 sm:p-4 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between bg-gradient-to-r from-amber-500/15 via-[#061828]/85 to-emerald-500/15 gap-3 shadow-xl border border-amber-400/25 group"
       >
+        {/* Background Image with Gold Geometric Illumination */}
+        <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+          <img 
+            src="https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&q=80&w=1200" 
+            alt="Sanctuary banner"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="w-full h-full object-cover object-center opacity-20 filter contrast-125 brightness-90 group-hover:scale-105 transition-all duration-700"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/85 pointer-events-none" />
+        </div>
+
         {/* Shimmering Border Light Sweep */}
         <motion.div 
           animate={{ x: ['-100%', '200%'] }}
           transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-          className="absolute top-0 left-0 h-[2px] w-1/3 bg-gradient-to-r from-transparent via-amber-300 to-transparent pointer-events-none opacity-60"
+          className="absolute top-0 left-0 h-[2px] w-1/3 bg-gradient-to-r from-transparent via-amber-300 to-transparent pointer-events-none opacity-60 z-10"
         />
 
-        <div className="flex items-center gap-3.5 w-full sm:w-auto">
+        <div className="relative z-10 flex items-center gap-3.5 w-full sm:w-auto">
           <motion.div 
             whileHover={{ rotate: [0, -10, 10, 0], scale: 1.1 }}
             className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0 text-sm cursor-pointer"
@@ -786,7 +805,7 @@ export default function HomeView({
           </div>
         </div>
         
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+        <div className="relative z-10 flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
           {/* Responsive Network & Data Speed Indicator */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-[10px] font-bold text-slate-300 backdrop-blur-md">
             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
@@ -797,7 +816,7 @@ export default function HomeView({
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             onClick={() => onNavigate('market')}
-            className="px-5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase rounded-xl transition-all tracking-[0.2em] cursor-pointer shadow-md shadow-amber-500/10"
+            className="px-5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[9px] font-black uppercase rounded-xl transition-all tracking-[0.2em] cursor-pointer shadow-md shadow-amber-500/10"
           >
             Suq Al-Mubaraki
           </motion.button>
@@ -1078,13 +1097,32 @@ export default function HomeView({
       </motion.div>
 
       {/* 2.1 QUICK SANCTUARY EXPLORER (Breezy light navigation & instant discovery matrix for all features) */}
-      <QuickSanctuaryExplorer onNavigate={onNavigate} />
+      <QuickSanctuaryExplorer 
+        onNavigate={onNavigate} 
+        isPremium={isPremium}
+        onShowPremium={onShowPremium}
+      />
 
       {/* 3. ARTISTIC PRAYER CONSOLE & SACRED ISLAMIC LUNAR-SOLAR CALENDAR */}
       <div 
         id="tour-prayer-console"
-        className="glass-panel p-6 sm:p-8 md:p-10 rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#061828]/95 via-[#03101C]/90 to-[#020A12]/95 relative overflow-hidden backdrop-blur-3xl shadow-2xl space-y-8"
+        className="glass-panel p-6 sm:p-8 md:p-10 rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#061828]/95 via-[#03101C]/90 to-[#020A12]/95 relative overflow-hidden backdrop-blur-3xl shadow-2xl space-y-8 group"
       >
+        {/* Background Image of Illuminated Grand Mosque Arches at Twilight */}
+        <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+          <img 
+            src="https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1600" 
+            alt="Sanctuary console arches"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="w-full h-full object-cover object-center opacity-25 filter contrast-125 brightness-75 group-hover:scale-105 transition-all duration-1000"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#061828]/90 via-[#03101C]/90 to-[#020A12]/95 pointer-events-none" />
+        </div>
+
         {/* Ambient Cosmic Background Glow */}
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand-primary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute -bottom-10 left-10 w-80 h-80 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
@@ -1324,11 +1362,26 @@ export default function HomeView({
       )}
 
       {/* 5. DEVOTION STREAK FIRE CARD */}
-      <div id="tour-streak-fire" className={`relative overflow-hidden rounded-[2.5rem] p-6 sm:p-7 transition-all duration-500 border ${
+      <div id="tour-streak-fire" className={`relative overflow-hidden rounded-[2.5rem] p-6 sm:p-7 transition-all duration-500 border group ${
         streak >= 7
           ? 'bg-gradient-to-r from-orange-950/80 via-red-950/60 to-amber-950/80 border-orange-500/60 shadow-[0_0_50px_rgba(249,115,22,0.35)]'
-          : 'bg-[#061828]/60 border-white/10'
+          : 'bg-[#061828]/70 border-white/10'
       }`}>
+        {/* Background Image of Desert Dunes under Cosmic Night Sky */}
+        <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+          <img 
+            src="https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&q=80&w=1200" 
+            alt="Streak flame dunes"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="w-full h-full object-cover object-center opacity-25 filter contrast-125 brightness-90 group-hover:scale-105 transition-all duration-700"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-950/85 via-black/80 to-amber-950/85 pointer-events-none" />
+        </div>
+
         <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
             <div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border transition-all shrink-0 ${
@@ -1384,10 +1437,25 @@ export default function HomeView({
       </div>
 
       {/* 7. DAILY SPIRITUAL VIGOR & DISCIPLINE TRACKERS */}
-      <div id="tour-daily-vigor" className="glass-panel p-6 sm:p-8 md:p-10 rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#061828]/95 via-brand-sidebar to-black/70 space-y-8 shadow-2xl">
+      <div id="tour-daily-vigor" className="glass-panel p-6 sm:p-8 md:p-10 rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#061828]/95 via-brand-sidebar to-black/70 space-y-8 shadow-2xl relative overflow-hidden group">
         
+        {/* Background Image of Peaceful Islamic Marble Courtyard */}
+        <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+          <img 
+            src="https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1600" 
+            alt="Spiritual courtyard"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="w-full h-full object-cover object-center opacity-15 filter contrast-125 brightness-80 group-hover:scale-105 transition-all duration-1000"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#061828]/95 via-brand-sidebar/90 to-black/85 pointer-events-none" />
+        </div>
+
         {/* Header & Vitality Summary */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-white/10">
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-white/10">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex items-center gap-2.5">
               <span className="text-xs font-black uppercase tracking-[0.3em] text-brand-primary flex items-center gap-1.5">
@@ -1423,7 +1491,7 @@ export default function HomeView({
         </div>
 
         {/* 5 DAILY PRAYERS INTERACTIVE CHECKLIST */}
-        <div className="space-y-4">
+        <div className="relative z-10 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
               <Sunrise size={16} className="text-emerald-400" />
@@ -1486,11 +1554,26 @@ export default function HomeView({
         </div>
 
         {/* TRI-PILLAR INTERACTIVE TRACKERS: HADITH, QURAN & QUICK DHIKR BEAD */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           
-          {/* Hadith Reflection Card */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-brand-primary/40 transition-all">
-            <div className="space-y-3">
+          {/* Hadith Reflection Card with Classical Islamic Library Background */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/50 border border-white/10 space-y-4 flex flex-col justify-between hover:border-brand-primary/40 transition-all relative overflow-hidden group">
+            {/* Subcard Background Image */}
+            <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+              <img 
+                src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=600" 
+                alt="Hadith reflection"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                className="w-full h-full object-cover object-center opacity-20 filter contrast-110 brightness-90 group-hover:scale-105 transition-all duration-700"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-black/50 pointer-events-none" />
+            </div>
+
+            <div className="relative z-10 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
@@ -1508,7 +1591,7 @@ export default function HomeView({
                 )}
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+              <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-1 backdrop-blur-md">
                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-wider">{dailyHadith.narrator}</p>
                 <p className="text-xs text-slate-200 font-medium leading-relaxed italic line-clamp-3">
                   "{dailyHadith.english}"
@@ -1516,7 +1599,7 @@ export default function HomeView({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-1">
+            <div className="relative z-10 flex gap-2 pt-1">
               <button 
                 onClick={toggleHadithReflected}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
@@ -1537,9 +1620,24 @@ export default function HomeView({
             </div>
           </div>
 
-          {/* Quran Recitation Counter Card */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-amber-500/40 transition-all">
-            <div className="space-y-3">
+          {/* Quran Recitation Counter Card with Open Mushaf Calligraphy Background */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/50 border border-white/10 space-y-4 flex flex-col justify-between hover:border-amber-500/40 transition-all relative overflow-hidden group">
+            {/* Subcard Background Image */}
+            <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+              <img 
+                src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=600" 
+                alt="Quran recitation"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                className="w-full h-full object-cover object-center opacity-20 filter contrast-110 brightness-90 group-hover:scale-105 transition-all duration-700"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-black/50 pointer-events-none" />
+            </div>
+
+            <div className="relative z-10 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
@@ -1560,7 +1658,7 @@ export default function HomeView({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="relative z-10 flex items-center gap-2 pt-1">
               <button 
                 onClick={() => incrementQuranAyahs(1)}
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-md active:scale-95 transition-all cursor-pointer"
@@ -1583,9 +1681,24 @@ export default function HomeView({
             </div>
           </div>
 
-          {/* Quick Dhikr & Tasbih Interactive Bead Station */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 flex flex-col justify-between hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-1">
-            <div className="space-y-3">
+          {/* Quick Dhikr & Tasbih Interactive Bead Station with Crystal Prayer Beads Background */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-black/50 border border-white/10 space-y-4 flex flex-col justify-between hover:border-emerald-500/40 transition-all col-span-1 md:col-span-2 lg:col-span-1 relative overflow-hidden group">
+            {/* Subcard Background Image */}
+            <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+              <img 
+                src="https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=600" 
+                alt="Tasbih beads"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                className="w-full h-full object-cover object-center opacity-20 filter contrast-110 brightness-90 group-hover:scale-105 transition-all duration-700"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-black/50 pointer-events-none" />
+            </div>
+
+            <div className="relative z-10 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
@@ -1614,7 +1727,7 @@ export default function HomeView({
               </div>
 
               {/* Phrase Display */}
-              <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-center space-y-0.5">
+              <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-center space-y-0.5 backdrop-blur-md">
                 <p className="text-sm font-bold font-arabic text-emerald-300">
                   {dhikrPhrases[dhikrPhraseIdx]?.ar}
                 </p>
@@ -1624,7 +1737,7 @@ export default function HomeView({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="relative z-10 flex items-center gap-2 pt-1">
               <button 
                 onClick={() => {
                   playTactileChime('dhikr');

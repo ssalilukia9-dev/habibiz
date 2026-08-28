@@ -45,6 +45,7 @@ import {
 import { FULL_JUZ_LIST } from '../data/juzData.ts';
 import { AdminConfigService } from '../services/adminConfigService.ts';
 import { shareService } from '../services/shareService.ts';
+import ConstructionBanner from './ConstructionBanner.tsx';
 
 interface KhatamJourneyViewProps {
   onBack?: () => void;
@@ -176,16 +177,23 @@ export default function KhatamJourneyView({
   const [showGoalConfigModal, setShowGoalConfigModal] = useState<boolean>(false);
   const [theaterMode, setTheaterMode] = useState<boolean>(false);
   const [claimToast, setClaimToast] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  // Subscribe to real-time broadcast videos from Firestore
+  // Subscribe to real-time broadcast videos and announcements from Firestore
   useEffect(() => {
-    const unsub = YoutubeBroadcastService.subscribeToVideos((list) => {
+    const unsubVideos = YoutubeBroadcastService.subscribeToVideos((list) => {
       setVideos(list);
       if (!activeVideo && list.length > 0) {
         setActiveVideo(list[0]);
       }
     });
-    return () => unsub();
+    const unsubAnnouncements = YoutubeBroadcastService.subscribeToAnnouncements((list) => {
+      setAnnouncements(list);
+    });
+    return () => {
+      unsubVideos();
+      unsubAnnouncements();
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -377,16 +385,12 @@ export default function KhatamJourneyView({
       titleToUse = `${categoryLabel} - Video #${videos.length + 1}`;
     }
 
-    const res = await YoutubeBroadcastService.postBroadcastVideo({
+    const res = await YoutubeBroadcastService.postKhatamAnnouncement({
       url: newVideoUrl.trim(),
       title: titleToUse,
       category: newVideoCategory,
-      categoryLabel,
       speaker: newVideoSpeaker.trim() || 'Sanctuary Scholar',
-      description: newVideoDescription.trim() || 'Sacred guidance and reflections for travelers on the Khatam Journey.',
-      duration: newVideoDuration.trim() || '15:00',
-      juzNumber: newVideoJuz ? parseInt(newVideoJuz, 10) : undefined,
-      featured: newVideoFeatured
+      description: newVideoDescription.trim() || 'Sacred guidance and reflections for travelers on the Khatam Journey.'
     }, currentUser?.displayName || 'Admin Overseer');
 
     setIsAddingVideo(false);
@@ -400,7 +404,7 @@ export default function KhatamJourneyView({
       setNewVideoJuz('');
       setNewVideoFeatured(false);
       setActiveVideo(res.video);
-      showToast(`Broadcasted "${titleToUse}" to all users across the Hub! 🌟`);
+      showToast(`Broadcasted & created announcement for "${titleToUse}" in Firestore! 🌟`);
     } else {
       showToast(res.error || "Failed to broadcast video.");
     }
@@ -513,7 +517,14 @@ export default function KhatamJourneyView({
         )}
       </AnimatePresence>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        
+        {/* Top Under Construction Banner */}
+        <ConstructionBanner 
+          moduleName="Khatam Journey & Video Broadcasts" 
+          customMessage="This module is still under construction. Ongoing updates, new recordings, and sync improvements are actively rolling out."
+          allowDismiss={true}
+        />
         
         {/* Header Hero Section */}
         <div className="glass-panel p-6 sm:p-8 rounded-[3rem] border-white/10 bg-gradient-to-br from-amber-500/10 via-brand-depth to-black/80 relative overflow-hidden shadow-2xl">
@@ -845,7 +856,7 @@ export default function KhatamJourneyView({
                           />
 
                           {/* Live Video Preview Pill */}
-                          {newVideoUrl && (
+                          {newVideoUrl && YoutubeBroadcastService.parseVideoUrl(newVideoUrl).thumbnailUrl && (
                             <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2 text-[11px]">
                               <img
                                 src={YoutubeBroadcastService.parseVideoUrl(newVideoUrl).thumbnailUrl}
@@ -968,6 +979,100 @@ export default function KhatamJourneyView({
               </div>
             )}
 
+            {/* LIVE ANNOUNCEMENTS FROM FIRESTORE */}
+            {announcements && announcements.length > 0 && (
+              <div className="glass-panel p-5 rounded-[2rem] border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-brand-sidebar to-black/60 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-bold">
+                      <Radio size={16} className="animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white uppercase tracking-wider">
+                          Official Khatam Announcements & Broadcasts
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                          Live Firestore Feed ({announcements.length})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300">
+                        Official video broadcasts published by administration for the Ummah
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {announcements.slice(0, 3).map((ann: any) => {
+                    const hasMedia = ann.mediaUrl || ann.youtubeUrl || ann.thumbnailUrl;
+                    return (
+                      <div
+                        key={ann.id}
+                        onClick={() => {
+                          const matchingVideo = videos.find(v => v.url === ann.mediaUrl || v.url === ann.youtubeUrl || v.id === ann.id);
+                          if (matchingVideo) {
+                            setActiveVideo(matchingVideo);
+                          } else if (ann.mediaUrl || ann.youtubeUrl) {
+                            const parsed = YoutubeBroadcastService.parseVideoUrl(ann.mediaUrl || ann.youtubeUrl);
+                            setActiveVideo({
+                              id: ann.id,
+                              title: ann.title?.replace('🎬 ', '') || 'Khatam Broadcast',
+                              url: ann.mediaUrl || ann.youtubeUrl,
+                              embedUrl: ann.embedUrl || parsed.embedUrl,
+                              thumbnailUrl: ann.thumbnailUrl || parsed.thumbnailUrl,
+                              category: ann.category || 'general',
+                              speaker: ann.speaker || ann.sender || 'Sanctuary Scholar',
+                              description: ann.message || ann.description,
+                              createdAt: typeof ann.createdAt === 'string' ? ann.createdAt : new Date().toISOString()
+                            });
+                          }
+                          showToast(`Loaded broadcast: ${ann.title}`);
+                        }}
+                        className="p-3.5 rounded-2xl bg-black/40 border border-white/10 hover:border-amber-400/40 hover:bg-black/60 transition-all cursor-pointer group flex flex-col justify-between gap-2.5"
+                      >
+                        <div className="flex items-start gap-3">
+                          {hasMedia && (
+                            <div className="w-16 h-11 rounded-lg bg-black overflow-hidden shrink-0 border border-white/10 relative group-hover:scale-105 transition-transform">
+                              <img
+                                src={ann.thumbnailUrl || (ann.mediaUrl || ann.youtubeUrl ? YoutubeBroadcastService.parseVideoUrl(ann.mediaUrl || ann.youtubeUrl || '').thumbnailUrl : undefined) || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
+                                alt="Thumb"
+                                className="w-full h-full object-cover"
+                                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                              />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <Play size={12} className="text-white fill-white" />
+                              </div>
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
+                              {ann.sender || 'Admin Broadcast'}
+                            </span>
+                            <h4 className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-1">
+                              {ann.title}
+                            </h4>
+                            {(ann.message || ann.description) && (
+                              <p className="text-[10px] text-slate-300 line-clamp-2 mt-0.5">
+                                {ann.message || ann.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1.5 border-t border-white/5">
+                          <span className="flex items-center gap-1 text-emerald-400 font-medium">
+                            <CheckCircle2 size={10} /> Tap to Watch in Studio
+                          </span>
+                          <ChevronRight size={12} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Active Video Player Hero */}
             {activeVideo && (
               <div className={`glass-panel rounded-[2.5rem] border-white/10 overflow-hidden bg-black/70 shadow-2xl transition-all ${theaterMode ? 'max-w-6xl mx-auto' : ''}`}>
@@ -980,13 +1085,17 @@ export default function KhatamJourneyView({
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                     />
-                  ) : (
+                  ) : activeVideo.url ? (
                     <video
                       src={activeVideo.url}
                       controls
                       autoPlay
                       className="w-full h-full object-contain"
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                      No video source available
+                    </div>
                   )}
                 </div>
 
@@ -1215,7 +1324,7 @@ export default function KhatamJourneyView({
                       <div className="flex items-center gap-4 w-full md:w-auto">
                         <div className="relative w-28 sm:w-36 aspect-video rounded-2xl overflow-hidden bg-black shrink-0 border border-white/10">
                           <img
-                            src={video.thumbnailUrl}
+                            src={video.thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                             alt={video.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -1445,7 +1554,7 @@ export default function KhatamJourneyView({
                     >
                       <div className="relative aspect-video w-full bg-black/60 overflow-hidden">
                         <img
-                          src={video.thumbnailUrl}
+                          src={video.thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                           alt={video.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
@@ -1750,7 +1859,7 @@ export default function KhatamJourneyView({
               {/* Video Preview Snapshot */}
               <div className="flex items-center gap-3 p-3 bg-black/40 rounded-2xl border border-white/10">
                 <img
-                  src={sharingVideo.thumbnailUrl}
+                  src={sharingVideo.thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                   alt={sharingVideo.title}
                   className="w-20 h-12 object-cover rounded-xl shrink-0"
                 />

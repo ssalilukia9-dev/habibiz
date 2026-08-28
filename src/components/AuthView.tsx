@@ -263,8 +263,12 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGoogle();
       onSuccess();
     } catch (err: any) {
-      console.error("Google Auth failed:", err);
-      setError(err.message || "Google authentication failed. Please try Fast 1-Tap entry below.");
+      if (err.message === 'Sign-in was cancelled.') {
+        setError(null);
+      } else {
+        console.warn("Google Auth notice:", err.message || err);
+        setError(err.message || "Google authentication was blocked in this preview sandbox. Please use Fast 1-Tap entry below.");
+      }
     } finally {
       setLoading(false);
     }
@@ -278,8 +282,12 @@ export default function AuthView({ onSuccess }: AuthViewProps) {
       await signInWithGithub();
       onSuccess();
     } catch (err: any) {
-      console.error("GitHub Auth failed:", err);
-      setError(err.message || "GitHub authentication failed. Please try Fast 1-Tap entry below.");
+      if (err.message === 'Sign-in was cancelled.') {
+        setError(null);
+      } else {
+        console.warn("GitHub Auth notice:", err.message || err);
+        setError(err.message || "GitHub authentication was blocked in this preview sandbox. Please use Fast 1-Tap entry below.");
+      }
     } finally {
       setLoading(false);
     }

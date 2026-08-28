@@ -208,6 +208,11 @@ export default function ToolsView({
     }
   };
 
+  const addHasanatRef = useRef(addHasanat);
+  useEffect(() => {
+    addHasanatRef.current = addHasanat;
+  }, [addHasanat]);
+
   // Voice Tasbih Continuous Speech Listener
   useEffect(() => {
     if (activeTool !== 'tasbih') {
@@ -235,8 +240,8 @@ export default function ToolsView({
         setTimeout(() => setVibrate(false), 120);
 
         // Award Hasanat
-        if (addHasanat) {
-          addHasanat(5 * countToAdd);
+        if (addHasanatRef.current) {
+          addHasanatRef.current(5 * countToAdd);
         }
 
         // Show toast badge
@@ -255,9 +260,8 @@ export default function ToolsView({
 
     return () => {
       unsub();
-      VoiceTasbihService.stop();
     };
-  }, [activeTool, autoStartVoiceTasbih, addHasanat]);
+  }, [activeTool, autoStartVoiceTasbih]);
 
   // Mosques Logic
   const [mosques, setMosques] = useState<Mosque[]>([]);

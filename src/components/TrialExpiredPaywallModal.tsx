@@ -188,7 +188,7 @@ export default function TrialExpiredPaywallModal({
           <form onSubmit={handleRedeemCode} className="flex gap-2">
             <input
               type="text"
-              placeholder="e.g. RAMADAN, UMMAH2026, BARAKAH..."
+              placeholder="e.g. MH-VIP-2214, RAMADAN, UMMAH2026..."
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               className="flex-1 px-4 py-2.5 rounded-xl bg-black/60 border border-white/20 text-white placeholder-slate-500 text-xs font-mono tracking-wider focus:outline-none focus:border-amber-400 uppercase"
@@ -205,13 +205,17 @@ export default function TrialExpiredPaywallModal({
 
           {/* Quick hint for sample demo codes */}
           <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap">
-            <span>Accepted codes:</span>
-            {['RAMADAN', 'UMMAH2026', 'BARAKAH', 'SALAM2026', 'VIPPASS'].map(code => (
+            <span>VIP & Promo Codes:</span>
+            {['MH-VIP-2214', 'RAMADAN', 'UMMAH2026', 'BARAKAH', 'SALAM2026', 'VIPPASS'].map(code => (
               <button
                 key={code}
                 type="button"
                 onClick={() => setPromoCode(code)}
-                className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 text-amber-200 font-mono text-[9px] border border-white/10 transition-colors cursor-pointer"
+                className={`px-2 py-0.5 rounded-md font-mono text-[9px] border transition-colors cursor-pointer ${
+                  code === 'MH-VIP-2214' 
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-black'
+                    : 'bg-white/5 hover:bg-white/15 text-amber-200 border-white/10'
+                }`}
               >
                 {code}
               </button>

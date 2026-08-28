@@ -1176,7 +1176,7 @@ export default function FeedView({
             >
               <div className="relative aspect-video w-full bg-black overflow-hidden">
                 <img
-                  src={previewingWisdomCard.imageUrl}
+                  src={previewingWisdomCard.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                   alt={previewingWisdomCard.title}
                   className="w-full h-full object-cover"
                 />
@@ -1711,7 +1711,7 @@ export default function FeedView({
                               className="w-16 h-16 rounded-xl overflow-hidden bg-black/60 border border-white/10 shrink-0 relative cursor-pointer group/timg"
                               title="Click to expand sacred visual"
                             >
-                              <img src={teaching.imageUrl} alt={teaching.title} className="w-full h-full object-cover group-hover/timg:scale-110 transition-transform duration-300" />
+                              <img src={teaching.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'} alt={teaching.title} className="w-full h-full object-cover group-hover/timg:scale-110 transition-transform duration-300" />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/timg:opacity-100 transition-opacity flex items-center justify-center text-white">
                                 <Sparkles size={14} className="text-amber-300" />
                               </div>

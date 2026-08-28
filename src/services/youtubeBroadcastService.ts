@@ -354,57 +354,111 @@ export class YoutubeBroadcastService {
   }
 
   /**
-   * Subscribe to real-time videos from Firestore collection `khatam_videos`
+   * Subscribe to real-time videos from Firestore collection `khatam_videos` and `deleted_khatam_videos`
    */
   static subscribeToVideos(callback: (videos: YoutubeBroadcastVideoItem[]) => void): () => void {
-    const deletedIds = this.getDeletedVideoIds();
-    try {
-      const q = query(collection(db, 'khatam_videos'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const list: YoutubeBroadcastVideoItem[] = [];
-          snapshot.forEach((d) => {
-            const data = d.data();
-            if (!deletedIds.has(d.id)) {
-              list.push({
-                id: d.id,
-                youtubeId: data.youtubeId || this.extractYouTubeId(data.url || '') || undefined,
-                title: data.title || 'Sacred Khatam Reflection',
-                url: data.url || '',
-                embedUrl: data.embedUrl || this.parseVideoUrl(data.url || '').embedUrl,
-                thumbnailUrl: data.thumbnailUrl || this.parseVideoUrl(data.url || '').thumbnailUrl,
-                category: data.category || 'tafsir',
-                categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'tafsir'),
-                speaker: data.speaker || 'Sanctuary Scholar',
-                description: data.description || '',
-                duration: data.duration || '15:00',
-                juzNumber: data.juzNumber,
-                featured: !!data.featured,
-                views: data.views || 0,
-                likes: data.likes || 0,
-                hearts: data.hearts !== undefined ? data.hearts : (data.likes || 0),
-                reactions: data.reactions || { heart: data.hearts || data.likes || 0 },
-                shares: data.shares || 0,
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-                addedBy: data.addedBy || 'Admin',
-                isBroadcast: true,
-                tags: data.tags || []
-              });
-            }
-          });
-          this.saveLocalVideos(list);
-          callback(list);
-        } else {
-          // If Firestore is empty, load defaults and cache
-          const local = this.getLocalVideos();
-          callback(local);
+    // 1. Immediately emit local cache for instant UI response
+    const initialLocal = this.getLocalVideos();
+    callback(initialLocal);
+
+    let firestoreVideosRaw: any[] = [];
+    let firestoreDeletedIds = new Set<string>(this.getDeletedVideoIds());
+
+    const emitMergedList = () => {
+      const deletedIds = new Set([...Array.from(this.getDeletedVideoIds()), ...Array.from(firestoreDeletedIds)]);
+      const firestoreList: YoutubeBroadcastVideoItem[] = [];
+      const seenIds = new Set<string>();
+
+      firestoreVideosRaw.forEach((d) => {
+        const videoId = d.id;
+        if (deletedIds.has(videoId)) return;
+        const data = d.data;
+        seenIds.add(videoId);
+
+        const rawUrl = data.url || '';
+        const parsed = this.parseVideoUrl(rawUrl);
+
+        let parsedCreatedAt = new Date().toISOString();
+        if (data.createdAt) {
+          if (typeof data.createdAt === 'string') {
+            parsedCreatedAt = data.createdAt;
+          } else if (data.createdAt.toDate) {
+            parsedCreatedAt = data.createdAt.toDate().toISOString();
+          }
         }
+
+        firestoreList.push({
+          id: videoId,
+          youtubeId: data.youtubeId || parsed.youtubeId || undefined,
+          title: data.title || 'Sacred Khatam Reflection',
+          url: rawUrl,
+          embedUrl: data.embedUrl || parsed.embedUrl,
+          thumbnailUrl: data.thumbnailUrl || parsed.thumbnailUrl,
+          category: data.category || 'tafsir',
+          categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'tafsir'),
+          speaker: data.speaker || 'Sanctuary Scholar',
+          description: data.description || '',
+          duration: data.duration || '15:00',
+          juzNumber: data.juzNumber,
+          featured: !!data.featured,
+          views: data.views || 0,
+          likes: data.likes || 0,
+          hearts: data.hearts !== undefined ? data.hearts : (data.likes || 0),
+          reactions: data.reactions || { heart: data.hearts || data.likes || 0 },
+          shares: data.shares || 0,
+          createdAt: parsedCreatedAt,
+          addedBy: data.addedBy || 'Admin',
+          isBroadcast: true,
+          tags: data.tags || []
+        });
+      });
+
+      // Merge defaults that haven't been deleted or overridden
+      const defaultsToAdd = DEFAULT_YOUTUBE_BROADCASTS.filter(
+        def => !deletedIds.has(def.id) && !seenIds.has(def.id)
+      );
+
+      const combinedList = [...firestoreList, ...defaultsToAdd];
+
+      // Sort: featured videos first, then newest createdAt
+      combinedList.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+
+      this.saveLocalVideos(combinedList);
+      callback(combinedList);
+    };
+
+    try {
+      // 1. Subscribe to khatam_videos collection
+      const colRef = collection(db, 'khatam_videos');
+      const unsubVideos = onSnapshot(colRef, (snapshot) => {
+        firestoreVideosRaw = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+        emitMergedList();
       }, (error) => {
         console.warn("Firestore khatam_videos subscription warning, using local cache:", error);
         callback(this.getLocalVideos());
       });
 
-      return unsubscribe;
+      // 2. Subscribe to deleted_khatam_videos collection for real-time deletion syncing across all devices
+      const delColRef = collection(db, 'deleted_khatam_videos');
+      const unsubDeleted = onSnapshot(delColRef, (snapshot) => {
+        const nextDeleted = new Set<string>(this.getDeletedVideoIds());
+        snapshot.forEach(doc => nextDeleted.add(doc.id));
+        firestoreDeletedIds = nextDeleted;
+        emitMergedList();
+      }, (delErr) => {
+        console.warn("Firestore deleted_khatam_videos subscription fallback:", delErr);
+      });
+
+      return () => {
+        unsubVideos();
+        unsubDeleted();
+      };
     } catch (e) {
       console.warn("Firestore unconfigured, fallback to local storage:", e);
       callback(this.getLocalVideos());
@@ -418,46 +472,110 @@ export class YoutubeBroadcastService {
   static async fetchVideos(): Promise<YoutubeBroadcastVideoItem[]> {
     const deletedIds = this.getDeletedVideoIds();
     try {
-      const q = query(collection(db, 'khatam_videos'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const list: YoutubeBroadcastVideoItem[] = [];
-        snapshot.forEach(d => {
-          if (!deletedIds.has(d.id)) {
-            const data = d.data();
-            list.push({
-              id: d.id,
-              youtubeId: data.youtubeId || this.extractYouTubeId(data.url || '') || undefined,
-              title: data.title || 'Sacred Khatam Reflection',
-              url: data.url || '',
-              embedUrl: data.embedUrl || this.parseVideoUrl(data.url || '').embedUrl,
-              thumbnailUrl: data.thumbnailUrl || this.parseVideoUrl(data.url || '').thumbnailUrl,
-              category: data.category || 'tafsir',
-              categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'tafsir'),
-              speaker: data.speaker || 'Sanctuary Scholar',
-              description: data.description || '',
-              duration: data.duration || '15:00',
-              juzNumber: data.juzNumber,
-              featured: !!data.featured,
-              views: data.views || 0,
-              likes: data.likes || 0,
-              hearts: data.hearts !== undefined ? data.hearts : (data.likes || 0),
-              reactions: data.reactions || { heart: data.hearts || data.likes || 0 },
-              shares: data.shares || 0,
-              createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-              addedBy: data.addedBy || 'Admin',
-              isBroadcast: true,
-              tags: data.tags || []
-            });
+      // Fetch deleted tombstones
+      try {
+        const delSnap = await getDocs(collection(db, 'deleted_khatam_videos'));
+        delSnap.forEach(d => deletedIds.add(d.id));
+      } catch (e) {}
+
+      const colRef = collection(db, 'khatam_videos');
+      const snapshot = await getDocs(colRef);
+      const firestoreList: YoutubeBroadcastVideoItem[] = [];
+      const seenIds = new Set<string>();
+
+      snapshot.forEach(d => {
+        if (deletedIds.has(d.id)) return;
+        const data = d.data();
+        const videoId = d.id;
+        seenIds.add(videoId);
+
+        const rawUrl = data.url || '';
+        const parsed = this.parseVideoUrl(rawUrl);
+
+        let parsedCreatedAt = new Date().toISOString();
+        if (data.createdAt) {
+          if (typeof data.createdAt === 'string') {
+            parsedCreatedAt = data.createdAt;
+          } else if (data.createdAt.toDate) {
+            parsedCreatedAt = data.createdAt.toDate().toISOString();
           }
+        }
+
+        firestoreList.push({
+          id: videoId,
+          youtubeId: data.youtubeId || parsed.youtubeId || undefined,
+          title: data.title || 'Sacred Khatam Reflection',
+          url: rawUrl,
+          embedUrl: data.embedUrl || parsed.embedUrl,
+          thumbnailUrl: data.thumbnailUrl || parsed.thumbnailUrl,
+          category: data.category || 'tafsir',
+          categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'tafsir'),
+          speaker: data.speaker || 'Sanctuary Scholar',
+          description: data.description || '',
+          duration: data.duration || '15:00',
+          juzNumber: data.juzNumber,
+          featured: !!data.featured,
+          views: data.views || 0,
+          likes: data.likes || 0,
+          hearts: data.hearts !== undefined ? data.hearts : (data.likes || 0),
+          reactions: data.reactions || { heart: data.hearts || data.likes || 0 },
+          shares: data.shares || 0,
+          createdAt: parsedCreatedAt,
+          addedBy: data.addedBy || 'Admin',
+          isBroadcast: true,
+          tags: data.tags || []
         });
-        this.saveLocalVideos(list);
-        return list;
-      }
+      });
+
+      const defaultsToAdd = DEFAULT_YOUTUBE_BROADCASTS.filter(
+        def => !deletedIds.has(def.id) && !seenIds.has(def.id)
+      );
+
+      const combinedList = [...firestoreList, ...defaultsToAdd];
+
+      combinedList.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+
+      this.saveLocalVideos(combinedList);
+      return combinedList;
     } catch (e) {
       console.warn("Error fetching khatam_videos from Firestore:", e);
     }
     return this.getLocalVideos();
+  }
+
+  /**
+   * Delete ALL custom/admin-posted videos from Firestore and reset to defaults
+   */
+  static async deleteAllCustomVideos(): Promise<{ success: boolean; deletedCount: number }> {
+    let count = 0;
+    try {
+      const colRef = collection(db, 'khatam_videos');
+      const snapshot = await getDocs(colRef);
+      const deletePromises: Promise<any>[] = [];
+
+      snapshot.forEach(d => {
+        count++;
+        this.markVideoAsDeleted(d.id);
+        deletePromises.push(deleteDoc(doc(db, 'khatam_videos', d.id)));
+      });
+
+      await Promise.allSettled(deletePromises);
+
+      // Clear local storage and reset to default broadcasts
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      this.saveLocalVideos(DEFAULT_YOUTUBE_BROADCASTS);
+
+      return { success: true, deletedCount: count };
+    } catch (e) {
+      console.error("Error deleting all custom videos:", e);
+      return { success: false, deletedCount: count };
+    }
   }
 
   /**
@@ -493,6 +611,11 @@ export class YoutubeBroadcastService {
 
       const videoId = parsed.youtubeId ? `yt_${parsed.youtubeId}` : `video_${Date.now()}`;
       this.unmarkVideoAsDeleted(videoId);
+
+      // Clean up tombstone if previously marked deleted
+      try {
+        await deleteDoc(doc(db, 'deleted_khatam_videos', videoId));
+      } catch (e) {}
 
       const newVideo: YoutubeBroadcastVideoItem = {
         id: videoId,
@@ -659,14 +782,26 @@ export class YoutubeBroadcastService {
   /**
    * Delete an admin-posted video from Firestore and local cache
    */
-  static async deleteBroadcastVideo(videoId: string): Promise<boolean> {
+  static async deleteBroadcastVideo(videoId: string, adminUser?: string): Promise<boolean> {
     try {
       this.markVideoAsDeleted(videoId);
       
+      // 1. Delete document from khatam_videos collection
       try {
         await deleteDoc(doc(db, 'khatam_videos', videoId));
       } catch (e) {
         console.warn("Firestore deleteDoc fallback:", e);
+      }
+
+      // 2. Write tombstone to deleted_khatam_videos for real-time cross-device deletion syncing
+      try {
+        await setDoc(doc(db, 'deleted_khatam_videos', videoId), {
+          id: videoId,
+          deletedAt: serverTimestamp(),
+          deletedBy: adminUser || 'Admin'
+        });
+      } catch (e) {
+        console.warn("Firestore deleted_khatam_videos setDoc fallback:", e);
       }
 
       const local = this.getLocalVideos().filter(v => v.id !== videoId);
@@ -681,8 +816,8 @@ export class YoutubeBroadcastService {
   /**
    * Compatibility alias for deleteVideo
    */
-  static async deleteVideo(videoId: string): Promise<boolean> {
-    return this.deleteBroadcastVideo(videoId);
+  static async deleteVideo(videoId: string, adminUser?: string): Promise<boolean> {
+    return this.deleteBroadcastVideo(videoId, adminUser);
   }
 
   /**
@@ -860,11 +995,151 @@ export class YoutubeBroadcastService {
   }
 
   /**
-   * Re-seed default starter video collection
+   * Creates an Announcement document in the 'announcements' collection for a YouTube video
+   * and registers it for the KhatamJourneyView.
+   */
+  static async postKhatamAnnouncement(
+    data: {
+      url: string;
+      description?: string;
+      title?: string;
+      category?: 'tafsir' | 'motivation' | 'dua' | 'tajweed' | 'juz_guide' | 'general';
+      speaker?: string;
+    },
+    adminUser?: { uid?: string; displayName?: string; email?: string } | string
+  ): Promise<{ success: boolean; id?: string; announcementId?: string; error?: string; video?: YoutubeBroadcastVideoItem }> {
+    try {
+      const parsed = this.parseVideoUrl(data.url);
+      if (!parsed.isValid) {
+        return { success: false, error: 'Please provide a valid YouTube video link.' };
+      }
+
+      const adminName = typeof adminUser === 'string' 
+        ? adminUser 
+        : (adminUser?.displayName || adminUser?.email || 'Admin Overseer');
+
+      const category = data.category || 'tafsir';
+      const categoryLabel = this.getCategoryLabel(category);
+      const title = data.title?.trim() || `Sacred Reflection: ${categoryLabel}`;
+      const description = data.description?.trim() || 'Sacred Quranic reflection and guidance for the Khatam Journey.';
+
+      const videoId = parsed.youtubeId ? `yt_${parsed.youtubeId}` : `video_${Date.now()}`;
+      this.unmarkVideoAsDeleted(videoId);
+
+      const newVideo: YoutubeBroadcastVideoItem = {
+        id: videoId,
+        youtubeId: parsed.youtubeId || undefined,
+        title,
+        url: data.url.trim(),
+        embedUrl: parsed.embedUrl,
+        thumbnailUrl: parsed.thumbnailUrl,
+        category,
+        categoryLabel,
+        speaker: data.speaker?.trim() || 'Sanctuary Scholar',
+        description,
+        duration: '15:00',
+        featured: true,
+        views: 0,
+        likes: 0,
+        shares: 0,
+        createdAt: new Date().toISOString(),
+        addedBy: adminName,
+        isBroadcast: true,
+        tags: [category, 'khatam', 'announcement']
+      };
+
+      // 1. Create document in Firestore 'announcements' collection
+      let announcementId = `ann_${Date.now()}`;
+      try {
+        const annDocRef = await addDoc(collection(db, 'announcements'), {
+          title: `🎬 ${title}`,
+          message: description,
+          description,
+          type: 'khatam_video',
+          targetUrl: '/khatam',
+          mediaUrl: newVideo.url,
+          youtubeUrl: newVideo.url,
+          youtubeId: parsed.youtubeId || '',
+          thumbnailUrl: newVideo.thumbnailUrl,
+          embedUrl: newVideo.embedUrl,
+          sender: adminName,
+          category,
+          speaker: newVideo.speaker,
+          isKhatamJourney: true,
+          createdAt: serverTimestamp()
+        });
+        announcementId = annDocRef.id;
+      } catch (err) {
+        console.warn("Firestore announcements addDoc fallback:", err);
+      }
+
+      // 2. Save document to 'khatam_videos' collection
+      try {
+        await setDoc(doc(db, 'khatam_videos', videoId), {
+          ...newVideo,
+          announcementId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn("Firestore khatam_videos setDoc fallback:", err);
+      }
+
+      // 3. Trigger immediate local & push notification
+      await notificationService.notifyNewKhatamVideo(
+        title,
+        newVideo.speaker,
+        videoId
+      );
+
+      // 4. Update local cache
+      const local = this.getLocalVideos();
+      const nextList = [newVideo, ...local.filter(v => v.id !== videoId)];
+      this.saveLocalVideos(nextList);
+
+      return { success: true, id: videoId, announcementId, video: newVideo };
+    } catch (e: any) {
+      console.error("Error creating Khatam announcement:", e);
+      return { success: false, error: e?.message || 'Failed to publish video announcement.' };
+    }
+  }
+
+  /**
+   * Real-time subscription to the 'announcements' collection for Khatam Journey updates
+   */
+  static subscribeToAnnouncements(callback: (announcements: any[]) => void): () => void {
+    try {
+      const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+      const unsub = onSnapshot(q, (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((d) => {
+          list.push({ id: d.id, ...d.data() });
+        });
+        callback(list);
+      }, (error) => {
+        console.warn("Firestore announcements subscription error:", error);
+      });
+      return unsub;
+    } catch (err) {
+      console.warn("Announcements subscription fallback:", err);
+      return () => {};
+    }
+  }
+
+  /**
+   * Re-seed default starter video collection and clear deletion tombstones
    */
   static async seedDefaultVideos(): Promise<void> {
     try {
       localStorage.removeItem(DELETED_VIDEOS_KEY);
+
+      // Clear all deletion tombstones from Firestore
+      try {
+        const delSnap = await getDocs(collection(db, 'deleted_khatam_videos'));
+        const delPromises = delSnap.docs.map(d => deleteDoc(doc(db, 'deleted_khatam_videos', d.id)));
+        await Promise.allSettled(delPromises);
+      } catch (e) {}
+
       this.saveLocalVideos(DEFAULT_YOUTUBE_BROADCASTS);
 
       for (const v of DEFAULT_YOUTUBE_BROADCASTS) {

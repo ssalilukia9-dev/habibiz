@@ -202,14 +202,14 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-amber-400">
                   <Ticket size={16} />
-                  <span className="text-xs font-black uppercase tracking-wider text-white">Have a VIP Gate Pass?</span>
+                  <span className="text-xs font-black uppercase tracking-wider text-white">Have a VIP Gate Pass / Master Code?</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
-                  1 Mo Free
+                  VIP Access
                 </span>
               </div>
               <p className="text-[10px] text-slate-300 leading-tight">
-                Enter your pass code starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> for 1 month of full VIP access. Single-use only.
+                Enter your pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (or Master Code <strong className="text-amber-300 font-mono">MH-VIP-2214</strong> for Unlimited Lifetime Access).
               </p>
 
               <form onSubmit={handleRedeemPass} className="space-y-2">
@@ -225,7 +225,7 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
                           setGatePassStatus({ type: 'idle', message: '' });
                         }
                       }}
-                      placeholder="e.g. MH-VIP-2026"
+                      placeholder="e.g. MH-VIP-2214 or MH-VIP-2026"
                       className="w-full bg-black/50 border border-amber-500/30 focus:border-amber-400 rounded-xl py-2 pl-9 pr-3 text-xs text-white uppercase font-mono tracking-wider placeholder:text-slate-500 outline-none transition-all"
                     />
                   </div>
@@ -245,16 +245,16 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
-                      className={`p-2 rounded-xl text-[10px] font-bold flex items-center gap-1.5 ${
+                      className={`p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2 ${
                         gatePassStatus.type === 'success'
                           ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
                           : 'bg-red-500/20 border border-red-500/40 text-red-300'
                       }`}
                     >
                       {gatePassStatus.type === 'success' ? (
-                        <CheckCircle2 size={12} className="shrink-0 text-emerald-400" />
+                        <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
                       ) : (
-                        <AlertCircle size={12} className="shrink-0 text-red-400" />
+                        <AlertCircle size={14} className="shrink-0 text-red-400" />
                       )}
                       <span>{gatePassStatus.message}</span>
                     </motion.div>
@@ -265,8 +265,8 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
 
             <div className="flex items-center justify-between pt-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Or Select Membership Pass</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase font-mono">
-                EXTERNAL GATEWAY READY
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase font-mono">
+                SECURE CARD PAYMENT
               </span>
             </div>
 
@@ -335,62 +335,41 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
               </div>
             </div>
 
-            {/* Payment Gateway Rails */}
-            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl space-y-2 text-xs">
-              <span className="text-[10px] font-black uppercase text-slate-400 block">Select Gateway Method</span>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRail('instant')}
-                  className={`py-2 px-1.5 rounded-xl border text-[10px] font-black flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    selectedRail === 'instant'
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
-                      : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <Zap size={13} />
-                  <span>Instant Pass</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRail('external')}
-                  className={`py-2 px-1.5 rounded-xl border text-[10px] font-black flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    selectedRail === 'external'
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                      : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <CreditCard size={13} />
-                  <span>Card / Stripe</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRail('mobile')}
-                  className={`py-2 px-1.5 rounded-xl border text-[10px] font-black flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    selectedRail === 'mobile'
-                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md'
-                      : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <Smartphone size={13} />
-                  <span>Sendwave / MTN</span>
-                </button>
+            {/* Exclusive Card Payment Method Box */}
+            <div className="p-3.5 bg-gradient-to-r from-white/[0.04] to-amber-500/[0.03] border border-white/10 rounded-2xl space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-slate-300 flex items-center gap-1.5">
+                  <CreditCard size={13} className="text-amber-400" />
+                  <span>Accepted Payment Method</span>
+                </span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                  Card Only
+                </span>
               </div>
 
-              {selectedRail === 'mobile' && (
-                <div className="pt-1.5 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
-                  <p>Sendwave / Airtel / MTN Mobile Money Transfer:</p>
-                  <p>Recipient: <strong className="text-amber-400 font-mono">+256 708515639</strong></p>
+              <div className="p-3 bg-black/40 border border-amber-500/30 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white">Credit / Debit Card Checkout</p>
+                    <p className="text-[10px] text-slate-400">Visa, MasterCard, American Express, Stripe Card</p>
+                  </div>
                 </div>
-              )}
+                <div className="flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 bg-white/10 text-white font-mono text-[9px] font-bold rounded">VISA</span>
+                  <span className="px-1.5 py-0.5 bg-white/10 text-white font-mono text-[9px] font-bold rounded">MC</span>
+                  <span className="px-1.5 py-0.5 bg-white/10 text-white font-mono text-[9px] font-bold rounded">AMEX</span>
+                </div>
+              </div>
 
-              {selectedRail === 'external' && (
-                <div className="pt-1.5 text-[10px] text-slate-300 space-y-0.5 border-t border-white/10">
-                  <p>External Gateway Checkout will connect directly to secure card processing.</p>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck size={12} className="text-emerald-400" /> 256-Bit SSL Encrypted Card Processing
+                </span>
+                <span className="text-amber-400/90 font-medium">Instant Activation</span>
+              </div>
             </div>
           </div>
 

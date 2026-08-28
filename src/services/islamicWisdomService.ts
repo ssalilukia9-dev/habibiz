@@ -265,44 +265,65 @@ export class IslamicWisdomService {
     callback(local);
 
     try {
-      const q = query(collection(db, 'islamic_teachings'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const colRef = collection(db, 'islamic_teachings');
+      const unsubscribe = onSnapshot(colRef, (snapshot) => {
         const deletedIds = this.getDeletedTeachingIds();
-        if (!snapshot.empty) {
-          const list: IslamicTeachingItem[] = [];
-          snapshot.forEach((docSnap) => {
-            if (deletedIds.has(docSnap.id)) return;
-            const data = docSnap.data();
-            list.push({
-              id: docSnap.id,
-              title: data.title || 'Sacred Islamic Teaching',
-              imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
-              category: data.category || 'spirituality',
-              categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'spirituality'),
-              arabicText: data.arabicText || '',
-              content: data.content || '',
-              scholarOrSource: data.scholarOrSource || 'Islamic Classical Tradition',
-              featured: !!data.featured,
-              isVisible: data.isVisible !== false,
-              likes: data.likes || 0,
-              views: data.views || 0,
-              createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
-              addedBy: data.addedBy || 'Admin'
-            });
-          });
+        const firestoreList: IslamicTeachingItem[] = [];
+        const seenIds = new Set<string>();
 
-          // Sort by featured first, then by creation date
-          list.sort((a, b) => {
-            if (a.featured && !b.featured) return -1;
-            if (!a.featured && b.featured) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
+        snapshot.forEach((docSnap) => {
+          if (deletedIds.has(docSnap.id)) return;
+          const data = docSnap.data();
+          const teachingId = docSnap.id;
+          seenIds.add(teachingId);
 
-          this.saveLocalTeachings(list);
-          callback(list);
-        } else {
-          callback(this.getLocalTeachings());
-        }
+          let parsedCreatedAt = new Date().toISOString();
+          if (data.createdAt) {
+            if (typeof data.createdAt === 'string') {
+              parsedCreatedAt = data.createdAt;
+            } else if (data.createdAt.toDate) {
+              parsedCreatedAt = data.createdAt.toDate().toISOString();
+            }
+          }
+
+          firestoreList.push({
+            id: teachingId,
+            title: data.title || 'Sacred Islamic Teaching',
+            imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+            category: data.category || 'spirituality',
+            categoryLabel: data.categoryLabel || this.getCategoryLabel(data.category || 'spirituality'),
+            arabicText: data.arabicText || data.arabic || '',
+            arabic: data.arabicText || data.arabic || '',
+            content: data.content || '',
+            scholarOrSource: data.scholarOrSource || data.scholar || 'Islamic Classical Tradition',
+            scholar: data.scholarOrSource || data.scholar || 'Islamic Classical Tradition',
+            featured: !!data.featured,
+            isVisible: data.isVisible !== false,
+            likes: data.likes || 0,
+            views: data.views || 0,
+            createdAt: parsedCreatedAt,
+            addedBy: data.addedBy || 'Admin'
+          });
+        });
+
+        // Merge built-in defaults that haven't been deleted or overridden
+        const defaultsToAdd = DEFAULT_ISLAMIC_TEACHINGS.filter(
+          def => !deletedIds.has(def.id) && !seenIds.has(def.id)
+        );
+
+        const combined = [...firestoreList, ...defaultsToAdd];
+
+        // Sort by featured first, then by creation date
+        combined.sort((a, b) => {
+          if (a.featured && !b.featured) return -1;
+          if (!a.featured && b.featured) return 1;
+          const timeA = new Date(a.createdAt || 0).getTime();
+          const timeB = new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        });
+
+        this.saveLocalTeachings(combined);
+        callback(combined);
       }, (error) => {
         console.warn("Firestore islamic_teachings subscription fallback:", error);
         callback(this.getLocalTeachings());
@@ -312,6 +333,34 @@ export class IslamicWisdomService {
     } catch (e) {
       console.warn("Error setting up islamic_teachings listener:", e);
       return () => {};
+    }
+  }
+
+  /**
+   * Delete ALL custom/admin-posted teachings from Firestore and reset to defaults
+   */
+  static async deleteAllCustomTeachings(): Promise<{ success: boolean; deletedCount: number }> {
+    let count = 0;
+    try {
+      const colRef = collection(db, 'islamic_teachings');
+      const snapshot = await getDocs(colRef);
+      const deletePromises: Promise<any>[] = [];
+
+      snapshot.forEach(d => {
+        count++;
+        this.markTeachingAsDeleted(d.id);
+        deletePromises.push(deleteDoc(doc(db, 'islamic_teachings', d.id)));
+      });
+
+      await Promise.allSettled(deletePromises);
+
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      this.saveLocalTeachings(DEFAULT_ISLAMIC_TEACHINGS);
+
+      return { success: true, deletedCount: count };
+    } catch (e) {
+      console.error("Error deleting all custom teachings:", e);
+      return { success: false, deletedCount: count };
     }
   }
 

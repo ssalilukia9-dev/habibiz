@@ -22,7 +22,9 @@ import {
   RotateCcw,
   Landmark,
   ShieldCheck,
-  Award
+  Award,
+  Lock,
+  Crown
 } from 'lucide-react';
 import { ThemeService } from '../services/themeService.ts';
 
@@ -35,6 +37,8 @@ interface QuickExplorerItem {
   badge?: string;
   color: string;
   bgGradient: string;
+  image: string;
+  isPremium?: boolean;
   action: () => void;
   keywords: string[];
 }
@@ -43,12 +47,32 @@ interface QuickSanctuaryExplorerProps {
   onNavigate: (tab: string, extra?: any) => void;
   currentTheme?: string;
   setTheme?: (theme: string) => void;
+  isPremium?: boolean;
+  onShowPremium?: () => void;
 }
 
-export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'aloha', setTheme }: QuickSanctuaryExplorerProps) {
+export default function QuickSanctuaryExplorer({ 
+  onNavigate, 
+  currentTheme = 'aloha', 
+  setTheme,
+  isPremium = false,
+  onShowPremium 
+}: QuickSanctuaryExplorerProps) {
   const [filterQuery, setFilterQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'worship' | 'learning' | 'community' | 'lifestyle'>('all');
   const [showThemePicker, setShowThemePicker] = useState(false);
+
+  const handleItemClick = (item: QuickExplorerItem) => {
+    if (item.isPremium && !isPremium) {
+      if (onShowPremium) {
+        onShowPremium();
+      } else {
+        onNavigate('premium');
+      }
+      return;
+    }
+    item.action();
+  };
 
   const EXPLORER_ITEMS: QuickExplorerItem[] = [
     {
@@ -59,43 +83,79 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
       icon: '📖',
       badge: '114 Surahs',
       color: 'text-emerald-300',
-      bgGradient: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30',
+      bgGradient: 'from-emerald-950/70 via-emerald-900/40 to-teal-950/60 border-emerald-500/30 hover:border-emerald-400/70 hover:shadow-emerald-500/20',
+      image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('quran'),
       keywords: ['quran', 'surah', 'ayah', 'juz', 'recitation', 'tarteel', 'audio', 'mushaf']
     },
     {
       id: 'prayers',
       name: 'Prayer Times & Athan',
-      arabicName: 'مواقيت الصلاة والأذان',
+      arabicName: 'مواقيت الصلاة',
       category: 'worship',
       icon: '🕌',
       badge: 'Live Adhan',
       color: 'text-amber-300',
-      bgGradient: 'from-amber-500/20 to-orange-500/10 border-amber-500/30',
+      bgGradient: 'from-amber-950/70 via-amber-900/40 to-orange-950/60 border-amber-500/30 hover:border-amber-400/70 hover:shadow-amber-500/20',
+      image: 'https://images.unsplash.com/photo-1565552645632-d725f8bfc19a?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('prayer_times'),
       keywords: ['prayer', 'salah', 'namaz', 'athan', 'adhan', 'fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
     },
     {
+      id: 'khatam',
+      name: 'Khatam Journey',
+      arabicName: 'رحلة الختمة',
+      category: 'worship',
+      icon: '🎬',
+      badge: 'Broadcasts',
+      color: 'text-rose-300',
+      bgGradient: 'from-rose-950/70 via-rose-900/40 to-pink-950/60 border-rose-500/30 hover:border-rose-400/70 hover:shadow-rose-500/20',
+      image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
+      action: () => onNavigate('khatam_journey'),
+      keywords: ['khatam', 'journey', 'videos', 'reflections', 'finish quran', 'tafsir', 'broadcast']
+    },
+    {
+      id: 'wisdom',
+      name: 'Islamic Wisdom',
+      arabicName: 'الحكمة الإسلامية',
+      category: 'learning',
+      icon: '💎',
+      badge: 'Daily Pearls',
+      color: 'text-cyan-300',
+      bgGradient: 'from-cyan-950/70 via-cyan-900/40 to-blue-950/60 border-cyan-500/30 hover:border-cyan-400/70 hover:shadow-cyan-500/20',
+      image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
+      action: () => onNavigate('wisdom'),
+      keywords: ['wisdom', 'etiquette', 'hadith', 'akhlaq', 'teachings', 'gems', 'quotes']
+    },
+    {
       id: 'qibla',
       name: 'Qibla Direction',
-      arabicName: 'اتجاه القبلة المباشر',
+      arabicName: 'اتجاه القبلة',
       category: 'worship',
       icon: '🧭',
       badge: 'Compass AR',
       color: 'text-sky-300',
-      bgGradient: 'from-sky-500/20 to-blue-500/10 border-sky-500/30',
+      bgGradient: 'from-sky-950/70 via-sky-900/40 to-blue-950/60 border-sky-500/30 hover:border-sky-400/70 hover:shadow-sky-500/20',
+      image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('qibla'),
       keywords: ['qibla', 'kaaba', 'makkah', 'compass', 'direction', 'mecca']
     },
     {
       id: 'tasbih',
       name: 'Digital Tasbih',
-      arabicName: 'المسبحة الإلكترونية',
+      arabicName: 'المسبحة الذكية',
       category: 'worship',
       icon: '📿',
-      badge: 'Voice & Touch',
+      badge: 'Voice Count',
       color: 'text-purple-300',
-      bgGradient: 'from-purple-500/20 to-pink-500/10 border-purple-500/30',
+      bgGradient: 'from-purple-950/70 via-purple-900/40 to-indigo-950/60 border-purple-500/30 hover:border-purple-400/70 hover:shadow-purple-500/20',
+      image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('resources', { resId: 'tasbih' }),
       keywords: ['tasbih', 'dhikr', 'subhanallah', 'alhamdulillah', 'allahuakbar', 'counter', 'beads']
     },
@@ -105,57 +165,67 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
       arabicName: 'الأذكار والأدعية',
       category: 'worship',
       icon: '🤲',
-      badge: 'Morning/Eve',
+      badge: 'Daily Duas',
       color: 'text-teal-300',
-      bgGradient: 'from-teal-500/20 to-emerald-500/10 border-teal-500/30',
+      bgGradient: 'from-teal-950/70 via-teal-900/40 to-emerald-950/60 border-teal-500/30 hover:border-teal-400/70 hover:shadow-teal-500/20',
+      image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('resources', { resId: 'adhkar' }),
       keywords: ['dua', 'duas', 'adhkar', 'supplications', 'hisn', 'morning', 'evening', 'protection']
     },
     {
       id: 'five_pillars',
       name: '5 Pillars of Islam',
-      arabicName: 'أركان الإسلام الخمسة',
+      arabicName: 'أركان الإسلام',
       category: 'learning',
       icon: '🏛️',
-      badge: 'Core Deen',
-      color: 'text-amber-300',
-      bgGradient: 'from-amber-500/20 to-yellow-500/10 border-amber-500/30',
+      badge: 'Foundations',
+      color: 'text-yellow-300',
+      bgGradient: 'from-yellow-950/70 via-amber-900/40 to-amber-950/60 border-yellow-500/30 hover:border-yellow-400/70 hover:shadow-yellow-500/20',
+      image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('resources', { resId: 'five_pillars' }),
       keywords: ['pillars', '5 pillars', 'arkan', 'shahada', 'salah', 'zakat', 'sawm', 'hajj']
     },
     {
       id: 'feed',
-      name: 'NoorTalk Social Feed',
+      name: 'NoorTalk Feed',
       arabicName: 'مجتمع نور توك',
       category: 'community',
       icon: '💬',
-      badge: 'Live Ummah',
+      badge: 'Ummah',
       color: 'text-emerald-300',
-      bgGradient: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30',
+      bgGradient: 'from-emerald-950/70 via-teal-900/40 to-teal-950/60 border-emerald-500/30 hover:border-emerald-400/70 hover:shadow-emerald-500/20',
+      image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('ummah', { view: 'feed' }),
       keywords: ['feed', 'social', 'noortalk', 'ummah', 'community', 'posts', 'reflections', 'comments']
     },
     {
       id: 'companion',
-      name: 'Habibi AI Companion',
+      name: 'Habibi AI Scholar',
       arabicName: 'الرفيق الذكي',
       category: 'learning',
       icon: '✨',
-      badge: 'AI Scholar',
+      badge: 'Interactive AI',
       color: 'text-indigo-300',
-      bgGradient: 'from-indigo-500/20 to-purple-500/10 border-indigo-500/30',
+      bgGradient: 'from-indigo-950/70 via-indigo-900/40 to-purple-950/60 border-indigo-500/30 hover:border-indigo-400/70 hover:shadow-indigo-500/20',
+      image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('companion'),
       keywords: ['ai', 'companion', 'ask', 'question', 'fatwa', 'scholar', 'chat', 'guidance']
     },
     {
       id: 'hadith',
-      name: 'Prophetic Hadith Library',
-      arabicName: 'مكتبة الحديث الشريف',
+      name: 'Hadith Library',
+      arabicName: 'مكتبة الحديث',
       category: 'learning',
       icon: '📜',
-      badge: 'Authentic Sunnah',
+      badge: 'Kutub Sittah',
       color: 'text-amber-300',
-      bgGradient: 'from-amber-500/20 to-rose-500/10 border-amber-500/30',
+      bgGradient: 'from-amber-950/70 via-orange-900/40 to-amber-950/60 border-amber-500/30 hover:border-amber-400/70 hover:shadow-amber-500/20',
+      image: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('resources', { resId: 'hadith' }),
       keywords: ['hadith', 'bukhari', 'muslim', 'sunnah', 'prophet', 'sayings', 'traditions']
     },
@@ -164,10 +234,12 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
       name: '99 Names of Allah',
       arabicName: 'أسماء الله الحسنى',
       category: 'learning',
-      icon: '💎',
+      icon: '✨',
       badge: 'Asma ul-Husna',
       color: 'text-cyan-300',
-      bgGradient: 'from-cyan-500/20 to-blue-500/10 border-cyan-500/30',
+      bgGradient: 'from-cyan-950/70 via-teal-900/40 to-cyan-950/60 border-cyan-500/30 hover:border-cyan-400/70 hover:shadow-cyan-500/20',
+      image: 'https://images.unsplash.com/photo-1583000212006-7e23730e625a?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('resources', { resId: 'names' }),
       keywords: ['names', 'allah', '99 names', 'asma', 'attributes', 'asmaulhusna']
     },
@@ -177,21 +249,25 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
       arabicName: 'السوق المبارك',
       category: 'lifestyle',
       icon: '🛍️',
-      badge: 'Halal Trade',
+      badge: 'Halal Suq',
       color: 'text-amber-300',
-      bgGradient: 'from-amber-500/20 to-emerald-500/10 border-amber-500/30',
+      bgGradient: 'from-amber-950/70 via-amber-900/40 to-emerald-950/60 border-amber-500/30 hover:border-amber-400/70 hover:shadow-amber-500/20',
+      image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('market'),
       keywords: ['market', 'shop', 'halal', 'products', 'trade', 'buy', 'sell', 'suq']
     },
     {
       id: 'zakat',
       name: 'Zakat Calculator',
-      arabicName: 'حاسبة الزكاة الذكية',
+      arabicName: 'حاسبة الزكاة',
       category: 'lifestyle',
       icon: '💰',
-      badge: 'Gold & Wealth',
+      badge: 'Nisab Realtime',
       color: 'text-emerald-300',
-      bgGradient: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30',
+      bgGradient: 'from-emerald-950/70 via-emerald-900/40 to-teal-950/60 border-emerald-500/30 hover:border-emerald-400/70 hover:shadow-emerald-500/20',
+      image: 'https://images.unsplash.com/photo-1611974717482-aa389182069e?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('resources', { resId: 'zakat' }),
       keywords: ['zakat', 'charity', 'nisab', 'calculator', 'wealth', 'gold', 'silver', 'sadaqah']
     },
@@ -201,33 +277,25 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
       arabicName: 'دليل الحج والعمرة',
       category: 'learning',
       icon: '🕋',
-      badge: 'Interactive Rituals',
+      badge: 'Rituals Guide',
       color: 'text-yellow-300',
-      bgGradient: 'from-yellow-500/20 to-amber-500/10 border-yellow-500/30',
+      bgGradient: 'from-yellow-950/70 via-yellow-900/40 to-amber-950/60 border-yellow-500/30 hover:border-yellow-400/70 hover:shadow-yellow-500/20',
+      image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=600',
+      isPremium: true,
       action: () => onNavigate('resources', { resId: 'hajj_umrah' }),
       keywords: ['hajj', 'umrah', 'tawaf', 'sa\'i', 'makkah', 'madinah', 'ihram', 'pilgrimage']
     },
     {
-      id: 'babynames',
-      name: 'Islamic Baby Names',
-      arabicName: 'أسماء المواليد الإسلامية',
-      category: 'lifestyle',
-      icon: '👶',
-      badge: '1000+ Meanings',
-      color: 'text-rose-300',
-      bgGradient: 'from-rose-500/20 to-pink-500/10 border-rose-500/30',
-      action: () => onNavigate('resources', { resId: 'babynames' }),
-      keywords: ['baby', 'names', 'meanings', 'boy', 'girl', 'arabic', 'islamic names']
-    },
-    {
       id: 'calendar',
-      name: 'Hijri Sacred Calendar',
-      arabicName: 'التقويم الهجري المبارك',
+      name: 'Sacred Calendar',
+      arabicName: 'التقويم الهجري',
       category: 'lifestyle',
       icon: '📅',
-      badge: 'White Days & Eid',
+      badge: 'Fasting & Eid',
       color: 'text-indigo-300',
-      bgGradient: 'from-indigo-500/20 to-blue-500/10 border-indigo-500/30',
+      bgGradient: 'from-indigo-950/70 via-indigo-900/40 to-blue-950/60 border-indigo-500/30 hover:border-indigo-400/70 hover:shadow-indigo-500/20',
+      image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=600',
+      isPremium: false,
       action: () => onNavigate('resources', { resId: 'calendar_view' }),
       keywords: ['calendar', 'hijri', 'dates', 'islamic calendar', 'white days', 'fasting', 'events']
     }
@@ -293,35 +361,72 @@ export default function QuickSanctuaryExplorer({ onNavigate, currentTheme = 'alo
         </div>
       </div>
 
-      {/* 🌟 Instant Quick-Launch Grid (Light, cool, accessible cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
-        {filtered.map(item => (
-          <motion.div
-            key={item.id}
-            whileHover={{ scale: 1.025, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={item.action}
-            className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${item.bgGradient} border backdrop-blur-xl cursor-pointer transition-all duration-200 shadow-md hover:shadow-xl group flex flex-col justify-between min-h-[105px]`}
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
-              {item.badge && (
-                <span className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/10 text-slate-200 border border-white/10">
-                  {item.badge}
-                </span>
-              )}
-            </div>
+      {/* 🌟 Instant Quick-Launch Grid (Compact, attractive, rich background image cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-2.5">
+        {filtered.map(item => {
+          const isLocked = item.isPremium && !isPremium;
 
-            <div className="space-y-0.5 pt-2">
-              <p className="font-arabic text-[11px] text-amber-200/80 font-normal leading-tight">
-                {item.arabicName}
-              </p>
-              <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-200 transition-colors truncate">
-                {item.name}
-              </h4>
-            </div>
-          </motion.div>
-        ))}
+          return (
+            <motion.div
+              key={item.id}
+              whileHover={{ scale: 1.025, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleItemClick(item)}
+              className={`p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br ${item.bgGradient} border backdrop-blur-xl cursor-pointer transition-all duration-300 shadow-sm hover:shadow-xl group flex flex-col justify-between min-h-[82px] sm:min-h-[88px] relative overflow-hidden`}
+            >
+              {/* Card Background Image with Rich Vignette Overlay */}
+              <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
+                <img 
+                  src={item.image} 
+                  alt={item.name}
+                  referrerPolicy="no-referrer"
+                  loading="lazy"
+                  className="w-full h-full object-cover object-center opacity-25 group-hover:opacity-40 group-hover:scale-110 transition-all duration-700 filter brightness-90 contrast-110"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/30 pointer-events-none" />
+              </div>
+
+              {/* Top Micro-Row: Icon & Badges */}
+              <div className="relative z-10 flex items-center justify-between gap-1">
+                <span className="text-base sm:text-lg group-hover:scale-110 transition-transform drop-shadow-md select-none">
+                  {item.icon}
+                </span>
+
+                <div className="flex items-center gap-1">
+                  {isLocked ? (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/30 text-amber-300 border border-amber-500/50 backdrop-blur-md shadow-sm">
+                      <Lock size={8} className="text-amber-300" />
+                      PRO
+                    </span>
+                  ) : item.isPremium ? (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 backdrop-blur-md shadow-sm">
+                      <Crown size={8} className="text-emerald-300" />
+                      ELITE
+                    </span>
+                  ) : item.badge ? (
+                    <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/15 text-white/90 border border-white/15 backdrop-blur-md truncate max-w-[85px] leading-tight select-none">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Bottom Info: Arabic Script & Title */}
+              <div className="relative z-10 space-y-0.5 pt-1">
+                <p className="font-arabic text-[10px] sm:text-[11px] text-amber-200/90 font-normal leading-tight truncate select-none drop-shadow-sm">
+                  {item.arabicName}
+                </p>
+                <h4 className="text-[11px] sm:text-xs font-bold text-white group-hover:text-amber-300 transition-colors truncate tracking-tight select-none drop-shadow-sm flex items-center gap-1">
+                  <span>{item.name}</span>
+                  {isLocked && <Lock size={10} className="text-amber-400/80 inline shrink-0" />}
+                </h4>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {filtered.length === 0 && (

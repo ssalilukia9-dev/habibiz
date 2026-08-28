@@ -91,12 +91,21 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
-    console.warn("Google signInWithPopup failed, falling back to signInWithRedirect:", error);
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-      await signInWithRedirect(auth, googleProvider);
-    } else {
-      throw error;
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      console.info("Google Sign-In popup was closed by the user.");
+      throw new Error("Sign-in was cancelled.");
     }
+    
+    // Check if popup blocked or network request failed due to iframe sandbox
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/network-request-failed' || error.code === 'auth/unauthorized-domain') {
+      const isInIframe = window.self !== window.top;
+      if (isInIframe) {
+        throw new Error("Google Sign-In is restricted inside embedded preview iframes. Please use Fast 1-Tap Entry or open the app in a new tab.");
+      }
+    }
+    
+    console.warn("Google signInWithPopup error:", error);
+    throw error;
   }
 };
 
@@ -105,24 +114,41 @@ export const signInWithGithub = async () => {
     const result = await signInWithPopup(auth, githubProvider);
     return result.user;
   } catch (error: any) {
-    console.warn("Github signInWithPopup failed, falling back to signInWithRedirect:", error);
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-      await signInWithRedirect(auth, githubProvider);
-    } else {
-      throw error;
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      console.info("GitHub Sign-In popup was closed by the user.");
+      throw new Error("Sign-in was cancelled.");
     }
+
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/network-request-failed' || error.code === 'auth/unauthorized-domain') {
+      const isInIframe = window.self !== window.top;
+      if (isInIframe) {
+        throw new Error("GitHub Sign-In is restricted inside embedded preview iframes. Please use Fast 1-Tap Entry or open the app in a new tab.");
+      }
+    }
+
+    console.warn("GitHub signInWithPopup error:", error);
+    throw error;
   }
 };
 
-export const handleRedirectResult = async () => {
+export const handleRedirectResult = async (): Promise<User | null> => {
   if (!redirectPromise) {
     redirectPromise = (async () => {
       try {
         const result = await getRedirectResult(auth);
         return result?.user || null;
-      } catch (error) {
-        console.error("Error handling redirect result", error);
-        throw error;
+      } catch (error: any) {
+        // Suppress benign internal assertion and network errors when no redirect was pending or inside sandboxed iframes
+        if (
+          error?.message?.includes('INTERNAL ASSERTION FAILED') ||
+          error?.message?.includes('Pending promise was never set') ||
+          error?.code === 'auth/network-request-failed' ||
+          error?.code === 'auth/unauthorized-domain'
+        ) {
+          return null;
+        }
+        console.warn("Redirect auth info (no pending redirect session):", error?.message || error);
+        return null;
       }
     })();
   }

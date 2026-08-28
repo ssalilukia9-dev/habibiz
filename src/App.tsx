@@ -2135,6 +2135,8 @@ export default function App() {
                         currentUser={currentUser}
                         updateStreak={updateStreak}
                         addHasanat={addHasanat}
+                        isPremium={isPremium || !trialExpired}
+                        onShowPremium={() => setShowPremiumGateway(true)}
                       />
                     } />
                     <Route path="/resources" element={

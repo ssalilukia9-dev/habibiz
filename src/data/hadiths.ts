@@ -9,7 +9,7 @@ export interface HadithEntry {
 
 import { EXPANDED_HADITH_COLLECTION } from './expandedHadiths.ts';
 
-export const HADITH_DATABASE: HadithEntry[] = [
+const RAW_HADITH_DATABASE: HadithEntry[] = [
   {
     id: 1,
     narrator: "Abdullah bin Umar",
@@ -27,7 +27,7 @@ export const HADITH_DATABASE: HadithEntry[] = [
     topic: "Sincerity"
   },
   {
-    id: 2,
+    id: 3,
     narrator: "Abu Hurairah",
     arabic: "مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الْآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ",
     english: "Whosoever believes in Allah and the Last Day, let him say what is good or remain silent.",
@@ -577,6 +577,11 @@ export const HADITH_DATABASE: HadithEntry[] = [
   }),
   ...EXPANDED_HADITH_COLLECTION
 ];
+
+export const HADITH_DATABASE: HadithEntry[] = RAW_HADITH_DATABASE.map((item, index) => ({
+  ...item,
+  id: index + 1
+}));
 
 export const getDailyHadith = (date: Date = new Date()) => {
   const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);

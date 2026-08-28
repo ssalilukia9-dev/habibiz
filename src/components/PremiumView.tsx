@@ -996,17 +996,20 @@ export default function PremiumView() {
             </div>
           </div>
 
-          {/* Sendwave Direct Alternative Instruction */}
+          {/* Secure Card Payment Guarantee */}
           <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] border-white/10 max-w-xl mx-auto space-y-4 text-center">
             <div className="flex items-center justify-center gap-2 text-amber-400 text-xs font-black uppercase tracking-wider">
-              <Smartphone size={16} />
-              <span>Direct Mobile / Sendwave Option</span>
+              <CreditCard size={16} />
+              <span>Secure Card Payments Only</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              If card payment is unavailable in your region, send direct contribution via Sendwave to:
+              All Sanctuary VIP upgrades are processed via encrypted Credit & Debit Card checkout with instant tier activation and automated receipt.
             </p>
-            <div className="p-3 bg-black/40 rounded-2xl border border-amber-500/20 inline-block font-mono text-amber-400 font-bold text-sm">
-              +256 708515639 (Sanctuary Care Team)
+            <div className="p-3 bg-black/40 rounded-2xl border border-amber-500/20 flex items-center justify-center gap-3 text-xs text-slate-300">
+              <span className="font-semibold text-white">Accepted Cards:</span>
+              <span className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-bold">Visa</span>
+              <span className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-bold">MasterCard</span>
+              <span className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-bold">American Express</span>
             </div>
           </div>
         </div>

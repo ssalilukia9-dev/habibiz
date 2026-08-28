@@ -73,8 +73,8 @@ service cloud.firestore {
 
     // Announcements / Global Broadcasts
     match /announcements/{announcementId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if true;
+      allow write: if true;
     }
 
     // Activity Logs (User Registrations, Hasanat Redemptions)
@@ -127,6 +127,12 @@ service cloud.firestore {
 
     // Khatam Journey Videos (Admin Pasted Video Links & Broadcasts to all users)
     match /khatam_videos/{videoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Deleted Khatam Videos Tombstones (Cross-device sync for video deletions)
+    match /deleted_khatam_videos/{videoId} {
       allow read: if true;
       allow write: if true;
     }

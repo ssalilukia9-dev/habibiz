@@ -111,7 +111,13 @@ export class VoiceTasbihService {
   private static listeners: Set<VoiceTasbihListener> = new Set();
   private static shouldKeepListening: boolean = false;
   private static restartTimeout: any = null;
+  private static keepAliveInterval: any = null;
   private static audioContext: AudioContext | null = null;
+  private static isRestarting: boolean = false;
+  
+  // Track continuous phrase match counts in current utterance stream to prevent duplicate/skipped counts
+  private static processedMatchCounts: Map<string, number> = new Map();
+  private static lastSpokenTimestamp: number = 0;
 
   static isSupported(): boolean {
     return typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
@@ -220,12 +226,13 @@ export class VoiceTasbihService {
   }
 
   /**
-   * Matches spoken words/phrases to known supplications (built-in + custom) and calculates count
+   * Matches spoken words/phrases to known supplications (built-in + custom) and calculates count.
+   * Supports continuous repetition streams and phonetic variations.
    */
   static matchSupplication(text: string): { supplication: Omit<RecognizedSupplication, 'count'>; count: number } | null {
     if (!text) return null;
     const clean = text.toLowerCase().trim()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()؟،]/g, "")
       .replace(/\s{2,}/g, " ");
 
     if (!clean) return null;
@@ -246,55 +253,85 @@ export class VoiceTasbihService {
       }
     }
 
-    // 2. Built-in Multi-occurrence patterns
+    // 2. Built-in Multi-occurrence patterns with comprehensive Arabic, transliteration, and English keywords
     const patterns: { id: string; keywords: string[] }[] = [
       {
         id: 'subhanallahi_wa_bihamdihi',
-        keywords: ['subhanallahi wa bihamdihi', 'subhan allah wa bihamdihi', 'subhanallahi wa bihamdih', 'سبحان الله وبحمده']
+        keywords: [
+          'subhanallahi wa bihamdihi', 'subhan allah wa bihamdihi', 'subhanallahi wa bihamdih', 
+          'subhanallahi wabihamdihi', 'سبحان الله وبحمده', 'سبحان الله و بحمده'
+        ]
       },
       {
         id: 'subhanallahil_adheem',
-        keywords: ['subhanallahil adheem', 'subhan allahil adheem', 'subhan allah al azeem', 'سبحان الله العظيم']
+        keywords: [
+          'subhanallahil adheem', 'subhan allahil adheem', 'subhan allah al azeem', 
+          'subhanallahi al azeem', 'subhanallah al azeem', 'سبحان الله العظيم'
+        ]
       },
       {
         id: 'lahawla',
-        keywords: ['la hawla wa la quwwata illa billah', 'la hawla', 'lahawla', 'لا حول ولا قوة إلا بالله']
+        keywords: [
+          'la hawla wa la quwwata illa billah', 'la hawla wa la quwwata', 'la hawla', 'lahawla', 
+          'la hawla wala quwwata', 'لا حول ولا قوة إلا بالله', 'لا حول ولاقوة الا بالله', 'لا حول'
+        ]
       },
       {
         id: 'salawat',
-        keywords: ['allahumma salli ala muhammad', 'allahumma salli', 'sallallahu alayhi wa sallam', 'salawat', 'اللهم صل على محمد', 'صلى الله عليه وسلم']
+        keywords: [
+          'allahumma salli ala muhammad', 'allahumma salli', 'sallallahu alayhi wa sallam', 'salawat', 
+          'salli ala muhammad', 'allahumma barik ala muhammad', 'اللهم صل على محمد', 'صلى الله عليه وسلم', 'اللهم صل وسلم'
+        ]
       },
       {
         id: 'hasbunallah',
-        keywords: ['hasbunallahu wa nimal wakeel', 'hasbunallah wa nimal wakeel', 'hasbunallah', 'حسبنا الله ونعم الوكيل']
+        keywords: [
+          'hasbunallahu wa nimal wakeel', 'hasbunallah wa nimal wakeel', 'hasbunallah', 'hasbiyallah',
+          'hasbunallahu', 'حسبنا الله ونعم الوكيل', 'حسبنا الله', 'حسبي الله'
+        ]
       },
       {
         id: 'yahayyu_yaqayyum',
-        keywords: ['ya hayyu ya qayyum', 'ya hayy ya qayyum', 'يا حي يا قيوم']
+        keywords: ['ya hayyu ya qayyum', 'ya hayy ya qayyum', 'ya hayy', 'ya qayyum', 'يا حي يا قيوم', 'ياحي ياقيوم']
       },
       {
         id: 'rabbi_ighfirli',
-        keywords: ['rabbi ighfirli', 'rabbighfirli', 'rabbi ighfir li', 'رب اغفر لي', 'ربى اغفر لى']
+        keywords: ['rabbi ighfirli', 'rabbighfirli', 'rabbi ighfir li', 'rabbi ghfirli', 'rabbi ghfir li', 'رب اغفر لي', 'ربى اغفر لى', 'رب اغفرلي']
       },
       {
         id: 'lailahaillallah',
-        keywords: ['la ilaha illa allah', 'la ilaha illallah', 'lailahaillallah', 'there is no god but allah', 'لا اله الا الله', 'لا إله إلا الله']
+        keywords: [
+          'la ilaha illa allah', 'la ilaha illallah', 'lailahaillallah', 'there is no god but allah', 
+          'la illaha illallah', 'la ilaha ila allah', 'la ilaha illallah muhammadur rasulullah', 'لا اله الا الله', 'لا إله إلا الله', 'لااله الا الله'
+        ]
       },
       {
         id: 'astaghfirullah',
-        keywords: ['astaghfirullah', 'astagfirullah', 'astagferullah', 'i seek forgiveness', 'استغفر الله', 'أستغفر الله']
+        keywords: [
+          'astaghfirullah', 'astagfirullah', 'astagferullah', 'astaghfarullah', 'astaghfirullahal azeem', 'i seek forgiveness', 
+          'astaghfirullahal azim', 'استغفر الله', 'أستغفر الله', 'استغفرالله', 'استغفر'
+        ]
       },
       {
         id: 'allahuakbar',
-        keywords: ['allahu akbar', 'allahuakbar', 'allah is greatest', 'الله أكبر', 'الله اكبر']
+        keywords: [
+          'allahu akbar', 'allahuakbar', 'allah is greatest', 'allah akbar', 'allaho akbar', 
+          'allahu akbar kabira', 'الله أكبر', 'الله اكبر', 'اكبر'
+        ]
       },
       {
         id: 'alhamdulillah',
-        keywords: ['alhamdulillah', 'alhamdu lillah', 'alhamdulilah', 'praise be to allah', 'الحمد لله']
+        keywords: [
+          'alhamdulillah', 'alhamdu lillah', 'alhamdulilah', 'praise be to allah', 'elhamdulillah', 
+          'alhamdullilah', 'alhamdullillah', 'الحمد لله', 'الحمدلله', 'الحمد'
+        ]
       },
       {
         id: 'subhanallah',
-        keywords: ['subhanallah', 'subhan allah', 'subhaanallah', 'glory be to allah', 'سبحان الله']
+        keywords: [
+          'subhanallah', 'subhan allah', 'subhaanallah', 'glory be to allah', 'sobhana allah', 
+          'subhanallahi', 'super nallah', 'سبحان الله', 'سبحانك', 'سبحان'
+        ]
       }
     ];
 
@@ -317,8 +354,8 @@ export class VoiceTasbihService {
       }
     }
 
-    // Default fallback if user spoke any distinct dhikr/prayer phrase
-    if (clean.length > 2) {
+    // Default fallback if user spoke any distinct single dhikr/prayer utterance
+    if (clean.length >= 3) {
       return {
         supplication: {
           id: 'spoken_dhikr',
@@ -335,8 +372,148 @@ export class VoiceTasbihService {
   }
 
   /**
+   * Evaluates continuous cumulative or interim speech results and yields incremental increments.
+   */
+  private static processContinuousTranscript(rawText: string, isFinal: boolean) {
+    if (!rawText.trim()) return;
+    const now = Date.now();
+    this.lastSpokenTimestamp = now;
+
+    const matched = this.matchSupplication(rawText);
+    if (!matched) return;
+
+    const key = matched.supplication.id;
+    const previousProcessed = this.processedMatchCounts.get(key) || 0;
+    const currentTotalMatches = matched.count;
+
+    if (currentTotalMatches > previousProcessed) {
+      const delta = currentTotalMatches - previousProcessed;
+      this.processedMatchCounts.set(key, currentTotalMatches);
+      this.notifySupplication(matched.supplication, delta, rawText);
+    }
+
+    if (isFinal) {
+      // Clear this key's processed count for the next sentence chunk
+      this.processedMatchCounts.delete(key);
+    }
+  }
+
+  /**
+   * Spawns an internal continuous SpeechRecognition instance with seamless self-healing loop.
+   */
+  private static initRecognitionSession() {
+    if (!this.shouldKeepListening) return;
+    if (this.isRestarting) return;
+    this.isRestarting = true;
+
+    // Destroy existing instance if hanging
+    if (this.recognition) {
+      try {
+        this.recognition.onstart = null;
+        this.recognition.onresult = null;
+        this.recognition.onerror = null;
+        this.recognition.onend = null;
+        this.recognition.abort();
+      } catch (e) {
+        // Safe disposal
+      }
+      this.recognition = null;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      if (!SpeechRecognition) {
+        this.isRestarting = false;
+        this.notifyError('Speech recognition is not supported in this browser.');
+        return;
+      }
+
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 3;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        this.isRestarting = false;
+        // Keep status actively on
+        if (this.shouldKeepListening) {
+          this.notifyStatus(true);
+        }
+      };
+
+      rec.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const result = event.results[i];
+          const transcript = result[0]?.transcript || '';
+          
+          if (result.isFinal) {
+            this.processContinuousTranscript(transcript, true);
+          } else {
+            interim += transcript;
+            this.processContinuousTranscript(transcript, false);
+          }
+        }
+
+        if (interim) {
+          this.notifyInterim(interim);
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        const errType = e?.error;
+        if (errType === 'not-allowed' || errType === 'service-not-allowed') {
+          this.shouldKeepListening = false;
+          this.isRestarting = false;
+          this.notifyError('Microphone permission is required for continuous voice Tasbih.');
+          this.stop();
+          return;
+        }
+
+        // For all non-fatal browser timeout events ('no-speech', 'aborted', 'audio-capture', 'network', 'bad-grammar')
+        // We seamlessly reconnect without changing user-facing active status
+        if (this.shouldKeepListening) {
+          this.scheduleRestart(50);
+        }
+      };
+
+      rec.onend = () => {
+        this.processedMatchCounts.clear();
+        this.isRestarting = false;
+        if (this.shouldKeepListening) {
+          // Automatic resilient restart: voice mode is NEVER turned off unless reader explicitly turns it off
+          this.scheduleRestart(50);
+        } else {
+          this.notifyStatus(false);
+        }
+      };
+
+      this.recognition = rec;
+      rec.start();
+    } catch (err: any) {
+      this.isRestarting = false;
+      if (this.shouldKeepListening) {
+        this.scheduleRestart(150);
+      }
+    }
+  }
+
+  private static scheduleRestart(delayMs: number = 50) {
+    if (this.restartTimeout) {
+      clearTimeout(this.restartTimeout);
+    }
+    this.restartTimeout = setTimeout(() => {
+      if (this.shouldKeepListening) {
+        this.isRestarting = false;
+        this.initRecognitionSession();
+      }
+    }, delayMs);
+  }
+
+  /**
    * Starts live continuous speech recognition for Tasbih counting.
-   * Constant until manually stopped with stop()
+   * Runs continuously without switching off until the reader explicitly turns it off.
    */
   static start() {
     if (!this.isSupported()) {
@@ -345,103 +522,68 @@ export class VoiceTasbihService {
     }
 
     this.shouldKeepListening = true;
-    if (this.isListening) return;
+    this.processedMatchCounts.clear();
+    this.isRestarting = false;
+
+    // Immediately notify UI that voice counting is ON
+    this.notifyStatus(true);
 
     if (this.restartTimeout) {
       clearTimeout(this.restartTimeout);
       this.restartTimeout = null;
     }
 
-    try {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      this.recognition = new SpeechRecognition();
-      this.recognition.continuous = true;
-      this.recognition.interimResults = true;
-      this.recognition.lang = 'en-US';
-
-      this.recognition.onstart = () => {
-        this.notifyStatus(true);
-      };
-
-      this.recognition.onresult = (event: any) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            const matched = this.matchSupplication(transcript);
-            if (matched) {
-              this.notifySupplication(matched.supplication, matched.count, transcript);
-            }
-          } else {
-            interim += transcript;
-          }
+    // Keep-Alive Heartbeat watchdog: if user enabled voice, ensure recognition stays alive
+    if (!this.keepAliveInterval) {
+      this.keepAliveInterval = setInterval(() => {
+        if (this.shouldKeepListening && (!this.recognition || !this.isListening)) {
+          this.isRestarting = false;
+          this.initRecognitionSession();
         }
-        if (interim) {
-          this.notifyInterim(interim);
-        }
-      };
-
-      this.recognition.onerror = (e: any) => {
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          console.warn('[VoiceTasbihService] Recognition warning:', e.error);
-        }
-      };
-
-      this.recognition.onend = () => {
-        if (this.shouldKeepListening) {
-          // Automatic resilient restart to keep constant counting
-          this.restartTimeout = setTimeout(() => {
-            if (this.shouldKeepListening) {
-              try {
-                this.recognition?.start();
-              } catch {
-                // Re-initialize if previous instance was closed
-                this.isListening = false;
-                this.start();
-              }
-            }
-          }, 150);
-        } else {
-          this.notifyStatus(false);
-        }
-      };
-
-      this.recognition.start();
-    } catch (e: any) {
-      console.warn('[VoiceTasbihService] Start error:', e);
-      if (this.shouldKeepListening) {
-        this.restartTimeout = setTimeout(() => {
-          if (this.shouldKeepListening) this.start();
-        }, 500);
-      } else {
-        this.notifyStatus(false);
-      }
+      }, 2000);
     }
+
+    this.initRecognitionSession();
   }
 
   /**
-   * Stops voice Tasbih listening permanently until manually started
+   * Stops voice Tasbih listening ONLY when the reader explicitly turns it off.
    */
   static stop() {
     this.shouldKeepListening = false;
+    this.isRestarting = false;
+    this.processedMatchCounts.clear();
+
     if (this.restartTimeout) {
       clearTimeout(this.restartTimeout);
       this.restartTimeout = null;
     }
+
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+
     if (this.recognition) {
       try {
+        this.recognition.onstart = null;
+        this.recognition.onresult = null;
+        this.recognition.onerror = null;
+        this.recognition.onend = null;
         this.recognition.stop();
-      } catch {}
+        this.recognition.abort();
+      } catch (e) {}
       this.recognition = null;
     }
+
     this.notifyStatus(false);
   }
 
   /**
-   * Toggle Voice Tasbih
+   * Toggle Voice Tasbih on/off
    */
   static toggle() {
-    if (this.isListening) {
+    if (this.isListening || this.shouldKeepListening) {
       this.stop();
     } else {
       this.start();
@@ -452,4 +594,3 @@ export class VoiceTasbihService {
     return this.isListening;
   }
 }
-

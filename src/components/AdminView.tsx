@@ -1340,7 +1340,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
     }
   };
 
-  // KHATAM JOURNEY VIDEO OPERATIONS
+  // KHATAM JOURNEY VIDEO & ANNOUNCEMENT OPERATIONS
   const handleAddKhatamVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVideoUrl.trim()) {
@@ -1357,17 +1357,13 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
       titleToUse = `${categoryLabel} - Video #${khatamVideos.length + 1}`;
     }
 
-    const res = await KhatamVideoService.addVideo({
+    const res = await KhatamVideoService.postKhatamAnnouncement({
       url: newVideoUrl.trim(),
       title: titleToUse,
+      description: newVideoDescription.trim() || undefined,
       category: newVideoCategory,
-      categoryLabel,
-      speaker: newVideoSpeaker.trim() || 'Sanctuary Scholar',
-      description: newVideoDescription.trim() || 'Reflection and wisdom for the Sacred Khatam Journey.',
-      duration: newVideoDuration.trim() || '12:00',
-      juzNumber: newVideoJuz ? parseInt(newVideoJuz, 10) : undefined,
-      featured: newVideoFeatured
-    }, currentUser?.displayName || 'Admin');
+      speaker: newVideoSpeaker.trim() || 'Sanctuary Scholar'
+    }, currentUser?.displayName || currentUser?.email || 'Admin');
 
     setIsAddingVideo(false);
 
@@ -1380,10 +1376,10 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
       setNewVideoJuz('');
       setNewVideoFeatured(false);
 
-      showActionFeedback(`Published "${titleToUse}" to Khatam Journey!`);
-      logActivity('admin', `Published Khatam video: ${titleToUse}`, currentUser?.displayName || 'Admin', 'KHATAM MEDIA');
+      showActionFeedback(`Broadcast & Announcement for "${titleToUse}" published to Firestore!`);
+      logActivity('admin', `Published Khatam video announcement: ${titleToUse}`, currentUser?.displayName || 'Admin', 'KHATAM ANNOUNCEMENT');
     } else {
-      alert(res.error || "Failed to add video.");
+      alert(res.error || "Failed to add video announcement.");
     }
   };
 
@@ -1430,6 +1426,28 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   const handleSeedDefaultKhatamVideos = async () => {
     await KhatamVideoService.seedInitialVideosIfEmpty();
     showActionFeedback("Seeded standard sacred Khatam videos.");
+  };
+
+  const handleDeleteAllCustomKhatamVideos = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL custom videos you posted? This will reset the video repository back to curated defaults in Firestore and on all devices.")) return;
+    const res = await KhatamVideoService.deleteAllCustomVideos();
+    if (res.success) {
+      showActionFeedback(`🗑️ Cleared ${res.deletedCount} custom videos. Clean slate active!`);
+      logActivity('admin', `Admin purged all custom Khatam videos (${res.deletedCount} items)`, currentUser?.displayName || 'Admin', 'VIDEOS PURGED');
+    } else {
+      alert("Failed to delete custom videos.");
+    }
+  };
+
+  const handleDeleteAllCustomTeachings = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL custom wisdom teachings you posted? This will reset the wisdom repository back to curated defaults in Firestore and on all devices.")) return;
+    const res = await IslamicWisdomService.deleteAllCustomTeachings();
+    if (res.success) {
+      showActionFeedback(`🗑️ Cleared ${res.deletedCount} custom teachings. Clean slate active!`);
+      logActivity('admin', `Admin purged all custom wisdom teachings (${res.deletedCount} items)`, currentUser?.displayName || 'Admin', 'WISDOM PURGED');
+    } else {
+      alert("Failed to delete custom teachings.");
+    }
   };
 
   // POST MODERATION & REPORTS OPERATIONS
@@ -3773,6 +3791,33 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
               </div>
             </div>
 
+            {/* Master VIP Unlimited Pass Highlight */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-brand-depth to-black/60 border border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/30 text-amber-300 border border-amber-400/40 flex items-center justify-center font-bold">
+                  <Crown size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase text-white tracking-wider">Permanent Master VIP Code</span>
+                    <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider">Unlimited Lifetime Access</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-mono mt-0.5">Code: <strong className="text-amber-300 text-xs">MH-VIP-2214</strong> (Grants lifetime VIP access & unlocks all features)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText('MH-VIP-2214');
+                  showActionFeedback('Copied Master VIP Code MH-VIP-2214 to clipboard!');
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-md shrink-0"
+              >
+                <Copy size={13} />
+                <span>Copy Master Code</span>
+              </button>
+            </div>
+
             {/* Generated Unclaimed / Ready Passes */}
             {generatedPassList.length > 0 && (
               <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
@@ -4486,7 +4531,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                             {/* Card Image Thumbnail */}
                             <div className="relative aspect-video bg-black/60 overflow-hidden group">
                               <img
-                                src={teaching.imageUrl}
+                                src={teaching.imageUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                                 alt={teaching.title}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               />
@@ -4629,6 +4674,15 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                 <RefreshCw size={14} />
                 <span>Restore Defaults</span>
               </button>
+
+              <button
+                onClick={handleDeleteAllCustomKhatamVideos}
+                className="px-4 py-3 bg-red-500/15 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 font-black text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-red-500/10"
+                title="Delete all custom videos posted by admin"
+              >
+                <Trash2 size={14} />
+                <span>Purge Custom Videos</span>
+              </button>
             </div>
           </div>
 
@@ -4671,12 +4725,12 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                 </div>
 
                 {/* Instant YouTube Preview Pill if Valid URL */}
-                {newVideoUrl && (newVideoUrl.includes('youtube.com') || newVideoUrl.includes('youtu.be')) && (
+                {newVideoUrl && (newVideoUrl.includes('youtube.com') || newVideoUrl.includes('youtu.be')) && KhatamVideoService.parseVideoUrl(newVideoUrl).thumbnailUrl && (
                   <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-3 overflow-hidden">
                       <div className="w-14 h-9 rounded-lg bg-black overflow-hidden shrink-0 border border-white/10">
                         <img
-                          src={KhatamVideoService.parseVideoUrl(newVideoUrl).thumbnailUrl}
+                          src={KhatamVideoService.parseVideoUrl(newVideoUrl).thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                           alt="Thumbnail Preview"
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -4885,7 +4939,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                     {/* Thumbnail */}
                     <div className="relative aspect-video w-full bg-black overflow-hidden">
                       <img
-                        src={video.thumbnailUrl}
+                        src={video.thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                         alt={video.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -5567,6 +5621,15 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                 <Layers size={15} />
                 <span>Bulk Upload Teachings</span>
               </button>
+
+              <button
+                onClick={handleDeleteAllCustomTeachings}
+                className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-red-500/15 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-red-500/10 cursor-pointer flex items-center justify-center gap-2"
+                title="Delete all custom wisdom teachings posted by admin"
+              >
+                <Trash2 size={14} />
+                <span>Purge Custom Teachings</span>
+              </button>
             </div>
           </div>
 
@@ -6125,8 +6188,12 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
-                ) : (
+                ) : previewingVideo.url ? (
                   <video src={previewingVideo.url} controls autoPlay className="w-full h-full" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-500">
+                    No video source available
+                  </div>
                 )}
               </div>
 
