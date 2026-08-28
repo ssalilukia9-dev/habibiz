@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Bell, 
   Trash2, 
@@ -14,13 +15,17 @@ import {
   Filter,
   ShieldCheck,
   AlertTriangle,
-  Zap
+  Zap,
+  Compass,
+  ShoppingBag,
+  Play
 } from 'lucide-react';
 import { notificationService, AppNotification } from '../services/notificationService';
 
 export default function NotificationsView() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'chat'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'feed' | 'market' | 'khatam' | 'prayers' | 'chat'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
@@ -49,22 +54,40 @@ export default function NotificationsView() {
 
   const getTypeIcon = (type: AppNotification['type']) => {
     switch (type) {
-      case 'prayer': return <Clock size={18} className="text-brand-primary" />;
+      case 'feed': return <Compass size={18} className="text-purple-400" />;
+      case 'market': return <ShoppingBag size={18} className="text-emerald-400" />;
+      case 'khatam':
+      case 'video': return <Play size={18} className="text-red-400" />;
+      case 'prayer':
+      case 'prayers': return <Clock size={18} className="text-amber-400" />;
       case 'hadith': return <BookOpen size={18} className="text-amber-500" />;
       case 'system': return <Sparkles size={18} className="text-emerald-500" />;
       case 'community': return <Users size={18} className="text-blue-500" />;
-      default: return <Bell size={18} />;
+      default: return <Bell size={18} className="text-brand-primary" />;
     }
   };
 
   const filteredNotifications = notifications.filter(n => {
     const matchesSearch = n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          n.body.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filter === 'all' || 
-                         (filter === 'unread' && !n.read) || 
-                         (filter === 'chat' && n.type === 'community');
+    const matchesFilter = 
+      filter === 'all' || 
+      (filter === 'unread' && !n.read) || 
+      (filter === 'feed' && n.type === 'feed') ||
+      (filter === 'market' && n.type === 'market') ||
+      (filter === 'khatam' && (n.type === 'khatam' || n.type === 'video')) ||
+      (filter === 'prayers' && (n.type === 'prayer' || n.type === 'prayers')) ||
+      (filter === 'chat' && n.type === 'community');
     return matchesSearch && matchesFilter;
   });
+
+  const handleNotificationClick = (n: AppNotification) => {
+    notificationService.markAsRead(n.id);
+    if (n.actionUrl) {
+      const url = n.actionUrl.startsWith('#') ? `/${n.actionUrl.substring(1)}` : n.actionUrl;
+      navigate(url);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -194,19 +217,27 @@ export default function NotificationsView() {
         </div>
       </header>
 
-      {/* Filter Tabs - WhatsApp Style */}
+      {/* Filter Tabs - Category Navigation */}
       <div className="flex gap-2 px-4 overflow-x-auto pb-2 scrollbar-hide">
-        {(['all', 'unread', 'chat'] as const).map((tab) => (
+        {([
+          { id: 'all', label: 'All Signals' },
+          { id: 'unread', label: 'Unread' },
+          { id: 'feed', label: 'NoorTalk Feed' },
+          { id: 'market', label: 'Market Products' },
+          { id: 'khatam', label: 'Khatam Videos' },
+          { id: 'prayers', label: 'Prayers' },
+          { id: 'chat', label: 'Community Chat' }
+        ] as const).map((tab) => (
           <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={`px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-              filter === tab 
-              ? 'bg-brand-primary text-brand-depth shadow-lg shadow-brand-primary/20' 
+            key={tab.id}
+            onClick={() => setFilter(tab.id as any)}
+            className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+              filter === tab.id 
+              ? 'bg-brand-primary text-brand-depth shadow-lg shadow-brand-primary/20 scale-105' 
               : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
             }`}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -235,7 +266,7 @@ export default function NotificationsView() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  onClick={() => notificationService.markAsRead(n.id)}
+                  onClick={() => handleNotificationClick(n)}
                   className={`relative p-6 md:p-8 flex gap-6 hover:bg-white/[0.05] transition-all cursor-pointer group ${!n.read ? 'bg-brand-primary/[0.01]' : ''}`}
                 >
                   <div className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${

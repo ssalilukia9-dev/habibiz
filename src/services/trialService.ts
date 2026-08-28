@@ -21,6 +21,41 @@ export interface PromoCodeResult {
   daysGranted?: number;
 }
 
+// Strictly permitted free resources when trial is expired:
+// 1. Qibla
+// 2. Prayer Times
+// 3. Tasbih
+// 4. Hijri Calendar
+// 5. Daily Athkar / Adhkar
+export const EXPLICIT_FREE_RESOURCES = [
+  'qibla',
+  'prayer_times',
+  'prayer-times',
+  'prayers',
+  'five_prayers',
+  'prayers_guide',
+  'five_pillars',
+  'pillars',
+  'arkan',
+  'tasbih',
+  'calendar',
+  'calendar_view',
+  'hijri-calendar',
+  'adhkar',
+  'daily_athkar',
+  'athkar'
+] as const;
+
+export function isPermittedFreeResource(resourceIdOrPath: string): boolean {
+  if (!resourceIdOrPath) return false;
+  const clean = resourceIdOrPath.toLowerCase().replace(/^\//, '').replace(/-/g, '_').trim();
+  const rawClean = resourceIdOrPath.toLowerCase().replace(/^\//, '').trim();
+  return EXPLICIT_FREE_RESOURCES.some(f => {
+    const fClean = f.toLowerCase().replace(/-/g, '_');
+    return clean === fClean || rawClean === f || clean === f;
+  });
+}
+
 const TRIAL_DURATION_DAYS = 3;
 const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const STORAGE_TRIAL_START_KEY = 'sanctuary_trial_start_timestamp';

@@ -358,12 +358,19 @@ export const toArabicDigits = (num: number | string): string => {
 export const normalizeArabic = (text: string): string => {
   if (!text) return '';
   return text
-    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '') // Tashkeel, Sukun, Shaddah, Quranic symbols
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/[ىي]/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/ؤ/g, 'و')
-    .replace(/ئ/g, 'ي')
+    // Strip all Tashkeel, Sukun, Shaddah, Tanween, Quranic symbols, dagger alif, wasla, Quranic stops
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u08D4-\u08E1\u08E3-\u08FF]/g, '')
+    // Normalize Alef Wasla and Hamza variations
+    .replace(/[\u0671\u0622\u0623\u0625\u0627]/g, 'ا')
+    // Normalize Ya and Alef Maksura
+    .replace(/[\u0649\u064A\u06CC]/g, 'ي')
+    // Normalize Ta Marbuta & Ha
+    .replace(/[\u0629]/g, 'ه')
+    // Normalize Waw variations
+    .replace(/[\u0624\u0648]/g, 'و')
+    // Normalize Hamza
+    .replace(/[\u0621\u0626]/g, 'ء')
+    // Strip non-Arabic letters and control characters
     .replace(/[^\u0621-\u064A\s]/g, '')
     .trim()
     .toLowerCase();
@@ -623,12 +630,20 @@ export default function AliyahMemoriseView({
   // AI Voice Recognition & Tarteel Auto-Recognizer
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(false);
+  const [case1Locked, setCase1Locked] = useState<boolean>(false);
   const [detectedSurahBanner, setDetectedSurahBanner] = useState<{
     surahName: string;
     surahArabicName: string;
     ayahNumber: number;
     page: number;
   } | null>(null);
+
+  const handleUnlockCase1 = () => {
+    setCase1Locked(false);
+    setIsAutoDetecting(true);
+    setDetectedSurahBanner(null);
+    showToast("🔓 Auto-Detect Unlocked: Recite ~3 verses from anywhere to identify and lock onto your verse!");
+  };
 
   const [spokenTranscript, setSpokenTranscript] = useState<string>('');
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
@@ -1036,23 +1051,20 @@ Rules:
     try {
       const reciterCdn = RECITER_LIST.find(r => r.id === selectedQari)?.cdnId || 'ar.alafasy';
       
-      // Attempt proxy first, then direct
-      const [resArabic, resTrans, resAudio] = await Promise.all([
+      // Fetch Quran Arabic text & translation
+      const [resArabic, resTrans] = await Promise.all([
         fetch(`/api/proxy/alquran/page/${pageNumber}/quran-uthmani`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/quran-uthmani`)),
-        fetch(`/api/proxy/alquran/page/${pageNumber}/en.sahih`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/en.sahih`)),
-        fetch(`/api/proxy/alquran/page/${pageNumber}/${reciterCdn}`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/${reciterCdn}`))
+        fetch(`/api/proxy/alquran/page/${pageNumber}/en.sahih`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/en.sahih`))
       ]);
 
-      const [dataArabic, dataTrans, dataAudio] = await Promise.all([
+      const [dataArabic, dataTrans] = await Promise.all([
         resArabic.json().catch(() => ({ code: 500 })),
-        resTrans.json().catch(() => ({ data: { ayahs: [] } })),
-        resAudio.json().catch(() => ({ data: { ayahs: [] } }))
+        resTrans.json().catch(() => ({ data: { ayahs: [] } }))
       ]);
 
       if (dataArabic.code === 200 && dataArabic.data?.ayahs) {
         const arabicAyahs = dataArabic.data.ayahs;
         const transAyahs = dataTrans.data?.ayahs || [];
-        const audioAyahs = dataAudio.data?.ayahs || [];
 
         const parsed: PageAyah[] = arabicAyahs.map((a: any, idx: number) => {
           const rawWords = a.text.trim().split(/\s+/).filter(Boolean);
@@ -1073,7 +1085,7 @@ Rules:
             surahEnglishName: a.surah.englishName,
             text: a.text,
             translation: transAyahs[idx]?.text || '',
-            audioUrl: audioAyahs[idx]?.audio || `https://cdn.islamic.network/quran/audio/128/${reciterCdn}/${a.number}.mp3`,
+            audioUrl: `https://cdn.islamic.network/quran/audio/128/${reciterCdn}/${a.number}.mp3`,
             juz: a.juz,
             page: pageNumber,
             isRecited: false,
@@ -1215,7 +1227,9 @@ Rules:
 
         setCurrentPageNumber(topMatch.page);
         fetchPage(topMatch.page, topMatch.numberInSurah);
-        showToast(`🎯 Tarteel Detected: Page ${topMatch.page} • Surah ${topMatch.surah.englishName} (Ayah ${topMatch.numberInSurah})`);
+        setCase1Locked(true);
+        setIsAutoDetecting(false);
+        showToast(`🔒 Auto-Detected & Locked: Surah ${topMatch.surah.englishName} Ayah ${topMatch.numberInSurah} (Page ${topMatch.page}) — Following Along!`);
         return true;
       }
     } catch {}
@@ -1237,7 +1251,7 @@ Rules:
         try { recognitionRef.current.abort(); } catch {}
       }
 
-      setIsAutoDetecting(autoDetect);
+      setIsAutoDetecting(autoDetect && !case1Locked);
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
@@ -1261,14 +1275,17 @@ Rules:
         setSpokenTranscript(cleanSpeech);
 
         if (cleanSpeech) {
-          if (isAutoDetecting || tarteelMode === 'case1_detective') {
+          // Case 1 Auto-Detect: Analyzes ~3 verses of speech, then locks onto that specific Ayah and follows along
+          if ((isAutoDetecting || tarteelMode === 'case1_detective') && !case1Locked) {
             const detected = await tryDetectSurahFromSpeech(cleanSpeech);
             if (detected) {
+              setCase1Locked(true);
               setIsAutoDetecting(false);
               return;
             }
           }
 
+          // Strict Follow-Along (Case 1 after lock, Case 2 Live Correction, Case 3 Blind Reveal)
           processSpokenOnPage(cleanSpeech);
         }
       };
@@ -2035,7 +2052,11 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
         }`}>
           <div className="flex items-center gap-1 flex-1 min-w-[280px] overflow-x-auto">
             <button
-              onClick={() => setTarteelMode('case1_detective')}
+              onClick={() => {
+                setTarteelMode('case1_detective');
+                setCase1Locked(false);
+                setIsAutoDetecting(true);
+              }}
               className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 tarteelMode === 'case1_detective'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md font-black'
@@ -2047,7 +2068,11 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
             </button>
 
             <button
-              onClick={() => setTarteelMode('case2_correction')}
+              onClick={() => {
+                setTarteelMode('case2_correction');
+                setCase1Locked(false);
+                setIsAutoDetecting(false);
+              }}
               className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 tarteelMode === 'case2_correction' || tarteelMode === 'live_highlight'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md font-black'
@@ -2059,7 +2084,11 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
             </button>
 
             <button
-              onClick={() => setTarteelMode('case3_reveal')}
+              onClick={() => {
+                setTarteelMode('case3_reveal');
+                setCase1Locked(false);
+                setIsAutoDetecting(false);
+              }}
               className={`flex-1 min-w-[130px] py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 tarteelMode === 'case3_reveal' || tarteelMode === 'hide_all_reveal'
                   ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-md font-black'
@@ -2071,7 +2100,11 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
             </button>
 
             <button
-              onClick={() => setTarteelMode('first_letters')}
+              onClick={() => {
+                setTarteelMode('first_letters');
+                setCase1Locked(false);
+                setIsAutoDetecting(false);
+              }}
               className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 tarteelMode === 'first_letters'
                   ? 'bg-purple-500 text-white shadow-md font-black'
@@ -2131,7 +2164,7 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
                     if (isListening) {
                       stopListening();
                     } else {
-                      startListening(tarteelMode === 'case1_detective');
+                      startListening(tarteelMode === 'case1_detective' && !case1Locked);
                     }
                   }}
                   className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white transition-all cursor-pointer shadow-2xl ${
@@ -2159,17 +2192,17 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
                   {isListening
                     ? 'Reciting live on page...'
                     : tarteelMode === 'case1_detective'
-                    ? 'Case 1: Auto-Detect & Follow Along'
+                    ? (case1Locked ? 'Case 1: Locked & Following Along' : 'Case 1: Auto-Detect & Follow Along')
                     : tarteelMode === 'case2_correction'
-                    ? 'Case 2: Live Correction for Selected Surah'
-                    : 'Case 3: Sacred Blank Memory Reveal'}
+                    ? 'Case 2: Live Correction (No Auto-Detect)'
+                    : 'Case 3: Sacred Blank Memory Reveal (Hidden Ayahs)'}
                 </h3>
                 <p className="text-xs opacity-70">
                   {tarteelMode === 'case1_detective'
-                    ? 'Recite any ayah from anywhere in the Quran to identify and open that page instantly'
+                    ? 'Recite ~3 verses from anywhere in the Quran to identify, lock onto that exact Ayah, and follow along'
                     : tarteelMode === 'case2_correction'
-                    ? 'Recite with real-time green highlights & instant Tajweed corrections'
-                    : 'Ayahs are cloaked in sacred parchment. Recite each verse to reveal it!'}
+                    ? 'Pick your Surah. Tarteel follows strictly along with NO auto-detection, providing live Tajweed correction'
+                    : 'Ayahs are hidden. Recite from memory without auto-detect — each correct word is revealed in glowing text!'}
                 </p>
               </div>
             </div>
@@ -2235,17 +2268,27 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mt-3 p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg"
+              className="mt-3 p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg"
             >
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-400 animate-spin" />
                 <span className="font-bold">
-                  🎯 Recitation Identified: Surah {detectedSurahBanner.surahName} ({detectedSurahBanner.surahArabicName}) • Page {detectedSurahBanner.page}
+                  🔒 Locked: Surah {detectedSurahBanner.surahName} ({detectedSurahBanner.surahArabicName}) Ayah {detectedSurahBanner.ayahNumber} • Page {detectedSurahBanner.page}
                 </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-[10px] font-black uppercase text-emerald-200">
-                Continuous Flow Active 🌊
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-[10px] font-black uppercase text-emerald-200">
+                  Continuous Flow Active 🌊
+                </span>
+                {tarteelMode === 'case1_detective' && (
+                  <button
+                    onClick={handleUnlockCase1}
+                    className="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    Unlock / Re-analyze
+                  </button>
+                )}
+              </div>
             </motion.div>
           )}
 
@@ -2406,7 +2449,26 @@ Provide a structured, deep, spiritually uplifting Tajweed Audit. Return ONLY val
                                 return (
                                   <span
                                     key={word.id}
-                                    className={`inline-block mx-[2px] transition-colors duration-150 ${wordColor}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveAyahPageIdx(aIdx);
+                                      setActiveWordIdx(wIdx);
+                                      if (word.status === 'mistake') {
+                                        const analysis = getTajweedProblemAnalysis(word.arabic, word.detectedSpoken || '');
+                                        setActiveTajweedTip({
+                                          word: word.arabic,
+                                          reason: word.problemReason || 'Pronunciation discrepancy',
+                                          tip: word.tajweedTip || analysis.tip
+                                        });
+                                      } else {
+                                        // Quick peek reveal if hidden
+                                        if (tarteelMode === 'case3_reveal' || tarteelMode === 'hide_all_reveal') {
+                                          showToast(`📖 Word Hint: ${word.arabic}`);
+                                        }
+                                      }
+                                    }}
+                                    className={`inline-block mx-[2px] transition-colors duration-150 cursor-pointer hover:opacity-80 active:scale-95 ${wordColor}`}
+                                    title={`Ayah ${ayah.numberInSurah} - Word ${wIdx + 1}: ${word.arabic}`}
                                   >
                                     {displayText}
                                   </span>

@@ -56,6 +56,7 @@ import { STARTER_MARKET_LISTINGS } from '../data/marketData';
 import { shareService } from '../services/shareService';
 import { ActivityLoggerService } from '../services/activityLoggerService';
 import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal';
+import { notificationService } from '../services/notificationService';
 import { 
   collection, 
   addDoc, 
@@ -836,6 +837,14 @@ export default function MarketView({
       });
       setPurchaseSuccessToast(newListing.isDigital ? '📥 Alhamdulillah! Your downloadable digital resource is now live in the marketplace.' : '✨ Alhamdulillah! Your listing has been published to Suq Al-Mubaraki.');
       setTimeout(() => setPurchaseSuccessToast(null), 4500);
+
+      // Trigger notification signal for new marketplace product
+      notificationService.notifyNewMarketProduct(
+        payload.title,
+        payload.price ? `$${payload.price}` : `${payload.coinPrice || 0} Coins`,
+        payload.sellerName || 'Verified Merchant',
+        newLocalItem.id
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'listings');
     } finally {

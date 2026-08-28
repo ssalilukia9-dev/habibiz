@@ -836,49 +836,180 @@ Your output MUST be a valid JSON array of these objects. Do not include markdown
     res.json({ status: "ok" });
   });
 
+  // In-memory cache for Quran text, translations, and prayer times (Static / High TTL)
+  const quranProxyCache = new Map<string, { data: any; timestamp: number }>();
+  const quranInFlight = new Map<string, Promise<any>>();
+  const aladhanProxyCache = new Map<string, { data: any; timestamp: number }>();
+  const aladhanInFlight = new Map<string, Promise<any>>();
+
+  const MAX_CACHE_SIZE = 2500;
+  const QURAN_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (Quran text & translations are immutable)
+  const ALADHAN_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
   // Aladhan Prayer Times Proxy
   app.get("/api/proxy/aladhan/*", async (req, res) => {
     try {
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/aladhan\//, '');
-      const targetUrl = `https://api.aladhan.com/v1/${subPath}`;
-      console.log(`Proxying Aladhan request to: ${targetUrl}`);
-      const response = await fetch(targetUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json"
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Upstream returned status ${response.status}`);
+      const cacheKey = subPath;
+
+      // 1. Check Cache
+      const cached = aladhanProxyCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < ALADHAN_CACHE_TTL)) {
+        res.setHeader("X-Proxy-Cache", "HIT");
+        return res.json(cached.data);
       }
-      const data = await response.json();
-      res.json(data);
+
+      // 2. Coalesce in-flight requests
+      if (!aladhanInFlight.has(cacheKey)) {
+        const fetchPromise = (async () => {
+          const targetUrl = `https://api.aladhan.com/v1/${subPath}`;
+          let attempts = 0;
+          while (attempts < 2) {
+            try {
+              attempts++;
+              const response = await fetch(targetUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                  "Accept": "application/json"
+                }
+              });
+
+              if (response.status === 429) {
+                // Rate limited by Aladhan, wait 300ms and retry once
+                await new Promise(r => setTimeout(r, 300));
+                continue;
+              }
+
+              if (response.status === 404) {
+                return { status: 404, data: { code: 404, status: "Not Found", data: null } };
+              }
+
+              if (!response.ok) {
+                return { status: response.status, data: { code: response.status, status: "Error", data: null } };
+              }
+
+              const data = await response.json();
+              if (aladhanProxyCache.size >= MAX_CACHE_SIZE) {
+                const firstKey = aladhanProxyCache.keys().next().value;
+                if (firstKey) aladhanProxyCache.delete(firstKey);
+              }
+              aladhanProxyCache.set(cacheKey, { data, timestamp: Date.now() });
+              return { status: 200, data };
+            } catch (err: any) {
+              if (attempts >= 2) throw err;
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+          throw new Error("Failed after retry attempts");
+        })().finally(() => {
+          aladhanInFlight.delete(cacheKey);
+        });
+
+        aladhanInFlight.set(cacheKey, fetchPromise);
+      }
+
+      const result = await aladhanInFlight.get(cacheKey)!;
+      return res.status(result.status || 200).json(result.data);
     } catch (err: any) {
-      console.error("Aladhan proxy error:", err);
-      res.status(502).json({ error: "Failed to fetch from prayer times service", details: err?.message });
+      console.warn("Aladhan proxy warning:", err?.message || err);
+      // If stale cache exists, serve it gracefully
+      const stale = aladhanProxyCache.get(req.originalUrl.replace(/^\/api\/proxy\/aladhan\//, ''));
+      if (stale) {
+        return res.json(stale.data);
+      }
+      res.status(502).json({ code: 502, error: "Failed to fetch from prayer times service", details: err?.message });
     }
   });
 
-  // Alquran Cloud Proxy
+  // Resilient Alquran Cloud Proxy with in-memory caching, in-flight deduplication, and 429/404 handling
   app.get("/api/proxy/alquran/*", async (req, res) => {
     try {
       const subPath = req.originalUrl.replace(/^\/api\/proxy\/alquran\//, '');
-      const targetUrl = `https://api.alquran.cloud/v1/${subPath}`;
-      console.log(`Proxying Alquran request to: ${targetUrl}`);
-      const response = await fetch(targetUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json"
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Upstream returned status ${response.status}`);
+      const cacheKey = subPath;
+
+      // 1. Check in-memory cache
+      const cached = quranProxyCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < QURAN_CACHE_TTL)) {
+        res.setHeader("X-Proxy-Cache", "HIT");
+        return res.json(cached.data);
       }
-      const data = await response.json();
-      res.json(data);
+
+      // 2. Coalesce concurrent identical in-flight requests (avoids burst 429s)
+      if (!quranInFlight.has(cacheKey)) {
+        const fetchPromise = (async () => {
+          const targetUrl = `https://api.alquran.cloud/v1/${subPath}`;
+          let attempts = 0;
+          const maxAttempts = 3;
+
+          while (attempts < maxAttempts) {
+            try {
+              attempts++;
+              const response = await fetch(targetUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                  "Accept": "application/json"
+                }
+              });
+
+              if (response.status === 429) {
+                // Rate limited upstream: wait with jitter and retry
+                const delay = 250 * attempts + Math.floor(Math.random() * 150);
+                await new Promise(r => setTimeout(r, delay));
+                continue;
+              }
+
+              if (response.status === 404) {
+                // Return clean 404 without throwing server 502
+                const notFoundPayload = { code: 404, status: "Not Found", data: null };
+                return { status: 404, data: notFoundPayload };
+              }
+
+              if (!response.ok) {
+                if (attempts < maxAttempts && response.status >= 500) {
+                  await new Promise(r => setTimeout(r, 300));
+                  continue;
+                }
+                return { status: response.status, data: { code: response.status, status: "Upstream Error", data: null } };
+              }
+
+              const data = await response.json();
+              
+              // Evict oldest if cache exceeds max size
+              if (quranProxyCache.size >= MAX_CACHE_SIZE) {
+                const firstKey = quranProxyCache.keys().next().value;
+                if (firstKey) quranProxyCache.delete(firstKey);
+              }
+
+              quranProxyCache.set(cacheKey, { data, timestamp: Date.now() });
+              return { status: 200, data };
+            } catch (networkErr: any) {
+              if (attempts >= maxAttempts) throw networkErr;
+              await new Promise(r => setTimeout(r, 300 * attempts));
+            }
+          }
+
+          // If exhausted retries, check if we have any stale data
+          const fallback = quranProxyCache.get(cacheKey);
+          if (fallback) {
+            return { status: 200, data: fallback.data };
+          }
+          return { status: 503, data: { code: 503, status: "Service Temporarily Busy", data: null } };
+        })().finally(() => {
+          quranInFlight.delete(cacheKey);
+        });
+
+        quranInFlight.set(cacheKey, fetchPromise);
+      }
+
+      const result = await quranInFlight.get(cacheKey)!;
+      return res.status(result.status || 200).json(result.data);
     } catch (err: any) {
-      console.error("Alquran proxy error:", err);
-      res.status(502).json({ error: "Failed to fetch from Quran service", details: err?.message });
+      console.warn("Alquran proxy warning:", err?.message || err);
+      const stale = quranProxyCache.get(req.originalUrl.replace(/^\/api\/proxy\/alquran\//, ''));
+      if (stale) {
+        return res.json(stale.data);
+      }
+      res.status(502).json({ code: 502, error: "Failed to fetch from Quran service", details: err?.message });
     }
   });
 

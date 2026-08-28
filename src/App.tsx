@@ -101,6 +101,8 @@ import BabyNamesView from './components/BabyNamesView.tsx';
 import ThemeCustomizerView from './components/ThemeCustomizerView.tsx';
 import KhatamJourneyView from './components/KhatamJourneyView.tsx';
 import AliyahMemoriseView from './components/AliyahMemoriseView.tsx';
+import FiveDailyPrayersView from './components/FiveDailyPrayersView.tsx';
+import FivePillarsView from './components/FivePillarsView.tsx';
 import AboutCreatorsView from './components/AboutCreatorsView.tsx';
 import GlobalNavigationControls from './components/GlobalNavigationControls.tsx';
 import { ThemeService } from './services/themeService.ts';
@@ -627,6 +629,36 @@ export default function App() {
       window.removeEventListener('sanctuary_direct_alert', handleDirectAlertEvent);
     };
   }, [currentUser]);
+
+  // Global Admin Broadcast Listener (Receives live broadcasts for all users across the Hub)
+  useEffect(() => {
+    let isInitial = true;
+    const q = query(
+      collection(db, 'announcements'),
+      orderBy('createdAt', 'desc'),
+      limit(5)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (isInitial) {
+        isInitial = false;
+        return;
+      }
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          const title = data.title || 'Sanctuary Announcement';
+          const message = data.message || '';
+          const type = data.type || 'system';
+          notificationService.notify(title, message, type, '/notifications');
+        }
+      });
+    }, (err) => {
+      console.warn("Announcements stream warning:", err);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Daily login reward: Triggered strictly once per calendar day on entering the app
   useEffect(() => {
@@ -2130,29 +2162,73 @@ export default function App() {
                       </div>
                     } />
                     <Route path="/market" element={
-                      <div id="tour-market-container">
-                        <MarketView 
-                          searchQuery={searchQuery} 
-                          setSearchQuery={setSearchQuery} 
+                      (isPremium || !trialExpired) ? (
+                        <div id="tour-market-container">
+                          <MarketView 
+                            searchQuery={searchQuery} 
+                            setSearchQuery={setSearchQuery} 
+                            currentUser={currentUser}
+                            currentHasanat={hasanat}
+                            onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                          />
+                        </div>
+                      ) : (
+                        <TrialExpiredPaywallModal
                           currentUser={currentUser}
-                          currentHasanat={hasanat}
-                          onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                          featureName="Halal Marketplace & Bazaar"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
                         />
-                      </div>
+                      )
                     } />
                     <Route path="/market/:productId" element={
-                      <div id="tour-market-container">
-                        <MarketView 
-                          detailMode 
-                          searchQuery={searchQuery} 
-                          setSearchQuery={setSearchQuery} 
+                      (isPremium || !trialExpired) ? (
+                        <div id="tour-market-container">
+                          <MarketView 
+                            detailMode 
+                            searchQuery={searchQuery} 
+                            setSearchQuery={setSearchQuery} 
+                            currentUser={currentUser}
+                            currentHasanat={hasanat}
+                            onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                          />
+                        </div>
+                      ) : (
+                        <TrialExpiredPaywallModal
                           currentUser={currentUser}
-                          currentHasanat={hasanat}
-                          onHasanatDeducted={(amt) => setHasanat(prev => Math.max(0, prev - amt))}
+                          featureName="Halal Marketplace & Bazaar"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
                         />
-                      </div>
+                      )
                     } />
-                    <Route path="/bookmarks" element={<BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />} />
+                    <Route path="/bookmarks" element={
+                      (isPremium || !trialExpired) ? (
+                        <BookmarksView bookmarks={bookmarks} onRemoveBookmark={toggleBookmark} onNavigate={handleNavigate} />
+                      ) : (
+                        <TrialExpiredPaywallModal
+                          currentUser={currentUser}
+                          featureName="Sacred Bookmarks & Notes"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
+                        />
+                      )
+                    } />
                     <Route path="/leaderboard" element={
                       (isPremium || !trialExpired) ? (
                         <div id="tour-leaderboard-container">
@@ -2436,6 +2512,60 @@ export default function App() {
                     <Route path="/about-creators" element={<AboutCreatorsView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
                     <Route path="/about" element={<AboutCreatorsView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
                     <Route path="/creators" element={<AboutCreatorsView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
+                    <Route path="/prayers" element={<FiveDailyPrayersView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
+                    <Route path="/prayers-guide" element={<FiveDailyPrayersView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
+                    <Route path="/five-prayers" element={<FiveDailyPrayersView onBack={() => navigate('/home')} addHasanat={addHasanat} />} />
+                    <Route path="/pillars" element={
+                      (isPremium || !trialExpired) ? (
+                        <FivePillarsView onBack={() => navigate('/home')} addHasanat={addHasanat} />
+                      ) : (
+                        <TrialExpiredPaywallModal
+                          currentUser={currentUser}
+                          featureName="5 Sacred Pillars of Islam Deep Study"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
+                        />
+                      )
+                    } />
+                    <Route path="/five-pillars" element={
+                      (isPremium || !trialExpired) ? (
+                        <FivePillarsView onBack={() => navigate('/home')} addHasanat={addHasanat} />
+                      ) : (
+                        <TrialExpiredPaywallModal
+                          currentUser={currentUser}
+                          featureName="5 Sacred Pillars of Islam Deep Study"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
+                        />
+                      )
+                    } />
+                    <Route path="/arkan" element={
+                      (isPremium || !trialExpired) ? (
+                        <FivePillarsView onBack={() => navigate('/home')} addHasanat={addHasanat} />
+                      ) : (
+                        <TrialExpiredPaywallModal
+                          currentUser={currentUser}
+                          featureName="5 Sacred Pillars of Islam Deep Study"
+                          onUnlocked={() => {
+                            setIsPremium(true);
+                            setPremiumActivatedAt(new Date());
+                          }}
+                          onOpenFullGateway={() => setShowPremiumGateway(true)}
+                          onContinueFree={() => navigate('/home')}
+                          onClose={() => navigate('/home')}
+                        />
+                      )
+                    } />
                     <Route path="/ummah" element={
                       (isPremium || !trialExpired) ? (
                         <UmmahHubView searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} />

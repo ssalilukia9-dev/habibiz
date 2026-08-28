@@ -39,6 +39,8 @@ import {
   Check,
   Award,
   Heart,
+  Sunrise,
+  Landmark,
   Lock
 } from 'lucide-react';
 import QuranView from './QuranView.tsx';
@@ -62,11 +64,14 @@ import QiblaView from './QiblaView.tsx';
 import HijriCalendarView from './HijriCalendarView.tsx';
 import HifzMemorizeView from './HifzMemorizeView.tsx';
 import KhatamJourneyView from './KhatamJourneyView.tsx';
+import FiveDailyPrayersView from './FiveDailyPrayersView.tsx';
+import FivePillarsView from './FivePillarsView.tsx';
 import TrialExpiredPaywallModal from './TrialExpiredPaywallModal.tsx';
 import { Surah, Ayah } from '../types.ts';
 
 import OfflineManagerView from './OfflineManagerView.tsx';
 import NotificationsView from './NotificationsView.tsx';
+import SanctuaryOSCore from './SanctuaryOSCore.tsx';
 
 interface ResourcesViewProps {
   selectedSurah: Surah | null;
@@ -89,7 +94,7 @@ interface ResourcesViewProps {
   currentUser: any;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system' | 'marriage_duas' | 'dua_categories';
+type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system' | 'marriage_duas' | 'dua_categories' | 'five_prayers' | 'prayers_guide' | 'prayers' | 'five_pillars' | 'pillars' | 'arkan';
 
 export default function ResourcesView({
   selectedSurah,
@@ -121,21 +126,19 @@ export default function ResourcesView({
   const location = useLocation();
 
   const FREE_RESOURCE_IDS = [
-    'quran',
-    'prayer_times',
-    'mosques',
     'qibla',
+    'prayer_times',
+    'prayers',
+    'five_prayers',
+    'prayers_guide',
     'tasbih',
     'tools',
-    'adhkar',
-    'names',
-    'marriage_duas',
-    'dua_categories',
     'calendar',
-    'offline',
+    'calendar_view',
+    'adhkar',
     'creators',
     'about-creators',
-    'chat'
+    'about'
   ];
 
   useEffect(() => {
@@ -167,12 +170,16 @@ export default function ResourcesView({
   };
 
   useEffect(() => {
-    if (initialResId) {
-      setActiveRes(initialResId);
-    } else if (location.state?.activeRes) {
-      setActiveRes(location.state.activeRes);
+    const target = initialResId || location.state?.activeRes;
+    if (target) {
+      if (!isPremium && !FREE_RESOURCE_IDS.includes(target)) {
+        setLockedFeatureModal(target);
+        setActiveRes(null);
+      } else {
+        setActiveRes(target as TabType);
+      }
     }
-  }, [initialResId, location.state]);
+  }, [initialResId, location.state, isPremium]);
 
   const categories = [
     {
@@ -201,6 +208,7 @@ export default function ResourcesView({
     {
       title: 'DEEN',
       cards: [
+        { id: 'five_pillars', title: '5 Pillars of Islam', icon: Landmark, image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=800' },
         { id: 'prayer_times', title: 'Prayer Times', icon: Clock, image: 'https://images.unsplash.com/photo-1565552645632-d725f8bfc19a?auto=format&fit=crop&q=80&w=800' },
         { id: 'quran', title: 'Quran', icon: BookOpen, image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800' },
         { id: 'tasbih', title: 'Tasbih', icon: History, image: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=800' },
@@ -499,104 +507,10 @@ export default function ResourcesView({
                 transition={{ duration: 0.3 }}
               >
                  {(activeRes as any) === 'system' && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                       <div className="glass-panel p-10 rounded-[3rem] border-white/5 bg-brand-sidebar/40">
-                          <div className="flex flex-col md:flex-row items-center gap-8 mb-12">
-                             <div className="w-20 h-20 bg-brand-primary/10 rounded-[2rem] flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
-                                <Activity size={40} />
-                             </div>
-                             <div className="text-center md:text-left">
-                                <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-2">Sanctuary <span className="text-brand-primary">OS</span> Core</h2>
-                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.4em]">Notification System Architecture v2.0</p>
-                             </div>
-                          </div>
-
-                          {/* Architecture Diagram */}
-                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
-                             {/* Arrows between columns on desktop */}
-                             <div className="hidden lg:block absolute top-1/2 left-1/3 -translate-y-1/2 w-12 h-px bg-gradient-to-r from-brand-primary/50 to-transparent z-0" />
-                             <div className="hidden lg:block absolute top-1/2 left-2/3 -translate-y-1/2 w-12 h-px bg-gradient-to-r from-brand-primary/50 to-transparent z-0" />
-
-                             {/* Column 1: Sources */}
-                             <div className="space-y-4 relative z-10">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Event Sources</p>
-                                {[
-                                  { icon: <Clock size={16} />, title: 'Prayer Engine', desc: 'Local Scheduler (30s Tick)', color: 'amber' },
-                                  { icon: <Share2 size={16} />, title: 'Cloud Sync', desc: 'Firebase FCM Listeners', color: 'blue' },
-                                  { icon: <MessageCircle size={16} />, title: 'Community', desc: 'Real-time WebSocket', color: 'emerald' }
-                                ].map((item, i) => (
-                                  <div key={i} className="p-5 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-primary/20 transition-all group">
-                                     <div className={`w-10 h-10 rounded-xl bg-${item.color}-500/10 text-${item.color}-500 flex items-center justify-center mb-4`}>
-                                        {item.icon}
-                                     </div>
-                                     <h4 className="text-sm font-bold text-white mb-1">{item.title}</h4>
-                                     <p className="text-[10px] text-slate-500 font-medium">{item.desc}</p>
-                                  </div>
-                                ))}
-                             </div>
-
-                             {/* Column 2: Logic Center */}
-                             <div className="space-y-4 relative z-10">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Middleware Logic</p>
-                                <div className="p-8 bg-brand-primary/5 border border-brand-primary/20 rounded-[2.5rem] h-full flex flex-col items-center justify-center text-center space-y-6">
-                                   <div className="w-16 h-16 bg-brand-primary rounded-3xl flex items-center justify-center text-brand-depth shadow-2xl shadow-brand-primary/30">
-                                      <Terminal size={32} />
-                                   </div>
-                                   <div>
-                                      <h4 className="text-lg font-black text-white italic uppercase mb-2">Signal Dispatcher</h4>
-                                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                                        Validates user preferences, checks "Do Not Disturb" windows, and selects target interface layer (Heads-up vs Background).
-                                      </p>
-                                   </div>
-                                   <div className="w-full h-px bg-white/5" />
-                                   <div className="flex gap-2">
-                                      <span className="px-3 py-1 bg-white/5 rounded-lg text-[8px] font-black text-brand-primary uppercase tracking-widest tracking-tighter">Prioritizing...</span>
-                                      <span className="px-3 py-1 bg-white/5 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-widest tracking-tighter">Halal Filtered</span>
-                                   </div>
-                                </div>
-                             </div>
-
-                             {/* Column 3: Output Channels */}
-                             <div className="space-y-4 relative z-10">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-4">Output Layers</p>
-                                <div className="p-6 bg-white/5 border border-white/5 rounded-2xl space-y-6">
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-brand-primary">
-                                         <Bell size={20} />
-                                      </div>
-                                      <div>
-                                         <h4 className="text-xs font-black text-white uppercase tracking-widest">Heads-Up Banner</h4>
-                                         <p className="text-[9px] text-slate-500 font-bold uppercase italic">In-App Foreground</p>
-                                      </div>
-                                   </div>
-                                   <div className="p-4 bg-brand-depth/40 rounded-xl border border-white/5">
-                                      <div className="w-full h-1 bg-white/10 rounded-full mb-3" />
-                                      <div className="flex gap-2">
-                                         <div className="w-4 h-4 rounded-full bg-brand-primary" />
-                                         <div className="flex-1 h-2 bg-white/5 rounded-full" />
-                                      </div>
-                                   </div>
-                                </div>
-
-                                <div className="p-6 bg-white/5 border border-white/5 rounded-2xl space-y-6">
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-500">
-                                         <Smartphone size={20} />
-                                      </div>
-                                      <div>
-                                         <h4 className="text-xs font-black text-white uppercase tracking-widest">Push Alert (FCM)</h4>
-                                         <p className="text-[9px] text-slate-500 font-bold uppercase italic">System Background</p>
-                                      </div>
-                                   </div>
-                                   <div className="grid grid-cols-2 gap-2">
-                                      <div className="h-10 bg-white/5 rounded-lg flex items-center justify-center text-[8px] font-black text-slate-600 uppercase tracking-widest">Android</div>
-                                      <div className="h-10 bg-white/5 rounded-lg flex items-center justify-center text-[8px] font-black text-slate-600 uppercase tracking-widest">iOS</div>
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                       </div>
-                    </div>
+                    <SanctuaryOSCore 
+                      currentUser={currentUser} 
+                      onBack={() => setActiveRes(null)} 
+                    />
                  )}
                  {activeRes === 'quran' && (
                    <QuranView 
@@ -878,6 +792,9 @@ export default function ResourcesView({
                     </div>
                   )}
                   {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
+                 {((activeRes as string) === 'five_pillars' || (activeRes as string) === 'pillars' || (activeRes as string) === 'arkan' || (activeRes as string) === 'five_prayers' || (activeRes as string) === 'prayers_guide' || (activeRes as string) === 'prayers') && (
+                   <FivePillarsView onBack={() => setActiveRes(null)} addHasanat={addHasanat} />
+                 )}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {activeRes === 'mosques' && <NearbyMosquesMap />}
                   {activeRes === 'qibla' && <QiblaView />}

@@ -37,7 +37,8 @@ import {
   Globe,
   Share2,
   Music2,
-  ZoomIn
+  ZoomIn,
+  Landmark
 } from 'lucide-react';
 import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
 import { getDailyHadith } from '../data/hadiths.ts';
@@ -59,6 +60,8 @@ import {
   DailyBannerData 
 } from '../services/dailyBannerService.ts';
 import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal.tsx';
+import MindEasingHopeBeacon from './MindEasingHopeBeacon.tsx';
+import QuickSanctuaryExplorer from './QuickSanctuaryExplorer.tsx';
 
 // Comprehensive Hijri Month metadata with English transliteration, meaning, and sacred status
 const HIJRI_MONTHS_MAP: Record<number, { en: string; ar: string; meaning: string; sacred: boolean }> = {
@@ -127,6 +130,8 @@ export default function HomeView({
 
   // 🖼️ Media Lightbox Modal State
   const [isBannerLightboxOpen, setIsBannerLightboxOpen] = useState(false);
+  // 🕊️ 15-Second Heart-at-Ease Spotlight State (Appears on start for 15s, then Ayah of Day re-appears)
+  const [showHeartAtEase, setShowHeartAtEase] = useState<boolean>(true);
 
   useEffect(() => {
     const unsubVoice = VoiceService.subscribe(setVoicePlayback);
@@ -728,8 +733,30 @@ export default function HomeView({
         </div>
       </div>
       
-      {/* 1. OFFICIAL SANCTUARY PARTNER RIBBON (Animated Card 1) */}
+      {/* 0. FLOATING HEART-EASING HOPE BEACON (15s Floating Spotlight that floats over screen without displacing page layout) */}
+      <AnimatePresence>
+        {showHeartAtEase ? (
+          <motion.div 
+            initial={{ opacity: 0, y: -24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -24, scale: 0.95 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed top-20 right-3 sm:right-6 md:right-8 z-50 max-w-xl w-[calc(100vw-1.5rem)] sm:w-[540px] drop-shadow-2xl pointer-events-auto"
+          >
+            <MindEasingHopeBeacon 
+              key="hope-beacon"
+              onClose={() => setShowHeartAtEase(false)}
+              onNavigate={onNavigate} 
+              addHasanat={addHasanat} 
+              durationSeconds={15}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* 1. OFFICIAL SANCTUARY PARTNER RIBBON (Begins the Home Page top as shown in image) */}
       <motion.div 
+        id="tour-official-ribbon"
         initial={{ opacity: 0, y: -16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -777,7 +804,7 @@ export default function HomeView({
         </div>
       </motion.div>
       
-      {/* 2. DYNAMIC DAILY HERO BANNER (Animated Card 2) */}
+      {/* 2. DYNAMIC DAILY HERO BANNER (Ayah of the Day Hero Banner, Card 2 as in image) */}
       <motion.div 
         id="tour-salam-soul"
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -818,7 +845,7 @@ export default function HomeView({
           {/* Top Bar inside Banner: Single Daily Wisdom Header with Daily Rotation Pill + Notification Alert Toggle + Atmosphere */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             {/* Daily Wisdom Rotating Badge & Switcher */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-black/60 border border-amber-500/30 backdrop-blur-xl shadow-inner">
                 {wisdomMode === 'ayah' && <BookOpen size={14} className="text-emerald-400" />}
                 {wisdomMode === 'hadith' && <Sparkles size={14} className="text-amber-400" />}
@@ -830,6 +857,16 @@ export default function HomeView({
                   Daily Auto-Switch
                 </span>
               </div>
+
+              {/* Replay 15s Heart at Ease Spotlight Button */}
+              <button
+                onClick={() => setShowHeartAtEase(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                title="Open 15-Second Heart at Ease Spotlight"
+              >
+                <Sparkles size={11} className="text-emerald-400" />
+                <span>Heart At Ease (15s)</span>
+              </button>
 
               {/* Interchange Button to cycle between Ayah, Hadith, Quote */}
               <button
@@ -1039,6 +1076,9 @@ export default function HomeView({
           </div>
         </div>
       </motion.div>
+
+      {/* 2.1 QUICK SANCTUARY EXPLORER (Breezy light navigation & instant discovery matrix for all features) */}
+      <QuickSanctuaryExplorer onNavigate={onNavigate} />
 
       {/* 3. ARTISTIC PRAYER CONSOLE & SACRED ISLAMIC LUNAR-SOLAR CALENDAR */}
       <div 
@@ -1283,51 +1323,6 @@ export default function HomeView({
         />
       )}
 
-      {/* 4. CURATED ISLAMIC GATEWAY TILES (6-CARD BENTO) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-4 bg-brand-primary rounded-full" />
-            <h3 className="text-sm font-black text-white uppercase tracking-[0.25em]">
-              Sacred Pillars & Gateways
-            </h3>
-          </div>
-          <span className="text-xs text-slate-400 font-medium">Quick Access Sanctuary</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {[
-            { id: 'quran', title: 'Holy Quran', sub: '114 Surahs & Tafsir', icon: BookOpen, color: 'text-amber-400', bg: 'hover:border-amber-400/40' },
-            { id: 'resources', extra: { resId: 'adhkar' }, title: 'Sacred Adhkar', sub: 'Morning & Night Duas', icon: Moon, color: 'text-blue-400', bg: 'hover:border-blue-400/40' },
-            { id: 'companion', title: 'Aliyah AI', sub: 'Spiritual Scholar', icon: MessageCircle, color: 'text-purple-400', bg: 'hover:border-purple-400/40' },
-            { id: 'resources', extra: { resId: 'hajj_umrah' }, title: 'Hajj & Umrah', sub: '3D Virtual Pilgrimage', icon: MapPin, color: 'text-emerald-400', bg: 'hover:border-emerald-400/40' },
-            { id: 'resources', extra: { resId: 'names' }, title: '99 Names', sub: 'Asma ul-Husna', icon: Crown, color: 'text-pink-400', bg: 'hover:border-pink-400/40' },
-            { id: 'resources', extra: { resId: 'qibla' }, title: 'Qibla Compass', sub: 'Sacred Kaaba Direction', icon: Compass, color: 'text-teal-400', bg: 'hover:border-teal-400/40' }
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.title}
-                onClick={() => onNavigate(item.id, item.extra)}
-                className={`p-5 rounded-[2rem] bg-[#061828]/60 hover:bg-[#082238] border border-white/10 flex flex-col items-center text-center space-y-3 transition-all duration-300 group cursor-pointer shadow-lg hover:scale-[1.02] ${item.bg}`}
-              >
-                <div className={`w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform shadow-inner border border-white/5`}>
-                  <Icon size={24} />
-                </div>
-                <div className="space-y-0.5">
-                  <h4 className="text-sm font-black text-white group-hover:text-brand-primary transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    {item.sub}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* 5. DEVOTION STREAK FIRE CARD */}
       <div id="tour-streak-fire" className={`relative overflow-hidden rounded-[2.5rem] p-6 sm:p-7 transition-all duration-500 border ${
         streak >= 7
@@ -1406,7 +1401,7 @@ export default function HomeView({
               Daily Vigor & Actions
             </h3>
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-              Track your 5 daily prayers, prophetic hadith reflection, and Quran recitation.
+              Track your prayers, prophetic hadith reflection, and Quran recitation.
             </p>
           </div>
 
@@ -1429,14 +1424,22 @@ export default function HomeView({
 
         {/* 5 DAILY PRAYERS INTERACTIVE CHECKLIST */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
               <Sunrise size={16} className="text-emerald-400" />
               <span>5 Obligatory Prayers</span>
             </h4>
-            <span className="text-[11px] text-slate-400 font-medium">
-              Tap to complete (+2 Hasanat)
-            </span>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => onNavigate('resources', { resId: 'five_pillars' })}
+                className="text-[11px] font-black text-amber-300 hover:text-amber-200 hover:underline flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span>📖 Explore 5 Pillars of Islam</span>
+              </button>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Tap to complete (+2 Hasanat)
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

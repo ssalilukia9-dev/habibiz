@@ -31,7 +31,7 @@ import {
   Compass,
   XCircle
 } from 'lucide-react';
-import { SURAH_LIST, JUZ_LIST, RECITERS } from '../constants';
+import { SURAH_LIST, JUZ_LIST, RECITERS, getAyahAudioUrl } from '../constants';
 import { FULL_JUZ_LIST } from '../data/juzData';
 import { Ayah, Surah } from '../types';
 
@@ -222,17 +222,14 @@ export default function MushafPageView({
 
     const fetchPageData = async () => {
       try {
-        const reciterSlug = activeReciterObj.slug || 'ar.alafasy';
-        const [arRes, transRes, audioRes] = await Promise.all([
+        const [arRes, transRes] = await Promise.all([
           fetch(`/api/proxy/alquran/page/${currentPage}/quran-uthmani`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${currentPage}/quran-uthmani`)),
-          fetch(`/api/proxy/alquran/page/${currentPage}/en.sahih`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${currentPage}/en.sahih`)),
-          fetch(`/api/proxy/alquran/page/${currentPage}/${reciterSlug}`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${currentPage}/${reciterSlug}`))
+          fetch(`/api/proxy/alquran/page/${currentPage}/en.sahih`).catch(() => fetch(`https://api.alquran.cloud/v1/page/${currentPage}/en.sahih`))
         ]);
 
-        const [arData, transData, audioData] = await Promise.all([
+        const [arData, transData] = await Promise.all([
           arRes.json(),
-          transRes.json().catch(() => ({ data: { ayahs: [] } })),
-          audioRes.json().catch(() => ({ data: { ayahs: [] } }))
+          transRes.json().catch(() => ({ data: { ayahs: [] } }))
         ]);
 
         if (isCancelled) return;
@@ -251,6 +248,8 @@ export default function MushafPageView({
                 status: (idx === 0 && wIdx === 0) ? 'active' : 'unrecited'
               }));
 
+            const audioUrl = getAyahAudioUrl(activeReciterObj, ayah.surah.number, ayah.numberInSurah, ayah.number);
+
             return {
               number: ayah.number,
               numberInSurah: ayah.numberInSurah,
@@ -259,7 +258,7 @@ export default function MushafPageView({
               surahEnglishName: ayah.surah.englishName,
               text: rawText,
               translation: transData?.data?.ayahs?.[idx]?.text || '',
-              audioUrl: audioData?.data?.ayahs?.[idx]?.audio || `https://cdn.islamic.network/quran/audio/128/${reciterSlug}/${ayah.number}.mp3`,
+              audioUrl,
               juz: ayah.juz,
               page: ayah.page || currentPage,
               manzil: ayah.manzil,

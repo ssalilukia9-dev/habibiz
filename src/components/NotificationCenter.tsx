@@ -45,8 +45,22 @@ export default function NotificationCenter() {
       case 'prayer': return <Clock size={16} className="text-brand-primary" />;
       case 'hadith': return <BookOpen size={16} className="text-amber-500" />;
       case 'system': return <Sparkles size={16} className="text-emerald-500" />;
-      case 'community': return <Users size={16} className="text-blue-500" />;
+      case 'community':
+      case 'feed': return <Users size={16} className="text-emerald-400" />;
+      case 'market': return <Sparkles size={16} className="text-amber-400" />;
       default: return <Bell size={16} />;
+    }
+  };
+
+  const handleNotificationClick = (n: AppNotification) => {
+    notificationService.markAsRead(n.id);
+    if (n.actionUrl) {
+      setIsOpen(false);
+      if (n.actionUrl.startsWith('/')) {
+        navigate(n.actionUrl);
+      } else {
+        window.location.href = n.actionUrl;
+      }
     }
   };
 
@@ -130,7 +144,7 @@ export default function NotificationCenter() {
                   notifications.map((n) => (
                     <div 
                       key={n.id}
-                      onClick={() => notificationService.markAsRead(n.id)}
+                      onClick={() => handleNotificationClick(n)}
                       className={`p-4 border-b border-white/5 hover:bg-white/5 transition-all cursor-pointer group relative ${!n.read ? 'bg-brand-primary/[0.02]' : ''}`}
                     >
                       <div className="flex gap-4">

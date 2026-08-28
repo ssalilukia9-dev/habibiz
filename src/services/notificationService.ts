@@ -2,13 +2,21 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import OneSignal from 'react-onesignal';
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  limit, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db } from '../lib/firebase.ts';
 import { calculateTahajjudTimings, getUpcomingWhiteDays } from './islamicScheduleService.ts';
 
 export interface AppNotification {
   id: string;
   title: string;
   body: string;
-  type: 'prayer' | 'hadith' | 'system' | 'community' | 'tahajjud' | 'whitedays';
+  type: 'prayer' | 'hadith' | 'system' | 'community' | 'tahajjud' | 'whitedays' | 'feed' | 'market' | 'khatam' | 'prayers' | 'video';
   timestamp: Date;
   read: boolean;
   actionUrl?: string;
@@ -17,12 +25,97 @@ export interface AppNotification {
 class NotificationService {
   private static instance: NotificationService;
   private notifications: AppNotification[] = [];
+  private announcementUnsubscribe: (() => void) | null = null;
 
   private constructor() {
     this.loadFromStorage();
     this.setupCapacitorListeners();
     this.initChannels();
     this.initOneSignal();
+    this.initAnnouncementWatcher();
+  }
+
+  /**
+   * Watch the 'announcements' collection for new document additions
+   * and trigger local device notifications with custom payload deep-linking to YouTube / Khatam Journey videos.
+   */
+  initAnnouncementWatcher() {
+    if (this.announcementUnsubscribe) {
+      return;
+    }
+
+    try {
+      const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'), limit(20));
+      
+      let isFirstSnapshot = true;
+      const PROCESSED_KEY = 'sanctuary_notified_announcements';
+      const getProcessed = (): Set<string> => {
+        try {
+          const raw = localStorage.getItem(PROCESSED_KEY);
+          return raw ? new Set(JSON.parse(raw)) : new Set();
+        } catch (e) {
+          return new Set();
+        }
+      };
+      const markProcessed = (id: string) => {
+        try {
+          const current = getProcessed();
+          current.add(id);
+          const arr = Array.from(current).slice(-100);
+          localStorage.setItem(PROCESSED_KEY, JSON.stringify(arr));
+        } catch (e) {}
+      };
+
+      this.announcementUnsubscribe = onSnapshot(q, (snapshot) => {
+        const processed = getProcessed();
+
+        if (isFirstSnapshot) {
+          // On initialization, register all pre-existing announcements as seen
+          snapshot.docs.forEach((doc) => {
+            markProcessed(doc.id);
+          });
+          isFirstSnapshot = false;
+          return;
+        }
+
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const doc = change.doc;
+            const docId = doc.id;
+            if (processed.has(docId)) return;
+            markProcessed(docId);
+
+            const data = doc.data();
+            const title = data.title || '📢 New Sanctuary Announcement';
+            const message = data.message || data.body || 'A new spiritual update has been posted to the sanctuary.';
+            const type: AppNotification['type'] = (data.type === 'khatam_video' || data.type === 'video') ? 'khatam' : (data.type || 'system');
+            
+            // Build custom payload specifically deep-linking to the new YouTube video posted in Khatam Journey
+            let actionUrl = data.targetUrl || '/?tab=resources&resId=khatam';
+            const videoId = data.videoId || data.youtubeId;
+            const mediaUrl = data.mediaUrl || data.url;
+
+            if (data.type === 'khatam_video' || videoId || (mediaUrl && (mediaUrl.includes('youtu.be') || mediaUrl.includes('youtube.com')))) {
+              if (videoId) {
+                actionUrl = `/?tab=resources&resId=khatam&video=${encodeURIComponent(videoId)}`;
+              } else if (mediaUrl) {
+                actionUrl = `/?tab=resources&resId=khatam&mediaUrl=${encodeURIComponent(mediaUrl)}`;
+              } else {
+                actionUrl = '/?tab=resources&resId=khatam';
+              }
+            }
+
+            // Trigger local device notification across Native Capacitor, Median bridge, and Web Notification APIs
+            this.notify(title, message, type, actionUrl);
+            console.log(`[NotificationService] New announcement received & notified: ${docId}`, { title, actionUrl });
+          }
+        });
+      }, (err) => {
+        console.warn("[NotificationService] Announcements listener error:", err);
+      });
+    } catch (e) {
+      console.warn("[NotificationService] Failed to initialize announcement watcher:", e);
+    }
   }
 
   async initOneSignal() {
@@ -961,6 +1054,57 @@ class NotificationService {
     if ('vibrate' in navigator) {
       navigator.vibrate([100, 50, 100]); // Short double pulse
     }
+  }
+
+  async notifyNewFeedPost(author: string, content: string, postId?: string) {
+    const cleanSnippet = content.length > 80 ? `${content.substring(0, 80)}...` : content;
+    await this.notify(
+      `💬 New NoorTalk Story by ${author || 'Community Member'}`,
+      cleanSnippet || 'A new reflection has been shared on the NoorTalk community feed.',
+      'feed',
+      postId ? `/?tab=ummah&view=feed&post=${postId}` : '/?tab=ummah&view=feed'
+    );
+  }
+
+  async notifyCommentReply(replierName: string, replyText: string, postId: string, parentCommentAuthor?: string, isPostOwner?: boolean) {
+    const cleanSnippet = replyText.length > 90 ? `${replyText.substring(0, 90)}...` : replyText;
+    const title = parentCommentAuthor 
+      ? `💬 ${replierName} replied to ${parentCommentAuthor}'s thread`
+      : (isPostOwner ? `💬 ${replierName} replied on your reflection` : `💬 New reply in discussion by ${replierName}`);
+    
+    const body = `"${cleanSnippet}" — Tap to view thread discussion`;
+    const actionUrl = `/?tab=ummah&view=feed&post=${postId}&expand=true#post-${postId}`;
+
+    await this.notify(title, body, 'feed', actionUrl);
+    console.log(`[NotificationService] Comment thread reply notification triggered:`, { title, postId });
+  }
+
+  async notifyNewMarketProduct(title: string, price: string, seller: string, productId?: string) {
+    await this.notify(
+      `🛍️ New Halal Product: ${title}`,
+      `Listed by ${seller || 'Verified Seller'} for ${price || 'Halal Trade'}. Tap to explore in Suq Al-Mubaraki.`,
+      'market',
+      productId ? `/?tab=market&product=${productId}` : '/?tab=market'
+    );
+  }
+
+  async notifyNewKhatamVideo(title: string, speaker?: string, videoId?: string) {
+    const speakerText = speaker ? ` featuring ${speaker}` : '';
+    await this.notify(
+      `📺 New Khatam Journey Video: ${title}`,
+      `New spiritual lecture & reflection${speakerText} is now available in the Khatam Hub.`,
+      'khatam',
+      videoId ? `/?tab=resources&resId=khatam&video=${videoId}` : '/?tab=resources&resId=khatam'
+    );
+  }
+
+  async notifyPrayerReminder(prayerName: string, timeStr: string) {
+    await this.notify(
+      `🕌 Time for ${prayerName} (${timeStr})`,
+      `The sacred window for ${prayerName} prayer has arrived. Turn to Allah and find tranquility.`,
+      'prayers',
+      `/?tab=prayers&prayer=${encodeURIComponent(prayerName)}`
+    );
   }
 
   getNotifications() {

@@ -11,13 +11,13 @@ export interface SpiritualTheme {
   mood: string;
   moodDescription: string;
   reflection: string;
-  category: 'tranquility' | 'devotion' | 'focus' | 'dawn' | 'heritage' | 'custom';
+  category: 'tranquility' | 'devotion' | 'focus' | 'dawn' | 'heritage' | 'custom' | 'light';
   colors: {
     primary: string;       // Main brand accent
     secondary: string;     // Supporting glow / contrast
     accent: string;        // Highlight / badge color
-    depth: string;         // Background midnight obsidian
-    sidebar: string;       // Sidebar & bottom bar deep tone
+    depth: string;         // Background midnight obsidian or light canvas
+    sidebar: string;       // Sidebar & bottom bar deep tone or light sidebar
     border: string;        // Border subtle tint
     text: string;          // Main text light color
     textMuted: string;     // Muted text color
@@ -45,6 +45,50 @@ export interface CustomThemeConfig {
 }
 
 export const CURATED_THEMES: SpiritualTheme[] = [
+  {
+    id: 'light_cool',
+    name: 'Breezy Pearl & Emerald (Light & Cool UI)',
+    arabicTitle: 'النور والسكينة الهوائية',
+    mood: 'Airy, Lighter, Crisp & Serene',
+    moodDescription: 'Ultra-clean light aesthetic inspired by Muslim Pro with crisp emerald and cyan accents, pure daylight readability, and minimal eye strain.',
+    reflection: '“Allah is the Light of the heavens and the earth.” (24:35)',
+    category: 'light',
+    colors: {
+      primary: '#059669',      // Crisp Vivid Emerald Green
+      secondary: '#0284c7',    // Cool Sky Blue
+      accent: '#10b981',       // Mint Radiance
+      depth: '#f8fafc',        // Pure Crisp Light Pearl Canvas
+      sidebar: '#f1f5f9',      // Soft Morning Mist Sidebar
+      border: 'rgba(5, 150, 105, 0.18)',
+      text: '#0f172a',         // Deep High-Contrast Obsidian Slate
+      textMuted: '#475569',    // Refined Slate Medium
+      textDim: '#64748b'       // Subtle Muted Cool Grey
+    },
+    glowColor: 'rgba(5, 150, 105, 0.25)',
+    patternType: 'minimal'
+  },
+  {
+    id: 'light_dawn',
+    name: 'Luminous Fajr & Ivory Gold',
+    arabicTitle: 'فجر النور الذهبي',
+    mood: 'Daylight Radiance & Morning Barakah',
+    moodDescription: 'Bright ivory parchment canvas with warm dawn gold and soft sandalwood accents for uplifting daytime focus.',
+    reflection: '“By the dawn and by the ten nights.” (89:1-2)',
+    category: 'light',
+    colors: {
+      primary: '#b45309',      // Radiant Amber Gold
+      secondary: '#d97706',    // Warm Sunrise Ochre
+      accent: '#f59e0b',       // Golden Starlight
+      depth: '#faf8f5',        // Warm Linen Ivory Canvas
+      sidebar: '#f3ede2',      // Warm Sandstone Sidebar
+      border: 'rgba(180, 83, 9, 0.16)',
+      text: '#1c1917',         // Warm Charcoal
+      textMuted: '#57534e',    // Warm Stone Grey
+      textDim: '#78716c'       // Soft Sand Dune
+    },
+    glowColor: 'rgba(217, 119, 6, 0.2)',
+    patternType: 'arabesque'
+  },
   {
     id: 'aloha',
     name: 'Aloha Royal Gold & Navy',

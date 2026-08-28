@@ -54,10 +54,12 @@ setPersistence(auth, browserLocalPersistence).catch(err => {
   console.error("Persistence setting failed", err);
 });
 
-// Initialize Firestore with auto-detect long polling and offline persistence to prevent iframe/proxy connection timeouts
+// Initialize Firestore with forced long polling and persistent local cache to ensure instant, reliable connectivity across sandboxes and proxy environments
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-  localCache: persistentLocalCache({})
+  experimentalForceLongPolling: true,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export const googleProvider = new GoogleAuthProvider();

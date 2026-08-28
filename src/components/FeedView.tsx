@@ -48,7 +48,8 @@ import {
   Upload,
   Download,
   RefreshCw,
-  Layers
+  Layers,
+  Bell
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
@@ -60,6 +61,7 @@ import ReportPostModal from './ReportPostModal.tsx';
 import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS, compressImageFile, ISLAMIC_IMAGE_PRESETS } from '../services/islamicWisdomService.ts';
 import { AdminConfigService } from '../services/adminConfigService.ts';
 import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal';
+import { notificationService } from '../services/notificationService.ts';
 
 const SIDEBAR_TOPICS = [
   { name: 'General & Life', icon: SmilePlus, count: '3.8k' },
@@ -561,6 +563,21 @@ export default function FeedView({
         });
         setPosts(list);
         setLoading(false);
+
+        // Auto-expand and scroll to linked discussion if URL has post param or hash
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const targetPostId = urlParams.get('post') || window.location.hash.replace('#post-', '');
+          if (targetPostId) {
+            setExpandedCommentsPostId(targetPostId);
+            setTimeout(() => {
+              const el = document.getElementById(`post-${targetPostId}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 500);
+          }
+        } catch (e) {}
       }, (error) => {
         handleFirestoreError(error, OperationType.LIST, 'posts');
         setLoading(false);
@@ -699,6 +716,13 @@ export default function FeedView({
     setPosts([optimisticPost, ...posts]);
     setPublishSuccessMessage(`✨ Reflection published to ${payload.privacy === 'public' ? 'Global Ummah' : 'Friends Circle'}! (+50 Hasanat)`);
     setTimeout(() => setPublishSuccessMessage(null), 4500);
+
+    // Broadcast in-app & system signal for the newly published story
+    notificationService.notifyNewFeedPost(
+      activeUser.displayName || 'Community Member',
+      payload.content,
+      optimisticPost.id
+    );
 
     if (activeUser.isRest) {
       try {
@@ -1008,6 +1032,57 @@ export default function FeedView({
       setActivePostComment(null);
     }
 
+    // Trigger notification for comment thread replies
+    if (post) {
+      // 1. If replying to a specific comment, notify that comment's author
+      if (parentCommentId) {
+        const parentComment = (post.comments || []).find(c => c.id === parentCommentId);
+        if (parentComment && parentComment.userId !== activeUser.uid) {
+          notificationService.notifyCommentReply(
+            activeUser.displayName || 'A community member',
+            textToSubmit,
+            postId,
+            parentComment.user || 'Discussion Participant'
+          );
+        }
+      }
+
+      // 2. If user is commenting/replying on someone else's post, notify post author
+      if (post.userId && post.userId !== activeUser.uid) {
+        notificationService.notifyCommentReply(
+          activeUser.displayName || 'A community member',
+          textToSubmit,
+          postId,
+          undefined,
+          true
+        );
+      }
+
+      // 3. Store notification record in Firestore
+      try {
+        const targetUserId = parentCommentId 
+          ? ((post.comments || []).find(c => c.id === parentCommentId)?.userId || post.userId)
+          : post.userId;
+
+        if (targetUserId && targetUserId !== activeUser.uid && !activeUser.isRest) {
+          addDoc(collection(db, 'notifications'), {
+            type: 'feed_reply',
+            recipientId: targetUserId,
+            senderId: activeUser.uid,
+            senderName: activeUser.displayName || 'A member',
+            postId: postId,
+            parentCommentId: parentCommentId || null,
+            text: textToSubmit,
+            createdAt: serverTimestamp(),
+            read: false,
+            actionUrl: `/?tab=ummah&view=feed&post=${postId}&expand=true#post-${postId}`
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("Notification write failed:", err);
+      }
+    }
+
     if (activeUser.isRest) {
       try {
         await restDbClient.commentPost(postId, textToSubmit, parentCommentId, replyToUser, parentCommentId);
@@ -1016,6 +1091,9 @@ export default function FeedView({
     }
 
     try {
+      // Sync with REST backend as well to ensure multi-client availability
+      restDbClient.commentPost(postId, textToSubmit, parentCommentId, replyToUser, parentCommentId).catch(() => {});
+
       const postRef = doc(db, 'posts', postId);
       if (post) {
         const currentPostComments = post.comments || [];
@@ -2477,6 +2555,19 @@ export default function FeedView({
                               exit={{ opacity: 0, height: 0 }}
                               className="pt-4 border-t border-white/5 space-y-4"
                             >
+                              {/* Thread Notification Subscription Pill */}
+                              {((post.comments || []).some(c => c.userId === currentUser.uid || (c.replies || []).some(r => r.userId === currentUser.uid)) || post.userId === currentUser.uid) && (
+                                <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider backdrop-blur-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Bell size={12} className="text-emerald-400 animate-pulse" />
+                                    <span>Thread Discussion Active &bull; Reply Alerts Enabled</span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-emerald-400/80 lowercase italic font-sans">
+                                    tracking replies
+                                  </span>
+                                </div>
+                              )}
+
                               {(post.comments && post.comments.length > 0) && (
                                 <div className="space-y-4">
                                   {post.comments.map((comment) => (

@@ -2375,7 +2375,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400">Salah Adherence</span>
-                  <h4 className="text-xl font-black text-white">5 Daily Prayers Completion Radar</h4>
+                  <h4 className="text-xl font-black text-white">Salah & 5 Pillars Adherence Radar</h4>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-mono font-bold">
                   81% Avg Adherence

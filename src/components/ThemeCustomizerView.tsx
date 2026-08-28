@@ -334,6 +334,7 @@ export default function ThemeCustomizerView({
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: 'all', label: 'All Palettes' },
+              { id: 'light', label: '☀️ Lighter & Cool (Muslim Pro)' },
               { id: 'tranquility', label: '🕊️ Peace & Tranquility' },
               { id: 'devotion', label: '🤲 Devotion & Sacred' },
               { id: 'focus', label: '🌌 Solitude & Night' },

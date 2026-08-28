@@ -151,7 +151,7 @@ export default function TrialExpiredPaywallModal({
           <div className="space-y-0.5">
             <p className="font-bold text-white">Your Free Plan Remains Active</p>
             <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-              Standard Holy Quran (114 Surahs & reciters), 5 Daily Prayers & tracker, Qibla compass, Digital Tasbih, Adhkar library, and Community Chat (Firdaus Charity) are always accessible without payment.
+              Standard Holy Quran (114 Surahs & reciters), 5 Pillars of Islam & Prayer Times, Qibla compass, Digital Tasbih, Adhkar library, and Community Chat (Firdaus Charity) are always accessible without payment.
             </p>
           </div>
         </div>

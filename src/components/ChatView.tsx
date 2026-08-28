@@ -154,6 +154,16 @@ export default function ChatView({
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
+  const activeRoomRef = useRef<Room | null>(null);
+
+  const selectActiveRoom = (room: Room | null) => {
+    activeRoomRef.current = room;
+    setActiveRoom(room);
+  };
+
+  useEffect(() => {
+    activeRoomRef.current = activeRoom;
+  }, [activeRoom]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<string | null>(null);
@@ -700,7 +710,7 @@ export default function ChatView({
 
   // Default rooms initialization
   useEffect(() => {
-    const firdawsCharityRoom: Room = { 
+    const firdausCharityRoom: Room = { 
       id: 'group_firdaws_charity', 
       name: 'Firdaus Charity Organisation', 
       type: 'group', 
@@ -708,13 +718,13 @@ export default function ChatView({
       isBusiness: false,
       isPartner: true,
       verified: true,
-      description: 'Official Strategic Humanitarian Partner Hub — Empowering Lives, Shaping Futures. Community relief updates, clean water wells, orphan sponsorship, and charitable du’as.',
+      description: 'Official Strategic Humanitarian Partner Hub — Empowering Lives, Shaping Futures. Official informational broadcast channel for charity updates, clean water wells, orphan sponsorship, and humanitarian relief.',
       createdBy: 'partner_firdaus',
       participants: myUser?.uid ? [myUser.uid, 'partner_firdaus'] : ['partner_firdaus']
     };
 
     const defaultStarterRooms: Room[] = [
-      firdawsCharityRoom,
+      firdausCharityRoom,
       { 
         id: 'group_general_circle', 
         name: 'General Sanctuary Circle', 
@@ -741,25 +751,40 @@ export default function ChatView({
       }
     ];
 
+    const isBogusOrOldFirdawsRoom = (r: Room) => {
+      const name = (r.name || '').toLowerCase();
+      const id = (r.id || '').toLowerCase();
+      if (id === 'group_firdaws_charity') return false; // keep official room
+      if (name.includes('dawa') || name.includes('firdaws') || name.includes('firdaus') || id.includes('dawa') || (id.includes('firdaws') && id !== 'group_firdaws_charity')) {
+        return true;
+      }
+      return false;
+    };
+
     if (!myUser || myUser.uid.startsWith('local_') || myUser.isRest) {
       const localKey = `sanctuary_rooms_${myUser?.uid || 'guest'}`;
       const saved = localStorage.getItem(localKey);
       if (saved) {
         try {
           const parsed: Room[] = JSON.parse(saved);
-          // Mandatory ensure Firdaus Charity group is present and pinned at top for every user (old or new)
-          const otherRooms = parsed.filter(r => r.id !== 'group_firdaws_charity');
-          const merged = [firdawsCharityRoom, ...otherRooms];
+          // Mandatory ensure Firdaus Charity Organisation group is present and pinned at top, filter out old dawa/firdaws rooms
+          const otherRooms = parsed.filter(r => r.id !== 'group_firdaws_charity' && !isBogusOrOldFirdawsRoom(r));
+          const merged = [firdausCharityRoom, ...otherRooms];
           setRooms(merged);
-          if (!activeRoom && merged.length > 0) setActiveRoom(merged[0]);
+          if (!activeRoomRef.current && merged.length > 0) {
+            selectActiveRoom(merged[0]);
+          } else if (activeRoomRef.current) {
+            const match = merged.find(r => r.id === activeRoomRef.current?.id);
+            if (match) selectActiveRoom(match);
+          }
           localStorage.setItem(localKey, JSON.stringify(merged));
         } catch (e) {
           setRooms(defaultStarterRooms);
-          if (!activeRoom) setActiveRoom(defaultStarterRooms[0]);
+          if (!activeRoomRef.current) selectActiveRoom(defaultStarterRooms[0]);
         }
       } else {
         setRooms(defaultStarterRooms);
-        if (!activeRoom) setActiveRoom(defaultStarterRooms[0]);
+        if (!activeRoomRef.current) selectActiveRoom(defaultStarterRooms[0]);
         localStorage.setItem(localKey, JSON.stringify(defaultStarterRooms));
       }
       setLoading(false);
@@ -781,25 +806,33 @@ export default function ChatView({
         ...docSnap.data()
       })) as Room[];
 
-      const filteredOther = fetchedRooms.filter(r => r.id !== 'group_firdaws_charity');
+      const filteredOther = fetchedRooms.filter(r => r.id !== 'group_firdaws_charity' && !isBogusOrOldFirdawsRoom(r));
       defaultStarterRooms.forEach(sr => {
         if (sr.id !== 'group_firdaws_charity' && !filteredOther.some(r => r.id === sr.id)) {
           filteredOther.push(sr);
         }
       });
 
-      // Mandatory Firdaus Charity group pinned at top for all users
-      const finalRooms = [firdawsCharityRoom, ...filteredOther];
+      // Mandatory Firdaus Charity Organisation group pinned at top for all users
+      const finalRooms = [firdausCharityRoom, ...filteredOther];
 
       setRooms(finalRooms);
-      if (!activeRoom && finalRooms.length > 0) {
-        setActiveRoom(finalRooms[0]);
+      
+      // Preserve currently selected room during live Firestore room updates so user is NEVER abruptly kicked back
+      if (!activeRoomRef.current && finalRooms.length > 0) {
+        selectActiveRoom(finalRooms[0]);
+      } else if (activeRoomRef.current) {
+        const currentActiveId = activeRoomRef.current.id;
+        const matching = finalRooms.find(r => r.id === currentActiveId);
+        if (matching) {
+          selectActiveRoom(matching);
+        }
       }
       setLoading(false);
     }, (err) => {
       console.warn("Firestore rooms query error:", err);
       setRooms(defaultStarterRooms);
-      if (!activeRoom) setActiveRoom(defaultStarterRooms[0]);
+      if (!activeRoomRef.current) selectActiveRoom(defaultStarterRooms[0]);
       setLoading(false);
     });
 
@@ -813,7 +846,10 @@ export default function ChatView({
       return;
     }
 
-    if (!myUser || myUser.uid.startsWith('local_') || myUser.isRest || activeRoom.id.startsWith('group_') || activeRoom.id.startsWith('seeker_')) {
+    const isGuestOrLocalUser = !myUser || myUser.uid.startsWith('local_') || myUser.isRest;
+
+    // Simulated seeker companion bots remain local
+    if (isGuestOrLocalUser || activeRoom.id.startsWith('seeker_')) {
       const msgsKey = `sanctuary_msgs_${activeRoom.id}`;
       const stored = localStorage.getItem(msgsKey);
       if (stored) {
@@ -837,7 +873,7 @@ export default function ChatView({
 
         if (activeRoom.id === 'group_firdaws_charity' || activeRoom.isPartner) {
           starterSender = 'Firdaus Charity Organisation';
-          starterText = '🌟 Assalamu Alaikum wa Rahmatullahi wa Barakatuh!\n\nWelcome to the official Firdaus Charity Organisation global group hub.\n\n"Empowering Lives, Shaping Futures"\n\nIn partnership with Muslim Habibi and its young student founders Kizza Hamza & Lubowa Sudias, we share verified humanitarian relief updates, clean water borehole projects in Uganda and East Africa, orphan educational sponsorships, and community du’as. Feel free to join, collaborate, and share your support for the Ummah!';
+          starterText = '🌟 Assalamu Alaikum wa Rahmatullahi wa Barakatuh!\n\nWelcome to the official Firdaus Charity Organisation global group hub.\n\n"Empowering Lives, Shaping Futures"\n\nIn partnership with Muslim Habibi and its young student founders Kizza Hamza & Lubowa Sudias, we share verified humanitarian relief updates, clean water borehole projects in Uganda and East Africa, orphan educational sponsorships, and community du’as. All members are welcome to join, post messages, collaborate, and share your support for the Ummah!';
         }
 
         const starter: Message = {
@@ -857,21 +893,34 @@ export default function ChatView({
       return;
     }
 
+    // Live real-time Firestore room messages (including global Firdaus Charity & 1-on-1 chats)
     const msgsQuery = query(
       collection(db, `rooms/${activeRoom.id}/messages`),
       orderBy('timestamp', 'asc'),
-      limit(150)
+      limit(200)
     );
 
     const unsubscribe = onSnapshot(msgsQuery, (snapshot) => {
-      const fetched: Message[] = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      })) as Message[];
+      if (snapshot.empty && (activeRoom.id === 'group_firdaws_charity' || activeRoom.isPartner)) {
+        const welcomeStarter: Message = {
+          id: 'starter_firdaus_official',
+          senderId: 'partner_firdaus',
+          senderName: 'Firdaus Charity Organisation',
+          text: '🌟 Assalamu Alaikum wa Rahmatullahi wa Barakatuh!\n\nWelcome to the official Firdaus Charity Organisation global group hub.\n\n"Empowering Lives, Shaping Futures"\n\nIn partnership with Muslim Habibi and student founders Kizza Hamza & Lubowa Sudias, this is our global community space for humanitarian relief updates, water well projects, orphan sponsorship, and community du’as. All members are welcome to share messages and support each other!',
+          timestamp: new Date().toISOString(),
+          isBusiness: false
+        };
+        setMessages([welcomeStarter]);
+      } else {
+        const fetched: Message[] = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        })) as Message[];
 
-      // Filter out messages older than 48 hours for non-business chats
-      const filtered = fetched.filter(m => !isMessageExpired(m, activeRoom));
-      setMessages(filtered);
+        // Filter out messages older than 48 hours for non-business chats
+        const filtered = fetched.filter(m => !isMessageExpired(m, activeRoom));
+        setMessages(filtered);
+      }
 
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -881,7 +930,7 @@ export default function ChatView({
     });
 
     return () => unsubscribe();
-  }, [activeRoom?.id, activeRoom?.isBusiness, activeRoom?.type]);
+  }, [activeRoom?.id, activeRoom?.isBusiness, activeRoom?.type, myUser?.uid]);
 
   // Send text, image, or audio message
   const handleSendMessage = async (e?: React.FormEvent, customPayload?: Partial<Message>) => {
@@ -921,10 +970,10 @@ export default function ChatView({
     setReplyingTo(null);
     setShowAttachmentMenu(false);
 
-    // If local/starter room
-    const isLocal = myUser.uid.startsWith('local_') || myUser.isRest || activeRoom.id.startsWith('group_') || activeRoom.id.startsWith('seeker_');
+    // If local guest user or simulated companion
+    const isGuestOrLocal = !myUser || myUser.uid.startsWith('local_') || myUser.isRest || activeRoom.id.startsWith('seeker_');
 
-    if (isLocal) {
+    if (isGuestOrLocal) {
       const msgsKey = `sanctuary_msgs_${activeRoom.id}`;
       const existingRaw = localStorage.getItem(msgsKey);
       const existing = existingRaw ? JSON.parse(existingRaw) : [];
@@ -981,7 +1030,7 @@ export default function ChatView({
       return;
     }
 
-    // Firestore send
+    // Real-time Firestore send
     try {
       const payload: any = {
         senderId: msgData.senderId,
@@ -1002,11 +1051,14 @@ export default function ChatView({
       if (addHasanat) addHasanat(5);
 
       const previewText = audioToSend ? '🎙️ Voice Note' : (imageToSend ? '📷 Photo' : textToSend);
-      await updateDoc(doc(db, 'rooms', activeRoom.id), {
+      await setDoc(doc(db, 'rooms', activeRoom.id), {
+        id: activeRoom.id,
+        name: activeRoom.name || 'Sanctuary Room',
+        type: activeRoom.type || 'group',
         lastMessage: previewText,
         lastSenderId: myUser.uid,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
     } catch (err) {
       console.warn("Firestore message write fallback:", err);
     }
@@ -1472,7 +1524,19 @@ export default function ChatView({
 
   // Add more members to the currently active group
   const handleAddMembersToActiveRoom = async () => {
-    if (!activeRoom || addMembersSelected.length === 0 || !myUser) return;
+    if (
+      !activeRoom || 
+      addMembersSelected.length === 0 || 
+      !myUser || 
+      activeRoom.id === 'group_firdaws_charity' || 
+      activeRoom.isPartner || 
+      activeRoom.name?.toLowerCase().includes('firdauws') || 
+      activeRoom.name?.toLowerCase().includes('firdaus')
+    ) {
+      setShowAddMembersModal(false);
+      setAddMembersSelected([]);
+      return;
+    }
     
     const existingParticipants = activeRoom.participants || [myUser.uid];
     const updatedParticipants = Array.from(new Set([...existingParticipants, ...addMembersSelected]));
@@ -2054,8 +2118,12 @@ export default function ChatView({
 
               {/* WhatsApp Header Action Icons */}
               <div className="flex items-center gap-1 shrink-0 text-app-text-muted">
-                {/* Add Members to Group button */}
-                {activeRoom.type === 'group' && (
+                {/* Add Members to Group button - hidden for Firdauws Charity Organisation official hub */}
+                {activeRoom.type === 'group' && 
+                 activeRoom.id !== 'group_firdaws_charity' && 
+                 !activeRoom.isPartner && 
+                 !activeRoom.name?.toLowerCase().includes('firdauws') && 
+                 !activeRoom.name?.toLowerCase().includes('firdaus') && (
                   <button
                     onClick={() => {
                       setAddMembersSelected([]);
@@ -2941,11 +3009,27 @@ export default function ChatView({
                 </div>
               </div>
 
-              {/* Participant list */}
+              {/* Participant list / Informational Notice */}
               <div className="space-y-2 border-t border-white/10 pt-3 flex-1 overflow-y-auto pr-1 no-scrollbar">
+                {(activeRoom.id === 'group_firdaws_charity' || activeRoom.isPartner || activeRoom.name?.toLowerCase().includes('firdaus')) && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2.5 mb-2">
+                    <ShieldCheck size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-amber-300">Official Informational Channel</p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-0.5">
+                        This verified partner hub is strictly reserved for official charity news, relief project announcements, and campaign updates. Direct participant invitations are managed exclusively by Firdaus Charity Organisation administrators.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-app-text">Group Participants ({activeRoom.participants?.length || 1})</p>
-                  {activeRoom.type === 'group' && (
+                  {activeRoom.type === 'group' && 
+                   activeRoom.id !== 'group_firdaws_charity' && 
+                   !activeRoom.isPartner && 
+                   !activeRoom.name?.toLowerCase().includes('firdauws') && 
+                   !activeRoom.name?.toLowerCase().includes('firdaus') && (
                     <button
                       onClick={() => {
                         setShowRoomInfoModal(false);

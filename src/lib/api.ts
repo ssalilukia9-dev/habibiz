@@ -102,12 +102,13 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
       const localUrl = `${baseUrl}${path}`;
       const res = await originalFetch(localUrl, options);
       const contentType = res.headers.get('content-type') || '';
-      if (res.status === 404 || contentType.includes('text/html')) {
-        throw new Error('Local proxy not found, falling back to upstream');
+      // Only fallback if route didn't match and returned SPA HTML
+      if (contentType.includes('text/html')) {
+        throw new Error('Local proxy route not matched, falling back to upstream');
       }
       return res;
     } catch (err) {
-      console.warn('Local Alquran proxy failed, falling back to direct fetch:', err);
+      console.warn('Local Alquran proxy fallback to direct fetch:', err);
       return originalFetch(upstreamUrl, options);
     }
   }
@@ -121,12 +122,13 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
       const localUrl = `${baseUrl}${path}`;
       const res = await originalFetch(localUrl, options);
       const contentType = res.headers.get('content-type') || '';
-      if (res.status === 404 || contentType.includes('text/html')) {
-        throw new Error('Local proxy not found, falling back to upstream');
+      // Only fallback if route didn't match and returned SPA HTML
+      if (contentType.includes('text/html')) {
+        throw new Error('Local proxy route not matched, falling back to upstream');
       }
       return res;
     } catch (err) {
-      console.warn('Local Aladhan proxy failed, falling back to direct fetch:', err);
+      console.warn('Local Aladhan proxy fallback to direct fetch:', err);
       return originalFetch(upstreamUrl, options);
     }
   }

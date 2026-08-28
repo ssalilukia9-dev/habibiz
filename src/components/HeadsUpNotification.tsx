@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { AppNotification } from '../services/notificationService.ts';
-import { Bell, X, MessageSquare, ShieldCheck, Info, Sparkles, ArrowRight, Clock } from 'lucide-react';
+import { Bell, X, MessageSquare, ShieldCheck, Info, Sparkles, ArrowRight, Clock, ShoppingBag, Play, Compass, Flame } from 'lucide-react';
 
 export default function HeadsUpNotification() {
   const [activeNotification, setActiveNotification] = useState<AppNotification | null>(null);
@@ -29,8 +29,13 @@ export default function HeadsUpNotification() {
 
   const getIcon = (type?: string) => {
     switch (type) {
-      case 'community': return <MessageSquare size={16} className="text-emerald-400" />;
-      case 'prayer': return <Clock size={16} className="text-amber-400" />;
+      case 'feed': return <Compass size={16} className="text-purple-400" />;
+      case 'market': return <ShoppingBag size={16} className="text-emerald-400" />;
+      case 'khatam':
+      case 'video': return <Play size={16} className="text-red-400" />;
+      case 'community': return <MessageSquare size={16} className="text-blue-400" />;
+      case 'prayer':
+      case 'prayers': return <Clock size={16} className="text-amber-400" />;
       case 'system': return <Sparkles size={16} className="text-brand-primary" />;
       default: return <Bell size={16} className="text-brand-primary" />;
     }
@@ -38,8 +43,13 @@ export default function HeadsUpNotification() {
 
   const getAppLabel = (type?: string) => {
     switch (type) {
+      case 'feed': return 'NoorTalk Feed';
+      case 'market': return 'Suq Al-Mubaraki';
+      case 'khatam':
+      case 'video': return 'Khatam Journey';
       case 'community': return 'Ummah Hub';
-      case 'prayer': return 'Prayer Reminder';
+      case 'prayer':
+      case 'prayers': return 'Prayer Reminder';
       case 'system': return 'Sanctuary OS';
       default: return 'Sanctuary Signal';
     }
