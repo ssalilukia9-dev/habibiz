@@ -22,6 +22,7 @@ import {
   Check
 } from 'lucide-react';
 import { gatePassService } from '../services/gatePassService.ts';
+import CardPaymentGatewayModal from './CardPaymentGatewayModal';
 
 interface PremiumGatewayProps {
   onActivate: () => void;
@@ -30,9 +31,10 @@ interface PremiumGatewayProps {
 }
 
 export default function PremiumGateway({ onActivate, onClose, currentUser }: PremiumGatewayProps) {
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual' | 'lifetime'>('annual');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'vip_monthly' | 'annual'>('vip_monthly');
   const [selectedRail, setSelectedRail] = useState<'instant' | 'external' | 'mobile'>('instant');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showCardModal, setShowCardModal] = useState<boolean>(false);
 
   // VIP Gate Pass Redemption state
   const [gatePassCode, setGatePassCode] = useState<string>('');
@@ -42,11 +44,7 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
   }>({ type: 'idle', message: '' });
 
   const handleConfirm = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      onActivate();
-      setIsProcessing(false);
-    }, 600);
+    setShowCardModal(true);
   };
 
   const handleRedeemPass = async (e: React.FormEvent) => {
@@ -202,14 +200,14 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-amber-400">
                   <Ticket size={16} />
-                  <span className="text-xs font-black uppercase tracking-wider text-white">Have a VIP Gate Pass / Master Code?</span>
+                  <span className="text-xs font-black uppercase tracking-wider text-white">Have a VIP Gate Pass Code?</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
                   VIP Access
                 </span>
               </div>
               <p className="text-[10px] text-slate-300 leading-tight">
-                Enter your pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (or Master Code <strong className="text-amber-300 font-mono">MH-VIP-2214</strong> for Unlimited Lifetime Access).
+                Enter your authorized VIP Gate Pass code starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> for Instant Sanctuary Elite Access.
               </p>
 
               <form onSubmit={handleRedeemPass} className="space-y-2">
@@ -225,7 +223,7 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
                           setGatePassStatus({ type: 'idle', message: '' });
                         }
                       }}
-                      placeholder="e.g. MH-VIP-2214 or MH-VIP-2026"
+                      placeholder="e.g. MH-VIP-2026 or YOUR-PASS"
                       className="w-full bg-black/50 border border-amber-500/30 focus:border-amber-400 rounded-xl py-2 pl-9 pr-3 text-xs text-white uppercase font-mono tracking-wider placeholder:text-slate-500 outline-none transition-all"
                     />
                   </div>
@@ -271,66 +269,47 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
             </div>
 
             {/* Tier Selectors */}
-            <div className="space-y-2">
-              {/* Annual (Best Value) */}
+            <div className="space-y-2.5">
+              {/* VIP All-Access Monthly */}
               <div
-                onClick={() => setSelectedPlan('annual')}
-                className={`p-3 rounded-2xl border-2 transition-all cursor-pointer relative flex items-center justify-between ${
-                  selectedPlan === 'annual'
+                onClick={() => setSelectedPlan('vip_monthly')}
+                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative flex items-center justify-between ${
+                  selectedPlan === 'vip_monthly' || selectedPlan === 'annual'
                     ? 'border-amber-400 bg-amber-500/15 shadow-xl shadow-amber-500/10'
                     : 'border-white/10 bg-white/5 hover:border-white/20'
                 }`}
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-white uppercase tracking-wider">Annual Pass</span>
+                    <span className="text-xs font-black text-white uppercase tracking-wider">VIP All-Access Pass</span>
                     <span className="px-2 py-0.5 rounded-full bg-amber-400 text-brand-depth text-[8px] font-black uppercase tracking-widest">
-                      SAVE 45%
+                      RECOMMENDED
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400">+5,000 Hasanat Bonus • Unlimited AI</p>
+                  <p className="text-[10px] text-slate-300">+7,500 Hasanat Bonus • AI Tajweed & 4K Streams</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-black text-amber-400 font-mono">$20.00</span>
-                  <span className="text-[8px] text-slate-400 block font-medium">/year</span>
+                  <span className="text-base font-black text-amber-400 font-mono">$21.00</span>
+                  <span className="text-[8px] text-slate-400 block font-medium">/month</span>
                 </div>
               </div>
 
-              {/* Monthly */}
+              {/* Standard Monthly */}
               <div
                 onClick={() => setSelectedPlan('monthly')}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                   selectedPlan === 'monthly'
                     ? 'border-amber-400 bg-amber-500/15 shadow-xl'
                     : 'border-white/10 bg-white/5 hover:border-white/20'
                 }`}
               >
                 <div className="space-y-0.5">
-                  <span className="text-xs font-black text-white uppercase tracking-wider">Monthly Pass</span>
-                  <p className="text-[10px] text-slate-400">Cancel anytime • Full Access</p>
+                  <span className="text-xs font-black text-white uppercase tracking-wider">Standard Sanctuary Pass</span>
+                  <p className="text-[10px] text-slate-400">Essential Ad-Free & Audio Library</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-black text-white font-mono">$3.00</span>
+                  <span className="text-base font-black text-white font-mono">$3.00</span>
                   <span className="text-[8px] text-slate-400 block font-medium">/month</span>
-                </div>
-              </div>
-
-              {/* Lifetime */}
-              <div
-                onClick={() => setSelectedPlan('lifetime')}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                  selectedPlan === 'lifetime'
-                    ? 'border-purple-400 bg-purple-500/15 shadow-xl'
-                    : 'border-white/10 bg-white/5 hover:border-white/20'
-                }`}
-              >
-                <div className="space-y-0.5">
-                  <span className="text-xs font-black text-purple-300 uppercase tracking-wider">Lifetime Patron</span>
-                  <p className="text-[10px] text-slate-400">+15,000 Hasanat + VIP Gold Badge</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm font-black text-purple-300 font-mono">$79.99</span>
-                  <span className="text-[8px] text-slate-400 block font-medium">/one-time</span>
                 </div>
               </div>
             </div>
@@ -347,13 +326,16 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
                 </span>
               </div>
 
-              <div className="p-3 bg-black/40 border border-amber-500/30 rounded-xl flex items-center justify-between">
+              <div 
+                onClick={() => setShowCardModal(true)}
+                className="p-3 bg-black/40 hover:bg-black/60 border border-amber-500/30 hover:border-amber-400 rounded-xl flex items-center justify-between cursor-pointer transition-all group"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/20 group-hover:bg-amber-400 group-hover:text-brand-depth border border-amber-500/40 flex items-center justify-center text-amber-400 transition-all">
                     <CreditCard size={18} />
                   </div>
                   <div>
-                    <p className="text-xs font-black text-white">Credit / Debit Card Checkout</p>
+                    <p className="text-xs font-black text-white group-hover:text-amber-300 transition-colors">Credit / Debit Card Checkout</p>
                     <p className="text-[10px] text-slate-400">Visa, MasterCard, American Express, Stripe Card</p>
                   </div>
                 </div>
@@ -375,12 +357,11 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
 
           <div className="space-y-2 pt-1">
             <button 
-              onClick={handleConfirm}
-              disabled={isProcessing}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              onClick={() => setShowCardModal(true)}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Crown size={16} />
-              <span>{isProcessing ? 'Activating VIP Pass...' : 'Unlock Sanctuary VIP Pass'}</span>
+              <span>Checkout with Visa / Mastercard</span>
               <ArrowRight size={16} />
             </button>
             <p className="text-[9px] text-center text-slate-500 uppercase font-bold tracking-widest">
@@ -389,6 +370,19 @@ export default function PremiumGateway({ onActivate, onClose, currentUser }: Pre
           </div>
         </div>
       </motion.div>
+
+      {/* Visa & Mastercard Payment Gateway Modal */}
+      {showCardModal && (
+        <CardPaymentGatewayModal
+          plan={selectedPlan}
+          currentUser={currentUser}
+          onSuccess={(txnRef) => {
+            setShowCardModal(false);
+            onActivate();
+          }}
+          onClose={() => setShowCardModal(false)}
+        />
+      )}
     </div>
   );
 }

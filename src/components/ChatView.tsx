@@ -23,6 +23,7 @@ import {
   Paperclip,
   Image as ImageIcon,
   CornerUpLeft,
+  CornerUpRight,
   Briefcase,
   ZoomIn,
   ZoomOut,
@@ -70,6 +71,8 @@ import { restDbClient } from '../lib/restDbClient';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import FirdawsLogo from './FirdawsLogo';
 import { MediaLightboxModal, LightboxMediaItem } from './MediaLightboxModal';
+import ProfilePictureLightboxModal, { ProfileViewData } from './ProfilePictureLightboxModal';
+import ForwardMessageModal from './ForwardMessageModal';
 
 export interface Message {
   id: string;
@@ -83,6 +86,7 @@ export interface Message {
   audioDuration?: number;
   isBusiness?: boolean;
   pinned?: boolean;
+  forwardedFrom?: string;
   reactions?: { [emoji: string]: string[] }; // emoji -> array of user uids
   replyTo?: {
     id: string;
@@ -214,6 +218,17 @@ export default function ChatView({
     }
     setShowLightbox(true);
   };
+
+  // Profile Picture Lightbox State
+  const [showProfileLightbox, setShowProfileLightbox] = useState<boolean>(false);
+  const [selectedProfileForLightbox, setSelectedProfileForLightbox] = useState<ProfileViewData | null>(null);
+
+  // Forward Message Modal State
+  const [showForwardModal, setShowForwardModal] = useState<boolean>(false);
+  const [messageToForward, setMessageToForward] = useState<Message | null>(null);
+
+  // Mobile / Desktop Message Quick Action Popover
+  const [activeActionMenuMsgId, setActiveActionMenuMsgId] = useState<string | null>(null);
 
   // In-Chat Search State
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
@@ -1233,6 +1248,62 @@ export default function ChatView({
     }
   };
 
+  // Forward message to another room
+  const handleForwardMessage = async (targetRoomId: string, msgToForward: Message) => {
+    if (!myUser) return;
+    
+    const forwardPayload: any = {
+      text: msgToForward.text || '',
+      senderId: myUser.uid,
+      senderName: myUser.displayName || 'Believer',
+      senderPhoto: myUser.photoURL || null,
+      forwardedFrom: msgToForward.senderName || 'Believer',
+      timestamp: serverTimestamp(),
+      reactions: {}
+    };
+
+    if (msgToForward.imageUrl) forwardPayload.imageUrl = msgToForward.imageUrl;
+    if (msgToForward.audioUrl) {
+      forwardPayload.audioUrl = msgToForward.audioUrl;
+      forwardPayload.audioDuration = msgToForward.audioDuration;
+    }
+
+    // Save to Firestore if connected
+    if (!myUser.uid.startsWith('local_') && !myUser.isRest && !targetRoomId.startsWith('group_')) {
+      try {
+        await addDoc(collection(db, `rooms/${targetRoomId}/messages`), forwardPayload);
+        await updateDoc(doc(db, 'rooms', targetRoomId), {
+          lastMessage: `Forwarded: ${(msgToForward.text || 'Media').slice(0, 30)}`,
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn("Firestore forward fallback:", err);
+      }
+    }
+
+    // Save to LocalStorage
+    try {
+      const targetKey = `sanctuary_msgs_${targetRoomId}`;
+      const existingStr = localStorage.getItem(targetKey);
+      const existingList = existingStr ? JSON.parse(existingStr) : [];
+      const localForwardMsg = {
+        ...forwardPayload,
+        id: 'fwd_' + Date.now(),
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(targetKey, JSON.stringify([...existingList, localForwardMsg]));
+    } catch (e) {}
+
+    // If currently in the target room, append to state
+    if (activeRoom && activeRoom.id === targetRoomId) {
+      setMessages(prev => [...prev, {
+        ...forwardPayload,
+        id: 'fwd_' + Date.now(),
+        timestamp: new Date().toISOString()
+      }]);
+    }
+  };
+
   // Image Upload handler
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2052,10 +2123,22 @@ export default function ChatView({
 
                 {/* Contact Avatar with Online Dot */}
                 <button 
-                  onClick={() => setShowRoomInfoModal(true)}
+                  onClick={() => {
+                    const roomPhoto = getRoomPhoto(activeRoom);
+                    setSelectedProfileForLightbox({
+                      name: getRoomName(activeRoom),
+                      photoUrl: roomPhoto || null,
+                      role: activeRoom.type === 'group' ? 'Group Circle' : (activeRoom.isPartner ? 'Strategic Partner' : 'Believer'),
+                      isPremium: !!activeRoom.verified,
+                      bio: activeRoom.description || (activeRoom.type === 'group' ? 'Sacred gathering of hearts in remembrance and barakah.' : 'Connected in spiritual kinship.'),
+                      isCurrentUser: false
+                    });
+                    setShowProfileLightbox(true);
+                  }}
                   className="relative group/avatar cursor-pointer text-left focus:outline-none"
+                  title="Expand profile picture"
                 >
-                  <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 overflow-hidden font-bold ${
+                  <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 overflow-hidden font-bold transition-transform group-hover/avatar:scale-105 ${
                     activeRoom.id === 'group_firdaws_charity' || activeRoom.isPartner
                       ? 'bg-emerald-950/80 border-brand-primary/50 text-brand-primary p-1'
                       : 'bg-white/5 border-white/10 text-brand-primary'
@@ -2265,24 +2348,91 @@ export default function ChatView({
                     key={msg.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}
+                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative my-1`}
                   >
-                    <div className={`flex gap-1.5 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`flex items-end gap-2 max-w-[90%] sm:max-w-[80%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                       
-                      {/* WhatsApp Message Bubble */}
-                      <div className="space-y-1">
-                        <div
-                          className={`p-2.5 md:p-3 text-[13px] leading-relaxed shadow-md relative ${
+                      {/* Sender Avatar with Lightbox Click */}
+                      {!isMe && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProfileForLightbox({
+                              name: msg.senderName || 'Believer',
+                              photoUrl: msg.senderPhoto || null,
+                              role: msg.isBusiness ? 'Business Account' : 'Believer in Sanctuary',
+                              bio: 'Devoted seeker connected in faith and barakah.',
+                              isCurrentUser: false
+                            });
+                            setShowProfileLightbox(true);
+                          }}
+                          className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden text-xs font-bold text-brand-primary cursor-pointer hover:border-brand-primary/60 hover:scale-105 transition-all shadow-sm mb-1"
+                          title={`View ${msg.senderName}'s Profile`}
+                        >
+                          {msg.senderPhoto ? (
+                            <img src={msg.senderPhoto} alt={msg.senderName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span>{msg.senderName?.charAt(0)?.toUpperCase() || 'U'}</span>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Message Container with Swipe-to-Reply Gesture */}
+                      <div className="space-y-1 relative group/bubble min-w-[140px]">
+                        
+                        {/* Swipe to Reply Indicator behind the message */}
+                        <div className={`absolute top-1/2 -translate-y-1/2 text-brand-primary pointer-events-none transition-opacity flex items-center gap-1 text-[11px] font-bold ${
+                          isMe ? '-right-10' : '-left-10'
+                        } opacity-0 group-active/bubble:opacity-80`}>
+                          <CornerUpLeft size={16} className="text-brand-primary animate-pulse" />
+                        </div>
+
+                        {/* Interactive Drag & Swipe Bubble */}
+                        <motion.div
+                          drag="x"
+                          dragConstraints={{ left: isMe ? -60 : 0, right: isMe ? 0 : 60 }}
+                          dragElastic={0.25}
+                          dragSnapToOrigin
+                          onDragEnd={(_, info) => {
+                            if ((!isMe && info.offset.x > 35) || (isMe && info.offset.x < -35) || Math.abs(info.offset.x) > 40) {
+                              setReplyingTo(msg);
+                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(30);
+                              }
+                            }
+                          }}
+                          className={`p-2.5 md:p-3 text-[13px] leading-relaxed shadow-md relative touch-pan-y ${
                             isMe
                               ? 'bg-brand-primary/25 border border-brand-primary/35 text-app-text rounded-2xl rounded-tr-xs backdrop-blur-sm'
                               : 'bg-white/10 border border-white/10 text-app-text rounded-2xl rounded-tl-xs backdrop-blur-sm'
                           }`}
                         >
-                          {/* Sender Name in Group/Direct (for other senders) */}
+                          {/* Forwarded Tag Badge */}
+                          {msg.forwardedFrom && (
+                            <div className="flex items-center gap-1 text-[10px] text-brand-primary/90 italic mb-1 bg-brand-primary/10 px-2 py-0.5 rounded-md border border-brand-primary/20 w-fit">
+                              <CornerUpRight size={11} className="shrink-0" />
+                              <span className="truncate">Forwarded from {msg.forwardedFrom}</span>
+                            </div>
+                          )}
+
+                          {/* Sender Name in Group/Direct (clickable to open profile lightbox) */}
                           {!isMe && (
-                            <p className="text-[11px] font-bold text-brand-primary mb-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedProfileForLightbox({
+                                  name: msg.senderName || 'Believer',
+                                  photoUrl: msg.senderPhoto || null,
+                                  role: msg.isBusiness ? 'Business Account' : 'Believer in Sanctuary',
+                                  bio: 'Devoted seeker connected in faith and barakah.',
+                                  isCurrentUser: false
+                                });
+                                setShowProfileLightbox(true);
+                              }}
+                              className="text-[11px] font-bold text-brand-primary mb-1 hover:underline cursor-pointer text-left block"
+                            >
                               {msg.senderName}
-                            </p>
+                            </button>
                           )}
 
                           {/* WhatsApp Replied Message Box */}
@@ -2361,7 +2511,9 @@ export default function ChatView({
                           )}
 
                           {/* Message Text */}
-                          <p className="whitespace-pre-wrap select-text pr-8">{msg.text}</p>
+                          {msg.text && (
+                            <p className="whitespace-pre-wrap select-text pr-8">{msg.text}</p>
+                          )}
 
                           {/* Timestamp & Double Blue Checkmark */}
                           <div className="flex items-center justify-end gap-1 mt-0.5 -mb-1 text-[10px] text-app-text-dim select-none">
@@ -2382,41 +2534,63 @@ export default function ChatView({
                               <CheckCheck size={14} className="text-brand-accent" />
                             )}
                           </div>
-                        </div>
+                        </motion.div>
 
-                        {/* WhatsApp Message Hover Actions Bar */}
-                        <div className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-1 ${
+                        {/* WhatsApp Message Actions Bar (Both Mobile & Desktop Optimized) */}
+                        <div className={`flex items-center gap-1 px-1 py-0.5 ${
                           isMe ? 'justify-end' : 'justify-start'
-                        }`}>
+                        } opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity`}>
+                          
+                          {/* Quick Emoji Reaction button */}
                           <button
+                            type="button"
                             onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)}
-                            className="p-1 text-app-text-muted hover:text-brand-accent bg-brand-sidebar border border-white/10 rounded-full shadow cursor-pointer"
+                            className="p-1.5 text-app-text-muted hover:text-brand-accent bg-brand-sidebar/90 hover:bg-brand-sidebar border border-white/10 rounded-full shadow-sm cursor-pointer transition-all active:scale-90"
                             title="React with emoji"
                           >
                             <Smile size={13} />
                           </button>
 
+                          {/* Swipe / Tap to Reply button */}
                           <button
+                            type="button"
                             onClick={() => setReplyingTo(msg)}
-                            className="p-1 text-app-text-muted hover:text-brand-primary bg-brand-sidebar border border-white/10 rounded-full shadow cursor-pointer"
-                            title="Reply"
+                            className="p-1.5 text-app-text-muted hover:text-brand-primary bg-brand-sidebar/90 hover:bg-brand-sidebar border border-white/10 rounded-full shadow-sm cursor-pointer transition-all active:scale-90"
+                            title="Reply to message"
                           >
                             <CornerUpLeft size={13} />
                           </button>
 
+                          {/* Forward Message button */}
                           <button
+                            type="button"
+                            onClick={() => {
+                              setMessageToForward(msg);
+                              setShowForwardModal(true);
+                            }}
+                            className="p-1.5 text-app-text-muted hover:text-brand-accent bg-brand-sidebar/90 hover:bg-brand-sidebar border border-white/10 rounded-full shadow-sm cursor-pointer transition-all active:scale-90"
+                            title="Forward message to another chat"
+                          >
+                            <CornerUpRight size={13} />
+                          </button>
+
+                          {/* Pin Message button */}
+                          <button
+                            type="button"
                             onClick={() => handleTogglePinMessage(msg)}
-                            className="p-1 text-app-text-muted hover:text-brand-accent bg-brand-sidebar border border-white/10 rounded-full shadow cursor-pointer"
+                            className="p-1.5 text-app-text-muted hover:text-amber-400 bg-brand-sidebar/90 hover:bg-brand-sidebar border border-white/10 rounded-full shadow-sm cursor-pointer transition-all active:scale-90"
                             title="Pin message"
                           >
                             <Pin size={13} />
                           </button>
 
+                          {/* Delete Message button (for user's own messages) */}
                           {isMe && (
                             <button
+                              type="button"
                               onClick={(e) => handleDeleteMessage(msg, e)}
-                              className="p-1 text-app-text-muted hover:text-red-400 bg-brand-sidebar border border-white/10 rounded-full shadow cursor-pointer"
-                              title="Delete message"
+                              className="p-1.5 text-app-text-muted hover:text-rose-400 bg-brand-sidebar/90 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/30 rounded-full shadow-sm cursor-pointer transition-all active:scale-90"
+                              title="Delete message permanently"
                             >
                               <Trash2 size={13} />
                             </button>
@@ -2427,16 +2601,17 @@ export default function ChatView({
                         <AnimatePresence>
                           {showEmojiPickerFor === msg.id && (
                             <motion.div
-                              initial={{ opacity: 0, scale: 0.85 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.85 }}
-                              className="flex items-center gap-1 p-1 bg-brand-depth border border-white/10 rounded-full shadow-2xl z-30"
+                              initial={{ opacity: 0, scale: 0.85, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.85, y: -4 }}
+                              className="flex items-center gap-1 p-1 bg-brand-depth border border-brand-primary/30 rounded-full shadow-2xl z-30 ring-1 ring-white/10"
                             >
                               {availableEmojis.map(emoji => (
                                 <button
                                   key={emoji}
+                                  type="button"
                                   onClick={() => handleToggleReaction(msg, emoji)}
-                                  className="w-7 h-7 hover:scale-125 transition-transform text-sm flex items-center justify-center cursor-pointer"
+                                  className="w-7 h-7 hover:scale-125 active:scale-95 transition-transform text-sm flex items-center justify-center cursor-pointer rounded-full hover:bg-white/10"
                                 >
                                   {emoji}
                                 </button>
@@ -2451,11 +2626,12 @@ export default function ChatView({
                             {Object.entries(msg.reactions!).map(([emoji, uids]) => (
                               <button
                                 key={emoji}
+                                type="button"
                                 onClick={() => handleToggleReaction(msg, emoji)}
-                                className={`px-2 py-0.5 rounded-full text-[11px] flex items-center gap-1 border transition-all cursor-pointer shadow-sm ${
+                                className={`px-2 py-0.5 rounded-full text-[11px] flex items-center gap-1 border transition-all cursor-pointer shadow-sm active:scale-95 ${
                                   uids.includes(myUser.uid)
-                                    ? 'bg-brand-primary/25 border-brand-primary text-brand-primary'
-                                    : 'bg-white/5 border-white/10 text-app-text-muted'
+                                    ? 'bg-brand-primary/25 border-brand-primary text-brand-primary font-bold'
+                                    : 'bg-white/5 border-white/10 text-app-text-muted hover:border-white/20'
                                 }`}
                               >
                                 <span>{emoji}</span>
@@ -3201,6 +3377,29 @@ export default function ChatView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* 7. Forward Message Modal */}
+      <ForwardMessageModal
+        isOpen={showForwardModal}
+        onClose={() => {
+          setShowForwardModal(false);
+          setMessageToForward(null);
+        }}
+        message={messageToForward}
+        rooms={rooms}
+        currentRoomId={activeRoom?.id || ''}
+        onForward={handleForwardMessage}
+      />
+
+      {/* 8. Profile Picture Lightbox Modal */}
+      <ProfilePictureLightboxModal
+        isOpen={showProfileLightbox}
+        onClose={() => {
+          setShowProfileLightbox(false);
+          setSelectedProfileForLightbox(null);
+        }}
+        profile={selectedProfileForLightbox}
+      />
     </div>
   );
 }

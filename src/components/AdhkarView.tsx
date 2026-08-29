@@ -32,6 +32,7 @@ import { db, auth } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import { ALL_NAMES_OF_ALLAH, NameOfAllah } from '../data/namesOfAllahData.ts';
+import { DuaAudioService, DUA_RECITERS, DUA_AMBIENT_SOUNDS } from '../services/duaAudioService.ts';
 
 const NAMES_OF_ALLAH = ALL_NAMES_OF_ALLAH;
 

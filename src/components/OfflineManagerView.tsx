@@ -120,6 +120,7 @@ export default function OfflineManagerView({ selectedReciter, currentUser }: Off
     const newVal = !offlineMode;
     setOfflineMode(newVal);
     localStorage.setItem('offline-mode', newVal.toString());
+    window.dispatchEvent(new Event('offline_mode_toggled'));
     notificationService.notify(
       newVal ? 'Offline Mode Active' : 'Online Mode',
       newVal ? 'The app will prioritize cached data.' : 'The app will fetch live data when available.',

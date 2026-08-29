@@ -102,6 +102,7 @@ import { IslamicWisdomService, IslamicTeachingItem, DEFAULT_ISLAMIC_TEACHINGS, c
 import { StorageService } from '../services/storageService.ts';
 import { ReportService, PostReportItem, PREDEFINED_REPORT_REASONS } from '../services/reportService.ts';
 import { gatePassService, RedeemedPassRecord } from '../services/gatePassService.ts';
+import EditKhatamVideoModal from './EditKhatamVideoModal.tsx';
 
 interface AdminViewProps {
   currentUser: any;
@@ -792,6 +793,7 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
   
   // Khatam Video Management State (Admin Hub)
   const [khatamVideos, setKhatamVideos] = useState<KhatamVideoItem[]>(DEFAULT_KHATAM_VIDEOS);
+  const [editingKhatamVideo, setEditingKhatamVideo] = useState<KhatamVideoItem | null>(null);
   const [newVideoUrl, setNewVideoUrl] = useState<string>('');
   const [newVideoTitle, setNewVideoTitle] = useState<string>('');
   const [newVideoCategory, setNewVideoCategory] = useState<'tafsir' | 'motivation' | 'dua' | 'tajweed' | 'juz_guide' | 'general'>('tafsir');
@@ -5018,6 +5020,15 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
 
                         <div className="flex items-center gap-2">
                           <button
+                            onClick={() => setEditingKhatamVideo(video)}
+                            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+                            title="Edit Video Link, Details & Broadcast Notification"
+                          >
+                            <Edit3 size={13} />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
                             onClick={() => setPreviewingVideo(video)}
                             className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-all cursor-pointer"
                             title="Play Video"
@@ -7124,6 +7135,18 @@ export default function AdminView({ currentUser, addHasanat }: AdminViewProps) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* EDIT KHATAM VIDEO MODAL */}
+      <EditKhatamVideoModal
+        isOpen={!!editingKhatamVideo}
+        video={editingKhatamVideo}
+        onClose={() => setEditingKhatamVideo(null)}
+        currentUser={currentUser}
+        onVideoUpdated={(updatedVideo) => {
+          setKhatamVideos(prev => prev.map(v => v.id === updatedVideo.id ? updatedVideo : v));
+          showActionFeedback(`✅ Broadcast "${updatedVideo.title}" updated and push notification sent!`);
+        }}
+      />
 
     </div>
   );

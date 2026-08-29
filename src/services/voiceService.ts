@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from '../lib/api';
+import { DuaAudioService } from './duaAudioService';
 
 export type VoiceLanguage = 'ar' | 'en';
 
@@ -233,6 +234,14 @@ export class VoiceService {
     this.isPausedState = false;
     this.onEndCallback = onEnd || null;
     this.notifyListeners();
+
+    // Trigger ambient background soundscape if enabled
+    try {
+      const prefs = DuaAudioService.getPreferences();
+      if (prefs.isAmbientEnabled && prefs.ambientSoundId !== 'none') {
+        DuaAudioService.playAmbient(prefs.ambientSoundId, prefs.ambientVolume);
+      }
+    } catch {}
 
     this.speakInternal(text, lang, id, onEnd, mode, sessionId, customAudioUrl);
   }
@@ -621,6 +630,10 @@ export class VoiceService {
     this.onEndCallback = null;
     this.notifyListeners();
 
+    try {
+      DuaAudioService.stopAmbient();
+    } catch {}
+
     if (callback) {
       try {
         callback();
@@ -665,6 +678,9 @@ export class VoiceService {
     this.isContinuousActive = false;
     this.isPausedState = false;
     this.stopAudioInternal();
+    try {
+      DuaAudioService.stopAmbient();
+    } catch {}
     this.activeId = null;
     this.currentMode = null;
     this.notifyListeners();

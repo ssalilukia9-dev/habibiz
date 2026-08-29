@@ -169,7 +169,7 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
 
     if (!apiKey) {
       return new Response(JSON.stringify({
-        text: "Assalamu Alaikum wa Rahmatullahi wa Barakatuh. May Allah grant you ease, peace, and spiritual tranquility in your daily journey."
+        text: "I'm right here with you! Tell me more about what's on your mind and let's explore it together."
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -180,7 +180,7 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
       const bodyData = options.body ? JSON.parse(options.body as string) : {};
       const { contents, systemInstruction } = bodyData;
 
-      const candidateClientModels = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+      const candidateClientModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"];
       let assistantText: string | null = null;
       let lastClientError = 'Failed to communicate with Google Gemini API client-side.';
 
@@ -204,7 +204,6 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
           } else {
             const errJson = await rawRes.json().catch(() => ({}));
             lastClientError = errJson.error?.message || lastClientError;
-            console.warn(`Client Gemini fallback on model ${modelName} returned status ${rawRes.status}:`, lastClientError);
             if (rawRes.status === 403) break;
           }
         } catch (err: any) {
@@ -213,7 +212,7 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
       }
 
       if (!assistantText) {
-        assistantText = "Assalamu Alaikum wa Rahmatullahi wa Barakatuh. May Allah grant you ease, peace, and spiritual tranquility in your daily journey.";
+        assistantText = "I'm right here with you! Tell me more about what's on your mind and let's explore it together.";
       }
       
       return new Response(JSON.stringify({ text: assistantText }), {
@@ -221,9 +220,8 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (err: any) {
-      console.error('Client-side Gemini call handled:', err);
       return new Response(JSON.stringify({
-        text: "Assalamu Alaikum. May Allah bless you with peace, barakah, and clarity."
+        text: "I'm right here with you! Tell me more about what's on your mind and let's explore it together."
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }

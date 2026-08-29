@@ -44,8 +44,29 @@ export interface YoutubeBroadcastVideoItem {
 
 export type KhatamVideoItem = YoutubeBroadcastVideoItem;
 
-// Built-in starter collection of curated YouTube Khatam Journey broadcasts
+// Built-in starter collection of curated YouTube Khatam Journey broadcasts (10 rich defaults)
 export const DEFAULT_YOUTUBE_BROADCASTS: YoutubeBroadcastVideoItem[] = [
+  {
+    id: 'khatam_tajweed_masterclass',
+    youtubeId: 'V-_O7nl0Ii0',
+    title: 'Essential Tajweed Rules for Smooth, Fluent Quran Recitation',
+    url: 'https://www.youtube.com/watch?v=V-_O7nl0Ii0',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/V-_O7nl0Ii0?autoplay=1&rel=0&modestbranding=1',
+    thumbnailUrl: 'https://img.youtube.com/vi/V-_O7nl0Ii0/hqdefault.jpg',
+    category: 'tajweed',
+    categoryLabel: 'Tajweed Masterclass',
+    speaker: 'Ustadh Wissam Sharieff',
+    description: 'Mastering Noon Sakinah, Ghunnah, and Madd rules so you can recite effortlessly during daily Khatam sessions.',
+    duration: '21:40',
+    featured: true,
+    views: 18500,
+    likes: 1620,
+    hearts: 1620,
+    shares: 340,
+    createdAt: new Date('2026-01-01').toISOString(),
+    isBroadcast: true,
+    tags: ['tajweed', 'recitation', 'masterclass', 'fluency']
+  },
   {
     id: 'khatam_dua_sudais',
     youtubeId: 'kYvj7f6V7R0',
@@ -61,8 +82,9 @@ export const DEFAULT_YOUTUBE_BROADCASTS: YoutubeBroadcastVideoItem[] = [
     featured: true,
     views: 14200,
     likes: 3840,
+    hearts: 3840,
     shares: 920,
-    createdAt: new Date('2026-01-01').toISOString(),
+    createdAt: new Date('2026-01-05').toISOString(),
     isBroadcast: true,
     tags: ['dua', 'makkah', 'khatam', 'sudais']
   },
@@ -81,8 +103,9 @@ export const DEFAULT_YOUTUBE_BROADCASTS: YoutubeBroadcastVideoItem[] = [
     featured: true,
     views: 9800,
     likes: 2150,
+    hearts: 2150,
     shares: 630,
-    createdAt: new Date('2026-01-05').toISOString(),
+    createdAt: new Date('2026-01-10').toISOString(),
     isBroadcast: true,
     tags: ['schedule', 'guide', 'ramadan', '30days']
   },
@@ -102,8 +125,9 @@ export const DEFAULT_YOUTUBE_BROADCASTS: YoutubeBroadcastVideoItem[] = [
     featured: false,
     views: 8320,
     likes: 1940,
+    hearts: 1940,
     shares: 410,
-    createdAt: new Date('2026-01-10').toISOString(),
+    createdAt: new Date('2026-01-15').toISOString(),
     isBroadcast: true,
     tags: ['tafsir', 'baqarah', 'juz1', 'reflection']
   },
@@ -122,54 +146,121 @@ export const DEFAULT_YOUTUBE_BROADCASTS: YoutubeBroadcastVideoItem[] = [
     featured: true,
     views: 21500,
     likes: 5400,
+    hearts: 5400,
     shares: 1280,
-    createdAt: new Date('2026-01-15').toISOString(),
+    createdAt: new Date('2026-01-20').toISOString(),
     isBroadcast: true,
     tags: ['dua', 'alafasy', 'khatam', 'supplication']
   },
   {
+    id: 'khatam_tajweed_makharij',
+    youtubeId: 'sQ244Tz630M',
+    title: 'Tajweed Masterclass Part 2: 17 Makharij & Articulation Points',
+    url: 'https://www.youtube.com/watch?v=sQ244Tz630M',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/sQ244Tz630M?autoplay=1&rel=0&modestbranding=1',
+    thumbnailUrl: 'https://img.youtube.com/vi/sQ244Tz630M/hqdefault.jpg',
+    category: 'tajweed',
+    categoryLabel: 'Tajweed Masterclass',
+    speaker: 'Ustadh Wissam Sharieff',
+    description: 'Master the 17 articulation points (throat, tongue, lips, nasal cavity) for crisp, beautiful Quranic recitation.',
+    duration: '23:15',
+    featured: true,
+    views: 15400,
+    likes: 1890,
+    hearts: 1890,
+    shares: 420,
+    createdAt: new Date('2026-01-22').toISOString(),
+    isBroadcast: true,
+    tags: ['tajweed', 'makharij', 'pronunciation', 'masterclass']
+  },
+  {
     id: 'khatam_motivation_virtues',
     youtubeId: 'fJ9rUzIMcZQ',
-    title: 'The Great Reward of Reciting and Completing the Holy Quran',
+    title: 'The Great Reward & Virtues of Reciting and Completing the Holy Quran',
     url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ',
     embedUrl: 'https://www.youtube-nocookie.com/embed/fJ9rUzIMcZQ?autoplay=1&rel=0&modestbranding=1',
     thumbnailUrl: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/hqdefault.jpg',
     category: 'motivation',
     categoryLabel: 'Daily Motivation & Virtues',
     speaker: 'Mufti Menk',
-    description: 'Prophetic traditions on how the Quran intercedes for its reader on the Day of Resurrection and elevates ranks in Paradise.',
-    duration: '12:05',
+    description: 'Prophetic traditions on how the Quran intercedes for its companion on the Day of Resurrection and elevates ranks in Jannah.',
+    duration: '15:45',
     featured: false,
-    views: 11400,
+    views: 24300,
     likes: 2790,
-    shares: 820,
-    createdAt: new Date('2026-01-20').toISOString(),
+    hearts: 2790,
+    shares: 810,
+    createdAt: new Date('2026-01-25').toISOString(),
     isBroadcast: true,
     tags: ['motivation', 'virtues', 'hadith', 'muftimenk']
   },
   {
-    id: 'khatam_tajweed_masterclass',
-    youtubeId: 'V-_O7nl0Ii0',
-    title: 'Essential Tajweed Rules for Smooth, Fluent Quran Recitation',
-    url: 'https://www.youtube.com/watch?v=V-_O7nl0Ii0',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/V-_O7nl0Ii0?autoplay=1&rel=0&modestbranding=1',
-    thumbnailUrl: 'https://img.youtube.com/vi/V-_O7nl0Ii0/hqdefault.jpg',
-    category: 'tajweed',
-    categoryLabel: 'Tajweed Masterclass',
-    speaker: 'Ustadh Wissam Sharieff',
-    description: 'Mastering Noon Sakinah, Ghunnah, and Madd rules so you can recite effortlessly during daily Khatam sessions.',
-    duration: '21:40',
-    featured: false,
-    views: 6500,
-    likes: 1620,
-    shares: 340,
-    createdAt: new Date('2026-01-25').toISOString(),
+    id: 'khatam_spiritual_blueprint',
+    youtubeId: 'pG1d35q30_c',
+    title: 'Spiritual Blueprint: Transforming Your Life Through Quran Khatam',
+    url: 'https://www.youtube.com/watch?v=pG1d35q30_c',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/pG1d35q30_c?autoplay=1&rel=0&modestbranding=1',
+    thumbnailUrl: 'https://img.youtube.com/vi/pG1d35q30_c/hqdefault.jpg',
+    category: 'tafsir',
+    categoryLabel: 'Tafsir & Surah Reflections',
+    speaker: 'Dr. Yasir Qadhi',
+    description: 'A comprehensive roadmap on developing presence of heart (Khushoo), thematic reflection (Tadabbur), and spiritual transformation.',
+    duration: '26:40',
+    featured: true,
+    views: 19800,
+    likes: 3120,
+    hearts: 3120,
+    shares: 690,
+    createdAt: new Date('2026-01-28').toISOString(),
     isBroadcast: true,
-    tags: ['tajweed', 'recitation', 'masterclass', 'fluency']
+    tags: ['tafsir', 'blueprint', 'spirituality', 'qadhi']
+  },
+  {
+    id: 'khatam_dua_muaiqly',
+    youtubeId: '7c9mD_q6L4M',
+    title: 'Soul-Stirring Dua Khatam Al-Quran from Masjid Al-Haram - Sheikh Maher Al-Muaiqly',
+    url: 'https://www.youtube.com/watch?v=7c9mD_q6L4M',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/7c9mD_q6L4M?autoplay=1&rel=0&modestbranding=1',
+    thumbnailUrl: 'https://img.youtube.com/vi/7c9mD_q6L4M/hqdefault.jpg',
+    category: 'dua',
+    categoryLabel: 'Khatam Duas & Supplications',
+    speaker: 'Sheikh Maher Al-Muaiqly',
+    description: 'Heartfelt Khatam prayers from the Holy Kaaba asking Allah for mercy, forgiveness, and protection for the entire global Ummah.',
+    duration: '28:20',
+    featured: false,
+    views: 32000,
+    likes: 4210,
+    hearts: 4210,
+    shares: 1150,
+    createdAt: new Date('2026-02-01').toISOString(),
+    isBroadcast: true,
+    tags: ['dua', 'makkah', 'muaiqly', 'khatam']
+  },
+  {
+    id: 'khatam_juz_amma_guide',
+    youtubeId: 'gW3B9Zp4Q0s',
+    title: 'Juz Amma Master Strategy: Rapid Memorization & Reflection for Beginners',
+    url: 'https://www.youtube.com/watch?v=gW3B9Zp4Q0s',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/gW3B9Zp4Q0s?autoplay=1&rel=0&modestbranding=1',
+    thumbnailUrl: 'https://img.youtube.com/vi/gW3B9Zp4Q0s/hqdefault.jpg',
+    category: 'juz_guide',
+    categoryLabel: 'Khatam Schedule & Strategy',
+    speaker: 'Ustadh Nouman Ali Khan',
+    description: 'Navigating the short powerful Meccan Surahs of Juz 30 with thematic cohesion, linguistic gems, and daily recitation rhythm.',
+    duration: '19:10',
+    juzNumber: 30,
+    featured: false,
+    views: 16700,
+    likes: 2480,
+    hearts: 2480,
+    shares: 530,
+    createdAt: new Date('2026-02-05').toISOString(),
+    isBroadcast: true,
+    tags: ['juz30', 'amma', 'memorization', 'guide']
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'sanctuary_youtube_broadcasts_v2';
+const LOCAL_STORAGE_KEY = 'sanctuary_youtube_broadcasts_v3';
 const DELETED_VIDEOS_KEY = 'sanctuary_deleted_video_ids_v1';
 
 export class YoutubeBroadcastService {
@@ -316,7 +407,7 @@ export class YoutubeBroadcastService {
   }
 
   /**
-   * Get cached videos from localStorage
+   * Get cached videos from localStorage, always ensuring all 10 defaults are present
    */
   static getLocalVideos(): YoutubeBroadcastVideoItem[] {
     const deletedIds = this.getDeletedVideoIds();
@@ -325,13 +416,26 @@ export class YoutubeBroadcastService {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
+          const list = parsed
             .filter(v => !deletedIds.has(v.id))
             .map(v => ({
               ...v,
               hearts: v.hearts !== undefined ? v.hearts : (v.likes || 150),
               reactions: v.reactions || { heart: v.hearts || v.likes || 150 }
             }));
+
+          const existingIds = new Set(list.map(v => v.id));
+          const missingDefaults = DEFAULT_YOUTUBE_BROADCASTS.filter(
+            d => !deletedIds.has(d.id) && !existingIds.has(d.id)
+          );
+
+          if (missingDefaults.length > 0) {
+            const merged = [...list, ...missingDefaults];
+            this.saveLocalVideos(merged);
+            return merged;
+          }
+
+          return list;
         }
       }
     } catch (e) {
@@ -683,6 +787,139 @@ export class YoutubeBroadcastService {
     } catch (e: any) {
       console.error("Error broadcasting YouTube video:", e);
       return { success: false, error: e?.message || 'Failed to broadcast video.' };
+    }
+  }
+
+  /**
+   * Update an existing broadcast video in Firestore and notify all users across the Sanctuary
+   */
+  static async updateBroadcastVideo(
+    videoId: string,
+    updatedData: {
+      url: string;
+      title?: string;
+      category?: 'tafsir' | 'motivation' | 'dua' | 'tajweed' | 'juz_guide' | 'general';
+      categoryLabel?: string;
+      speaker?: string;
+      description?: string;
+      duration?: string;
+      juzNumber?: number;
+      featured?: boolean;
+      tags?: string[];
+      notifyAllUsers?: boolean;
+    },
+    adminUser?: { uid?: string; displayName?: string; email?: string } | string
+  ): Promise<{ success: boolean; video?: YoutubeBroadcastVideoItem; error?: string }> {
+    try {
+      const parsed = this.parseVideoUrl(updatedData.url);
+      if (!parsed.isValid) {
+        return { success: false, error: 'Please provide a valid YouTube video link.' };
+      }
+
+      const adminName = typeof adminUser === 'string'
+        ? adminUser
+        : (adminUser?.displayName || adminUser?.email || 'Admin Overseer');
+
+      const existingVideos = this.getLocalVideos();
+      const existing = existingVideos.find(v => v.id === videoId) || 
+                       DEFAULT_YOUTUBE_BROADCASTS.find(v => v.id === videoId);
+
+      const category = updatedData.category || existing?.category || 'tajweed';
+      const categoryLabel = updatedData.categoryLabel || this.getCategoryLabel(category);
+      const title = updatedData.title?.trim() || existing?.title || `${categoryLabel} Broadcast`;
+      const speaker = updatedData.speaker?.trim() || existing?.speaker || 'Sanctuary Scholar';
+      const description = updatedData.description !== undefined ? updatedData.description.trim() : (existing?.description || '');
+      const duration = updatedData.duration?.trim() || existing?.duration || '20:00';
+
+      const updatedVideo: YoutubeBroadcastVideoItem = {
+        ...(existing || {}),
+        id: videoId,
+        youtubeId: parsed.youtubeId || existing?.youtubeId,
+        title,
+        url: updatedData.url.trim(),
+        embedUrl: parsed.embedUrl,
+        thumbnailUrl: parsed.thumbnailUrl,
+        category,
+        categoryLabel,
+        speaker,
+        description,
+        duration,
+        juzNumber: updatedData.juzNumber !== undefined ? updatedData.juzNumber : existing?.juzNumber,
+        featured: updatedData.featured !== undefined ? !!updatedData.featured : !!existing?.featured,
+        views: existing?.views || 0,
+        likes: existing?.likes || 0,
+        hearts: existing?.hearts || existing?.likes || 0,
+        reactions: existing?.reactions || {},
+        shares: existing?.shares || 0,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        addedBy: existing?.addedBy || adminName,
+        isBroadcast: true,
+        tags: updatedData.tags || existing?.tags || [category, 'khatam', 'quran']
+      } as YoutubeBroadcastVideoItem;
+
+      // 1. Save updated document to Firestore 'khatam_videos' collection
+      try {
+        await setDoc(doc(db, 'khatam_videos', videoId), {
+          ...updatedVideo,
+          updatedAt: serverTimestamp(),
+          updatedBy: adminName
+        }, { merge: true });
+      } catch (err) {
+        console.warn("Firestore setDoc update fallback to local cache:", err);
+      }
+
+      // 2. DISPATCH NOTIFICATION TO ALL USERS:
+      // Writes an announcement document in Firestore 'announcements' collection.
+      // NotificationService's real-time watcher will fire on all connected users' devices.
+      const shouldNotify = updatedData.notifyAllUsers !== false;
+      if (shouldNotify) {
+        try {
+          await addDoc(collection(db, 'announcements'), {
+            title: `🎬 Khatam Video Updated: ${title}`,
+            message: `"${title}" (${speaker}) was updated in Khatam Journey. Watch the revised broadcast & reflection now!`,
+            body: `"${title}" (${speaker}) was updated in Khatam Journey. Watch the revised broadcast & reflection now!`,
+            type: 'khatam_video',
+            targetUrl: `/?tab=resources&resId=khatam&video=${videoId}`,
+            mediaUrl: updatedVideo.url,
+            youtubeUrl: updatedVideo.url,
+            youtubeId: parsed.youtubeId || '',
+            thumbnailUrl: updatedVideo.thumbnailUrl,
+            embedUrl: updatedVideo.embedUrl,
+            videoId: videoId,
+            sender: adminName,
+            category,
+            speaker,
+            isKhatamJourney: true,
+            createdAt: serverTimestamp()
+          });
+        } catch (annErr) {
+          console.warn("Firestore announcements broadcast fallback:", annErr);
+        }
+
+        // Trigger local notification service
+        try {
+          await notificationService.notifyNewKhatamVideo(
+            `Updated: ${title}`,
+            speaker,
+            videoId
+          );
+        } catch (notifErr) {
+          console.warn("Local notification trigger fallback:", notifErr);
+        }
+      }
+
+      // 3. Update local cache
+      const nextList = [
+        updatedVideo,
+        ...existingVideos.filter(v => v.id !== videoId)
+      ];
+      this.saveLocalVideos(nextList);
+
+      return { success: true, video: updatedVideo };
+    } catch (e: any) {
+      console.error("Error updating broadcast video:", e);
+      return { success: false, error: e?.message || 'Failed to update video.' };
     }
   }
 

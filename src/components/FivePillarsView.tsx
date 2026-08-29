@@ -30,9 +30,12 @@ import {
   ArrowRight,
   Eye,
   Calendar,
-  Layers
+  Layers,
+  Video,
+  Play
 } from 'lucide-react';
 import { shareService } from '../services/shareService';
+import PillarsMediaGallery from './PillarsMediaGallery';
 
 export interface PillarData {
   id: string;
@@ -625,7 +628,7 @@ export default function FivePillarsView({
   addHasanat?: (amount: number) => void;
 }) {
   const [selectedPillarId, setSelectedPillarId] = useState<string>('shahada');
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'how_to' | 'benefits' | 'warnings' | 'interactive'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'how_to' | 'media' | 'benefits' | 'warnings' | 'interactive'>('overview');
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -801,9 +804,10 @@ export default function FivePillarsView({
         {[
           { id: 'overview', label: '1. What It Is & What To Do', icon: Landmark },
           { id: 'how_to', label: '2. Step-by-Step Instructions', icon: Layers },
-          { id: 'benefits', label: '3. Divine Benefits & Virtues', icon: ShieldCheck },
-          { id: 'warnings', label: '4. Punishment & Severe Warnings', icon: ShieldAlert },
-          { id: 'interactive', label: '5. Interactive Experience & Action', icon: Sparkles }
+          { id: 'media', label: '3. Animations & Video Guides', icon: Video },
+          { id: 'benefits', label: '4. Divine Benefits & Virtues', icon: ShieldCheck },
+          { id: 'warnings', label: '5. Punishment & Severe Warnings', icon: ShieldAlert },
+          { id: 'interactive', label: '6. Interactive Experience & Action', icon: Sparkles }
         ].map((tab) => {
           const SubIcon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -849,6 +853,13 @@ export default function FivePillarsView({
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveSubTab('media')}
+                  className="px-5 py-3 rounded-2xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md"
+                >
+                  <Video size={16} />
+                  <span>Watch Video Guide</span>
+                </button>
                 <button
                   onClick={() => handleSpeak(`${activePillar.name}. ${activePillar.shortSummary}`)}
                   className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white border border-white/15 text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md"
@@ -983,7 +994,23 @@ export default function FivePillarsView({
           </motion.div>
         )}
 
-        {/* SUBTAB 3: DIVINE BENEFITS & VIRTUES */}
+        {/* SUBTAB 3: ANIMATIONS & HD VIDEO MASTERCLASSES */}
+        {activeSubTab === 'media' && (
+          <motion.div
+            key={`${activePillar.id}-media`}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-8"
+          >
+            <PillarsMediaGallery 
+              pillarId={activePillar.id} 
+              onSelectPillar={(pId) => setSelectedPillarId(pId)} 
+            />
+          </motion.div>
+        )}
+
+        {/* SUBTAB 4: DIVINE BENEFITS & VIRTUES */}
         {activeSubTab === 'benefits' && (
           <motion.div
             key={`${activePillar.id}-benefits`}

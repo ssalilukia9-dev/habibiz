@@ -39,7 +39,8 @@ import {
   EyeOff,
   Flame,
   Layers,
-  Repeat
+  Repeat,
+  Construction
 } from 'lucide-react';
 import {
   collection,
@@ -2282,17 +2283,20 @@ Respond warmly, concisely, and supportively with mnemonic tips, Tajweed advice, 
                   </div>
 
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-black text-white leading-tight">
                         Aliyah • Gemini Talk Pal
                       </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                        <Construction size={10} /> Under Construction
+                      </span>
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                         <Sparkles size={10} /> Lifelong Memory
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>Context Synced to Firestore • Remembers Previous Topics</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      <span>Currently under active beta development & fine-tuning</span>
                     </p>
                   </div>
                 </div>

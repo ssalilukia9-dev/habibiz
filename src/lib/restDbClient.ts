@@ -176,7 +176,7 @@ class RestDbClient {
     return res.ok && data.success;
   }
 
-  async commentPost(postId: string, text: string, replyToCommentId?: string, replyToUser?: string, parentCommentId?: string): Promise<any> {
+  async commentPost(postId: string, text: string, replyToCommentId?: string, replyToUser?: string, parentCommentId?: string, imageUrl?: string, imageCaption?: string): Promise<any> {
     const token = this.getToken();
     if (!token) throw new Error('Not logged in');
 
@@ -186,7 +186,7 @@ class RestDbClient {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ text, replyToCommentId, replyToUser, parentCommentId })
+      body: JSON.stringify({ text, replyToCommentId, replyToUser, parentCommentId, imageUrl, imageCaption })
     });
 
     const data = await res.json();
@@ -215,6 +215,22 @@ class RestDbClient {
       headers: token ? {
         'Authorization': `Bearer ${token}`
       } : {}
+    });
+    const data = await res.json();
+    return res.ok && data.success;
+  }
+
+  async reactToComment(postId: string, commentId: string, reactionType: 'ameen' | 'heart' | 'like' = 'ameen'): Promise<any> {
+    const token = this.getToken();
+    if (!token) return false;
+
+    const res = await apiFetch(`/api/db/feed/posts/${postId}/comments/${commentId}/react`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ reactionType })
     });
     const data = await res.json();
     return res.ok && data.success;

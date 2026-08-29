@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame, Palette, Sliders, Type, BookOpen } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, Shield, Info, Database, LogOut, ArrowRight, ChevronRight, Sparkles, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Zap, Waves, Tent, Trash2, WifiOff, Compass, Heart, Flame, Palette, Sliders, Type, BookOpen, Volume2, VolumeX, CloudRain, Wind, Radio, Play, Pause, Music, Mic } from 'lucide-react';
 import { LANGUAGES } from '../constants.ts';
 import { notificationService } from '../services/notificationService';
 import { offlineService, SyncProgress } from '../services/offlineService';
 import { CURATED_THEMES, ThemeService, FONT_STYLE_PRESETS, ARABIC_FONT_OPTIONS, FONT_SIZE_OPTIONS } from '../services/themeService';
+import { DuaAudioService, DUA_RECITERS, DUA_AMBIENT_SOUNDS, DuaReciter, DuaAmbientSound } from '../services/duaAudioService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SettingsViewProps {
@@ -45,6 +46,117 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
     setFontSize(size);
     ThemeService.applyFontSize(size);
   };
+
+  // Sacred Supplications (Dua) Audio Preferences
+  const [duaReciter, setDuaReciter] = useState<string>(() => DuaAudioService.getPreferences().reciterId);
+  const [duaAmbient, setDuaAmbient] = useState<string>(() => DuaAudioService.getPreferences().ambientSoundId);
+  const [duaAmbientVol, setDuaAmbientVol] = useState<number>(() => DuaAudioService.getPreferences().ambientVolume);
+  const [duaAmbientEnabled, setDuaAmbientEnabled] = useState<boolean>(() => DuaAudioService.getPreferences().isAmbientEnabled);
+  const [isPlayingDuaPreview, setIsPlayingDuaPreview] = useState<boolean>(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleSelectDuaReciter = (reciterId: string) => {
+    setDuaReciter(reciterId);
+    DuaAudioService.setReciter(reciterId);
+    if (isPlayingDuaPreview) {
+      stopDuaPreview();
+    }
+  };
+
+  const handleSelectDuaAmbient = (ambientId: string) => {
+    setDuaAmbient(ambientId);
+    DuaAudioService.setAmbientSound(ambientId);
+    if (isPlayingDuaPreview) {
+      DuaAudioService.playAmbient(ambientId, duaAmbientVol);
+    }
+  };
+
+  const handleDuaAmbientVolChange = (vol: number) => {
+    setDuaAmbientVol(vol);
+    DuaAudioService.setAmbientVolume(vol);
+  };
+
+  const handleToggleDuaAmbientEnabled = () => {
+    const next = !duaAmbientEnabled;
+    setDuaAmbientEnabled(next);
+    DuaAudioService.setAmbientEnabled(next);
+    if (!next && isPlayingDuaPreview) {
+      DuaAudioService.stopAmbient();
+    } else if (next && isPlayingDuaPreview) {
+      DuaAudioService.playAmbient(duaAmbient, duaAmbientVol);
+    }
+  };
+
+  const toggleDuaPreview = () => {
+    if (isPlayingDuaPreview) {
+      stopDuaPreview();
+      return;
+    }
+
+    setIsPlayingDuaPreview(true);
+    const activeRec = DUA_RECITERS.find(r => r.id === duaReciter) || DUA_RECITERS[0];
+    
+    // Play selected ambient sound if enabled
+    if (duaAmbientEnabled && duaAmbient !== 'none') {
+      DuaAudioService.playAmbient(duaAmbient, duaAmbientVol);
+    }
+
+    // Play reciter sample or TTS
+    if (activeRec.sampleAudio) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      const audio = new Audio(activeRec.sampleAudio);
+      audio.volume = 0.95;
+      previewAudioRef.current = audio;
+      audio.onended = () => {
+        setIsPlayingDuaPreview(false);
+        DuaAudioService.stopAmbient();
+      };
+      audio.onerror = () => {
+        setIsPlayingDuaPreview(false);
+        DuaAudioService.stopAmbient();
+      };
+      audio.play().catch(() => {
+        setIsPlayingDuaPreview(false);
+        DuaAudioService.stopAmbient();
+      });
+    } else if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const text = 'اللَّهُمَّ إِنِّي أَسْأَلُكَ الْهُدَى وَالتُّقَى وَالْعَفَافَ وَالْغِنَى';
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = activeRec.rate || 0.88;
+      utterance.pitch = activeRec.pitch || 1.0;
+      utterance.lang = 'ar-SA';
+      utterance.onend = () => {
+        setIsPlayingDuaPreview(false);
+        DuaAudioService.stopAmbient();
+      };
+      utterance.onerror = () => {
+        setIsPlayingDuaPreview(false);
+        DuaAudioService.stopAmbient();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const stopDuaPreview = () => {
+    setIsPlayingDuaPreview(false);
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    DuaAudioService.stopAmbient();
+  };
+
+  useEffect(() => {
+    return () => {
+      stopDuaPreview();
+    };
+  }, []);
 
   // Force Ramadan Mode State & Toggle
   const [forceRamadan, setForceRamadan] = useState(() => {
@@ -233,6 +345,7 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
 
   useEffect(() => {
     localStorage.setItem('offline-mode', offlineMode.toString());
+    window.dispatchEvent(new Event('offline_mode_toggled'));
   }, [offlineMode]);
 
   const [communityNotifs, setCommunityNotifs] = useState(() => {
@@ -632,6 +745,211 @@ export default function SettingsView({ theme, setTheme, darkMode, setDarkMode, o
                 );
               })}
             </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Sacred Supplications (Dua) Audio Studio Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-400 flex items-center gap-3">
+            <Radio size={14} /> Sacred Supplications (Dua) Audio Studio
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-3 py-1 rounded-full border border-white/5">
+              Reciter: <span className="text-amber-400 font-bold">{DUA_RECITERS.find(r => r.id === duaReciter)?.name.split(' ')[1] || 'Alafasy'}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white/5 rounded-[2.5rem] border border-amber-500/20 overflow-hidden shadow-2xl p-6 sm:p-8 space-y-8 relative">
+          
+          {/* Subtle Ambient Glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+          {/* Section Header & Live Soundcheck Banner */}
+          <div className="relative z-10 p-6 rounded-3xl bg-gradient-to-r from-amber-500/15 via-black/40 to-transparent border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-brand-depth flex items-center justify-center font-black shadow-lg shadow-amber-400/20 shrink-0">
+                <Volume2 size={22} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase tracking-widest border border-amber-500/30">
+                    Sacred Adhkar & Dua Library
+                  </span>
+                </div>
+                <h4 className="text-lg font-black text-white">
+                  Voice Recitation & Ambient Soundscape Engine
+                </h4>
+                <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+                  Toggle your preferred master Qari for supplications and mix soothing background soundscapes (Makkah rain, Madinah dawn breeze, or 432Hz harmonic peace) into your prayer moments.
+                </p>
+              </div>
+            </div>
+
+            {/* Test Audio Preview Button */}
+            <button
+              onClick={toggleDuaPreview}
+              className={`px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl shrink-0 cursor-pointer active:scale-95 ${
+                isPlayingDuaPreview 
+                  ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/30 ring-2 ring-red-400' 
+                  : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-depth shadow-amber-400/25'
+              }`}
+            >
+              {isPlayingDuaPreview ? (
+                <>
+                  <Pause size={16} className="fill-current animate-pulse" />
+                  <span>Stop Soundcheck</span>
+                </>
+              ) : (
+                <>
+                  <Play size={16} className="fill-current" />
+                  <span>Test Voice & Ambience</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* 1. Voice Reciter Selector */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-5 bg-amber-400 rounded-full" />
+                <div>
+                  <h4 className="text-base font-black text-white">1. Select Dua Voice Reciter</h4>
+                  <p className="text-xs text-slate-400">Authentic recitation style applied to all Sacred Supplications</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {DUA_RECITERS.map((rec) => {
+                const isSelected = duaReciter === rec.id;
+                return (
+                  <button
+                    key={rec.id}
+                    onClick={() => handleSelectDuaReciter(rec.id)}
+                    className={`p-4 sm:p-5 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/40 shadow-xl'
+                        : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-black/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <span className="text-xs font-black text-white block">{rec.name}</span>
+                        <span className="text-xs font-arabic text-amber-300 font-bold block mt-0.5">{rec.arabicName}</span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-amber-400 text-black font-bold' : 'border border-white/20'
+                      }`}>
+                        {isSelected && <CheckCircle2 size={13} />}
+                      </div>
+                    </div>
+
+                    <span className="inline-block text-[9px] px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 font-bold uppercase tracking-wider mb-2">
+                      {rec.style}
+                    </span>
+
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {rec.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <hr className="border-white/5" />
+
+          {/* 2. Ambient Background Soundscapes */}
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-5 bg-emerald-400 rounded-full" />
+                <div>
+                  <h4 className="text-base font-black text-white">2. Ambient Background Soundscape</h4>
+                  <p className="text-xs text-slate-400">Atmospheric natural acoustics played softly behind supplications</p>
+                </div>
+              </div>
+
+              {/* Ambient On/Off Toggle */}
+              <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-2xl border border-white/10 w-fit">
+                <span className="text-xs font-bold text-slate-300">Enable Ambient Sound</span>
+                <button
+                  onClick={handleToggleDuaAmbientEnabled}
+                  className={`w-12 h-6 rounded-full transition-all relative ${duaAmbientEnabled ? 'bg-emerald-500' : 'bg-slate-800'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${duaAmbientEnabled ? 'left-7' : 'left-1'} shadow-md`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Ambient Sound Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {DUA_AMBIENT_SOUNDS.map((snd) => {
+                const isSelected = duaAmbient === snd.id;
+                return (
+                  <button
+                    key={snd.id}
+                    onClick={() => handleSelectDuaAmbient(snd.id)}
+                    className={`p-4 sm:p-5 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-500/15 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xl'
+                        : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-black/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <span className="text-xs font-black text-white block">{snd.name}</span>
+                        <span className="text-xs font-arabic text-emerald-300 font-bold block mt-0.5">{snd.arabicName}</span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-emerald-400 text-black font-bold' : 'border border-white/20'
+                      }`}>
+                        {isSelected && <CheckCircle2 size={13} />}
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {snd.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Volume Control Slider */}
+            {duaAmbientEnabled && duaAmbient !== 'none' && (
+              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Waves size={18} className="text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-white block">Ambient Blend Volume</span>
+                    <p className="text-[10px] text-slate-400">Balance between spoken voice and ambient atmosphere</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-64">
+                  <VolumeX size={14} className="text-slate-500" />
+                  <input
+                    type="range"
+                    min="0.05"
+                    max="1.0"
+                    step="0.05"
+                    value={duaAmbientVol}
+                    onChange={(e) => handleDuaAmbientVolChange(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                  <Volume2 size={14} className="text-emerald-400" />
+                  <span className="text-xs font-mono font-bold text-emerald-400 w-10 text-right">
+                    {Math.round(duaAmbientVol * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

@@ -49,7 +49,12 @@ import {
   Download,
   RefreshCw,
   Layers,
-  Bell
+  Bell,
+  Pin,
+  Quote,
+  Award,
+  ThumbsUp,
+  Camera
 } from 'lucide-react';
 import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
@@ -99,25 +104,125 @@ export const TRENDING_HASHTAGS = [
   { tag: '#SunnahHabits', label: 'Sunnah Habits', count: '360', icon: '🌱' }
 ];
 
-interface Comment {
+export const QUICK_ISLAMIC_REACTIONS = [
+  { label: '🤲 Ameen ya Rabb', text: 'Ameen ya Rabb al-Alameen 🤲' },
+  { label: '✨ BarakAllahu Feek', text: 'BarakAllahu feekum for this sacred reminder 🌿' },
+  { label: '📖 JazakAllahu Khayran', text: 'JazakAllahu Khayran for sharing this beneficial pearl ✨' },
+  { label: '💫 SubhanAllah', text: 'SubhanAllah, this touched my heart deeply 🤍' },
+  { label: '🌱 MashaAllah', text: 'MashaAllah, beautifully written and beneficial 🌸' },
+  { label: '🕊️ May Allah ease your heart', text: 'May Allah grant you ease, peace, and immense barakah 🤲' }
+];
+
+export const ISLAMIC_CALLIGRAPHY_SYMBOLS = [
+  { symbol: 'ﷺ', label: 'Salawat on Prophet' },
+  { symbol: 'ﷻ', label: 'Jalla Jalaluh' },
+  { symbol: 'رضي الله عنه', label: 'Radiyallahu Anhu' },
+  { symbol: 'رحمه الله', label: 'Rahimahullah' },
+  { symbol: '🤲', label: 'Dua' },
+  { symbol: '✨', label: 'Noor' },
+  { symbol: '📖', label: 'Quran' },
+  { symbol: '🕌', label: 'Masjid' },
+  { symbol: '🌿', label: 'Peace' },
+  { symbol: '🤍', label: 'Pure Heart' },
+  { symbol: '📿', label: 'Tasbih' },
+  { symbol: '🕊️', label: 'Salam' }
+];
+
+export const SPIRITUAL_COMMENT_IMAGE_PRESETS = [
+  { 
+    id: 'preset-quran',
+    label: '📖 Quran Tajweed & Notes', 
+    category: 'Quran Reflection',
+    tag: '#QuranStudy',
+    url: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000',
+    caption: 'My sacred Quran reflection & notes 📖✨'
+  },
+  { 
+    id: 'preset-masjid',
+    label: '🕌 Jumu\'ah Masjid Prayer', 
+    category: 'Masjid Gathering',
+    tag: '#MasjidCommunity',
+    url: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+    caption: 'Blessed Jumu\'ah gathering at the mosque 🕌🕊️'
+  },
+  { 
+    id: 'preset-adhkar',
+    label: '📿 Morning/Evening Adhkar Corner', 
+    category: 'Dhikr & Tasbih',
+    tag: '#DhikrHabits',
+    url: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000',
+    caption: 'Tranquil dhikr and tasbih corner 📿🌿'
+  },
+  { 
+    id: 'preset-kaaba',
+    label: '🕋 Sacred Kaaba & Tawaf', 
+    category: 'Sacred Sanctuary',
+    tag: '#Umrah',
+    url: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000',
+    caption: 'May Allah invite us all to His sacred House 🕋🤲'
+  },
+  { 
+    id: 'preset-fajr',
+    label: '🌅 Fajr Dawn & Tahajjud', 
+    category: 'Dawn Prayer',
+    tag: '#FajrClub',
+    url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1000',
+    caption: 'The serenity of Fajr dawn prayer 🌅✨'
+  },
+  { 
+    id: 'preset-dua',
+    label: '🤲 Heartfelt Dua & Peace', 
+    category: 'Dua & Tawakkul',
+    tag: '#DuaAndPeace',
+    url: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000',
+    caption: 'Heartfelt dua in contemplation 🤲🕊️'
+  },
+  { 
+    id: 'preset-nature',
+    label: '🌿 Halal Nature Tadabbur', 
+    category: 'Nature Tadabbur',
+    tag: '#CreationTadabbur',
+    url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000',
+    caption: 'Contemplating the beauty of Allah\'s creation 🌿'
+  },
+  { 
+    id: 'preset-iftar',
+    label: '🍲 Community Iftar & Sadaqah', 
+    category: 'Hospitality & Charity',
+    tag: '#HalalBarakah',
+    url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1000',
+    caption: 'Sharing meals and barakah with loved ones 🍲🤍'
+  }
+];
+
+export interface Comment {
   id: string;
   userId: string;
   user: string;
+  userRole?: 'scholar' | 'hafiz' | 'imam' | 'contributor' | 'member';
   text: string;
+  imageUrl?: string;
+  imageCaption?: string;
   time: any;
   replyToUser?: string;
   replyToCommentId?: string;
   parentCommentId?: string;
   replies?: Comment[];
+  likes?: number;
+  hearts?: number;
+  ameens?: number;
+  userReactions?: Record<string, 'heart' | 'ameen' | 'like'>;
+  isPinned?: boolean;
+  ayahRef?: string;
 }
 
-interface Poll {
+export interface Poll {
   options: { id: string; text: string; votes: number }[];
   totalVotes: number;
   userSelections?: Record<string, string>; // userId -> optionId
 }
 
-interface Post {
+export interface Post {
   id: string;
   userId: string;
   user: string;
@@ -140,6 +245,381 @@ interface Post {
   approved?: boolean;
   poll?: Poll;
 }
+
+export const DEFAULT_NOOR_POSTS: Post[] = [
+  {
+    id: 'default-noor-post-1',
+    userId: 'scholar-dr-yasir',
+    user: 'Dr. Yasir Qadhi',
+    isScholar: true,
+    content: "Reflecting on Surah Ash-Sharh: 'Fa inna ma'al 'usri yusra, Inna ma'al 'usri yusra' — 'For indeed, with hardship comes ease. Indeed, with hardship comes ease.' (94:5-6) ✨\n\nNotice Allah ﷻ says *with* the hardship, not after it. In every trial you face, the ease is already being prepared by Allah. Keep your heart attached to Him.",
+    caption: "The linguistic beauty of Surah Ash-Sharh #QuranReflection",
+    category: 'Quran & Tafsir',
+    privacy: 'public',
+    bgStyle: 'emerald_glow',
+    supportCount: 342,
+    reconsiderCount: 4,
+    time: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    timeDisplay: '45m ago',
+    comments: [
+      {
+        id: 'c-default-1-1',
+        userId: 'hafiz-zayd',
+        user: 'Hafiz Zayd',
+        userRole: 'hafiz',
+        text: 'SubhanAllah! The classical tafsir mentions that the hardship (al-Usr) is singular and definite, while ease (Yusr) is indefinite, meaning one hardship will never overcome double ease! 🤍',
+        imageUrl: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'My daily Tajweed & Surah Ash-Sharh study notes 📖✨',
+        time: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        ameens: 28,
+        hearts: 34,
+        isPinned: true,
+        replies: [
+          {
+            id: 'c-default-1-1-r1',
+            userId: 'brother-hamza',
+            user: 'Brother Hamza',
+            userRole: 'member',
+            replyToUser: 'Hafiz Zayd',
+            replyToCommentId: 'c-default-1-1',
+            parentCommentId: 'c-default-1-1',
+            text: 'Allahu Akbar! That grammatical explanation gives so much tranquil hope. JazakAllahu Khayran!',
+            time: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+            ameens: 12,
+            hearts: 15
+          }
+        ]
+      },
+      {
+        id: 'c-default-1-2',
+        userId: 'sister-safiyyah',
+        user: 'Safiyyah Al-Ansari',
+        userRole: 'contributor',
+        text: 'Needed this reminder so desperately today while going through a tough exam season. Alhamdulillah for the words of Allah that soothe the aching heart 🤲🌿',
+        time: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+        ameens: 19,
+        hearts: 22,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-post-2',
+    userId: 'sheikh-bilal',
+    user: 'Sheikh Bilal',
+    isScholar: true,
+    content: "The sacred stillness of the Fajr hour 🌅\n\nWhen you stand before Allah for Fajr while the rest of the creation sleeps, remember: 'Prayer is better than sleep' is not merely a statement, it is an oath of tranquility for your soul. What routine or mindset helps you wake up consistently for Fajr?",
+    caption: "Fajr serenity and waking up habits #FajrClub",
+    category: 'Spiritual Reminders',
+    privacy: 'public',
+    bgStyle: 'twilight_deep',
+    supportCount: 289,
+    reconsiderCount: 2,
+    time: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    timeDisplay: '2h ago',
+    comments: [
+      {
+        id: 'c-default-2-1',
+        userId: 'sister-fatima',
+        user: 'Sr. Fatima',
+        userRole: 'scholar',
+        text: 'Going to sleep with Wudu, reciting Ayat al-Kursi, and sincerely asking Allah before closing your eyes: "Ya Allah, wake me for Your worship" works like an inner spiritual alarm clock 🌸',
+        imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'My morning tasbih & prayer corner before sunrise 📿✨',
+        time: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+        ameens: 42,
+        hearts: 51,
+        isPinned: true,
+        replies: [
+          {
+            id: 'c-default-2-1-r1',
+            userId: 'brother-tariq',
+            user: 'Tariq Mansoor',
+            userRole: 'member',
+            replyToUser: 'Sr. Fatima',
+            replyToCommentId: 'c-default-2-1',
+            parentCommentId: 'c-default-2-1',
+            text: 'MashaAllah, I also place my phone across the room so I am forced to physically stand up. May Allah keep our feet firm on Fajr.',
+            time: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
+            ameens: 16,
+            hearts: 18
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'default-noor-post-3',
+    userId: 'user-aminah',
+    user: 'Amina Karim',
+    content: "Daily Gratitude Check 🌿: Name 3 blessings you experienced today that wealth could never buy. Let us fill the comments with Alhamdulillah for Ar-Rahman's endless mercy! ✨",
+    caption: "Counting our unseen blessings #Alhamdulillah",
+    category: 'Gratitude & Joy',
+    privacy: 'public',
+    bgStyle: 'gold_radiance',
+    supportCount: 415,
+    reconsiderCount: 1,
+    time: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
+    timeDisplay: '4h ago',
+    comments: [
+      {
+        id: 'c-default-3-1',
+        userId: 'user-zayd',
+        user: 'Zayn Malik',
+        userRole: 'member',
+        text: '1. The blessing of Islam & Sujood, 2. The comforting sound of my parents laughing in the living room, 3. Clean water and good health. Alhamdulillah Rabbil Alameen! 🤍',
+        time: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+        ameens: 31,
+        hearts: 38,
+        replies: []
+      },
+      {
+        id: 'c-default-3-2',
+        userId: 'user-maryam',
+        user: 'Maryam Al-Qudsi',
+        userRole: 'contributor',
+        text: 'A heart that still remembers Allah, eyes that can gaze upon the Holy Quran, and peaceful breaths without struggle. Allahumma lakal hamd!',
+        time: new Date(Date.now() - 1000 * 60 * 140).toISOString(),
+        ameens: 27,
+        hearts: 30,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-post-4',
+    userId: 'user-seeker',
+    user: 'Spiritual Seeker',
+    content: "Feeling a bit anxious and overwhelmed by big life decisions today. Reminding my soul: 'حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ' (HasbunAllahu wa ni'mal wakeel — Allah is sufficient for us, and He is the best disposer of affairs). Please remember me in your Duas tonight 🤲🕊️",
+    caption: "Finding peace in Tawakkul #Tawakkul #HowIFeel",
+    category: 'How I Feel',
+    privacy: 'public',
+    bgStyle: 'default',
+    supportCount: 380,
+    reconsiderCount: 3,
+    time: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
+    timeDisplay: '6h ago',
+    comments: [
+      {
+        id: 'c-default-4-1',
+        userId: 'imam-abubakr',
+        user: 'Ustad Abu Bakr',
+        userRole: 'imam',
+        text: 'May Allah expand your chest with tranquility, ease your path, and grant you clarity that leaves you in awe of His divine wisdom. You are in our Duas, dear brother/sister! 🤲✨',
+        time: new Date(Date.now() - 1000 * 60 * 300).toISOString(),
+        ameens: 58,
+        hearts: 62,
+        isPinned: true,
+        replies: [
+          {
+            id: 'c-default-4-1-r1',
+            userId: 'user-seeker',
+            user: 'Spiritual Seeker',
+            replyToUser: 'Ustad Abu Bakr',
+            replyToCommentId: 'c-default-4-1',
+            parentCommentId: 'c-default-4-1',
+            text: 'Ameen ya Rabb al-Alameen! Your Dua brought such peace to my heart. BarakAllahu feekum.',
+            time: new Date(Date.now() - 1000 * 60 * 220).toISOString(),
+            ameens: 14,
+            hearts: 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'default-noor-khatam-1',
+    userId: 'user-khatam-tariq',
+    user: 'Tariq Al-Muqri',
+    content: "📖✨ ALHAMDULILLAH! Milestone reached in my Quran Khatam Journey — Completed Surah Al-Baqarah (Juz 1 to 3)! 🤍\n\nSpending 30 minutes every morning after Fajr reviewing the Ayat of debt, spending, fasting, and Ayat al-Kursi has brought unmatched barakah into my home. Starting Surah Ali 'Imran tomorrow InshaAllah. May Allah grant all of us steadfastness to complete the entire Book of Allah!",
+    caption: "Quran Khatam Journey: Surah Al-Baqarah Completed #QuranKhatam #Tadabbur",
+    category: 'Quran & Tafsir',
+    privacy: 'public',
+    image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000',
+    bgStyle: 'emerald_glow',
+    supportCount: 524,
+    reconsiderCount: 0,
+    time: new Date(Date.now() - 1000 * 60 * 480).toISOString(),
+    timeDisplay: '8h ago',
+    comments: [
+      {
+        id: 'c-khatam-1-1',
+        userId: 'scholar-dr-yasir',
+        user: 'Dr. Yasir Qadhi',
+        userRole: 'scholar',
+        text: 'MashaAllah TabarakAllah! The Prophet ﷺ said: "Recite Surah Al-Baqarah, for holding onto it is a blessing and leaving it is a regret." May Allah accept your Khatam and illuminate your heart with every letter recited! 🤲✨',
+        imageUrl: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'Tafsir Ibn Kathir notes on Surah Al-Baqarah 📖',
+        time: new Date(Date.now() - 1000 * 60 * 400).toISOString(),
+        ameens: 84,
+        hearts: 92,
+        isPinned: true,
+        replies: [
+          {
+            id: 'c-khatam-1-1-r1',
+            userId: 'user-khatam-tariq',
+            user: 'Tariq Al-Muqri',
+            replyToUser: 'Dr. Yasir Qadhi',
+            replyToCommentId: 'c-khatam-1-1',
+            parentCommentId: 'c-khatam-1-1',
+            text: 'JazakAllahu Khayran Dr. Yasir! Your Tafsir series on YouTube kept me motivated during the long verses.',
+            time: new Date(Date.now() - 1000 * 60 * 350).toISOString(),
+            ameens: 29,
+            hearts: 31
+          }
+        ]
+      },
+      {
+        id: 'c-khatam-1-2',
+        userId: 'sister-layla',
+        user: 'Layla Nur',
+        userRole: 'contributor',
+        text: 'Allahu Akbar! This inspired me so much to pick up my Mushaf and start my own Khatam journey today. Please make Dua for me! 🌸',
+        imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'My daily bookmark set for Juz 1 📿',
+        time: new Date(Date.now() - 1000 * 60 * 320).toISOString(),
+        ameens: 36,
+        hearts: 40,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-khatam-2',
+    userId: 'user-khatam-samira',
+    user: 'Samira Bint Ahmad',
+    content: "🌸✨ HALFWAY MILESTONE: Surah Al-Kahf & Juz 15 reached in my Ramadan / Yearly Khatam Journey! 📖\n\nEvery Friday reflection on the Four Trials of Surah Al-Kahf (Faith, Wealth, Knowledge, Power) takes on a deeper meaning when read with intentional contemplation. Making Dua that Allah allows every seeker in NoorTalk to reach their Khatam goals with sincerity (Ikhlas)!",
+    caption: "Quran Khatam Journey: Reaching the Halfway Mark Juz 15 #QuranReflection",
+    category: 'Quran & Tafsir',
+    privacy: 'public',
+    image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+    bgStyle: 'gold_radiance',
+    supportCount: 468,
+    reconsiderCount: 1,
+    time: new Date(Date.now() - 1000 * 60 * 600).toISOString(),
+    timeDisplay: '10h ago',
+    comments: [
+      {
+        id: 'c-khatam-2-1',
+        userId: 'hafiz-zayd',
+        user: 'Hafiz Zayd',
+        userRole: 'hafiz',
+        text: 'MashaAllah! You have crossed the center point of the Holy Quran! Keep up the momentum with 4 pages after every Fard prayer, and the second half will flow with ease by Allah’s grace 🤲🤍',
+        imageUrl: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'Quran Khatam tracking table 📿✨',
+        time: new Date(Date.now() - 1000 * 60 * 520).toISOString(),
+        ameens: 52,
+        hearts: 61,
+        isPinned: true,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-khatam-3',
+    userId: 'user-khatam-ibrahim',
+    user: 'Ibrahim Al-Fassi',
+    content: "🕌🤲 CELEBRATING FULL KHATAM AL-QURAN! (Surah An-Nas Completed!) 🕊️✨\n\nAfter 45 days of steady Fajr & Tahajjud recitation, I completed the recitation of the entire Holy Quran today at the local Masjid. The Dua Khatam al-Quran brought tears to my eyes.\n\nI dedicate the reward of this Khatam to my late grandparents, my parents, and for the peace and relief of our oppressed brothers and sisters in Palestine and worldwide. Allahumma Ameen! 🤲🇵🇸",
+    caption: "Completed Full Quran Khatam Journey #KhatamAlQuran #Alhamdulillah",
+    category: 'Spiritual Reminders',
+    privacy: 'public',
+    image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1000',
+    bgStyle: 'twilight_deep',
+    supportCount: 689,
+    reconsiderCount: 0,
+    time: new Date(Date.now() - 1000 * 60 * 720).toISOString(),
+    timeDisplay: '12h ago',
+    comments: [
+      {
+        id: 'c-khatam-3-1',
+        userId: 'sheikh-bilal',
+        user: 'Sheikh Bilal',
+        userRole: 'scholar',
+        text: 'ALLAHU AKBAR! Congratulations on this grand crown in the Akhirah! The Prophet ﷺ said: "The best among you are those who learn the Quran and teach it." May the Quran be your companion in the grave and your intercessor on the Day of Judgment! 🤲👑✨',
+        imageUrl: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'Special Dua for the Huffadh and Khatam readers 🤲',
+        time: new Date(Date.now() - 1000 * 60 * 660).toISOString(),
+        ameens: 112,
+        hearts: 128,
+        isPinned: true,
+        replies: []
+      },
+      {
+        id: 'c-khatam-3-2',
+        userId: 'user-maryam',
+        user: 'Maryam Al-Qudsi',
+        userRole: 'contributor',
+        text: 'Ameen ya Rabb al-Alameen! Your dedication gives the entire Ummah so much hope and spiritual energy. May Allah reward you and your family! 🤍🌸',
+        time: new Date(Date.now() - 1000 * 60 * 610).toISOString(),
+        ameens: 47,
+        hearts: 54,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-khatam-4',
+    userId: 'user-tahajjud-streak',
+    user: 'Farah Siddiqui',
+    content: "🌅 30-DAY FAJR & TAHAJJUD STREAK JOURNEY: Reflections on waking before dawn ✨\n\n30 days ago, I struggled to wake up for Fajr. Today, with the Sanctuary app Fajr reminders and making a habit of sleeping on Wudu, I completed 30 consecutive days of Tahajjud + Fajr in congregation.\n\nMy heart feels lighter, anxiety is replaced with stillness, and my daily work has ten times more barakah. If you are struggling, start with just 2 Rak'ahs 15 minutes before Fajr!",
+    caption: "30 Days of Tahajjud Serenity #FajrClub #SpiritualJourney",
+    category: 'Spiritual Reminders',
+    privacy: 'public',
+    image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1000',
+    bgStyle: 'emerald_glow',
+    supportCount: 495,
+    reconsiderCount: 1,
+    time: new Date(Date.now() - 1000 * 60 * 840).toISOString(),
+    timeDisplay: '14h ago',
+    comments: [
+      {
+        id: 'c-khatam-4-1',
+        userId: 'sister-fatima',
+        user: 'Sr. Fatima',
+        userRole: 'scholar',
+        text: 'SubhanAllah! Tahajjud is the arrow that never misses its target. May Allah keep you steadfast upon this sacred garden of night prayer! 🌿🤲',
+        imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'The serenity of midnight worship 📿',
+        time: new Date(Date.now() - 1000 * 60 * 780).toISOString(),
+        ameens: 68,
+        hearts: 75,
+        isPinned: true,
+        replies: []
+      }
+    ]
+  },
+  {
+    id: 'default-noor-khatam-5',
+    userId: 'user-salawat-circle',
+    user: 'Yusuf Al-Andalusi',
+    content: "📿✨ 10,000 SALAWAT & ISTIGHFAR WEEKLY JOURNEY REACHED! 🕊️\n\n'اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ'\n\nWhenever life feels constrained, sending blessings upon our Beloved Master Muhammad ﷺ dissolves all worries and invites forgiveness. Let us unite as an Ummah in sending 100 Salawat today! Drop a 'ﷺ' in the comments to join the collective blessing circle!",
+    caption: "Salawat on the Prophet ﷺ Blessing Circle #SunnahHabits #Salawat",
+    category: 'Gratitude & Joy',
+    privacy: 'public',
+    image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=1000',
+    bgStyle: 'gold_radiance',
+    supportCount: 612,
+    reconsiderCount: 0,
+    time: new Date(Date.now() - 1000 * 60 * 960).toISOString(),
+    timeDisplay: '16h ago',
+    comments: [
+      {
+        id: 'c-khatam-5-1',
+        userId: 'imam-abubakr',
+        user: 'Ustad Abu Bakr',
+        userRole: 'imam',
+        text: 'ﷺ ﷺ ﷺ Allahumma Salli wa Sallim wa Barik \'ala Sayyidina Muhammad wa \'ala Aalihi wa Sahbihi Ajma\'een! May we drink from his blessed Hawd Al-Kawthar! 🤲✨',
+        imageUrl: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1000',
+        imageCaption: 'The blessed Green Dome in Madinah 🕌',
+        time: new Date(Date.now() - 1000 * 60 * 900).toISOString(),
+        ameens: 95,
+        hearts: 104,
+        isPinned: true,
+        replies: []
+      }
+    ]
+  }
+];
 
 // Human-readable time ago formatter (e.g. 'just now', '2m ago', '1h ago', '3d ago')
 export const formatTimeAgo = (timestamp: any): string => {
@@ -302,6 +782,36 @@ export default function FeedView({
   const [expandedCommentsPostId, setExpandedCommentsPostId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ postId: string; parentCommentId: string; commentId: string; userName: string } | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [copiedCommentId, setCopiedCommentId] = useState<string | null>(null);
+  const [activeIslamicToolbarPostId, setActiveIslamicToolbarPostId] = useState<string | null>(null);
+
+  // 📷 NoorTalk Comment Image Attachment & Selection Tool State
+  const [commentImageAttachment, setCommentImageAttachment] = useState<{
+    postId: string;
+    imageUrl: string;
+    caption?: string;
+    category?: string;
+    tag?: string;
+  } | null>(null);
+
+  const [replyImageAttachment, setReplyImageAttachment] = useState<{
+    postId: string;
+    commentId: string;
+    imageUrl: string;
+    caption?: string;
+    category?: string;
+    tag?: string;
+  } | null>(null);
+
+  const [activePhotoPicker, setActivePhotoPicker] = useState<{
+    postId: string;
+    commentId?: string;
+    isReply: boolean;
+  } | null>(null);
+
+  const [photoPickerTab, setPhotoPickerTab] = useState<'presets' | 'upload' | 'url'>('presets');
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string>('');
+  const [isProcessingCommentImage, setIsProcessingCommentImage] = useState<boolean>(false);
 
   // Confirmation state
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'report' | 'delete_comment', id: string, commentId?: string, parentCommentId?: string, title: string, message: string } | null>(null);
@@ -346,6 +856,95 @@ export default function FeedView({
     }]);
     setLightboxIndex(0);
     setIsLightboxOpen(true);
+  };
+
+  const openCommentMediaLightbox = (imageUrl: string, author: string, caption?: string, text?: string) => {
+    setLightboxMediaItems([{
+      url: imageUrl,
+      title: 'Spiritual Activity Reflection',
+      caption: caption || text || undefined,
+      author: `${author} • Noor Talk Reflection`
+    }]);
+    setLightboxIndex(0);
+    setIsLightboxOpen(true);
+  };
+
+  const handleCommentPhotoFile = async (file: File, postId: string, commentId?: string, isReply: boolean = false) => {
+    if (!file) return;
+    try {
+      setIsProcessingCommentImage(true);
+      const dataUrl = await compressImageFile(file, 1000, 0.82);
+      if (isReply && commentId) {
+        setReplyImageAttachment({
+          postId,
+          commentId,
+          imageUrl: dataUrl,
+          caption: 'Spiritual activity reflection 📸',
+          category: 'Spiritual Activity'
+        });
+      } else {
+        setCommentImageAttachment({
+          postId,
+          imageUrl: dataUrl,
+          caption: 'Spiritual activity reflection 📸',
+          category: 'Spiritual Activity'
+        });
+      }
+      setActivePhotoPicker(null);
+      setPublishSuccessMessage("📸 Spiritual activity photo attached (+15 Hasanat)!");
+      setTimeout(() => setPublishSuccessMessage(null), 3000);
+    } catch (err: any) {
+      alert("Image processing failed: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsProcessingCommentImage(false);
+    }
+  };
+
+  const handleSelectPresetPhoto = (preset: typeof SPIRITUAL_COMMENT_IMAGE_PRESETS[0], postId: string, commentId?: string, isReply: boolean = false) => {
+    playHapticAudio('swipe');
+    if (isReply && commentId) {
+      setReplyImageAttachment({
+        postId,
+        commentId,
+        imageUrl: preset.url,
+        caption: preset.caption,
+        category: preset.category,
+        tag: preset.tag
+      });
+    } else {
+      setCommentImageAttachment({
+        postId,
+        imageUrl: preset.url,
+        caption: preset.caption,
+        category: preset.category,
+        tag: preset.tag
+      });
+    }
+    setActivePhotoPicker(null);
+    setPublishSuccessMessage(`📸 Attached "${preset.label}" (+15 Hasanat)!`);
+    setTimeout(() => setPublishSuccessMessage(null), 3000);
+  };
+
+  const handleAttachUrlPhoto = (postId: string, commentId?: string, isReply: boolean = false) => {
+    if (!customPhotoUrl.trim()) return;
+    if (isReply && commentId) {
+      setReplyImageAttachment({
+        postId,
+        commentId,
+        imageUrl: customPhotoUrl.trim(),
+        caption: 'Sacred visual reflection 🌿'
+      });
+    } else {
+      setCommentImageAttachment({
+        postId,
+        imageUrl: customPhotoUrl.trim(),
+        caption: 'Sacred visual reflection 🌿'
+      });
+    }
+    setCustomPhotoUrl('');
+    setActivePhotoPicker(null);
+    setPublishSuccessMessage("📸 Photo attached from web link (+15 Hasanat)!");
+    setTimeout(() => setPublishSuccessMessage(null), 3000);
   };
 
   // 📖 Dedicated Admin-Only Islamic Wisdom Visual Teaching Studio State
@@ -532,11 +1131,19 @@ export default function FeedView({
               privacy: p.privacy || 'public',
               timeDisplay: p.timeDisplay || (p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now')
             }));
-            setPosts(mapped);
+            if (mapped.length === 0) {
+              setPosts(DEFAULT_NOOR_POSTS);
+            } else {
+              // Merge any default posts that aren't in mapped
+              const existingIds = new Set(mapped.map(p => p.id));
+              const extraDefaults = DEFAULT_NOOR_POSTS.filter(d => !existingIds.has(d.id));
+              setPosts([...mapped, ...extraDefaults]);
+            }
             setLoading(false);
           })
           .catch(err => {
             console.warn("Failed to fetch REST posts:", err);
+            setPosts(DEFAULT_NOOR_POSTS);
             setLoading(false);
           });
       };
@@ -561,7 +1168,13 @@ export default function FeedView({
             timeDisplay: data.time ? new Date(data.time.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'
           } as any;
         });
-        setPosts(list);
+        if (list.length === 0) {
+          setPosts(DEFAULT_NOOR_POSTS);
+        } else {
+          const existingIds = new Set(list.map(p => p.id));
+          const extraDefaults = DEFAULT_NOOR_POSTS.filter(d => !existingIds.has(d.id));
+          setPosts([...list, ...extraDefaults]);
+        }
         setLoading(false);
 
         // Auto-expand and scroll to linked discussion if URL has post param or hash
@@ -982,19 +1595,38 @@ export default function FeedView({
   const handleCommentSubmit = async (postId: string, parentCommentId?: string, replyToUser?: string) => {
     const activeUser = getActiveUser();
     const textToSubmit = parentCommentId ? replyText.trim() : (activePostComment?.postId === postId ? activePostComment.text.trim() : '');
-    if (!textToSubmit || !activeUser) return;
+    
+    // Check if there is an image attached
+    const attachedImage = parentCommentId 
+      ? (replyImageAttachment?.commentId === parentCommentId ? replyImageAttachment.imageUrl : undefined)
+      : (commentImageAttachment?.postId === postId ? commentImageAttachment.imageUrl : undefined);
+    
+    const attachedCaption = parentCommentId 
+      ? (replyImageAttachment?.commentId === parentCommentId ? replyImageAttachment.caption : undefined)
+      : (commentImageAttachment?.postId === postId ? commentImageAttachment.caption : undefined);
+
+    // If neither text nor image is present, ignore
+    if ((!textToSubmit && !attachedImage) || !activeUser) return;
 
     playHapticAudio('publish');
+
+    const finalText = textToSubmit || (attachedCaption ? attachedCaption : 'Shared a spiritual moment 📸✨');
 
     const newComment: Comment = {
       id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       userId: activeUser.uid,
       user: activeUser.displayName,
-      text: textToSubmit,
+      text: finalText,
+      imageUrl: attachedImage,
+      imageCaption: attachedCaption,
       replyToUser: replyToUser || undefined,
       replyToCommentId: parentCommentId || undefined,
       parentCommentId: parentCommentId || undefined,
       time: new Date().toISOString(),
+      ameens: 0,
+      hearts: 0,
+      likes: 0,
+      userReactions: {},
       replies: []
     };
 
@@ -1023,14 +1655,17 @@ export default function FeedView({
     }
 
     setExpandedCommentsPostId(postId);
-    if (addHasanat) addHasanat(10);
+    if (addHasanat) addHasanat(attachedImage ? 25 : 10);
     
     if (parentCommentId) {
       setReplyingTo(null);
       setReplyText('');
+      setReplyImageAttachment(null);
     } else {
       setActivePostComment(null);
+      setCommentImageAttachment(null);
     }
+    setActivePhotoPicker(null);
 
     // Trigger notification for comment thread replies
     if (post) {
@@ -1040,7 +1675,7 @@ export default function FeedView({
         if (parentComment && parentComment.userId !== activeUser.uid) {
           notificationService.notifyCommentReply(
             activeUser.displayName || 'A community member',
-            textToSubmit,
+            finalText,
             postId,
             parentComment.user || 'Discussion Participant'
           );
@@ -1051,7 +1686,7 @@ export default function FeedView({
       if (post.userId && post.userId !== activeUser.uid) {
         notificationService.notifyCommentReply(
           activeUser.displayName || 'A community member',
-          textToSubmit,
+          finalText,
           postId,
           undefined,
           true
@@ -1072,7 +1707,7 @@ export default function FeedView({
             senderName: activeUser.displayName || 'A member',
             postId: postId,
             parentCommentId: parentCommentId || null,
-            text: textToSubmit,
+            text: finalText,
             createdAt: serverTimestamp(),
             read: false,
             actionUrl: `/?tab=ummah&view=feed&post=${postId}&expand=true#post-${postId}`
@@ -1085,14 +1720,14 @@ export default function FeedView({
 
     if (activeUser.isRest) {
       try {
-        await restDbClient.commentPost(postId, textToSubmit, parentCommentId, replyToUser, parentCommentId);
+        await restDbClient.commentPost(postId, finalText, parentCommentId, replyToUser, parentCommentId, attachedImage, attachedCaption);
       } catch (e) {}
       return;
     }
 
     try {
       // Sync with REST backend as well to ensure multi-client availability
-      restDbClient.commentPost(postId, textToSubmit, parentCommentId, replyToUser, parentCommentId).catch(() => {});
+      restDbClient.commentPost(postId, finalText, parentCommentId, replyToUser, parentCommentId, attachedImage, attachedCaption).catch(() => {});
 
       const postRef = doc(db, 'posts', postId);
       if (post) {
@@ -1122,6 +1757,145 @@ export default function FeedView({
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/comments`);
+    }
+  };
+
+  // 🤲 Comment Reaction Handler (Ameen, Heart, Like)
+  const handleCommentReaction = async (
+    postId: string, 
+    commentId: string, 
+    reactionType: 'ameen' | 'heart' | 'like' = 'ameen',
+    parentCommentId?: string
+  ) => {
+    const activeUser = getActiveUser();
+    if (!activeUser) return;
+
+    playHapticAudio('like');
+    if (addHasanat) addHasanat(5);
+
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    const mutateComment = (c: Comment): Comment => {
+      if (c.id === commentId) {
+        const userReactions = { ...(c.userReactions || {}) };
+        const currentReaction = userReactions[activeUser.uid];
+        let hearts = c.hearts || c.likes || 0;
+        let ameens = c.ameens || 0;
+
+        if (currentReaction === reactionType) {
+          delete userReactions[activeUser.uid];
+          if (reactionType === 'ameen') ameens = Math.max(0, ameens - 1);
+          else hearts = Math.max(0, hearts - 1);
+        } else {
+          if (currentReaction === 'ameen') ameens = Math.max(0, ameens - 1);
+          if (currentReaction === 'heart' || currentReaction === 'like') hearts = Math.max(0, hearts - 1);
+
+          userReactions[activeUser.uid] = reactionType;
+          if (reactionType === 'ameen') ameens += 1;
+          else hearts += 1;
+        }
+
+        return { ...c, hearts, likes: hearts, ameens, userReactions };
+      }
+      if (c.replies && c.replies.length > 0) {
+        return { ...c, replies: c.replies.map(mutateComment) };
+      }
+      return c;
+    };
+
+    const updatedComments = (post.comments || []).map(mutateComment);
+    setPosts(posts.map(p => p.id === postId ? { ...p, comments: updatedComments } : p));
+
+    setPublishSuccessMessage(reactionType === 'ameen' ? "🤲 Ameen recorded (+5 Hasanat!)" : "❤️ Noor reaction sent (+5 Hasanat!)");
+    setTimeout(() => setPublishSuccessMessage(null), 2500);
+
+    if (activeUser.isRest) {
+      try {
+        await restDbClient.reactToComment(postId, commentId, reactionType);
+      } catch (err) {}
+      return;
+    }
+
+    try {
+      restDbClient.reactToComment(postId, commentId, reactionType).catch(() => {});
+      const postRef = doc(db, 'posts', postId);
+      await updateDoc(postRef, { comments: updatedComments });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/comments`);
+    }
+  };
+
+  // 📌 Pin/Unpin Comment (for Post Author or Scholars/Admins)
+  const handleTogglePinComment = async (postId: string, commentId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    let wasPinned = false;
+    const updatedComments = (post.comments || []).map(c => {
+      if (c.id === commentId) {
+        wasPinned = !c.isPinned;
+        return { ...c, isPinned: !c.isPinned };
+      }
+      return c;
+    });
+
+    // Sort pinned comments to the top
+    updatedComments.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+    setPosts(posts.map(p => p.id === postId ? { ...p, comments: updatedComments } : p));
+
+    setPublishSuccessMessage(wasPinned ? "📌 Reflection pinned to top!" : "Unpinned reflection");
+    setTimeout(() => setPublishSuccessMessage(null), 2500);
+
+    const activeUser = getActiveUser();
+    if (!activeUser?.isRest) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        await updateDoc(postRef, { comments: updatedComments });
+      } catch (e) {}
+    }
+  };
+
+  // 📋 Copy Reflection to Clipboard
+  const handleCopyCommentText = (commentId: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCommentId(commentId);
+    setPublishSuccessMessage("Copied reflection to clipboard! ✨");
+    setTimeout(() => {
+      setCopiedCommentId(null);
+      setPublishSuccessMessage(null);
+    }, 2500);
+  };
+
+  // ⚡ Insert Quick Dua / Islamic Reaction
+  const handleInsertQuickReaction = (postId: string, reactionText: string, isReply: boolean = false) => {
+    playHapticAudio('swipe');
+    if (isReply) {
+      setReplyText(prev => prev ? `${prev} ${reactionText}` : reactionText);
+    } else {
+      setActivePostComment(prev => {
+        const currentText = prev?.postId === postId ? prev.text : '';
+        return {
+          postId,
+          text: currentText ? `${currentText} ${reactionText}` : reactionText
+        };
+      });
+    }
+  };
+
+  // 🔤 Insert Islamic Calligraphy Symbol (e.g. ﷺ, ﷻ)
+  const handleInsertSymbol = (postId: string, symbol: string, isReply: boolean = false) => {
+    playHapticAudio('swipe');
+    if (isReply) {
+      setReplyText(prev => `${prev}${symbol} `);
+    } else {
+      setActivePostComment(prev => {
+        const currentText = prev?.postId === postId ? prev.text : '';
+        return {
+          postId,
+          text: `${currentText}${symbol} `
+        };
+      });
     }
   };
 
@@ -2516,10 +3290,16 @@ export default function FeedView({
 
                             <button
                               onClick={() => setExpandedCommentsPostId(areCommentsExpanded ? null : post.id)}
-                              className="flex items-center gap-1.5 text-slate-400 hover:text-white px-3 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-colors cursor-pointer"
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
+                                areCommentsExpanded 
+                                  ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/40 shadow-sm shadow-noor-emerald/10' 
+                                  : 'text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5'
+                              }`}
+                              title={areCommentsExpanded ? "Hide spiritual comments" : "View spiritual comments"}
                             >
-                              <MessageCircle size={15} />
+                              <MessageCircle size={15} className={areCommentsExpanded ? "fill-noor-emerald/20 text-noor-emerald" : ""} />
                               <span>{(post.comments || []).reduce((acc, c) => acc + 1 + ((c.replies && c.replies.length) || 0), 0)}</span>
+                              <span className="hidden sm:inline text-[9px] capitalize font-medium">{areCommentsExpanded ? 'Hide' : 'Reflect'}</span>
                             </button>
                           </div>
 
@@ -2546,9 +3326,9 @@ export default function FeedView({
                           </div>
                         </div>
 
-                        {/* 🌟 Threaded Comments Drawer */}
+                        {/* 🌟 Threaded Comments Drawer - Hidden by default until tapped */}
                         <AnimatePresence>
-                          {(areCommentsExpanded || (post.comments && post.comments.length > 0)) && (
+                          {areCommentsExpanded && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
@@ -2556,197 +3336,799 @@ export default function FeedView({
                               className="pt-4 border-t border-white/5 space-y-4"
                             >
                               {/* Thread Notification Subscription Pill */}
-                              {((post.comments || []).some(c => c.userId === currentUser.uid || (c.replies || []).some(r => r.userId === currentUser.uid)) || post.userId === currentUser.uid) && (
+                              {((post.comments || []).some(c => c.userId === currentUser?.uid || (c.replies || []).some(r => r.userId === currentUser?.uid)) || post.userId === currentUser?.uid) && (
                                 <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider backdrop-blur-sm">
                                   <div className="flex items-center gap-2">
                                     <Bell size={12} className="text-emerald-400 animate-pulse" />
-                                    <span>Thread Discussion Active &bull; Reply Alerts Enabled</span>
+                                    <span>Spiritual Thread Active &bull; Reply Alerts Enabled</span>
                                   </div>
                                   <span className="text-[9px] font-bold text-emerald-400/80 lowercase italic font-sans">
-                                    tracking replies
+                                    tracking blessings
                                   </span>
                                 </div>
                               )}
 
-                              {(post.comments && post.comments.length > 0) && (
-                                <div className="space-y-4">
-                                  {post.comments.map((comment) => (
-                                    <div key={comment.id} className="space-y-2">
-                                      {/* Top-Level Root Comment */}
-                                      <div className="flex items-start gap-3 group/comment relative bg-white/[0.02] hover:bg-white/[0.04] p-3 rounded-2xl border border-white/5 transition-all">
-                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-noor-emerald/30 to-teal-600/30 text-noor-emerald flex items-center justify-center text-xs font-black shrink-0 border border-noor-emerald/20">
-                                          {comment.user ? comment.user[0].toUpperCase() : 'U'}
-                                        </div>
-                                        <div className="flex-1 space-y-1">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-xs font-black text-white">{comment.user}</span>
-                                              <span className="text-[9px] text-slate-500 font-semibold flex items-center gap-1">
-                                                <Clock size={9} />
-                                                <span>{formatTimeAgo(comment.time)}</span>
+                              {/* Comment List */}
+                              {(post.comments && post.comments.length > 0) ? (
+                                <div className="space-y-3.5">
+                                  {post.comments.map((comment) => {
+                                    const isAuthorOrScholar = currentUser?.uid === post.userId || isAdmin || isScholarMode;
+                                    const userHasAmeen = comment.userReactions?.[currentUser?.uid] === 'ameen';
+                                    const userHasHeart = comment.userReactions?.[currentUser?.uid] === 'heart' || comment.userReactions?.[currentUser?.uid] === 'like';
+                                    
+                                    const isScholarComment = comment.userRole === 'scholar' || comment.user.toLowerCase().includes('dr.') || comment.user.toLowerCase().includes('sheikh') || comment.user.toLowerCase().includes('ustad');
+                                    const isHafizComment = comment.userRole === 'hafiz' || comment.user.toLowerCase().includes('hafiz');
+                                    const isImamComment = comment.userRole === 'imam' || comment.user.toLowerCase().includes('imam');
+                                    const isContributor = comment.userRole === 'contributor';
+
+                                    return (
+                                      <div key={comment.id} className="space-y-2">
+                                        {/* Top-Level Root Comment */}
+                                        <div className={`flex items-start gap-3 group/comment relative p-3.5 rounded-2xl border transition-all ${
+                                          comment.isPinned 
+                                            ? 'bg-amber-500/[0.06] border-amber-500/30 shadow-md shadow-amber-500/5' 
+                                            : 'bg-white/[0.025] hover:bg-white/[0.045] border-white/5'
+                                        }`}>
+                                          {/* Avatar with Role Aura */}
+                                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 border relative ${
+                                            isScholarComment 
+                                              ? 'bg-gradient-to-br from-amber-500/30 to-amber-700/30 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                                              : isHafizComment
+                                              ? 'bg-gradient-to-br from-emerald-500/30 to-teal-700/30 text-emerald-300 border-emerald-500/40'
+                                              : 'bg-gradient-to-br from-teal-500/20 to-slate-800 text-teal-300 border-white/10'
+                                          }`}>
+                                            {comment.user ? comment.user[0].toUpperCase() : 'U'}
+                                            {comment.isPinned && (
+                                              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow">
+                                                <Pin size={9} className="fill-slate-950" />
                                               </span>
-                                            </div>
-                                            {(comment.userId === currentUser.uid || isScholarMode) && (
-                                              <button
-                                                onClick={() => handleDeleteComment(post.id, comment.id)}
-                                                className="opacity-0 group-hover/comment:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
-                                                title="Delete comment"
-                                              >
-                                                <Trash2 size={12} />
-                                              </button>
                                             )}
                                           </div>
-                                          <p className="text-xs text-slate-300 font-medium leading-relaxed">{comment.text}</p>
-                                          
-                                          {/* Reply Action Button */}
-                                          <div className="pt-1 flex items-center gap-3">
-                                            <button
-                                              onClick={() => {
-                                                if (replyingTo?.commentId === comment.id) {
-                                                  setReplyingTo(null);
-                                                  setReplyText('');
-                                                } else {
-                                                  setReplyingTo({
-                                                    postId: post.id,
-                                                    parentCommentId: comment.id,
-                                                    commentId: comment.id,
-                                                    userName: comment.user
-                                                  });
-                                                  setReplyText('');
-                                                }
-                                              }}
-                                              className="text-[10px] font-black text-noor-emerald hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
-                                            >
-                                              <MessageSquare size={11} />
-                                              <span>Reply</span>
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
 
-                                      {/* Threaded Nested Replies */}
-                                      {comment.replies && comment.replies.length > 0 && (
-                                        <div className="ml-6 sm:ml-8 pl-3.5 border-l-2 border-emerald-500/30 space-y-2.5 mt-2">
-                                          {comment.replies.map((reply) => (
-                                            <div key={reply.id} className="flex items-start gap-2.5 group/reply bg-white/[0.015] hover:bg-white/[0.03] p-2.5 rounded-xl border border-white/5 transition-all">
-                                              <div className="w-6 h-6 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center text-[10px] font-black shrink-0">
-                                                {reply.user ? reply.user[0].toUpperCase() : 'U'}
+                                          {/* Comment Content & Metadata */}
+                                          <div className="flex-1 space-y-1.5 min-w-0">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-xs font-black text-white">{comment.user}</span>
+                                                
+                                                {/* Role & Verification Badges */}
+                                                {isScholarComment && (
+                                                  <span className="text-[9px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <GraduationCap size={10} />
+                                                    <span>Scholar</span>
+                                                  </span>
+                                                )}
+                                                {isHafizComment && (
+                                                  <span className="text-[9px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <BookOpen size={10} />
+                                                    <span>Hafiz</span>
+                                                  </span>
+                                                )}
+                                                {isImamComment && (
+                                                  <span className="text-[9px] font-black text-teal-300 bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <ShieldCheck size={10} />
+                                                    <span>Imam</span>
+                                                  </span>
+                                                )}
+                                                {isContributor && (
+                                                  <span className="text-[9px] font-bold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <Sparkles size={9} />
+                                                    <span>Contributor</span>
+                                                  </span>
+                                                )}
+
+                                                {comment.isPinned && (
+                                                  <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <Pin size={9} className="fill-amber-300" />
+                                                    <span>Pinned Reflection</span>
+                                                  </span>
+                                                )}
+
+                                                <span className="text-[9px] text-slate-500 font-semibold flex items-center gap-1">
+                                                  <Clock size={9} />
+                                                  <span>{formatTimeAgo(comment.time)}</span>
+                                                </span>
                                               </div>
-                                              <div className="flex-1 space-y-0.5">
-                                                <div className="flex items-center justify-between">
-                                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <span className="text-[11px] font-black text-white">{reply.user}</span>
-                                                    {reply.replyToUser && (
-                                                      <span className="text-[9px] font-bold text-noor-emerald bg-noor-emerald/10 px-1.5 py-0.2 rounded-md">
-                                                        @{reply.replyToUser}
-                                                      </span>
-                                                    )}
-                                                    <span className="text-[8px] text-slate-500 font-semibold">
-                                                      {formatTimeAgo(reply.time)}
+
+                                              {/* Actions menu for comment */}
+                                              <div className="flex items-center gap-1">
+                                                {/* Copy Button */}
+                                                <button
+                                                  onClick={() => handleCopyCommentText(comment.id, comment.text)}
+                                                  className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                                  title="Copy reflection"
+                                                >
+                                                  {copiedCommentId === comment.id ? (
+                                                    <Check size={12} className="text-noor-emerald" />
+                                                  ) : (
+                                                    <Copy size={12} />
+                                                  )}
+                                                </button>
+
+                                                {/* Pin Button for Post Author or Admin */}
+                                                {isAuthorOrScholar && (
+                                                  <button
+                                                    onClick={() => handleTogglePinComment(post.id, comment.id)}
+                                                    className={`p-1 transition-colors cursor-pointer ${
+                                                      comment.isPinned ? 'text-amber-400 hover:text-amber-300' : 'text-slate-500 hover:text-amber-400 opacity-0 group-hover/comment:opacity-100'
+                                                    }`}
+                                                    title={comment.isPinned ? "Unpin reflection" : "Pin reflection to top"}
+                                                  >
+                                                    <Pin size={12} className={comment.isPinned ? "fill-amber-400" : ""} />
+                                                  </button>
+                                                )}
+
+                                                {/* Delete Button */}
+                                                {(comment.userId === currentUser?.uid || isAdmin || isScholarMode) && (
+                                                  <button
+                                                    onClick={() => handleDeleteComment(post.id, comment.id)}
+                                                    className="opacity-0 group-hover/comment:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
+                                                    title="Delete comment"
+                                                  >
+                                                    <Trash2 size={12} />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Comment Text */}
+                                            <p className="text-xs text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">{comment.text}</p>
+
+                                            {/* 🌟 Attached Spiritual Activity Photo */}
+                                            {comment.imageUrl && (
+                                              <div className="mt-2.5 max-w-sm rounded-xl overflow-hidden border border-white/10 hover:border-emerald-500/40 bg-black/40 group/cimg relative transition-all shadow-md">
+                                                <div 
+                                                  onClick={() => openCommentMediaLightbox(comment.imageUrl!, comment.user, comment.imageCaption, comment.text)}
+                                                  className="cursor-pointer relative overflow-hidden group/zoom"
+                                                >
+                                                  <img 
+                                                    src={comment.imageUrl} 
+                                                    alt={comment.imageCaption || "Spiritual activity"} 
+                                                    className="w-full max-h-56 object-cover group-hover/zoom:scale-105 transition-transform duration-300"
+                                                    loading="lazy"
+                                                    referrerPolicy="no-referrer"
+                                                  />
+                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover/zoom:opacity-100 transition-opacity flex items-end p-2.5 justify-between">
+                                                    <span className="text-[10px] font-bold text-white flex items-center gap-1">
+                                                      <Eye size={12} className="text-emerald-400" />
+                                                      <span>Tap to view photo</span>
+                                                    </span>
+                                                    <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                                                      Spiritual Activity
                                                     </span>
                                                   </div>
-                                                  {(reply.userId === currentUser.uid || isScholarMode) && (
-                                                    <button
-                                                      onClick={() => handleDeleteComment(post.id, reply.id, comment.id)}
-                                                      className="opacity-0 group-hover/reply:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
-                                                      title="Delete reply"
-                                                    >
-                                                      <Trash2 size={11} />
-                                                    </button>
-                                                  )}
                                                 </div>
-                                                <p className="text-xs text-slate-300 font-medium leading-relaxed">{reply.text}</p>
-                                                
-                                                {/* Nested Reply Trigger */}
-                                                <button
-                                                  onClick={() => {
+                                                {comment.imageCaption && (
+                                                  <div className="px-2.5 py-1.5 bg-white/[0.03] border-t border-white/5 flex items-center justify-between text-[10px] text-slate-300">
+                                                    <span className="truncate italic font-medium">{comment.imageCaption}</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            
+                                            {/* Islamic Interactive Reactions & Reply Bar */}
+                                            <div className="pt-2 flex items-center gap-2 flex-wrap">
+                                              {/* Ameen Reaction Button */}
+                                              <button
+                                                onClick={() => handleCommentReaction(post.id, comment.id, 'ameen')}
+                                                className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                  userHasAmeen
+                                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/20 scale-105'
+                                                    : 'bg-white/5 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300 border border-white/5'
+                                                }`}
+                                                title="Say Ameen / Support reflection (+5 Hasanat)"
+                                              >
+                                                <span>🤲</span>
+                                                <span>Ameen</span>
+                                                {(comment.ameens || 0) > 0 && (
+                                                  <span className="font-sans font-bold text-[9px] opacity-90">({comment.ameens})</span>
+                                                )}
+                                              </button>
+
+                                              {/* Noor Heart Reaction Button */}
+                                              <button
+                                                onClick={() => handleCommentReaction(post.id, comment.id, 'heart')}
+                                                className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                  userHasHeart
+                                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm shadow-rose-500/20 scale-105'
+                                                    : 'bg-white/5 hover:bg-rose-500/10 text-slate-300 hover:text-rose-300 border border-white/5'
+                                                }`}
+                                                title="Send Noor / Heart (+5 Hasanat)"
+                                              >
+                                                <Heart size={11} className={userHasHeart ? 'fill-rose-400 text-rose-400' : ''} />
+                                                <span>Noor</span>
+                                                {((comment.hearts || comment.likes || 0) > 0) && (
+                                                  <span className="font-sans font-bold text-[9px] opacity-90">({comment.hearts || comment.likes})</span>
+                                                )}
+                                              </button>
+
+                                              {/* Reply Action Button */}
+                                              <button
+                                                onClick={() => {
+                                                  if (replyingTo?.commentId === comment.id) {
+                                                    setReplyingTo(null);
+                                                    setReplyText('');
+                                                  } else {
                                                     setReplyingTo({
                                                       postId: post.id,
                                                       parentCommentId: comment.id,
-                                                      commentId: reply.id,
-                                                      userName: reply.user
+                                                      commentId: comment.id,
+                                                      userName: comment.user
                                                     });
                                                     setReplyText('');
-                                                  }}
-                                                  className="text-[9px] font-black text-slate-400 hover:text-noor-emerald flex items-center gap-1 cursor-pointer pt-0.5 transition-colors"
+                                                  }
+                                                }}
+                                                className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 cursor-pointer transition-all ${
+                                                  replyingTo?.commentId === comment.id
+                                                    ? 'bg-noor-emerald text-slate-950 font-black'
+                                                    : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-noor-emerald border border-white/5'
+                                                }`}
+                                              >
+                                                <MessageSquare size={11} />
+                                                <span>Reply</span>
+                                                {comment.replies && comment.replies.length > 0 && (
+                                                  <span className="text-[9px] opacity-80">({comment.replies.length})</span>
+                                                )}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Threaded Nested Replies */}
+                                        {comment.replies && comment.replies.length > 0 && (
+                                          <div className="ml-5 sm:ml-8 pl-3 border-l-2 border-emerald-500/30 space-y-2 mt-2">
+                                            {comment.replies.map((reply) => {
+                                              const userHasReplyAmeen = reply.userReactions?.[currentUser?.uid] === 'ameen';
+                                              const userHasReplyHeart = reply.userReactions?.[currentUser?.uid] === 'heart' || reply.userReactions?.[currentUser?.uid] === 'like';
+                                              const isScholarReply = reply.userRole === 'scholar' || reply.user.toLowerCase().includes('dr.') || reply.user.toLowerCase().includes('sheikh') || reply.user.toLowerCase().includes('ustad');
+
+                                              return (
+                                                <div key={reply.id} className="flex items-start gap-2.5 group/reply bg-white/[0.02] hover:bg-white/[0.035] p-3 rounded-xl border border-white/5 transition-all">
+                                                  <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center text-[10px] font-black shrink-0 border border-teal-500/30">
+                                                    {reply.user ? reply.user[0].toUpperCase() : 'U'}
+                                                  </div>
+                                                  <div className="flex-1 space-y-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="text-[11px] font-black text-white">{reply.user}</span>
+                                                        {isScholarReply && (
+                                                          <span className="text-[8px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded">
+                                                            Scholar
+                                                          </span>
+                                                        )}
+                                                        {reply.replyToUser && (
+                                                          <span className="text-[9px] font-bold text-noor-emerald bg-noor-emerald/10 px-1.5 py-0.2 rounded-md">
+                                                            @{reply.replyToUser}
+                                                          </span>
+                                                        )}
+                                                        <span className="text-[8px] text-slate-500 font-semibold">
+                                                          {formatTimeAgo(reply.time)}
+                                                        </span>
+                                                      </div>
+                                                      <div className="flex items-center gap-1">
+                                                        <button
+                                                          onClick={() => handleCopyCommentText(reply.id, reply.text)}
+                                                          className="p-0.5 text-slate-500 hover:text-white transition-colors cursor-pointer"
+                                                          title="Copy reply"
+                                                        >
+                                                          {copiedCommentId === reply.id ? <Check size={10} className="text-noor-emerald" /> : <Copy size={10} />}
+                                                        </button>
+                                                        {(reply.userId === currentUser?.uid || isAdmin || isScholarMode) && (
+                                                          <button
+                                                            onClick={() => handleDeleteComment(post.id, reply.id, comment.id)}
+                                                            className="opacity-0 group-hover/reply:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
+                                                            title="Delete reply"
+                                                          >
+                                                            <Trash2 size={11} />
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    <p className="text-xs text-slate-300 font-medium leading-relaxed whitespace-pre-wrap">{reply.text}</p>
+
+                                                    {/* 🌟 Attached Photo in Reply */}
+                                                    {reply.imageUrl && (
+                                                      <div className="mt-2 max-w-xs rounded-lg overflow-hidden border border-white/10 hover:border-emerald-500/40 bg-black/30 group/rimg relative transition-all shadow-sm">
+                                                        <div 
+                                                          onClick={() => openCommentMediaLightbox(reply.imageUrl!, reply.user, reply.imageCaption, reply.text)}
+                                                          className="cursor-pointer relative overflow-hidden group/zoom"
+                                                        >
+                                                          <img 
+                                                            src={reply.imageUrl} 
+                                                            alt={reply.imageCaption || "Spiritual activity"} 
+                                                            className="w-full max-h-40 object-cover group-hover/zoom:scale-105 transition-transform duration-300"
+                                                            loading="lazy"
+                                                            referrerPolicy="no-referrer"
+                                                          />
+                                                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover/zoom:opacity-100 transition-opacity flex items-end p-2 justify-between">
+                                                            <span className="text-[9px] font-bold text-white flex items-center gap-1">
+                                                              <Eye size={11} className="text-emerald-400" />
+                                                              <span>Expand</span>
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                        {reply.imageCaption && (
+                                                          <div className="px-2 py-1 bg-white/[0.02] border-t border-white/5 text-[9px] text-slate-400 truncate italic">
+                                                            {reply.imageCaption}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                    
+                                                    {/* Nested Reply Action Bar with Reactions */}
+                                                    <div className="pt-1 flex items-center gap-2 flex-wrap">
+                                                      <button
+                                                        onClick={() => handleCommentReaction(post.id, reply.id, 'ameen', comment.id)}
+                                                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                                          userHasReplyAmeen
+                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-black'
+                                                            : 'bg-white/5 hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-300'
+                                                        }`}
+                                                      >
+                                                        <span>🤲</span>
+                                                        <span>Ameen</span>
+                                                        {(reply.ameens || 0) > 0 && <span>({reply.ameens})</span>}
+                                                      </button>
+
+                                                      <button
+                                                        onClick={() => handleCommentReaction(post.id, reply.id, 'heart', comment.id)}
+                                                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                                          userHasReplyHeart
+                                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-black'
+                                                            : 'bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-300'
+                                                        }`}
+                                                      >
+                                                        <Heart size={9} className={userHasReplyHeart ? 'fill-rose-400 text-rose-400' : ''} />
+                                                        {(reply.hearts || reply.likes || 0) > 0 && <span>({reply.hearts || reply.likes})</span>}
+                                                      </button>
+
+                                                      <button
+                                                        onClick={() => {
+                                                          setReplyingTo({
+                                                            postId: post.id,
+                                                            parentCommentId: comment.id,
+                                                            commentId: reply.id,
+                                                            userName: reply.user
+                                                          });
+                                                          setReplyText('');
+                                                        }}
+                                                        className="text-[9px] font-black text-slate-400 hover:text-noor-emerald flex items-center gap-1 cursor-pointer transition-colors px-1"
+                                                      >
+                                                        <MessageSquare size={10} />
+                                                        <span>Reply</span>
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+
+                                        {/* Inline Threaded Reply Composer with Islamic Quick Chips & Photo Attachment */}
+                                        {replyingTo?.postId === post.id && replyingTo?.parentCommentId === comment.id && (
+                                          <motion.div 
+                                            initial={{ opacity: 0, y: -5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="ml-5 sm:ml-8 pl-3 border-l-2 border-emerald-500/40 mt-2 space-y-2"
+                                          >
+                                            <div className="flex items-center justify-between text-[10px] font-black text-noor-emerald bg-noor-emerald/10 px-2.5 py-1 rounded-lg">
+                                              <span className="flex items-center gap-1.5">
+                                                <span>Replying in thread to</span>
+                                                <strong className="text-white">@{replyingTo.userName}</strong>
+                                              </span>
+                                              <button 
+                                                onClick={() => {
+                                                  setReplyingTo(null);
+                                                  setReplyText('');
+                                                  setReplyImageAttachment(null);
+                                                  setActivePhotoPicker(null);
+                                                }}
+                                                className="text-slate-400 hover:text-white cursor-pointer"
+                                              >
+                                                <X size={12} />
+                                              </button>
+                                            </div>
+
+                                            {/* Attached Photo Preview in Reply */}
+                                            {replyImageAttachment?.commentId === comment.id && (
+                                              <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                                                <img 
+                                                  src={replyImageAttachment.imageUrl} 
+                                                  alt="Attachment" 
+                                                  className="w-10 h-10 rounded-lg object-cover border border-white/10"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-[10px] font-bold text-white truncate">{replyImageAttachment.caption}</p>
+                                                  <span className="text-[8px] text-emerald-400 font-semibold">+15 Hasanat attached</span>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setReplyImageAttachment(null)}
+                                                  className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer"
                                                 >
-                                                  <MessageSquare size={10} />
-                                                  <span>Reply</span>
+                                                  <X size={12} />
                                                 </button>
                                               </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
+                                            )}
 
-                                      {/* Inline Threaded Reply Composer */}
-                                      {replyingTo?.postId === post.id && replyingTo?.parentCommentId === comment.id && (
-                                        <motion.div 
-                                          initial={{ opacity: 0, y: -5 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          className="ml-6 sm:ml-8 pl-3.5 border-l-2 border-emerald-500/40 mt-2 space-y-1.5"
-                                        >
-                                          <div className="flex items-center justify-between text-[10px] font-black text-noor-emerald bg-noor-emerald/10 px-2.5 py-1 rounded-lg">
-                                            <span className="flex items-center gap-1.5">
-                                              <span>Replying to</span>
-                                              <strong className="text-white">@{replyingTo.userName}</strong>
-                                            </span>
-                                            <button 
-                                              onClick={() => {
-                                                setReplyingTo(null);
-                                                setReplyText('');
-                                              }}
-                                              className="text-slate-400 hover:text-white cursor-pointer"
-                                            >
-                                              <X size={12} />
-                                            </button>
-                                          </div>
-                                          <div className="flex gap-2">
-                                            <input
-                                              autoFocus
-                                              value={replyText}
-                                              onChange={(e) => setReplyText(e.target.value)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') handleCommentSubmit(post.id, comment.id, replyingTo.userName);
-                                              }}
-                                              placeholder={`Write a reply to @${replyingTo.userName}...`}
-                                              className="flex-1 bg-white/5 border border-emerald-500/30 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-noor-emerald"
-                                            />
-                                            <button
-                                              onClick={() => handleCommentSubmit(post.id, comment.id, replyingTo.userName)}
-                                              disabled={!replyText.trim()}
-                                              className="px-3 py-1.5 bg-noor-emerald text-slate-950 font-black rounded-xl text-xs disabled:opacity-30 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
-                                            >
-                                              <Send size={12} />
-                                              <span>Reply</span>
-                                            </button>
-                                          </div>
-                                        </motion.div>
-                                      )}
-                                    </div>
-                                  ))}
+                                            {/* Quick Islamic Reaction Pills for Reply */}
+                                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                                              {QUICK_ISLAMIC_REACTIONS.slice(0, 4).map((r, i) => (
+                                                <button
+                                                  key={i}
+                                                  type="button"
+                                                  onClick={() => handleInsertQuickReaction(post.id, r.text, true)}
+                                                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/30 text-[9px] font-bold text-slate-300 hover:text-emerald-300 transition-all shrink-0 cursor-pointer"
+                                                >
+                                                  {r.label}
+                                                </button>
+                                              ))}
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                              {/* Photo picker trigger for reply */}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  if (activePhotoPicker?.commentId === comment.id) {
+                                                    setActivePhotoPicker(null);
+                                                  } else {
+                                                    setActivePhotoPicker({ postId: post.id, commentId: comment.id, isReply: true });
+                                                  }
+                                                }}
+                                                className={`p-2 rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                                                  replyImageAttachment?.commentId === comment.id 
+                                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                                                    : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-emerald-300 border border-white/10'
+                                                }`}
+                                                title="Add spiritual activity photo (+15 Hasanat)"
+                                              >
+                                                <Camera size={13} />
+                                              </button>
+
+                                              <input
+                                                autoFocus
+                                                value={replyText}
+                                                onChange={(e) => setReplyText(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') handleCommentSubmit(post.id, comment.id, replyingTo.userName);
+                                                }}
+                                                placeholder={`Write a reply to @${replyingTo.userName}...`}
+                                                className="flex-1 bg-white/5 border border-emerald-500/30 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-noor-emerald"
+                                              />
+                                              <button
+                                                onClick={() => handleCommentSubmit(post.id, comment.id, replyingTo.userName)}
+                                                disabled={!replyText.trim() && !(replyImageAttachment?.commentId === comment.id)}
+                                                className="px-3.5 py-2 bg-noor-emerald text-slate-950 font-black rounded-xl text-xs disabled:opacity-30 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-noor-emerald/20 shrink-0"
+                                              >
+                                                <Send size={12} />
+                                                <span>Reply</span>
+                                              </button>
+                                            </div>
+
+                                            {/* Photo Selection Tool Drawer for Reply */}
+                                            {activePhotoPicker?.postId === post.id && activePhotoPicker?.commentId === comment.id && activePhotoPicker?.isReply && (
+                                              <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="p-3 rounded-2xl bg-black/60 border border-emerald-500/30 space-y-2.5 backdrop-blur-md"
+                                              >
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-[10px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Camera size={12} className="text-emerald-400" />
+                                                    <span>Attach Spiritual Activity Photo</span>
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setActivePhotoPicker(null)}
+                                                    className="text-slate-400 hover:text-white"
+                                                  >
+                                                    <X size={12} />
+                                                  </button>
+                                                </div>
+
+                                                {/* Preset Gallery */}
+                                                <div className="grid grid-cols-4 gap-1.5">
+                                                  {SPIRITUAL_COMMENT_IMAGE_PRESETS.slice(0, 4).map((preset, pIdx) => (
+                                                    <button
+                                                      key={pIdx}
+                                                      type="button"
+                                                      onClick={() => handleSelectPresetPhoto(preset, post.id, comment.id, true)}
+                                                      className="group/preset relative rounded-lg overflow-hidden border border-white/10 hover:border-emerald-400 aspect-square cursor-pointer transition-all"
+                                                    >
+                                                      <img src={preset.url} alt={preset.caption} className="w-full h-full object-cover group-hover/preset:scale-110 transition-transform" />
+                                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/preset:opacity-100 flex items-center justify-center p-1 text-[8px] font-bold text-white text-center">
+                                                        {preset.label}
+                                                      </div>
+                                                    </button>
+                                                  ))}
+                                                </div>
+
+                                                {/* Upload option */}
+                                                <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                                                  <label className="flex-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-1">
+                                                    <Upload size={10} />
+                                                    <span>Upload Photo</span>
+                                                    <input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      className="hidden"
+                                                      onChange={(e) => {
+                                                        const f = e.target.files?.[0];
+                                                        if (f) handleCommentPhotoFile(f, post.id, comment.id, true);
+                                                      }}
+                                                    />
+                                                  </label>
+                                                </div>
+                                              </motion.div>
+                                            )}
+                                          </motion.div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
+                                  <p className="text-xs font-bold text-slate-300">No reflections yet on this post</p>
+                                  <p className="text-[10px] text-slate-500">Be the first to share your spiritual insight, advice, or say Ameen 🤲</p>
                                 </div>
                               )}
 
-                              {/* Main Root Comment Input */}
-                              <div className="flex gap-2 pt-1">
-                                <input
-                                  value={activePostComment?.postId === post.id ? activePostComment.text : ''}
-                                  onChange={(e) => setActivePostComment({ postId: post.id, text: e.target.value })}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleCommentSubmit(post.id);
-                                  }}
-                                  placeholder="Add your spiritual reflection..."
-                                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-noor-emerald/50"
-                                />
-                                <button
-                                  onClick={() => handleCommentSubmit(post.id)}
-                                  disabled={!(activePostComment?.postId === post.id && activePostComment.text.trim())}
-                                  className="px-4 py-2.5 bg-noor-emerald text-slate-950 font-black rounded-xl disabled:opacity-30 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-noor-emerald/20"
-                                >
-                                  <Send size={14} />
-                                  <span className="text-xs font-black hidden sm:inline">Comment</span>
-                                </button>
+                              {/* Main Root Comment Composer */}
+                              <div className="space-y-2 pt-2 border-t border-white/5">
+                                {/* Attached Spiritual Activity Photo Preview in Root Composer */}
+                                {commentImageAttachment?.postId === post.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex items-center gap-3 p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 shadow-md shadow-emerald-500/5"
+                                  >
+                                    <img 
+                                      src={commentImageAttachment.imageUrl} 
+                                      alt="Attachment" 
+                                      className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded uppercase tracking-wider">
+                                          Photo Ready
+                                        </span>
+                                        <span className="text-[9px] font-bold text-emerald-400">+15 Hasanat</span>
+                                      </div>
+                                      <p className="text-xs font-bold text-white truncate mt-0.5">{commentImageAttachment.caption}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCommentImageAttachment(null)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                                      title="Remove photo"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </motion.div>
+                                )}
+
+                                {/* Quick Islamic Reflection Chips */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest shrink-0 mr-1 flex items-center gap-1">
+                                    <Sparkles size={10} className="text-amber-400" />
+                                    <span>Quick Dua:</span>
+                                  </span>
+                                  {QUICK_ISLAMIC_REACTIONS.map((r, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => handleInsertQuickReaction(post.id, r.text, false)}
+                                      className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/30 text-[10px] font-bold text-slate-300 hover:text-emerald-300 transition-all shrink-0 cursor-pointer active:scale-95"
+                                    >
+                                      {r.label}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* Islamic Calligraphy & Symbols Bar Toggle + Photo Tool Action Bar */}
+                                <div className="flex items-center justify-between px-1">
+                                  <div className="flex items-center gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveIslamicToolbarPostId(activeIslamicToolbarPostId === post.id ? null : post.id)}
+                                      className="text-[10px] font-bold text-slate-400 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
+                                    >
+                                      <Sparkles size={11} className="text-amber-400" />
+                                      <span>{activeIslamicToolbarPostId === post.id ? "Hide Calligraphy Symbols" : "Islamic Symbols (ﷺ, ﷻ, 🤲)"}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (activePhotoPicker?.postId === post.id && !activePhotoPicker?.isReply) {
+                                          setActivePhotoPicker(null);
+                                        } else {
+                                          setActivePhotoPicker({ postId: post.id, isReply: false });
+                                        }
+                                      }}
+                                      className={`text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                        activePhotoPicker?.postId === post.id && !activePhotoPicker?.isReply 
+                                          ? 'text-noor-emerald font-black' 
+                                          : 'text-slate-400 hover:text-emerald-300'
+                                      }`}
+                                    >
+                                      <Camera size={11} className="text-emerald-400" />
+                                      <span>{activePhotoPicker?.postId === post.id && !activePhotoPicker?.isReply ? "Close Photo Tool" : "Add Spiritual Photo"}</span>
+                                    </button>
+                                  </div>
+
+                                  <span className="text-[9px] font-bold text-emerald-400/80 flex items-center gap-1">
+                                    <span>+10 Hasanat</span>
+                                    <Sparkles size={9} />
+                                  </span>
+                                </div>
+
+                                {activeIslamicToolbarPostId === post.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-2 rounded-xl bg-amber-500/10 border border-amber-500/20"
+                                  >
+                                    {ISLAMIC_CALLIGRAPHY_SYMBOLS.map((sym, idx) => (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleInsertSymbol(post.id, sym.symbol, false)}
+                                        title={sym.label}
+                                        className="px-2 py-1 rounded-lg bg-black/40 hover:bg-amber-500/30 border border-white/10 hover:border-amber-500/40 text-xs font-bold text-amber-200 hover:text-amber-100 transition-all shrink-0 cursor-pointer active:scale-90 font-arabic"
+                                      >
+                                        {sym.symbol}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                )}
+
+                                {/* 🌟 Spiritual Photo Selection Tool Popover */}
+                                {activePhotoPicker?.postId === post.id && !activePhotoPicker?.isReply && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -8 }}
+                                    className="p-4 rounded-3xl bg-slate-900/95 border border-emerald-500/30 shadow-2xl space-y-3.5 backdrop-blur-xl"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+                                          <Camera size={13} />
+                                        </div>
+                                        <h4 className="text-xs font-black text-white">Share Your Spiritual Activity Photo</h4>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setActivePhotoPicker(null)}
+                                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 cursor-pointer"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </div>
+
+                                    {/* Quick Preset Cards Grid */}
+                                    <div className="space-y-1.5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Choose From Spiritual Activity Presets</p>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                        {SPIRITUAL_COMMENT_IMAGE_PRESETS.map((preset, pIdx) => (
+                                          <button
+                                            key={pIdx}
+                                            type="button"
+                                            onClick={() => handleSelectPresetPhoto(preset, post.id)}
+                                            className="group/pcard text-left rounded-xl overflow-hidden border border-white/10 hover:border-emerald-400 bg-white/[0.02] hover:bg-emerald-500/10 transition-all cursor-pointer relative"
+                                          >
+                                            <div className="aspect-[4/3] overflow-hidden relative">
+                                              <img 
+                                                src={preset.url} 
+                                                alt={preset.caption} 
+                                                className="w-full h-full object-cover group-hover/pcard:scale-110 transition-transform duration-300"
+                                                loading="lazy"
+                                                referrerPolicy="no-referrer"
+                                              />
+                                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-1.5">
+                                                <span className="text-[9px] font-black text-white truncate">{preset.label}</span>
+                                              </div>
+                                            </div>
+                                            <div className="p-1.5 text-[8px] text-slate-400 truncate italic">
+                                              {preset.caption}
+                                            </div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Upload From Device or Custom Web Link */}
+                                    <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <label className="p-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm">
+                                        <Upload size={14} />
+                                        <span>Upload From Gallery / Camera</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) handleCommentPhotoFile(f, post.id);
+                                          }}
+                                        />
+                                      </label>
+
+                                      <div className="flex gap-1.5">
+                                        <input
+                                          type="url"
+                                          placeholder="Or paste image URL (https://...)"
+                                          value={customPhotoUrl}
+                                          onChange={(e) => setCustomPhotoUrl(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && customPhotoUrl.trim()) {
+                                              handleAttachUrlPhoto(post.id);
+                                            }
+                                          }}
+                                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (customPhotoUrl.trim()) {
+                                              handleAttachUrlPhoto(post.id);
+                                            }
+                                          }}
+                                          className="px-3 py-2 bg-white/10 hover:bg-emerald-500 hover:text-slate-950 text-white font-bold rounded-xl text-[10px] transition-all cursor-pointer shrink-0"
+                                        >
+                                          Attach
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+
+                                {/* Main Comment Input */}
+                                <div className="flex gap-2 items-center">
+                                  {/* Quick Camera Icon Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activePhotoPicker?.postId === post.id && !activePhotoPicker?.isReply) {
+                                        setActivePhotoPicker(null);
+                                      } else {
+                                        setActivePhotoPicker({ postId: post.id, isReply: false });
+                                      }
+                                    }}
+                                    className={`p-3 rounded-2xl border transition-all cursor-pointer shrink-0 ${
+                                      commentImageAttachment?.postId === post.id
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                                        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10'
+                                    }`}
+                                    title="Attach spiritual activity photo"
+                                  >
+                                    <Camera size={15} />
+                                  </button>
+
+                                  <input
+                                    value={activePostComment?.postId === post.id ? activePostComment.text : ''}
+                                    onChange={(e) => setActivePostComment({ postId: post.id, text: e.target.value })}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleCommentSubmit(post.id);
+                                    }}
+                                    placeholder={commentImageAttachment?.postId === post.id ? "Add a reflection note with your photo..." : "Share your spiritual reflection, advice, or say Ameen..."}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-noor-emerald/60 focus:bg-white/[0.07] transition-all"
+                                  />
+                                  <button
+                                    onClick={() => handleCommentSubmit(post.id)}
+                                    disabled={!(activePostComment?.postId === post.id && activePostComment.text.trim()) && !(commentImageAttachment?.postId === post.id)}
+                                    className="px-4 py-2.5 bg-noor-emerald text-slate-950 font-black rounded-2xl disabled:opacity-30 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-noor-emerald/20 shrink-0"
+                                    title="Post reflection (+10 Hasanat)"
+                                  >
+                                    <Send size={13} />
+                                    <span className="text-xs font-black hidden sm:inline">Reflect</span>
+                                  </button>
+                                </div>
                               </div>
                             </motion.div>
                           )}

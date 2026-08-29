@@ -225,7 +225,7 @@ class GatePassService {
         success: true,
         daysGranted: 36500,
         validUntil: 'Lifetime Permanent Access',
-        message: `👑 ALLAHU AKBAR! Master Code MH-VIP-2214 verified! Unlimited Lifetime Sanctuary Elite VIP Premium Access permanently unlocked!`
+        message: `👑 ALLAHU AKBAR! Master VIP Code verified! Unlimited Lifetime Sanctuary Elite VIP Premium Access permanently unlocked!`
       };
     }
 

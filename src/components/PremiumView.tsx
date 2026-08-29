@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { notificationService } from '../services/notificationService';
 import { ActivityLoggerService } from '../services/activityLoggerService';
+import CardPaymentGatewayModal from './CardPaymentGatewayModal';
 
 interface SoundscapeTrack {
   id: string;
@@ -84,7 +85,7 @@ export default function PremiumView() {
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
   const [currentTier, setCurrentTier] = useState<string>('free');
   const [activatedAtDate, setActivatedAtDate] = useState<Date | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual' | 'lifetime'>('annual');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'vip_monthly' | 'annual'>('annual');
   const [loading, setLoading] = useState<boolean>(false);
   const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
   const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
@@ -92,6 +93,7 @@ export default function PremiumView() {
   const [activeTab, setActiveTab] = useState<'overview' | 'streams' | 'soundscapes' | 'ai_tools' | 'plans'>('overview');
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
+  const [showCardModal, setShowCardModal] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -178,7 +180,7 @@ export default function PremiumView() {
   // Handle Instant Subscription Activation
   const handleSubscribe = async () => {
     setLoading(true);
-    const hasanatBonus = selectedPlan === 'annual' ? 5000 : selectedPlan === 'lifetime' ? 15000 : 1000;
+    const hasanatBonus = selectedPlan === 'vip_monthly' || selectedPlan === 'annual' ? 7500 : 1000;
 
     try {
       const now = new Date();
@@ -866,18 +868,21 @@ export default function PremiumView() {
               )}
             </div>
 
-            {/* 2. MONTHLY TIER */}
+          {/* Membership Tier Cards (2-Tier High Value Model) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            
+            {/* 1. STANDARD MONTHLY TIER */}
             <div 
               onClick={() => setSelectedPlan('monthly')}
-              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
+              className={`glass-panel p-6 sm:p-8 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
                 selectedPlan === 'monthly'
-                  ? 'border-amber-400 bg-amber-500/[0.03] shadow-xl'
+                  ? 'border-amber-400 bg-amber-500/[0.05] shadow-xl ring-2 ring-amber-400/30'
                   : 'border-white/10 hover:border-white/20'
               }`}
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">Monthly</span>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-300">Standard Monthly</span>
                   <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'monthly' ? 'border-amber-400 bg-amber-400 text-brand-depth' : 'border-white/20'}`}>
                     {selectedPlan === 'monthly' && <Check size={12} />}
                   </div>
@@ -885,115 +890,83 @@ export default function PremiumView() {
 
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$3.00</span>
+                    <span className="text-4xl font-black text-white font-mono">$3.00</span>
                     <span className="text-xs text-slate-400 font-bold">/month</span>
                   </div>
-                  <p className="text-[11px] text-slate-400">Flexible monthly spiritual access. 30-day cycle. Cancel anytime.</p>
+                  <p className="text-xs text-slate-400">Flexible monthly spiritual access. 30-day cycle. Cancel anytime.</p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>24/7 Haramain 4K Streams</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Sacred Soundscapes Audio</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Habibi Aliyah Voice AI</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>+1,000 Hasanat Welcome Bonus</span></div>
+                <div className="space-y-2.5 pt-3 border-t border-white/10 text-xs text-slate-300">
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>24/7 Haramain 4K Streams</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>Sacred Soundscapes Audio</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>Habibi Aliyah Voice AI</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>+1,000 Hasanat Welcome Bonus</span></div>
                 </div>
               </div>
 
               <button
-                onClick={handleSubscribe}
+                onClick={() => {
+                  setSelectedPlan('monthly');
+                  setShowCardModal(true);
+                }}
                 disabled={loading}
-                className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-amber-400 hover:text-brand-depth text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
+                className="w-full py-4 rounded-2xl bg-white/10 hover:bg-amber-400 hover:text-brand-depth text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
               >
-                {isSubscribed && currentTier === 'monthly' ? 'Current Active Plan' : 'Select Monthly ($3.00)'}
+                {isSubscribed && currentTier === 'monthly' ? 'Current Active Plan' : 'Select Standard ($3.00/mo)'}
               </button>
             </div>
 
-            {/* 3. ANNUAL TIER (BEST VALUE) */}
+            {/* 2. VIP ALL-ACCESS MONTHLY TIER */}
             <div 
-              onClick={() => setSelectedPlan('annual')}
-              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border-2 transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
-                selectedPlan === 'annual'
+              onClick={() => setSelectedPlan('vip_monthly')}
+              className={`glass-panel p-6 sm:p-8 rounded-[2.5rem] border-2 transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
+                selectedPlan === 'vip_monthly' || selectedPlan === 'annual'
                   ? 'border-amber-400 bg-amber-500/[0.08] shadow-2xl shadow-amber-500/20 scale-[1.02] z-10'
                   : 'border-amber-500/40 hover:border-amber-400'
               }`}
             >
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth text-[9px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap">
-                MOST POPULAR • 45% OFF
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth text-[10px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap">
+                ULTIMATE SANCTUARY VIP
               </div>
 
               <div className="space-y-4 pt-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">Annual Barakah</span>
-                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'annual' ? 'border-amber-400 bg-amber-400 text-brand-depth' : 'border-white/20'}`}>
-                    {selectedPlan === 'annual' && <Check size={12} />}
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">VIP All-Access Pass</span>
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'vip_monthly' || selectedPlan === 'annual' ? 'border-amber-400 bg-amber-400 text-brand-depth' : 'border-white/20'}`}>
+                    {(selectedPlan === 'vip_monthly' || selectedPlan === 'annual') && <Check size={12} />}
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$20.00</span>
-                    <span className="text-xs text-slate-400 font-bold">/year</span>
+                    <span className="text-4xl font-black text-amber-400 font-mono">$21.00</span>
+                    <span className="text-xs text-slate-400 font-bold">/month</span>
                   </div>
-                  <p className="text-[11px] text-amber-300 font-bold">Expires in 365 days • Just $1.66/month!</p>
+                  <p className="text-xs text-amber-300 font-bold">Comprehensive spiritual power suite • Priority VIP badge</p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>All Monthly Features Included</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>2X Hasanat Velocity Booster</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span>Master Qaris & Slow Teacher</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-amber-400 shrink-0" /> <span className="font-bold text-amber-300">+5,000 Hasanat Treasury Bonus</span></div>
+                <div className="space-y-2.5 pt-3 border-t border-white/10 text-xs text-slate-300">
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>All Standard Monthly Features</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>2X Hasanat Spiritual Velocity Booster</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>Full AI Tajweed Mastery & Slow Murattal</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span>3D Pilgrimage Tour & Zakat Wealth Suite</span></div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-amber-400 shrink-0" /> <span className="font-bold text-amber-300">+7,500 Hasanat Treasury Bonus</span></div>
                 </div>
               </div>
 
               <button
-                onClick={handleSubscribe}
+                onClick={() => {
+                  setSelectedPlan('vip_monthly');
+                  setShowCardModal(true);
+                }}
                 disabled={loading}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-brand-depth font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
               >
-                {loading ? 'Activating...' : isSubscribed && (currentTier === 'annual' || currentTier === 'yearly') ? 'Current Active VIP Plan' : 'Activate Annual Pass ($20.00)'}
+                {loading ? 'Activating...' : isSubscribed && (currentTier === 'vip_monthly' || currentTier === 'annual') ? 'Current Active VIP Plan' : 'Activate VIP Pass ($21.00/mo)'}
               </button>
             </div>
 
-            {/* 4. LIFETIME TIER */}
-            <div 
-              onClick={() => setSelectedPlan('lifetime')}
-              className={`glass-panel p-6 sm:p-7 rounded-[2.5rem] border transition-all cursor-pointer relative space-y-6 flex flex-col justify-between ${
-                selectedPlan === 'lifetime'
-                  ? 'border-purple-400 bg-purple-500/[0.04] shadow-xl'
-                  : 'border-white/10 hover:border-white/20'
-              }`}
-            >
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-purple-300">Lifetime Patron</span>
-                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedPlan === 'lifetime' ? 'border-purple-400 bg-purple-400 text-brand-depth' : 'border-white/20'}`}>
-                    {selectedPlan === 'lifetime' && <Check size={12} />}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">$79.99</span>
-                    <span className="text-xs text-slate-400 font-bold">/one-time</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">Pay once, cherish forever across all future updates.</p>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-white/5 text-[11px] text-slate-300">
-                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span>Permanent Lifetime Access</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span>Golden Patron Profile Badge</span></div>
-                  <div className="flex items-center gap-2"><Check size={13} className="text-purple-400 shrink-0" /> <span className="font-bold text-purple-300">+15,000 Hasanat Treasury Bonus</span></div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleSubscribe}
-                disabled={loading}
-                className="w-full py-3.5 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-purple-500/20"
-              >
-                {isSubscribed && currentTier === 'lifetime' ? 'Active Patron' : 'Become Lifetime Patron'}
-              </button>
-            </div>
+          </div>
           </div>
 
           {/* Secure Card Payment Guarantee */}
@@ -1013,6 +986,19 @@ export default function PremiumView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Visa & Mastercard Payment Gateway Modal */}
+      {showCardModal && (
+        <CardPaymentGatewayModal
+          plan={selectedPlan}
+          currentUser={user}
+          onSuccess={(txnRef) => {
+            setShowCardModal(false);
+            handleSubscribe();
+          }}
+          onClose={() => setShowCardModal(false)}
+        />
       )}
 
       {/* 🌟 Cancel Subscription Confirmation Modal */}

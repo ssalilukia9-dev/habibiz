@@ -36,7 +36,9 @@ import {
   Headphones,
   Sliders,
   Copy,
-  Check
+  Check,
+  Construction,
+  AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -58,6 +60,7 @@ import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { apiFetch } from '../lib/api';
 import { telemetryService } from '../services/telemetryService.ts';
 import { VoiceService } from '../services/voiceService.ts';
+import GratitudeJournal from './GratitudeJournal.tsx';
 
 const ALIYAH_SYSTEM_INSTRUCTION = `You are "Aliyah", an authentic, intelligent, warm, witty, and deeply empathetic AI Talk Pal powered by Gemini.
 Your core identity is to respond naturally, conversationally, and emotionally like a real, supportive human being to ANY conversation topic the user brings up.
@@ -126,7 +129,7 @@ export default function CompanionView({
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'talk' | 'chat' | 'reflections'>('talk');
+  const [activeTab, setActiveTab] = useState<'talk' | 'chat' | 'gratitude'>('talk');
   
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -147,21 +150,10 @@ export default function CompanionView({
   const [selectedVoice, setSelectedVoice] = useState<string>('default');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // Reflection Journal state
-  const [reflections, setReflections] = useState<any[]>([]);
-  const [isReflectionsLoading, setIsReflectionsLoading] = useState(false);
-  const [reflectionInput, setReflectionInput] = useState('');
-  const [isRecordingReflection, setIsRecordingReflection] = useState(false);
-  const [reflectionVerses, setReflectionVerses] = useState<any[]>([]);
-  const [isAnalyzingReflection, setIsAnalyzingReflection] = useState(false);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const talkRecognitionRef = useRef<any>(null);
-  const reflectionRecognitionRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const isSpeakingRef = useRef(false);
 
   // Initialize Speech Synthesis Voices
@@ -803,6 +795,26 @@ export default function CompanionView({
       {/* Main Container */}
       <div className="flex-1 flex flex-col relative islamic-pattern overflow-hidden">
         
+        {/* Aliyah Under Construction Header Banner */}
+        <div className="w-full bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-b border-amber-500/30 px-3.5 sm:px-6 py-2.5 flex items-center justify-between gap-3 text-amber-200 backdrop-blur-md z-40">
+          <div className="flex items-center gap-2.5 text-xs">
+            <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0">
+              <Construction size={14} className="animate-pulse" />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-black text-amber-300 uppercase tracking-widest text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                Notice • Under Construction
+              </span>
+              <span className="text-[11px] sm:text-xs text-amber-100 font-medium">
+                Aliyah is currently under active construction & fine-tuning. Continuous upgrades to intelligence, voice, and responsiveness are in progress.
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[9px] font-black uppercase tracking-widest shrink-0 hidden lg:inline-flex items-center gap-1">
+            <Construction size={11} /> Beta Mode
+          </span>
+        </div>
+
         {/* Top Header Bar */}
         <header className="p-3.5 md:p-5 border-b border-white/5 flex items-center justify-between bg-brand-sidebar/60 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-3 md:gap-4">
@@ -825,12 +837,15 @@ export default function CompanionView({
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base md:text-lg font-black text-white tracking-tight">
                   Aliyah
                 </h2>
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-primary/15 text-brand-primary border border-brand-primary/30">
                   Gemini Talk Pal
+                </span>
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                  <Construction size={10} /> Under Construction
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
@@ -855,6 +870,13 @@ export default function CompanionView({
               >
                 <MessageSquare size={13} />
                 <span>Chat</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('gratitude')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'gratitude' ? 'bg-brand-primary text-brand-depth shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                <Heart size={13} className={activeTab === 'gratitude' ? "fill-brand-depth" : "text-brand-primary"} />
+                <span>Gratitude</span>
               </button>
             </div>
 
@@ -1252,6 +1274,15 @@ export default function CompanionView({
               </div>
             </div>
           </>
+        )}
+
+        {/* TAB 3: GRATITUDE JOURNAL (Sacred Shukr & Daily Blessings) */}
+        {activeTab === 'gratitude' && (
+          <GratitudeJournal 
+            currentUser={currentUser}
+            addHasanat={addHasanat}
+            speakText={speakText}
+          />
         )}
 
       </div>

@@ -98,6 +98,7 @@ import UniversalSearchModal from './components/UniversalSearchModal.tsx';
 import { TahajjudAlarmService } from './services/tahajjudAlarmService.ts';
 import GlobalQuranPlayerBar from './components/GlobalQuranPlayerBar.tsx';
 import BabyNamesView from './components/BabyNamesView.tsx';
+import OfflineStatusIndicator from './components/OfflineStatusIndicator.tsx';
 import ThemeCustomizerView from './components/ThemeCustomizerView.tsx';
 import KhatamJourneyView from './components/KhatamJourneyView.tsx';
 import AliyahMemoriseView from './components/AliyahMemoriseView.tsx';
@@ -680,48 +681,6 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Auto-Enroll Every User (New or Existing) into Global 'Firdaus Charity Organisation' Group Room in Firestore
-  useEffect(() => {
-    if (!currentUser || !currentUser.uid) return;
-
-    const syncFirdausGroup = async () => {
-      try {
-        if (!currentUser.uid.startsWith('local_') && !currentUser.uid.startsWith('rest_')) {
-          const roomRef = doc(db, 'rooms', 'group_firdaws_charity');
-          await setDoc(roomRef, {
-            id: 'group_firdaws_charity',
-            name: 'Firdaus Charity Organisation',
-            type: 'group',
-            isBusiness: false,
-            isPartner: true,
-            verified: true,
-            description: 'Official Strategic Humanitarian Partner Hub — Empowering Lives, Shaping Futures. Community relief updates, clean water wells, orphan sponsorship, and charitable du’as.',
-            createdBy: 'partner_firdaus',
-            updatedAt: serverTimestamp(),
-            participants: arrayUnion(currentUser.uid, 'partner_firdaus')
-          }, { merge: true });
-
-          // Also check if welcome starter message exists in subcollection
-          const msgsRef = collection(db, 'rooms/group_firdaws_charity/messages');
-          const snap = await getDocs(query(msgsRef, orderBy('timestamp', 'asc'), limit(1)));
-          if (snap.empty) {
-            await addDoc(msgsRef, {
-              senderId: 'partner_firdaus',
-              senderName: 'Firdaus Charity Organisation',
-              text: '🌟 Assalamu Alaikum wa Rahmatullahi wa Barakatuh!\n\nWelcome to the official Firdaus Charity Organisation global group hub.\n\n"Empowering Lives, Shaping Futures"\n\nIn partnership with Muslim Habibi and its young student founders Kizza Hamza & Lubowa Sudias, we share verified humanitarian relief updates, clean water borehole projects in Uganda and East Africa, orphan educational sponsorships, and community du’as. Feel free to join, collaborate, and share your support for the Ummah!',
-              timestamp: serverTimestamp(),
-              isBusiness: false
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("Firdaus Charity room auto-sync error:", err);
-      }
-    };
-
-    syncFirdausGroup();
-  }, [currentUser]);
-  
   // App State - Default to Aloha Oceanic Gold theme
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('app-theme') || 'aloha';
@@ -2018,6 +1977,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Offline-First Mode Status Indicator */}
+            <OfflineStatusIndicator compact />
+
             {/* Mobile Tour Guide Button */}
             <button 
               id="tour-mobile-guide-btn"
@@ -2072,6 +2034,9 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
+             {/* Offline-First Mode Status Indicator */}
+             <OfflineStatusIndicator />
+
              {currentUser && topUserId === currentUser.uid && (
                 <div className="w-10 h-10 rounded-full border border-yellow-500 bg-yellow-500/10 flex items-center justify-center text-yellow-500 shadow-lg shadow-yellow-500/20" title="Habibi King">
                    <Crown size={18} />

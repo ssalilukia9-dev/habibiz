@@ -55,6 +55,14 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
 
+      // Gratitude Journal Entries
+      match /gratitude_entries/{entryId} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+      match /gratitudeEntries/{entryId} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+
       // Downloaded Surahs
       match /downloadedSurahs/{surahId} {
         allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -88,6 +96,13 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read, create, update: if isSignedIn();
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Gratitude Journal Entries
+    match /gratitude_entries/{entryId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Chat Rooms and Messages

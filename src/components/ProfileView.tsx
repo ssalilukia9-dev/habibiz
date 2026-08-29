@@ -50,6 +50,7 @@ import { getAudioStreamUrl } from '../lib/api.ts';
 
 import { apiFetch } from '../lib/api';
 import { restDbClient } from '../lib/restDbClient.ts';
+import ProfilePictureLightboxModal from './ProfilePictureLightboxModal';
 
 interface ProfileImageProps {
   src: string | null;
@@ -127,6 +128,7 @@ export default function ProfileView({
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showProfileLightbox, setShowProfileLightbox] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhoto, setEditPhoto] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -685,7 +687,16 @@ export default function ProfileView({
         </div>
         
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
-          <div className="relative cursor-pointer" onClick={() => isEditing && fileInputRef.current?.click()}>
+          <div 
+            className="relative cursor-pointer group/avatar" 
+            onClick={() => {
+              if (isEditing) {
+                fileInputRef.current?.click();
+              } else {
+                setShowProfileLightbox(true);
+              }
+            }}
+          >
             <input 
               type="file"
               ref={fileInputRef}
@@ -698,9 +709,14 @@ export default function ProfileView({
               name={userData.displayName || 'User'} 
               isEditing={isEditing}
             />
-            {isEditing && (
+            {isEditing ? (
               <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center shadow-xl z-20">
                 <Camera size={18} />
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold gap-1 backdrop-blur-[1px]">
+                <Sparkles size={16} className="text-brand-primary" />
+                <span>View Full Photo</span>
               </div>
             )}
           </div>
@@ -928,13 +944,13 @@ export default function ProfileView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">Sanctuary VIP Gate Pass & Master Code</h3>
+                <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">Sanctuary VIP Gate Pass</h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-brand-depth text-[9px] font-black uppercase tracking-widest">
                   VIP Elite
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Enter your VIP pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> (or Master Code <strong className="text-amber-300 font-mono">MH-VIP-2214</strong> for Unlimited Lifetime Sanctuary Elite Access).
+                Enter your authorized VIP pass starting with <strong className="text-amber-400 font-mono">MH-VIP</strong> to unlock Sanctuary Elite Lifetime & Premium Access.
               </p>
             </div>
           </div>
@@ -1496,6 +1512,28 @@ export default function ProfileView({
            </button>
         </div>
       </div>
+
+      {/* Profile Picture Lightbox Modal */}
+      <ProfilePictureLightboxModal
+        isOpen={showProfileLightbox}
+        onClose={() => setShowProfileLightbox(false)}
+        profile={{
+          name: userData?.displayName || currentUser?.displayName || 'Believer',
+          photoUrl: userData?.photoURL || currentUser?.photoURL || null,
+          email: currentUser?.email || undefined,
+          role: userData?.role || (userData?.isPremium || isHabibiKing ? 'Premium Elite Believer' : 'Sanctuary Seeker'),
+          isPremium: !!(userData?.isPremium || isHabibiKing),
+          hasanat: userData?.hasanat || 0,
+          joinedDate: creationDate,
+          bio: userData?.bio || 'Devoted seeker on the path of peace and barakah.',
+          isCurrentUser: true,
+          onEditPhoto: () => {
+            setShowProfileLightbox(false);
+            setIsEditing(true);
+            setTimeout(() => fileInputRef.current?.click(), 150);
+          }
+        }}
+      />
     </div>
   );
 }

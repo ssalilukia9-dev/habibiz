@@ -35,6 +35,7 @@ import {
   LayoutGrid,
   Tag,
   ThumbsUp,
+  Edit3,
   X
 } from 'lucide-react';
 import { 
@@ -46,6 +47,7 @@ import { FULL_JUZ_LIST } from '../data/juzData.ts';
 import { AdminConfigService } from '../services/adminConfigService.ts';
 import { shareService } from '../services/shareService.ts';
 import ConstructionBanner from './ConstructionBanner.tsx';
+import EditKhatamVideoModal from './EditKhatamVideoModal.tsx';
 
 interface KhatamJourneyViewProps {
   onBack?: () => void;
@@ -99,6 +101,7 @@ export default function KhatamJourneyView({
 
   // Admin Video Posting State inside Khatam Journey
   const [showAdminStudio, setShowAdminStudio] = useState<boolean>(false);
+  const [editingVideo, setEditingVideo] = useState<YoutubeBroadcastVideoItem | null>(null);
   const [newVideoUrl, setNewVideoUrl] = useState<string>('');
   const [newVideoTitle, setNewVideoTitle] = useState<string>('');
   const [newVideoCategory, setNewVideoCategory] = useState<'tafsir' | 'dua' | 'motivation' | 'tajweed' | 'juz_guide' | 'general'>('tafsir');
@@ -1221,6 +1224,15 @@ export default function KhatamJourneyView({
                       {isAdmin && (
                         <>
                           <button
+                            id="edit-active-khatam-video-btn"
+                            onClick={() => setEditingVideo(activeVideo)}
+                            className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Edit this video details and broadcast update"
+                          >
+                            <Edit3 size={14} />
+                            <span>Edit Video</span>
+                          </button>
+                          <button
                             onClick={() => handleAdminToggleFeatured(activeVideo)}
                             className={`p-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                               activeVideo.featured 
@@ -1497,6 +1509,14 @@ export default function KhatamJourneyView({
                           {isAdmin && (
                             <>
                               <button
+                                onClick={() => setEditingVideo(video)}
+                                className="px-2.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                                title="Edit video details, links and description"
+                              >
+                                <Edit3 size={12} />
+                                <span>Edit</span>
+                              </button>
+                              <button
                                 onClick={() => handleAdminToggleFeatured(video)}
                                 className={`p-2 rounded-xl border transition-all cursor-pointer ${
                                   video.featured ? 'bg-amber-400 text-black border-amber-400' : 'bg-white/5 text-slate-400 border-white/5'
@@ -1568,6 +1588,13 @@ export default function KhatamJourneyView({
 
                         {isAdmin && (
                           <div className="absolute top-2 right-2 flex items-center gap-1 z-20" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setEditingVideo(video)}
+                              className="p-1.5 rounded-lg text-[10px] bg-amber-500/90 hover:bg-amber-400 text-black font-bold backdrop-blur-md transition-all flex items-center gap-0.5"
+                              title="Edit video details"
+                            >
+                              <Edit3 size={11} />
+                            </button>
                             <button
                               onClick={() => handleAdminToggleFeatured(video)}
                               className={`p-1.5 rounded-lg text-[10px] backdrop-blur-md transition-all ${
@@ -2080,6 +2107,20 @@ export default function KhatamJourneyView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* EDIT KHATAM VIDEO MODAL */}
+      <EditKhatamVideoModal
+        isOpen={!!editingVideo}
+        video={editingVideo}
+        onClose={() => setEditingVideo(null)}
+        currentUser={currentUser}
+        onVideoUpdated={(updatedVideo) => {
+          setVideos(prev => prev.map(v => v.id === updatedVideo.id ? updatedVideo : v));
+          if (activeVideo?.id === updatedVideo.id) {
+            setActiveVideo(updatedVideo);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -134,8 +134,38 @@ export default function HomeView({
 
   // 🖼️ Media Lightbox Modal State
   const [isBannerLightboxOpen, setIsBannerLightboxOpen] = useState(false);
-  // 🕊️ 15-Second Heart-at-Ease Spotlight State (Appears on start for 15s, then Ayah of Day re-appears)
-  const [showHeartAtEase, setShowHeartAtEase] = useState<boolean>(true);
+  // 🕊️ 15-Second Heart-at-Ease Spotlight State (Appears only once on daily login for 15s)
+  const [showHeartAtEase, setShowHeartAtEase] = useState<boolean>(() => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const userKey = currentUser?.uid ? `sanctuary_heart_at_ease_${currentUser.uid}` : 'sanctuary_heart_at_ease_guest';
+      const lastShown = localStorage.getItem(userKey);
+      if (lastShown === todayStr) {
+        return false; // Already shown on login today
+      }
+      // First login of the day: mark it and show spotlight
+      localStorage.setItem(userKey, todayStr);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  // Re-check once per day on user login or auth state change
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const userKey = `sanctuary_heart_at_ease_${currentUser.uid}`;
+      const lastShown = localStorage.getItem(userKey);
+      if (lastShown !== todayStr) {
+        localStorage.setItem(userKey, todayStr);
+        setShowHeartAtEase(true);
+      }
+    } catch (e) {
+      console.warn("Heart at Ease daily check error:", e);
+    }
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     const unsubVoice = VoiceService.subscribe(setVoicePlayback);
