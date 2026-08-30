@@ -206,6 +206,67 @@ class ReadLaterService {
     this.saveItems(items);
   }
 
+  public updateNotes(id: string, notes: string): void {
+    const items = this.getItems();
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    item.notes = notes;
+    this.saveItems(items);
+  }
+
+  public seedSampleItems(): void {
+    const sampleItems: ReadLaterItem[] = [
+      {
+        id: 'ayah-2-255',
+        type: 'ayah',
+        title: 'Al-Baqarah 2:255',
+        subtitle: 'Ayat al-Kursi (The Throne Verse)',
+        arabic: 'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ',
+        translation: 'Allah - there is no deity except Him, the Ever-Living, the Sustainer of [all] existence. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth.',
+        source: 'Al-Baqarah (The Cow)',
+        reference: 'Verse 255',
+        surahNumber: 2,
+        numberInSurah: 255,
+        addedAt: Date.now() - 3600000,
+        isRead: false,
+        estimatedReadTimeSeconds: 45
+      },
+      {
+        id: 'hadith-1',
+        type: 'hadith',
+        title: 'Sahih al-Bukhari #1',
+        subtitle: 'Reported by Umar ibn al-Khattab (RA)',
+        arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى',
+        translation: 'Actions are according to intentions, and every person will get the reward according to what he has intended.',
+        source: 'Sahih al-Bukhari',
+        reference: 'Hadith #1',
+        topic: 'Intentions (Niyyah)',
+        hadithId: 1,
+        hadithCollection: 'Sahih al-Bukhari',
+        addedAt: Date.now() - 7200000,
+        isRead: false,
+        estimatedReadTimeSeconds: 30
+      },
+      {
+        id: 'ayah-94-5',
+        type: 'ayah',
+        title: 'Ash-Sharh 94:5-6',
+        subtitle: 'The Relief',
+        arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا • إِنَّ مَعَ الْعُسْرِ يُسْرًا',
+        translation: 'For indeed, with hardship [will be] ease. Indeed, with hardship [will be] ease.',
+        source: 'Ash-Sharh',
+        reference: 'Verses 5-6',
+        surahNumber: 94,
+        numberInSurah: 5,
+        addedAt: Date.now() - 86400000,
+        isRead: true,
+        readAt: Date.now() - 40000000,
+        estimatedReadTimeSeconds: 20
+      }
+    ];
+    this.saveItems(sampleItems);
+  }
+
   public clearCompleted(): void {
     const items = this.getItems().filter(item => !item.isRead);
     this.saveItems(items);

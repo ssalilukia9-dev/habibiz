@@ -101,6 +101,8 @@ import BabyNamesView from './components/BabyNamesView.tsx';
 import OfflineStatusIndicator from './components/OfflineStatusIndicator.tsx';
 import ThemeCustomizerView from './components/ThemeCustomizerView.tsx';
 import KhatamJourneyView from './components/KhatamJourneyView.tsx';
+import IslamicWisdomView from './components/IslamicWisdomView.tsx';
+import FeedView from './components/FeedView.tsx';
 import AliyahMemoriseView from './components/AliyahMemoriseView.tsx';
 import FiveDailyPrayersView from './components/FiveDailyPrayersView.tsx';
 import FivePillarsView from './components/FivePillarsView.tsx';
@@ -1101,6 +1103,7 @@ export default function App() {
         if (user) {
           setCurrentUser(user);
           notificationService.setOneSignalUser(user.uid, user.email || undefined);
+          notificationService.initUserNotificationsWatcher(user.uid);
           
           try {
             let userRef = doc(db, 'users', user.uid);
@@ -1532,6 +1535,15 @@ export default function App() {
     } else if (tab === 'juz') {
       setInitialResId('quran');
       navigate('/resources', { state: { activeRes: 'quran', juzIndex: extra?.juzIndex } });
+      return;
+    } else if (tab === 'khatam' || tab === 'khatam_journey' || tab === 'khatam-journey') {
+      navigate('/khatam');
+      return;
+    } else if (tab === 'wisdom' || tab === 'islamic_wisdom' || tab === 'islamic-wisdom' || tab === 'guides') {
+      navigate('/wisdom');
+      return;
+    } else if (tab === 'feed' || tab === 'noortalk') {
+      navigate('/feed');
       return;
     } else {
       setInitialResId(null);
@@ -2551,6 +2563,13 @@ export default function App() {
                       )
                     } />
                     <Route path="/chat" element={<ChatView currentUser={currentUser} isPremium={isPremium || !trialExpired} searchQuery={searchQuery} setSearchQuery={setSearchQuery} addHasanat={addHasanat} />} />
+                    <Route path="/feed" element={<FeedView addHasanat={addHasanat} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/noortalk" element={<FeedView addHasanat={addHasanat} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} />} />
+                    <Route path="/wisdom" element={<IslamicWisdomView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} onOpenAdmin={() => navigate('/admin')} searchQuery={searchQuery} />} />
+                    <Route path="/islamic-wisdom" element={<IslamicWisdomView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} onOpenAdmin={() => navigate('/admin')} searchQuery={searchQuery} />} />
+                    <Route path="/islamic_wisdom" element={<IslamicWisdomView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} isPremium={isPremium || !trialExpired} onShowPremium={() => setShowPremiumGateway(true)} onOpenAdmin={() => navigate('/admin')} searchQuery={searchQuery} />} />
+                    <Route path="/khatam-journey" element={<KhatamJourneyView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} onOpenAdmin={() => navigate('/admin')} />} />
+                    <Route path="/khatam_journey" element={<KhatamJourneyView onBack={() => navigate('/resources')} addHasanat={addHasanat} currentUser={currentUser} onOpenAdmin={() => navigate('/admin')} />} />
                     <Route path="*" element={<Navigate to="/home" replace />} />
                   </Routes>
                 </motion.div>

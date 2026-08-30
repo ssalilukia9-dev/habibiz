@@ -197,8 +197,8 @@ export default function QuickSanctuaryExplorer({
       color: 'text-emerald-300',
       bgGradient: 'from-emerald-950/70 via-teal-900/40 to-teal-950/60 border-emerald-500/30 hover:border-emerald-400/70 hover:shadow-emerald-500/20',
       image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=600',
-      isPremium: true,
-      action: () => onNavigate('ummah', { view: 'feed' }),
+      isPremium: false,
+      action: () => onNavigate('feed'),
       keywords: ['feed', 'social', 'noortalk', 'ummah', 'community', 'posts', 'reflections', 'comments']
     },
     {

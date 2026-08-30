@@ -271,9 +271,56 @@
         "addedBy": { "type": "string" }
       },
       "required": ["title", "content", "createdAt"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "User follow relationship to subscribe to creator reflections and receive new post notifications",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followerName": { "type": "string" },
+        "followerPhoto": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorPhoto": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "creatorId", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app and system notification document delivered to targeted recipients",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string" },
+        "postId": { "type": "string" },
+        "parentCommentId": { "type": "string" },
+        "text": { "type": "string" },
+        "read": { "type": "boolean" },
+        "actionUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "title", "createdAt"]
     }
   },
   "firestore": {
+    "/user_follows/{followId}": {
+      "schema": "Follow",
+      "description": "User follows for creator subscriptions and new post alerts"
+    },
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "User follows for creator subscriptions and new post alerts"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications delivered to specific recipients"
+    },
     "/islamic_teachings/{teachingId}": {
       "schema": "IslamicTeaching",
       "description": "Curated visual teachings and Hadith picture cards"

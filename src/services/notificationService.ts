@@ -5,9 +5,13 @@ import OneSignal from 'react-onesignal';
 import { 
   collection, 
   query, 
+  where,
   orderBy, 
   limit, 
-  onSnapshot 
+  onSnapshot,
+  addDoc,
+  getDocs,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../lib/firebase.ts';
 import { calculateTahajjudTimings, getUpcomingWhiteDays } from './islamicScheduleService.ts';
@@ -26,6 +30,8 @@ class NotificationService {
   private static instance: NotificationService;
   private notifications: AppNotification[] = [];
   private announcementUnsubscribe: (() => void) | null = null;
+  private userNotificationUnsubscribe: (() => void) | null = null;
+  private currentUserWatcherId: string | null = null;
 
   private constructor() {
     this.loadFromStorage();
@@ -33,6 +39,77 @@ class NotificationService {
     this.initChannels();
     this.initOneSignal();
     this.initAnnouncementWatcher();
+  }
+
+  /**
+   * Watch direct personal notifications for the signed-in user (e.g. comment replies, likes)
+   * in real-time and alert the post author immediately.
+   */
+  initUserNotificationsWatcher(userId: string) {
+    if (!userId) return;
+    if (this.currentUserWatcherId === userId && this.userNotificationUnsubscribe) {
+      return;
+    }
+
+    if (this.userNotificationUnsubscribe) {
+      this.userNotificationUnsubscribe();
+      this.userNotificationUnsubscribe = null;
+    }
+
+    this.currentUserWatcherId = userId;
+
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('recipientId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(40)
+      );
+
+      let isFirstSnapshot = true;
+      const seenNotifIds = new Set<string>();
+
+      this.userNotificationUnsubscribe = onSnapshot(q, (snapshot) => {
+        if (isFirstSnapshot) {
+          snapshot.docs.forEach(d => seenNotifIds.add(d.id));
+          isFirstSnapshot = false;
+          return;
+        }
+
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const docId = change.doc.id;
+            if (seenNotifIds.has(docId)) return;
+            seenNotifIds.add(docId);
+
+            const data = change.doc.data();
+            const senderName = data.senderName || 'Community Member';
+            const notifType = data.type || 'feed';
+            
+            let defaultTitle = `💬 New reflection update`;
+            if (notifType === 'feed_comment') defaultTitle = `💬 New comment on your reflection`;
+            else if (notifType === 'feed_reply') defaultTitle = `💬 New reply in your thread`;
+            else if (notifType === 'feed_new_post') defaultTitle = `✨ New post from ${senderName}`;
+            else if (notifType === 'feed_follow') defaultTitle = `🌟 New Follower on NoorTalk`;
+            else if (notifType === 'post_like') defaultTitle = `❤️ New like on your reflection`;
+            else if (notifType === 'comment_reaction') defaultTitle = `🤲 Reaction on your comment`;
+
+            const title = data.title || defaultTitle;
+            const body = data.body || data.text || 'Shared a spiritual reflection with you';
+            const type = (notifType.startsWith('feed') || notifType.startsWith('post') || notifType.startsWith('comment')) ? 'feed' : (data.type || 'system');
+            const actionUrl = data.actionUrl || (data.postId ? `/?tab=ummah&view=feed&post=${data.postId}#post-${data.postId}` : '/?tab=ummah&view=feed');
+
+            // Trigger instant device notification, sound, vibration & update in-app bell
+            this.notify(title, body, type, actionUrl);
+            this.vibrate();
+          }
+        });
+      }, (err) => {
+        console.warn("[NotificationService] User notifications listener error:", err);
+      });
+    } catch (e) {
+      console.warn("[NotificationService] Failed to init user notifications watcher:", e);
+    }
   }
 
   /**
@@ -1053,6 +1130,105 @@ class NotificationService {
   private vibrate() {
     if ('vibrate' in navigator) {
       navigator.vibrate([100, 50, 100]); // Short double pulse
+    }
+  }
+
+  /**
+   * Send notification exclusively to the post creator when someone leaves a comment or reply.
+   * Ensures the original poster is alerted rather than the commenter.
+   */
+  async sendCommentNotificationToPostCreator(params: {
+    postCreatorId: string;
+    commenterId: string;
+    commenterName: string;
+    commentText: string;
+    postId: string;
+    parentCommentId?: string | null;
+  }) {
+    const { postCreatorId, commenterId, commenterName, commentText, postId, parentCommentId } = params;
+    // Strictly verify post creator exists and is not the commenter themselves
+    if (!postCreatorId || postCreatorId === commenterId) return;
+
+    const cleanSnippet = commentText.length > 85 ? `${commentText.substring(0, 85)}...` : commentText;
+    const title = parentCommentId 
+      ? `💬 New reply in your reflection thread` 
+      : `💬 New comment on your reflection`;
+    const body = `${commenterName || 'A community member'} commented: "${cleanSnippet}"`;
+    const actionUrl = `/?tab=ummah&view=feed&post=${postId}&expand=true#post-${postId}`;
+
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        type: parentCommentId ? 'feed_reply' : 'feed_comment',
+        recipientId: postCreatorId,
+        senderId: commenterId,
+        senderName: commenterName || 'Community Member',
+        title,
+        body,
+        postId,
+        parentCommentId: parentCommentId || null,
+        text: commentText,
+        createdAt: serverTimestamp(),
+        read: false,
+        actionUrl
+      });
+      console.log(`[NotificationService] Exclusive comment notification sent to post creator ${postCreatorId}`);
+    } catch (e) {
+      console.warn("[NotificationService] Failed to send comment notification to post creator:", e);
+    }
+  }
+
+  /**
+   * Broadcast notifications of a new post to all followers of the creator.
+   * Ensures all followers receive an alert while the creator does not alert themselves.
+   */
+  async notifyFollowersOfNewPost(params: {
+    authorId: string;
+    authorName: string;
+    postId: string;
+    content: string;
+    category?: string;
+  }) {
+    const { authorId, authorName, postId, content, category } = params;
+    if (!authorId || !postId) return;
+
+    const cleanSnippet = content.length > 90 ? `${content.substring(0, 90)}...` : content;
+    const title = `✨ New NoorTalk reflection from ${authorName || 'Community Member'}`;
+    const body = cleanSnippet || 'A new spiritual reflection has been shared.';
+    const actionUrl = `/?tab=ummah&view=feed&post=${postId}#post-${postId}`;
+
+    try {
+      // Query all followers who subscribed to this creator
+      const followsQuery = query(
+        collection(db, 'follows'),
+        where('creatorId', '==', authorId)
+      );
+      const snapshot = await getDocs(followsQuery);
+
+      const notifyPromises = snapshot.docs.map(async (docSnap) => {
+        const followData = docSnap.data();
+        const followerId = followData.followerId;
+        // Never notify the author themselves
+        if (followerId && followerId !== authorId) {
+          return addDoc(collection(db, 'notifications'), {
+            type: 'feed_new_post',
+            recipientId: followerId,
+            senderId: authorId,
+            senderName: authorName || 'Community Member',
+            title,
+            body,
+            postId,
+            category: category || 'General',
+            createdAt: serverTimestamp(),
+            read: false,
+            actionUrl
+          });
+        }
+      });
+
+      await Promise.allSettled(notifyPromises);
+      console.log(`[NotificationService] Notified ${snapshot.size} followers of new post ${postId}`);
+    } catch (e) {
+      console.warn("[NotificationService] Failed to notify followers of new post:", e);
     }
   }
 

@@ -559,7 +559,16 @@ const RAW_HADITH_DATABASE: HadithEntry[] = [
       { ar: "الْمَرْءُ مَعَ مَنْ أَحَبَّ", en: "A person will be reunited with those whom he loved on the Day of Resurrection." },
       { ar: "لاَ تَحَاسَدُوا وَلاَ تَنَاجَشُوا وَلاَ تَبَاغَضُوا وَكُونُوا عِبَادَ اللَّهِ إِخْوَانًا", en: "Do not envy one another, do not inflate prices, do not hate one another, and be servants of Allah as brothers." },
       { ar: "مَنْ أَحَبَّ لِقَاءَ اللَّهِ أَحَبَّ اللَّهُ لِقَاءَهُ", en: "Whoever loves to meet Allah, Allah loves to meet him." },
-      { ar: "الدَّالُّ عَلَى الْخَيْرِ كَفَاعِلِهِ", en: "The one who guides or directs others to a good deed receives the same reward as the doer." }
+      { ar: "الدَّالُّ عَلَى الْخَيْرِ كَفَاعِلِهِ", en: "The one who guides or directs others to a good deed receives the same reward as the doer." },
+      { ar: "اتَّقُوا النَّارَ وَلَوْ بِشِقِّ تَمْرَةٍ", en: "Guard yourselves from the Fire, even with half a date given in sincere charity." },
+      { ar: "خِيَارُكُمْ أَحَاسِنُكُمْ أَخْلَاقًا", en: "The best among you are those who possess the best character and noble manners." },
+      { ar: "عَفْوُ اللَّهِ أَعْظَمُ مِنْ ذُنُوبِكَ", en: "The forgiveness and expansive mercy of Allah is greater than all of your sins." },
+      { ar: "مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ وَمَا زَادَ اللَّهُ عَبْدًا بِعَفْوٍ إِلاَّ عِزًّا", en: "Charity does not decrease wealth, and Allah does not increase a servant who pardons others except in honor." },
+      { ar: "تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ لَكَ صَدَقَةٌ", en: "Your smiling in the face of your brother is a counted act of charity for you." },
+      { ar: "أَحَبُّ الْبِلَادِ إِلَى اللَّهِ مَسَاجِدُهَا", en: "The most beloved places on earth to Allah are its mosques." },
+      { ar: "مَنْ سَتَرَ مُسْلِمًا سَتَرَهُ اللَّهُ فِي الدُّنْيَا وَالْآخِرَةِ", en: "Whoever conceals the fault of a Muslim, Allah will conceal his faults in this world and the Hereafter." },
+      { ar: "لَا يَدْخُلُ الْجَنَّةَ مَنْ كَانَ فِي قَلْبِهِ مِثْقَالُ ذَرَّةٍ مِنْ كِبْرٍ", en: "No one who has an atom's weight of arrogance in his heart will enter Paradise without purification." },
+      { ar: "إِنَّ اللَّهَ جَمِيلٌ يُحِبُّ الْجَمَالَ", en: "Verily, Allah is Beautiful and He loves beauty in manners and deed." }
     ];
 
     const pick = curatedTexts[i % curatedTexts.length];

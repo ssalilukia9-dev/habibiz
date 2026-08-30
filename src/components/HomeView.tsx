@@ -1133,6 +1133,74 @@ export default function HomeView({
         onShowPremium={onShowPremium}
       />
 
+      {/* 2.2 NOORTALK COMMUNITY REFLECTION & STORIES SHOWCASE */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.15 }}
+        className="glass-panel p-5 sm:p-7 rounded-[2.2rem] border border-emerald-500/25 bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-teal-950/40 relative overflow-hidden backdrop-blur-2xl shadow-xl space-y-4"
+      >
+        <div className="flex items-center justify-between flex-wrap gap-3 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-emerald-500/20 text-lg">
+              💬
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Global Ummah Stream</span>
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300 font-bold border border-emerald-400/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  Live NoorTalk
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white tracking-tight">NoorTalk Community Feed</h3>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate('feed')}
+            className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <span>Open NoorTalk</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        {/* Quick Social Stories Avatars Bar */}
+        <div className="flex items-center gap-3 overflow-x-auto py-1 no-scrollbar relative z-10">
+          {/* Add story trigger */}
+          <button
+            onClick={() => onNavigate('feed')}
+            className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
+          >
+            <div className="w-13 h-13 rounded-full bg-emerald-500/15 border-2 border-dashed border-emerald-400/60 flex items-center justify-center text-emerald-300 group-hover:scale-105 group-hover:border-emerald-400 transition-all">
+              <Plus size={20} />
+            </div>
+            <span className="text-[10px] font-bold text-slate-300 group-hover:text-emerald-300">Share Story</span>
+          </button>
+
+          {[
+            { name: 'Dr. Tariq Al-Baqir', role: 'Scholar', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120', ring: 'border-emerald-400 shadow-emerald-500/30' },
+            { name: 'Ustadh Omar', role: 'Teacher', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120', ring: 'border-amber-400 shadow-amber-500/30' },
+            { name: 'Fatima Zahra', role: 'Hafiz', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120', ring: 'border-teal-400 shadow-teal-500/30' },
+            { name: 'Hafiz Bilal', role: 'Qari', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120', ring: 'border-indigo-400 shadow-indigo-500/30' },
+            { name: 'Maryam Noor', role: 'Seeker', img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=120', ring: 'border-rose-400 shadow-rose-500/30' }
+          ].map((story, idx) => (
+            <button
+              key={idx}
+              onClick={() => onNavigate('feed')}
+              className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
+            >
+              <div className={`w-13 h-13 rounded-full p-0.5 border-2 ${story.ring} shadow-md group-hover:scale-105 transition-all relative`}>
+                <img src={story.img} alt={story.name} className="w-full h-full rounded-full object-cover" />
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-900" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-300 truncate max-w-[68px] group-hover:text-white">{story.name.split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
       {/* 3. ARTISTIC PRAYER CONSOLE & SACRED ISLAMIC LUNAR-SOLAR CALENDAR */}
       <div 
         id="tour-prayer-console"

@@ -14,8 +14,10 @@ import {
   Heart,
   Mic,
   UserCheck,
+  UserMinus,
   XCircle,
-  BellRing
+  BellRing,
+  Rss
 } from 'lucide-react';
 import { 
   collection, 
@@ -37,7 +39,7 @@ import { db, auth } from '../lib/firebase.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
 import { notificationService } from '../services/notificationService.ts';
 
-interface UmmahUser {
+export interface UmmahUser {
   uid: string;
   displayName: string;
   email?: string;
@@ -45,9 +47,10 @@ interface UmmahUser {
   hasanat: number;
   lastSeen?: any;
   isPremium?: boolean;
+  bio?: string;
 }
 
-interface FriendRequest {
+export interface FriendRequest {
   id: string;
   fromId: string;
   fromName?: string;
@@ -60,12 +63,75 @@ interface FriendRequest {
   createdAt?: any;
 }
 
+export const DEFAULT_UMMAH_MEMBERS: UmmahUser[] = [
+  {
+    uid: 'azn-ummah-member',
+    displayName: 'Azn (Al-Zubair)',
+    email: 'azn@noorhub.org',
+    photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+    hasanat: 4850,
+    lastSeen: new Date().toISOString(),
+    isPremium: true,
+    bio: 'Dedicated Quran student & Tahajjud seeker. Follow to share reflections!'
+  },
+  {
+    uid: 'scholar-dr-yasir',
+    displayName: 'Dr. Yasir Qadhi',
+    email: 'dr.yasir@noortalk.org',
+    photoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+    hasanat: 8920,
+    lastSeen: new Date().toISOString(),
+    isPremium: true,
+    bio: 'Dean of Islamic Seminary & Tafsir instructor.'
+  },
+  {
+    uid: 'sister-fatima-z',
+    displayName: 'Fatima Zahra',
+    email: 'fatima.z@sanctuary.org',
+    photoURL: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
+    hasanat: 3640,
+    lastSeen: new Date().toISOString(),
+    isPremium: true,
+    bio: 'Tajweed & Tajweed Masterclass learner 🌸'
+  },
+  {
+    uid: 'hafiz-bilal',
+    displayName: 'Hafiz Bilal',
+    email: 'bilal@sanctuary.org',
+    photoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400',
+    hasanat: 5210,
+    lastSeen: new Date().toISOString(),
+    isPremium: false,
+    bio: 'Hafiz of the Quran & Khatam leader.'
+  },
+  {
+    uid: 'ustadh-omar',
+    displayName: 'Ustadh Omar',
+    email: 'omar@ilm.org',
+    photoURL: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=400',
+    hasanat: 4120,
+    lastSeen: new Date().toISOString(),
+    isPremium: true,
+    bio: 'Arabic grammar & Seerah study circles 🌿'
+  },
+  {
+    uid: 'sister-samira',
+    displayName: 'Samira Bint Ahmad',
+    email: 'samira@noorhub.org',
+    photoURL: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400',
+    hasanat: 2980,
+    lastSeen: new Date().toISOString(),
+    isPremium: false,
+    bio: 'Daily Adhkar & Gratitude Journal companion 📿'
+  }
+];
+
 export default function UmmahHubView({ 
   searchQuery, 
   setSearchQuery, 
   addHasanat,
   isPremium,
-  onShowPremium
+  onShowPremium 
 }: { 
   searchQuery: string, 
   setSearchQuery: (q: string) => void, 
@@ -73,13 +139,39 @@ export default function UmmahHubView({
   isPremium: boolean,
   onShowPremium: () => void
 }) {
-  const [users, setUsers] = useState<UmmahUser[]>([]);
+  const [users, setUsers] = useState<UmmahUser[]>(DEFAULT_UMMAH_MEMBERS);
   const [loading, setLoading] = useState(true);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({}); // targetUid -> 'pending' | 'incoming' | 'accepted'
   const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
-  const [filter, setFilter] = useState<'all' | 'premium' | 'active'>('all');
+  const [filter, setFilter] = useState<'all' | 'following' | 'premium' | 'active'>('all');
   const [isListening, setIsListening] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  // User Follows state
+  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuary_followed_creators');
+      return saved ? new Set(JSON.parse(saved)) : new Set(['azn-ummah-member', 'Azn (Al-Zubair)', 'Dr. Yasir Qadhi', 'Fatima Zahra']);
+    } catch {
+      return new Set(['azn-ummah-member', 'Azn (Al-Zubair)', 'Dr. Yasir Qadhi', 'Fatima Zahra']);
+    }
+  });
+
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({
+    'azn-ummah-member': 534,
+    'Azn (Al-Zubair)': 534,
+    'scholar-dr-yasir': 1420,
+    'Dr. Yasir Qadhi': 1420,
+    'sister-fatima-z': 382,
+    'Fatima Zahra': 382,
+    'hafiz-bilal': 289,
+    'Hafiz Bilal': 289,
+    'ustadh-omar': 412,
+    'Ustadh Omar': 412,
+    'sister-samira': 210,
+    'Samira Bint Ahmad': 210
+  });
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -110,6 +202,34 @@ export default function UmmahHubView({
   };
 
   const currentUser = auth.currentUser;
+
+  // Sync follow status from Firestore
+  useEffect(() => {
+    if (!currentUser || currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('guest_')) {
+      return;
+    }
+
+    try {
+      const q = query(
+        collection(db, 'user_follows'),
+        where('followerId', '==', currentUser.uid)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const set = new Set<string>();
+        snapshot.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.creatorId) set.add(data.creatorId);
+          if (data.creatorName) set.add(data.creatorName);
+        });
+        if (set.size > 0) {
+          setFollowedUserIds(prev => new Set([...Array.from(prev), ...Array.from(set)]));
+        }
+      }, () => {});
+
+      return () => unsubscribe();
+    } catch {}
+  }, [currentUser]);
 
   // Real-time listener for both sent and received friend requests
   useEffect(() => {
@@ -192,9 +312,10 @@ export default function UmmahHubView({
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Load real members
+  // Load real members + fallback defaults
   useEffect(() => {
     if (!currentUser || currentUser.uid.startsWith('local_') || currentUser.uid.startsWith('rest_')) {
+      setUsers(DEFAULT_UMMAH_MEMBERS);
       setLoading(false);
       return;
     }
@@ -208,7 +329,7 @@ export default function UmmahHubView({
         );
 
         const snap = await getDocs(q);
-        const userList = snap.docs
+        const fetchedList = snap.docs
           .map(doc => {
             const data = doc.data();
             return {
@@ -218,14 +339,19 @@ export default function UmmahHubView({
               photoURL: data.photoURL || '',
               hasanat: Number(data.hasanat) || 0,
               lastSeen: data.lastSeen,
-              isPremium: !!data.isPremium
+              isPremium: !!data.isPremium,
+              bio: data.bio || ''
             } as UmmahUser;
           })
           .filter(u => u.uid !== currentUser?.uid);
         
-        setUsers(userList);
+        // Merge fetched list with defaults to ensure comprehensive community
+        const existingIds = new Set(fetchedList.map(u => u.uid));
+        const extraDefaults = DEFAULT_UMMAH_MEMBERS.filter(d => !existingIds.has(d.uid));
+        setUsers([...fetchedList, ...extraDefaults]);
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, 'users');
+        setUsers(DEFAULT_UMMAH_MEMBERS);
       } finally {
         setLoading(false);
       }
@@ -233,6 +359,83 @@ export default function UmmahHubView({
 
     fetchUsers();
   }, [currentUser]);
+
+  // Follow / Unfollow User Handler
+  const handleToggleFollow = async (targetUser: UmmahUser) => {
+    const isCurrentlyFollowed = followedUserIds.has(targetUser.uid) || followedUserIds.has(targetUser.displayName);
+    const targetKey = targetUser.uid;
+
+    setFollowedUserIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyFollowed) {
+        next.delete(targetUser.uid);
+        next.delete(targetUser.displayName);
+      } else {
+        next.add(targetUser.uid);
+        next.add(targetUser.displayName);
+      }
+      try {
+        localStorage.setItem('sanctuary_followed_creators', JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+
+    setFollowerCounts(prev => ({
+      ...prev,
+      [targetKey]: Math.max(0, (prev[targetKey] || 0) + (isCurrentlyFollowed ? -1 : 1)),
+      [targetUser.displayName]: Math.max(0, (prev[targetUser.displayName] || 0) + (isCurrentlyFollowed ? -1 : 1))
+    }));
+
+    if (isCurrentlyFollowed) {
+      setSuccessToast(`Unfollowed ${targetUser.displayName}.`);
+      setTimeout(() => setSuccessToast(null), 3000);
+
+      if (currentUser && !currentUser.uid.startsWith('local_')) {
+        try {
+          const followDocId = `${currentUser.uid}_${targetUser.uid}`;
+          await deleteDoc(doc(db, 'user_follows', followDocId)).catch(() => {});
+          await deleteDoc(doc(db, 'follows', followDocId)).catch(() => {});
+        } catch (e) {
+          console.warn("Unfollow write fallback:", e);
+        }
+      }
+    } else {
+      setSuccessToast(`✨ Following ${targetUser.displayName}! Reflections & activities will appear in your stream.`);
+      setTimeout(() => setSuccessToast(null), 4000);
+
+      if (addHasanat) addHasanat(10);
+
+      if (currentUser && !currentUser.uid.startsWith('local_')) {
+        try {
+          const followDocId = `${currentUser.uid}_${targetUser.uid}`;
+          const followData = {
+            followerId: currentUser.uid,
+            followerName: currentUser.displayName || 'Ummah Member',
+            creatorId: targetUser.uid,
+            creatorName: targetUser.displayName,
+            createdAt: serverTimestamp()
+          };
+
+          await setDoc(doc(db, 'user_follows', followDocId), followData).catch(() => {});
+          await setDoc(doc(db, 'follows', followDocId), followData).catch(() => {});
+
+          // Send direct in-app notification to the followed user
+          await addDoc(collection(db, 'notifications'), {
+            type: 'feed_follow',
+            recipientId: targetUser.uid,
+            senderId: currentUser.uid,
+            senderName: currentUser.displayName || 'Ummah Member',
+            title: `✨ New Follower on Ummah Hub`,
+            body: `${currentUser.displayName || 'A member'} started following you on Ummah Hub.`,
+            actionUrl: '/?tab=ummah',
+            createdAt: serverTimestamp()
+          }).catch(() => {});
+        } catch (e) {
+          console.warn("Follow write fallback:", e);
+        }
+      }
+    }
+  };
 
   // Send request with full payload for receiver visibility
   const handleSendRequest = async (targetUser: UmmahUser) => {
@@ -365,25 +568,46 @@ export default function UmmahHubView({
   };
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = u.displayName?.toLowerCase().includes(searchQuery.toLowerCase());
-    if (filter === 'premium') return matchesSearch && u.isPremium;
-    return matchesSearch;
+    const matchesSearch = u.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (u.bio && u.bio.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+    if (filter === 'following') {
+      return followedUserIds.has(u.uid) || followedUserIds.has(u.displayName);
+    }
+    if (filter === 'premium') return u.isPremium;
+    if (filter === 'active') return u.lastSeen;
+    return true;
   });
 
   return (
     <div className="space-y-12 pb-32">
+       {/* Feedback Toast */}
+       <AnimatePresence>
+         {successToast && (
+           <motion.div
+             initial={{ opacity: 0, y: -20 }}
+             animate={{ opacity: 1, y: 0 }}
+             exit={{ opacity: 0, y: -20 }}
+             className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-brand-sidebar/95 border border-brand-primary/40 text-white px-6 py-3 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center gap-3 text-xs font-bold"
+           >
+             <Sparkles size={16} className="text-brand-primary animate-pulse" />
+             <span>{successToast}</span>
+           </motion.div>
+         )}
+       </AnimatePresence>
+
        {/* Header Section */}
        <section className="relative overflow-hidden rounded-[2.5rem] md:rounded-[3.5rem] bg-gradient-to-br from-brand-primary/20 via-brand-depth to-brand-depth border border-brand-primary/20 p-8 md:p-16">
           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[100px] -mr-32 -mt-32" />
           <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
              <div className="space-y-4 md:space-y-6">
                 <div className="flex items-center gap-4">
-                   <span className="px-3 md:px-4 py-1.5 bg-brand-primary text-brand-depth rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest">Global Community</span>
+                   <span className="px-3 md:px-4 py-1.5 bg-brand-primary text-brand-depth rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest">Global Community & Following</span>
                    <div className="h-px w-12 md:w-24 bg-white/10" />
                 </div>
                 <div className="space-y-2">
                    <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-none">Ummah<br/><span className="text-brand-primary">Hub</span></h2>
-                   <p className="text-slate-400 font-medium text-base md:text-lg max-w-sm">Discover and connect with brothers and sisters on the same spiritual journey.</p>
+                   <p className="text-slate-400 font-medium text-base md:text-lg max-w-sm">Discover, follow, and connect with brothers and sisters like Azn on the sacred path.</p>
                 </div>
              </div>
 
@@ -392,10 +616,10 @@ export default function UmmahHubView({
                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-primary/40 group-focus-within:text-brand-primary transition-colors" size={20} />
                    <input 
                      type="text" 
-                     placeholder="Search for a heart..."
-                     className="w-full lg:w-96 bg-white/5 border border-white/10 rounded-2xl md:rounded-[2rem] pl-14 pr-12 py-4 md:py-5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary/40 transition-all text-slate-200 placeholder:text-slate-600"
+                     placeholder="Search for a heart, seeker, or Azn..."
                      value={searchQuery}
                      onChange={(e) => setSearchQuery(e.target.value)}
+                     className="w-full lg:w-96 pl-16 pr-14 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
                    />
                    <button 
                      onClick={toggleListening}
@@ -405,14 +629,23 @@ export default function UmmahHubView({
                      <Mic size={18} />
                    </button>
                 </div>
-                <div className="flex gap-2">
-                   {['all', 'premium'].map((f) => (
+                <div className="flex gap-2 flex-wrap">
+                   {[
+                     { id: 'all', label: 'All Members' },
+                     { id: 'following', label: `Following (${followedUserIds.size})` },
+                     { id: 'premium', label: 'Patrons' },
+                     { id: 'active', label: 'Active Now' }
+                   ].map((tab) => (
                      <button
-                       key={f}
-                       onClick={() => setFilter(f as any)}
-                       className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-brand-primary text-brand-depth' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
+                       key={tab.id}
+                       onClick={() => setFilter(tab.id as any)}
+                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                         filter === tab.id 
+                           ? 'bg-brand-primary text-brand-depth shadow-lg shadow-brand-primary/20' 
+                           : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                       }`}
                      >
-                       {f}
+                       {tab.label}
                      </button>
                    ))}
                 </div>
@@ -489,7 +722,7 @@ export default function UmmahHubView({
           <div className="flex items-center justify-between">
              <h3 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
                 <Filter size={18} className="text-brand-primary" />
-                Hearts Reaching Out
+                <span>{filter === 'following' ? 'Seekers You Follow' : 'Hearts Reaching Out'}</span>
              </h3>
              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{filteredUsers.length} Users Found</span>
           </div>
@@ -505,6 +738,8 @@ export default function UmmahHubView({
                <AnimatePresence mode="popLayout">
                  {filteredUsers.map((user, idx) => {
                    const reqStatus = sentRequests[user.uid];
+                   const isFollowed = followedUserIds.has(user.uid) || followedUserIds.has(user.displayName);
+                   const followerCount = followerCounts[user.uid] || followerCounts[user.displayName] || 150;
 
                    return (
                      <motion.div
@@ -514,39 +749,73 @@ export default function UmmahHubView({
                        animate={{ opacity: 1, scale: 1 }}
                        exit={{ opacity: 0, scale: 0.9 }}
                        transition={{ delay: idx * 0.05 }}
-                       className="group relative bg-brand-sidebar/40 border border-white/5 rounded-[2.5rem] p-8 hover:bg-brand-sidebar/80 hover:border-brand-primary/30 transition-all duration-500 overflow-hidden"
+                       className="group relative bg-brand-sidebar/40 border border-white/5 rounded-[2.5rem] p-7 hover:bg-brand-sidebar/80 hover:border-brand-primary/30 transition-all duration-500 overflow-hidden flex flex-col justify-between"
                      >
                        {/* Decorative background circle */}
                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-brand-primary/5 rounded-full blur-[40px] group-hover:bg-brand-primary/10 transition-colors" />
                        
-                       <div className="relative z-10 space-y-6">
+                       <div className="relative z-10 space-y-5">
                           <div className="flex items-start justify-between">
                              <div className="relative">
-                                <div className="w-20 h-20 rounded-[2rem] overflow-hidden border-2 border-white/5 group-hover:border-brand-primary/30 transition-all bg-brand-depth shadow-xl">
+                                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/5 group-hover:border-brand-primary/30 transition-all bg-brand-depth shadow-xl">
                                    <img src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 {user.isPremium && (
-                                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center text-brand-depth shadow-lg border-2 border-brand-sidebar">
-                                     <ShieldCheck size={14} />
+                                  <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center text-brand-depth shadow-lg border border-brand-sidebar">
+                                     <ShieldCheck size={12} />
                                   </div>
                                 )}
                              </div>
-                             <div className="text-right">
-                                <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">Hasanat</p>
-                                <p className="text-2xl font-black text-white leading-none">{user.hasanat.toLocaleString()}</p>
-                             </div>
+                             
+                             {/* Follow / Unfollow Toggle Button */}
+                             <button
+                               onClick={() => handleToggleFollow(user)}
+                               className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                 isFollowed
+                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30'
+                                   : 'bg-brand-primary text-brand-depth hover:scale-105 active:scale-95 shadow-md shadow-brand-primary/20'
+                               }`}
+                               title={isFollowed ? 'Click to unfollow' : 'Follow this user'}
+                             >
+                               {isFollowed ? (
+                                 <>
+                                   <UserCheck size={12} />
+                                   <span>Following</span>
+                                 </>
+                               ) : (
+                                 <>
+                                   <UserPlus size={12} />
+                                   <span>+ Follow</span>
+                                 </>
+                               )}
+                             </button>
                           </div>
 
                           <div className="space-y-1">
                              <div className="flex items-center gap-2">
-                                <h4 className="text-xl font-black text-white tracking-tight line-clamp-1">{user.displayName}</h4>
+                                <h4 className="text-lg font-black text-white tracking-tight line-clamp-1">{user.displayName}</h4>
                                 {user.lastSeen && (Date.now() - (user.lastSeen?.toMillis ? user.lastSeen.toMillis() : new Date(user.lastSeen).getTime()) < 300000) && (
-                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse shrink-0" />
                                 )}
                              </div>
-                             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                <Sparkles size={12} className="text-brand-primary/60" />
-                                <span>Level {Math.floor(user.hasanat / 500) + 1} Seeker</span>
+                             
+                             {user.bio ? (
+                               <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{user.bio}</p>
+                             ) : (
+                               <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  <Sparkles size={11} className="text-brand-primary/60" />
+                                  <span>Level {Math.floor(user.hasanat / 500) + 1} Seeker</span>
+                               </div>
+                             )}
+
+                             <div className="flex items-center gap-3 pt-1 text-[10px] font-bold text-slate-400">
+                               <span className="flex items-center gap-1 text-brand-primary font-black">
+                                 ✨ {user.hasanat.toLocaleString()} Hasanat
+                               </span>
+                               <span>•</span>
+                               <span className="flex items-center gap-1">
+                                 <Users size={11} /> {followerCount} followers
+                               </span>
                              </div>
                           </div>
 
@@ -565,29 +834,29 @@ export default function UmmahHubView({
                                      };
                                      handleAcceptRequest(matchedReq);
                                    }}
-                                   className="flex-1 py-4 bg-brand-primary text-brand-depth rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 hover:scale-105 active:scale-95 cursor-pointer"
+                                   className="flex-1 py-3 bg-brand-primary text-brand-depth rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 hover:scale-105 active:scale-95 cursor-pointer"
                                  >
-                                   <UserCheck size={16} /> Accept Request
+                                   <UserCheck size={14} /> Accept Request
                                  </button>
                                  <button
                                    onClick={() => {
                                      const matchedReq = incomingRequests.find(r => r.fromId === user.uid);
                                      if (matchedReq) handleDeclineRequest(matchedReq.id, user.uid);
                                    }}
-                                   className="p-4 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-2xl transition-all cursor-pointer"
+                                   className="p-3 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl transition-all cursor-pointer"
                                    title="Decline"
                                  >
-                                   <XCircle size={18} />
+                                   <XCircle size={16} />
                                  </button>
                                </div>
                              ) : reqStatus === 'pending' ? (
                                <div className="flex gap-2">
-                                 <div className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                                   <Clock size={15} /> Request Sent
+                                 <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                   <Clock size={13} /> Request Sent
                                  </div>
                                  <button 
                                    onClick={() => handleCancelSentRequest(user.uid)}
-                                   className="px-4 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                   className="px-3 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
                                    title="Cancel Request"
                                  >
                                    Cancel
@@ -595,40 +864,28 @@ export default function UmmahHubView({
                                </div>
                              ) : reqStatus === 'accepted' ? (
                                <div className="flex gap-2">
-                                 <div className="flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border bg-brand-primary/10 text-brand-primary border-brand-primary/20">
-                                   <CheckCircle2 size={16} /> Connected
+                                 <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-brand-primary/10 text-brand-primary border-brand-primary/20">
+                                   <CheckCircle2 size={14} /> Connected
                                  </div>
                                  <button 
                                    onClick={() => {
                                      window.location.hash = '#/chat';
                                    }}
-                                   className="shrink-0 w-14 h-14 bg-brand-primary text-brand-depth rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/20 group/chat cursor-pointer"
+                                   className="shrink-0 w-11 h-11 bg-brand-primary text-brand-depth rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/20 group/chat cursor-pointer"
                                    title="Open Chat"
                                  >
-                                    <MessageCircle size={20} className="group-hover:rotate-12 transition-transform" />
+                                    <MessageCircle size={17} className="group-hover:rotate-12 transition-transform" />
                                  </button>
                                </div>
                              ) : (
                                <button 
                                  onClick={() => handleSendRequest(user)}
-                                 className="w-full py-4 bg-white/5 hover:bg-brand-primary hover:text-brand-depth text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 active:scale-95 group/btn cursor-pointer"
+                                 className="w-full py-3 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-white/5 cursor-pointer"
                                >
-                                  <UserPlus size={16} className="text-brand-primary group-hover/btn:text-brand-depth transition-colors" />
-                                  Friendly Request
+                                  <MessageCircle size={14} className="text-brand-primary" />
+                                  <span>Friendly Request</span>
                                </button>
                              )}
-                          </div>
-                       </div>
-
-                       {/* Stats Overlay on Hover */}
-                       <div className="absolute bottom-4 right-8 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-500">
-                          <div className="flex items-center gap-1.5 text-pink-500">
-                             <Heart size={12} fill="currentColor" />
-                             <span className="text-[10px] font-black">2.4k</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-brand-primary">
-                             <MessageCircle size={12} fill="currentColor" />
-                             <span className="text-[10px] font-black">1.1k</span>
                           </div>
                        </div>
                      </motion.div>
@@ -644,14 +901,20 @@ export default function UmmahHubView({
                   <Users size={48} />
                </div>
                <div className="space-y-2">
-                  <h4 className="text-xl font-black text-white">Heart not found</h4>
-                  <p className="text-slate-500 max-w-xs font-medium">Try searching for a different name or browse the entire community.</p>
+                  <h4 className="text-xl font-black text-white">
+                    {filter === 'following' ? 'No followed users yet' : 'Heart not found'}
+                  </h4>
+                  <p className="text-slate-500 max-w-xs font-medium">
+                    {filter === 'following' 
+                      ? 'Follow users like Azn or other seekers in Ummah Hub to see them here!' 
+                      : 'Try searching for a different name or browse the entire community.'}
+                  </p>
                </div>
                <button 
                  onClick={() => { setSearchQuery(''); setFilter('all'); }}
-                 className="text-brand-primary text-[10px] font-black uppercase tracking-[0.2em] hover:underline"
+                 className="px-8 py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                >
-                 Clear Search Filters
+                  Reset Filter
                </button>
             </div>
           )}

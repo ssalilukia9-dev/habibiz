@@ -64,6 +64,7 @@ import QiblaView from './QiblaView.tsx';
 import HijriCalendarView from './HijriCalendarView.tsx';
 import HifzMemorizeView from './HifzMemorizeView.tsx';
 import KhatamJourneyView from './KhatamJourneyView.tsx';
+import IslamicWisdomView from './IslamicWisdomView.tsx';
 import FiveDailyPrayersView from './FiveDailyPrayersView.tsx';
 import FivePillarsView from './FivePillarsView.tsx';
 import TrialExpiredPaywallModal from './TrialExpiredPaywallModal.tsx';
@@ -72,6 +73,7 @@ import { Surah, Ayah } from '../types.ts';
 import OfflineManagerView from './OfflineManagerView.tsx';
 import NotificationsView from './NotificationsView.tsx';
 import SanctuaryOSCore from './SanctuaryOSCore.tsx';
+import ReadLaterQueueView from './ReadLaterQueueView.tsx';
 
 interface ResourcesViewProps {
   selectedSurah: Surah | null;
@@ -94,7 +96,7 @@ interface ResourcesViewProps {
   currentUser: any;
 }
 
-type TabType = 'quran' | 'hadith' | 'feed' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system' | 'marriage_duas' | 'dua_categories' | 'five_prayers' | 'prayers_guide' | 'prayers' | 'five_pillars' | 'pillars' | 'arkan';
+type TabType = 'quran' | 'hadith' | 'feed' | 'noortalk' | 'tools' | 'dua' | 'names' | 'halal' | 'calendar' | 'adhkar' | 'zakat' | 'guides' | 'wisdom' | 'islamic_wisdom' | 'babynames' | 'names_old' | 'games' | 'prayer_times' | 'tasbih' | 'qibla' | 'khatam' | 'khatam_journey' | 'mosques' | 'learn' | 'immerse' | 'memorise' | 'coin_shop' | 'mirror' | 'finance' | 'library' | 'calendar_view' | 'market' | 'chat' | 'companion' | 'mobile' | 'offline' | 'readlater' | 'read_later' | 'hajj_umrah' | 'hajj_game' | 'anatomy' | 'system' | 'marriage_duas' | 'dua_categories' | 'five_prayers' | 'prayers_guide' | 'prayers' | 'five_pillars' | 'pillars' | 'arkan';
 
 export default function ResourcesView({
   selectedSurah,
@@ -138,7 +140,31 @@ export default function ResourcesView({
     'adhkar',
     'creators',
     'about-creators',
-    'about'
+    'about',
+    'readlater',
+    'read_later',
+    'offline',
+    'feed',
+    'noortalk',
+    'wisdom',
+    'islamic_wisdom',
+    'guides',
+    'khatam',
+    'khatam_journey',
+    'five_pillars',
+    'pillars',
+    'quran',
+    'hadith',
+    'chat',
+    'market',
+    'games',
+    'babynames',
+    'names',
+    'zakat',
+    'marriage_duas',
+    'hajj_umrah',
+    'hajj_game',
+    'memorise'
   ];
 
   useEffect(() => {
@@ -198,8 +224,8 @@ export default function ResourcesView({
           image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800' 
         },
         { 
-          id: 'guides', 
-          title: 'Islamic Wisdom & Etiquettes', 
+          id: 'wisdom', 
+          title: 'Islamic Wisdom & Picture Ilm', 
           icon: GraduationCap, 
           image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' 
         },
@@ -229,7 +255,7 @@ export default function ResourcesView({
       cards: [
         { id: 'hajj_umrah', title: 'Hajj & Umrah', icon: MapPin, image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80&w=800' },
         { id: 'hajj_game', title: 'Pilgrimage Quest', icon: Gamepad2, image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800' },
-        { id: 'guides', title: 'Islamic Wisdom', icon: GraduationCap, image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' },
+        { id: 'wisdom', title: 'Islamic Wisdom & Teachings', icon: GraduationCap, image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800' },
       ]
     },
     {
@@ -244,6 +270,7 @@ export default function ResourcesView({
     {
       title: 'COMMUNITY',
       cards: [
+        { id: 'readlater', title: 'Read Later Queue', icon: Clock, image: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800', premium: false },
         { id: 'creators', title: 'About App Creators', icon: Heart, image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=600', premium: false },
         { id: 'chat', title: 'Community Chat', icon: Users, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=300', premium: false },
         { id: 'feed', title: 'NoorTalk Feed', icon: Compass, image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=300', premium: false },
@@ -273,6 +300,16 @@ export default function ResourcesView({
       navigate('/about-creators');
     } else if (id === 'market') {
       navigate('/market');
+    } else if (id === 'feed' || id === 'noortalk') {
+      setActiveRes('feed');
+    } else if (id === 'wisdom' || id === 'islamic_wisdom' || id === 'islamic-wisdom' || id === 'guides') {
+      setActiveRes('wisdom');
+    } else if (id === 'khatam' || id === 'khatam_journey' || id === 'khatam-journey') {
+      setActiveRes('khatam');
+    } else if (id === 'five_pillars' || id === 'pillars') {
+      navigate('/pillars');
+    } else if (id === 'five_prayers' || id === 'prayers' || id === 'prayers_guide') {
+      navigate('/prayers');
     } else if (id === 'activity' || id === 'notifications') {
       setActiveRes('activity' as any);
     } else if (id === 'tasbih') {
@@ -791,9 +828,14 @@ export default function ResourcesView({
                        </div>
                     </div>
                   )}
-                  {activeRes === 'feed' && <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />}
-                 {((activeRes as string) === 'five_pillars' || (activeRes as string) === 'pillars' || (activeRes as string) === 'arkan' || (activeRes as string) === 'five_prayers' || (activeRes as string) === 'prayers_guide' || (activeRes as string) === 'prayers') && (
+                  {(activeRes === 'feed' || (activeRes as string) === 'noortalk') && (
+                   <FeedView addHasanat={addHasanat} isPremium={isPremium} onShowPremium={onShowPremium} />
+                 )}
+                 {((activeRes as string) === 'five_pillars' || (activeRes as string) === 'pillars' || (activeRes as string) === 'arkan') && (
                    <FivePillarsView onBack={() => setActiveRes(null)} addHasanat={addHasanat} />
+                 )}
+                 {((activeRes as string) === 'five_prayers' || (activeRes as string) === 'prayers_guide' || (activeRes as string) === 'prayers') && (
+                   <FiveDailyPrayersView onBack={() => setActiveRes(null)} addHasanat={addHasanat} />
                  )}
                  {activeRes === 'prayer_times' && <PrayerTimesView />}
                  {activeRes === 'mosques' && <NearbyMosquesMap />}
@@ -810,7 +852,17 @@ export default function ResourcesView({
                  )}
                  {activeRes === 'zakat' && <ZakatCalculator />}
                  {activeRes === 'finance' && <IslamicFinanceView isPremium={isPremium} onShowPremium={onShowPremium} />}
-                 {activeRes === 'guides' && <IslamicGuides initialTab="hajj" searchQuery={searchQuery} isPremium={isPremium} onShowPremium={onShowPremium} addHasanat={addHasanat} incrementDua={incrementDua} />}
+                 {(activeRes === 'wisdom' || (activeRes as string) === 'islamic_wisdom' || activeRes === 'guides') && (
+                   <IslamicWisdomView 
+                     onBack={() => setActiveRes(null)} 
+                     addHasanat={addHasanat} 
+                     currentUser={currentUser} 
+                     isPremium={isPremium} 
+                     onShowPremium={onShowPremium} 
+                     onOpenAdmin={() => navigate('/admin')} 
+                     searchQuery={searchQuery} 
+                   />
+                 )}
                  {activeRes === 'hajj_umrah' && <HajjUmrahHub onNavigate={(view) => setActiveRes(view as TabType)} addHasanat={addHasanat} incrementDua={incrementDua} />}
                   {activeRes === 'hajj_game' && <HajjGame3D onClose={() => setActiveRes(null)} addHasanat={addHasanat} />}
                  {activeRes === 'babynames' && <BabyNamesView onBack={() => setActiveRes(null)} addHasanat={addHasanat} />}
@@ -823,7 +875,7 @@ export default function ResourcesView({
                      onShowPremium={onShowPremium}
                    />
                  )}
-                 {activeRes === 'khatam' && (
+                 {(activeRes === 'khatam' || (activeRes as string) === 'khatam_journey') && (
                    <KhatamJourneyView
                      onBack={() => setActiveRes(null)}
                      addHasanat={addHasanat}
@@ -832,6 +884,17 @@ export default function ResourcesView({
                    />
                  )}
                  {activeRes === 'offline' && <OfflineManagerView selectedReciter={selectedReciter} currentUser={currentUser} />}
+                 {(activeRes === 'readlater' || (activeRes as string) === 'read_later') && (
+                   <ReadLaterQueueView 
+                     onNavigate={(tab, extra) => {
+                       if (tab === 'resources') {
+                         setActiveRes(extra?.resId || null);
+                       } else {
+                         navigate(`/${tab}`);
+                       }
+                     }} 
+                   />
+                 )}
                  {((activeRes as string) === 'activity' || (activeRes as string) === 'notifications') && (
                    <div className="space-y-6">
                      <NotificationsView />
@@ -863,7 +926,7 @@ export default function ResourcesView({
                        </button>
                     </div>
                  )}
-                 {['mirror', 'immerse', 'khatam', 'learn', 'names_old'].includes(activeRes as string) && (
+                 {['mirror', 'immerse', 'learn', 'names_old'].includes(activeRes as string) && (
                    <div className="flex flex-col items-center justify-center py-20 md:py-40 text-center space-y-6 bg-white/[0.02] rounded-[3rem] border border-white/5 mx-auto max-w-2xl px-8">
                       <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary shadow-2xl shadow-brand-primary/20">
                          <Sparkles size={32} className="animate-pulse" />

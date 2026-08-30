@@ -29,11 +29,13 @@ import {
   Flame,
   Check,
   Compass,
-  XCircle
+  XCircle,
+  Clock
 } from 'lucide-react';
 import { SURAH_LIST, JUZ_LIST, RECITERS, getAyahAudioUrl } from '../constants';
 import { FULL_JUZ_LIST } from '../data/juzData';
 import { Ayah, Surah } from '../types';
+import { readLaterService } from '../services/readLaterService.ts';
 
 export type MushafTheme = 'parchment' | 'night' | 'emerald';
 export type TarteelMode = 'case1_detective' | 'case2_correction' | 'case3_reveal';
@@ -165,6 +167,35 @@ export default function MushafPageView({
   } | null>(null);
   const [revealedAyahsCount, setRevealedAyahsCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [readLaterIds, setReadLaterIds] = useState<string[]>(() => {
+    return readLaterService.getItems().map(i => i.id);
+  });
+
+  useEffect(() => {
+    return readLaterService.subscribe((items) => {
+      setReadLaterIds(items.map(i => i.id));
+    });
+  }, []);
+
+  const isAyahInReadLater = (ayah: PageAyah) => {
+    return readLaterIds.includes(`ayah-${ayah.surahNumber}-${ayah.numberInSurah}`);
+  };
+
+  const handleToggleReadLater = (ayah: PageAyah) => {
+    const isCurrentlyIn = isAyahInReadLater(ayah);
+    readLaterService.toggleAyah(
+      ayah.surahNumber,
+      ayah.surahName || ayah.surahEnglishName,
+      {
+        number: ayah.number,
+        numberInSurah: ayah.numberInSurah,
+        text: ayah.text,
+        translation: ayah.translation
+      },
+      ayah.surahEnglishName
+    );
+    showToast(!isCurrentlyIn ? `Saved ${ayah.surahEnglishName} ${ayah.surahNumber}:${ayah.numberInSurah} to Read Later queue (offline)` : 'Removed from Read Later queue');
+  };
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -1127,12 +1158,22 @@ export default function MushafPageView({
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-slate-400">
                     <span className="text-brand-primary">Ayah {ayah.numberInSurah} ({ayah.surahEnglishName})</span>
-                    <button 
-                      onClick={() => onToggleBookmark(ayah.number)}
-                      className={`p-1.5 rounded-lg transition-colors ${bookmarks.includes(ayah.number) ? 'text-brand-primary' : 'text-slate-500 hover:text-white'}`}
-                    >
-                      <Bookmark size={14} fill={bookmarks.includes(ayah.number) ? "currentColor" : "none"} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => onToggleBookmark(ayah.number)}
+                        className={`p-1.5 rounded-lg transition-colors ${bookmarks.includes(ayah.number) ? 'text-brand-primary' : 'text-slate-500 hover:text-white'}`}
+                        title={bookmarks.includes(ayah.number) ? "Bookmarked (Permanent)" : "Bookmark"}
+                      >
+                        <Bookmark size={14} fill={bookmarks.includes(ayah.number) ? "currentColor" : "none"} />
+                      </button>
+                      <button 
+                        onClick={() => handleToggleReadLater(ayah)}
+                        className={`p-1.5 rounded-lg transition-colors ${isAyahInReadLater(ayah) ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
+                        title={isAyahInReadLater(ayah) ? "In Read Later Queue (Offline)" : "Save to Read Later"}
+                      >
+                        <Clock size={14} className={isAyahInReadLater(ayah) ? "fill-amber-400/20" : ""} />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-200 leading-relaxed font-medium">
                     {ayah.translation}
@@ -1193,13 +1234,29 @@ export default function MushafPageView({
                   <Play size={14} /> Play Ayah
                 </button>
 
-                <button 
-                  onClick={() => onToggleBookmark(selectedAyahForDetails.number)}
-                  className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-slate-300 hover:text-white flex items-center gap-2 text-xs font-bold cursor-pointer"
-                >
-                  <Bookmark size={14} fill={bookmarks.includes(selectedAyahForDetails.number) ? "currentColor" : "none"} />
-                  {bookmarks.includes(selectedAyahForDetails.number) ? 'Bookmarked' : 'Bookmark'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => onToggleBookmark(selectedAyahForDetails.number)}
+                    className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-slate-300 hover:text-white flex items-center gap-2 text-xs font-bold cursor-pointer"
+                    title={bookmarks.includes(selectedAyahForDetails.number) ? "Bookmarked (Permanent)" : "Bookmark"}
+                  >
+                    <Bookmark size={14} fill={bookmarks.includes(selectedAyahForDetails.number) ? "currentColor" : "none"} />
+                    {bookmarks.includes(selectedAyahForDetails.number) ? 'Bookmarked' : 'Bookmark'}
+                  </button>
+
+                  <button 
+                    onClick={() => handleToggleReadLater(selectedAyahForDetails)}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold cursor-pointer transition-all ${
+                      isAyahInReadLater(selectedAyahForDetails)
+                        ? 'bg-amber-400/20 border-amber-400/40 text-amber-300'
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+                    }`}
+                    title={isAyahInReadLater(selectedAyahForDetails) ? "In Read Later Queue (Offline)" : "Save to Read Later"}
+                  >
+                    <Clock size={14} className={isAyahInReadLater(selectedAyahForDetails) ? "fill-amber-400/20" : ""} />
+                    {isAyahInReadLater(selectedAyahForDetails) ? 'In Queue' : 'Read Later'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

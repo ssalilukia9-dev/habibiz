@@ -21,11 +21,13 @@ import {
   WifiOff,
   Languages,
   ArrowRight,
-  Download
+  Download,
+  Clock
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
+import { readLaterService } from '../services/readLaterService.ts';
 import { getAudioStreamUrl } from '../lib/api';
 import VerseShareModal from './VerseShareModal.tsx';
 import WaveformVisualizer from './WaveformVisualizer.tsx';
@@ -81,6 +83,40 @@ export default function SurahDetail({
   const [readAyahs, setReadAyahs] = useState<Set<number>>(new Set());
   const [scrollPercentage, setScrollPercentage] = useState(0);
   const [hasanatRewarded, setHasanatRewarded] = useState(false);
+  const [readLaterIds, setReadLaterIds] = useState<string[]>(() => {
+    return readLaterService.getItems().map(i => i.id);
+  });
+
+  useEffect(() => {
+    return readLaterService.subscribe((items) => {
+      setReadLaterIds(items.map(i => i.id));
+    });
+  }, []);
+
+  const isAyahInReadLater = (ayah: Ayah) => {
+    const id = `ayah-${surah.number}-${ayah.numberInSurah || ayah.number}`;
+    return readLaterIds.includes(id);
+  };
+
+  const handleToggleReadLater = (ayah: Ayah) => {
+    const isCurrentlyIn = isAyahInReadLater(ayah);
+    readLaterService.toggleAyah(
+      surah.number,
+      surah.name,
+      {
+        number: ayah.number,
+        numberInSurah: ayah.numberInSurah,
+        text: ayah.text,
+        translation: (ayah as any).translation
+      },
+      surah.englishName
+    );
+    notificationService.notify(
+      !isCurrentlyIn ? 'Saved to Read Later' : 'Removed from Read Later',
+      !isCurrentlyIn ? `${surah.englishName} ${surah.number}:${ayah.numberInSurah} added to offline study queue.` : 'Removed from queue.',
+      'system'
+    );
+  };
 
   useEffect(() => {
     setHasanatRewarded(false);
@@ -726,8 +762,16 @@ export default function SurahDetail({
                   <button 
                     onClick={() => onToggleBookmark(ayah)}
                     className={`p-2 transition-colors ${isBookmarked(ayah.number) ? 'text-brand-primary' : 'text-slate-500 hover:text-brand-primary'}`}
+                    title={isBookmarked(ayah.number) ? "Bookmarked (Permanent)" : "Bookmark Verse"}
                   >
                     <Bookmark size={16} fill={isBookmarked(ayah.number) ? "currentColor" : "none"} />
+                  </button>
+                  <button 
+                    onClick={() => handleToggleReadLater(ayah)}
+                    className={`p-2 transition-colors ${isAyahInReadLater(ayah) ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
+                    title={isAyahInReadLater(ayah) ? "Saved in Read Later Queue (Offline)" : "Add to Read Later Queue"}
+                  >
+                    <Clock size={16} className={isAyahInReadLater(ayah) ? "fill-amber-400/20" : ""} />
                   </button>
                   <button 
                     onClick={() => setShareAyah({ ...ayah, surahName: surah.englishName })}

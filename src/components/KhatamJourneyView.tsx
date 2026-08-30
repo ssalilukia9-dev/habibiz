@@ -1326,69 +1326,69 @@ export default function KhatamJourneyView({
                         setActiveVideo(video);
                         window.scrollTo({ top: 180, behavior: 'smooth' });
                       }}
-                      className={`glass-panel p-4 sm:p-5 rounded-3xl border transition-all cursor-pointer group flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                      className={`p-4 sm:p-5 md:p-6 rounded-[2.2rem] border transition-all cursor-pointer group flex flex-col md:flex-row items-start md:items-center justify-between gap-5 ${
                         isSelected
-                          ? 'border-amber-400 ring-2 ring-amber-400/30 bg-amber-500/10 shadow-xl'
-                          : 'border-white/10 hover:border-white/20 bg-white/[0.02]'
+                          ? 'border-amber-400 ring-2 ring-amber-400/30 bg-[#0c261c] shadow-2xl'
+                          : 'bg-[#071610]/95 border-[#163626] hover:border-amber-400/40 hover:bg-[#0a2016]'
                       }`}
                     >
                       {/* Left: Thumbnail & Badges */}
-                      <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="relative w-28 sm:w-36 aspect-video rounded-2xl overflow-hidden bg-black shrink-0 border border-white/10">
+                      <div className="flex items-center gap-4 w-full md:w-auto flex-1 min-w-0">
+                        <div className="relative w-32 sm:w-40 aspect-video rounded-2xl overflow-hidden bg-black shrink-0 border border-white/10 shadow-lg">
                           <img
                             src={video.thumbnailUrl || 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=800'}
                             alt={video.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
-                          <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 flex items-center justify-center transition-colors">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${
-                              isSelected ? 'bg-amber-400 text-black' : 'bg-black/70 text-white'
+                          <div className="absolute inset-0 bg-black/35 group-hover:bg-black/15 flex items-center justify-center transition-colors">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 ${
+                              isSelected ? 'bg-amber-400 text-black' : 'bg-black/75 text-white border border-white/20'
                             }`}>
-                              <Play size={14} className="translate-x-0.5" />
+                              <Play size={15} className="translate-x-0.5" />
                             </div>
                           </div>
 
                           {video.duration && (
-                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-mono text-white">
+                            <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-lg bg-black/90 text-[10px] font-mono font-bold text-white tracking-wider">
                               {video.duration}
                             </span>
                           )}
 
                           {isWatched && (
-                            <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-emerald-500 text-black text-[8px] font-black uppercase">
-                              ✓
+                            <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-lg bg-emerald-500 text-black text-[9px] font-black uppercase tracking-wider shadow">
+                              ✓ Watched
                             </span>
                           )}
                         </div>
 
                         {/* Title, Speaker & Details */}
-                        <div className="space-y-1 min-w-0 flex-1">
+                        <div className="space-y-1.5 min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
+                            <span className="px-3.5 py-1 rounded-full bg-[#342407] text-[#facc15] border border-amber-500/30 text-[10px] font-black uppercase tracking-wider">
                               {video.categoryLabel || video.category}
                             </span>
                             {video.speaker && (
-                              <span className="text-[10px] text-cyan-300 font-medium flex items-center gap-1">
-                                <User size={10} /> {video.speaker}
+                              <span className="text-xs text-cyan-300 font-bold flex items-center gap-1">
+                                <User size={11} /> {video.speaker}
                               </span>
                             )}
-                            <span className="text-[10px] text-rose-300/90 font-bold flex items-center gap-1">
-                              <Heart size={10} className="fill-rose-400 text-rose-400" />
+                            <span className="text-xs text-rose-300 font-bold flex items-center gap-1">
+                              <Heart size={11} className="fill-rose-400 text-rose-400" />
                               {((video.hearts || video.likes || 0) + (videoReactions[video.id] ? 1 : 0)).toLocaleString()} hearts
                             </span>
                             {video.featured && (
-                              <span className="text-[9px] text-amber-400 font-black flex items-center gap-0.5">
-                                <Star size={9} className="fill-amber-400" /> Featured
+                              <span className="text-xs text-amber-400 font-black flex items-center gap-0.5">
+                                <Star size={11} className="fill-amber-400" /> Featured
                               </span>
                             )}
                           </div>
 
-                          <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-1 leading-snug">
+                          <h3 className="text-base md:text-lg font-black text-white group-hover:text-amber-300 transition-colors line-clamp-1 leading-snug">
                             {video.title}
                           </h3>
 
                           {video.description && (
-                            <p className="text-xs text-slate-400 line-clamp-1">
+                            <p className="text-xs text-[#7fae94] line-clamp-1 font-medium">
                               {video.description}
                             </p>
                           )}
@@ -1396,7 +1396,7 @@ export default function KhatamJourneyView({
                       </div>
 
                       {/* Right: Actions Toolbar & Share Buttons */}
-                      <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-white/5 relative" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between md:justify-end gap-2.5 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-white/5 relative shrink-0" onClick={(e) => e.stopPropagation()}>
                         {/* Reaction Burst Animation Overlay */}
                         <AnimatePresence>
                           {activeBurst && activeBurst.videoId === video.id && (
@@ -1406,7 +1406,7 @@ export default function KhatamJourneyView({
                               animate={{ opacity: 0, y: -36, scale: 1.4 }}
                               exit={{ opacity: 0 }}
                               transition={{ duration: 1.2, ease: "easeOut" }}
-                              className="absolute -top-6 left-2 pointer-events-none z-30 flex items-center gap-1 bg-amber-500/90 text-black px-2 py-0.5 rounded-full text-xs font-black shadow-lg"
+                              className="absolute -top-6 left-2 pointer-events-none z-30 flex items-center gap-1 bg-amber-500/90 text-black px-2.5 py-0.5 rounded-full text-xs font-black shadow-lg"
                             >
                               <span>{activeBurst.emoji}</span>
                               <span>+5 Hasanat</span>
@@ -1419,7 +1419,7 @@ export default function KhatamJourneyView({
                           <div className="relative flex items-center">
                             <button
                               onClick={(e) => handleVideoReaction(video, videoReactions[video.id] || 'heart', e)}
-                              className={`px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold ${
+                              className={`px-3 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
                                 videoReactions[video.id]
                                   ? videoReactions[video.id] === 'heart'
                                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
@@ -1428,7 +1428,7 @@ export default function KhatamJourneyView({
                                     : videoReactions[video.id] === 'sparkle'
                                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
-                                  : 'bg-white/5 hover:bg-white/10 text-slate-400 border-white/5'
+                                  : 'bg-[#0c2418] hover:bg-[#123624] text-emerald-300 border-emerald-500/30'
                               }`}
                               title="React to reflection (Heart / Like / Noor / Dua)"
                             >
@@ -1436,7 +1436,7 @@ export default function KhatamJourneyView({
                               {videoReactions[video.id] === 'like' && <ThumbsUp size={13} className="fill-blue-400 text-blue-400" />}
                               {videoReactions[video.id] === 'sparkle' && <Sparkles size={13} className="text-amber-400" />}
                               {videoReactions[video.id] === 'dua' && <span className="text-[11px]">🤲</span>}
-                              {!videoReactions[video.id] && <Heart size={13} className="text-slate-400 group-hover:text-rose-400" />}
+                              {!videoReactions[video.id] && <Heart size={13} className="text-emerald-400" />}
                               
                               <span>
                                 {(video.hearts || video.likes || 0) + (videoReactions[video.id] ? 1 : 0)}
@@ -1449,7 +1449,7 @@ export default function KhatamJourneyView({
                                 e.stopPropagation();
                                 setOpenReactionMenuId(openReactionMenuId === video.id ? null : video.id);
                               }}
-                              className="px-1 py-1 text-slate-500 hover:text-slate-300 text-[10px] cursor-pointer"
+                              className="px-1 py-1 text-slate-400 hover:text-slate-200 text-[10px] cursor-pointer"
                               title="Choose reaction emoji"
                             >
                               ▾
@@ -1499,27 +1499,29 @@ export default function KhatamJourneyView({
 
                           <button
                             onClick={() => handleOpenShare(video)}
-                            className="p-2 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-white/5 transition-all cursor-pointer flex items-center gap-1 text-[11px]"
+                            className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold"
                             title="Share to Ummah Hub & Social"
                           >
-                            <Share2 size={13} />
+                            <Share2 size={12} />
                             <span className="hidden sm:inline">Share</span>
+                          </button>
+
+                          {/* Editable Card Button - Always accessible so user can replace YouTube links */}
+                          <button
+                            onClick={() => setEditingVideo(video)}
+                            className="px-3.5 py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                            title="Edit card details, replace YouTube link & notify all users"
+                          >
+                            <Edit3 size={12} />
+                            <span>Edit</span>
                           </button>
 
                           {isAdmin && (
                             <>
                               <button
-                                onClick={() => setEditingVideo(video)}
-                                className="px-2.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                title="Edit video details, links and description"
-                              >
-                                <Edit3 size={12} />
-                                <span>Edit</span>
-                              </button>
-                              <button
                                 onClick={() => handleAdminToggleFeatured(video)}
-                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                                  video.featured ? 'bg-amber-400 text-black border-amber-400' : 'bg-white/5 text-slate-400 border-white/5'
+                                className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+                                  video.featured ? 'bg-amber-400 text-black border-amber-400' : 'bg-white/5 text-slate-400 border-white/10 hover:text-amber-400'
                                 }`}
                                 title="Toggle Featured"
                               >
@@ -1527,7 +1529,7 @@ export default function KhatamJourneyView({
                               </button>
                               <button
                                 onClick={() => handleAdminDeleteVideo(video)}
-                                className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/20 transition-all cursor-pointer"
+                                className="p-1.5 rounded-full bg-red-500/10 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/20 transition-all cursor-pointer"
                                 title="Delete broadcast"
                               >
                                 <Trash2 size={13} />
@@ -1541,7 +1543,7 @@ export default function KhatamJourneyView({
                             setActiveVideo(video);
                             window.scrollTo({ top: 180, behavior: 'smooth' });
                           }}
-                          className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-black font-black text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer shadow-md"
+                          className="px-5 py-2 bg-[#eab308] hover:bg-[#facc15] text-black font-black text-xs rounded-full transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20 active:scale-95"
                         >
                           <span>Play</span>
                           <ChevronRight size={14} />
@@ -1586,33 +1588,36 @@ export default function KhatamJourneyView({
                           </div>
                         </div>
 
-                        {isAdmin && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 z-20" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setEditingVideo(video)}
-                              className="p-1.5 rounded-lg text-[10px] bg-amber-500/90 hover:bg-amber-400 text-black font-bold backdrop-blur-md transition-all flex items-center gap-0.5"
-                              title="Edit video details"
-                            >
-                              <Edit3 size={11} />
-                            </button>
-                            <button
-                              onClick={() => handleAdminToggleFeatured(video)}
-                              className={`p-1.5 rounded-lg text-[10px] backdrop-blur-md transition-all ${
-                                video.featured ? 'bg-amber-400 text-black font-black' : 'bg-black/70 text-white hover:bg-black/90'
-                              }`}
-                              title={video.featured ? 'Featured' : 'Mark as Featured'}
-                            >
-                              <Star size={11} className={video.featured ? 'fill-black' : ''} />
-                            </button>
-                            <button
-                              onClick={() => handleAdminDeleteVideo(video)}
-                              className="p-1.5 rounded-lg text-[10px] bg-red-600/80 hover:bg-red-600 text-white backdrop-blur-md transition-all"
-                              title="Delete video"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        )}
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setEditingVideo(video)}
+                            className="px-2 py-1 rounded-full text-[10px] bg-amber-400 hover:bg-amber-300 text-black font-black backdrop-blur-md transition-all flex items-center gap-1 shadow-md cursor-pointer"
+                            title="Edit card details & replace YouTube link"
+                          >
+                            <Edit3 size={11} />
+                            <span>Edit</span>
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => handleAdminToggleFeatured(video)}
+                                className={`p-1.5 rounded-full text-[10px] backdrop-blur-md transition-all cursor-pointer ${
+                                  video.featured ? 'bg-amber-400 text-black font-black' : 'bg-black/70 text-white hover:bg-black/90'
+                                }`}
+                                title={video.featured ? 'Featured' : 'Mark as Featured'}
+                              >
+                                <Star size={11} className={video.featured ? 'fill-black' : ''} />
+                              </button>
+                              <button
+                                onClick={() => handleAdminDeleteVideo(video)}
+                                className="p-1.5 rounded-full text-[10px] bg-red-600/80 hover:bg-red-600 text-white backdrop-blur-md transition-all cursor-pointer"
+                                title="Delete video"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </>
+                          )}
+                        </div>
 
                         {video.duration && (
                           <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 text-white text-[10px] font-mono font-bold">

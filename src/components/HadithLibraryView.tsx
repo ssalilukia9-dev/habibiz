@@ -18,11 +18,13 @@ import {
   Sparkles,
   Play,
   RotateCcw,
-  Languages
+  Languages,
+  Clock
 } from 'lucide-react';
 import { HADITH_DATABASE, HadithEntry } from '../data/hadiths.ts';
 import { VoiceService, VoicePlaybackState } from '../services/voiceService.ts';
 import { shareService } from '../services/shareService.ts';
+import { readLaterService } from '../services/readLaterService.ts';
 
 const KNOWN_COLLECTION_KEYS = [
   { id: 'all', name: 'All Collections' },
@@ -76,6 +78,31 @@ export default function HadithLibraryView({
       return [];
     }
   });
+  const [readLaterIds, setReadLaterIds] = useState<string[]>(() => {
+    return readLaterService.getItems().map(i => i.id);
+  });
+
+  useEffect(() => {
+    return readLaterService.subscribe((items) => {
+      setReadLaterIds(items.map(i => i.id));
+    });
+  }, []);
+
+  const isHadithInReadLater = (h: HadithEntry) => {
+    return readLaterIds.includes(`hadith-${h.id}`);
+  };
+
+  const handleToggleReadLater = (h: HadithEntry, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    readLaterService.toggleHadith({
+      id: h.id,
+      collection: h.collection,
+      narrator: h.narrator,
+      arabic: h.arabic,
+      english: h.english,
+      topic: h.topic
+    });
+  };
 
   const recognitionRef = useRef<any>(null);
 
@@ -468,6 +495,17 @@ export default function HadithLibraryView({
                             </button>
 
                             <button
+                              onClick={(e) => handleToggleReadLater(h, e)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isHadithInReadLater(h) ? 'text-amber-400 bg-amber-400/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
+                              }`}
+                              title={isHadithInReadLater(h) ? "In Read Later Queue (Offline)" : "Save to Read Later"}
+                              aria-label="Read Later Queue"
+                            >
+                              <Clock size={15} className={isHadithInReadLater(h) ? 'fill-current' : ''} />
+                            </button>
+
+                            <button
                               onClick={(e) => handleCopy(h, e)}
                               className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors"
                               title="Copy text"
@@ -618,9 +656,22 @@ export default function HadithLibraryView({
                         ? 'bg-amber-400/20 border-amber-400/40 text-amber-300' 
                         : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
                     }`}
-                    title="Bookmark"
+                    title={bookmarkedIds.includes(selectedHadith.id) ? "Bookmarked (Permanent)" : "Bookmark Hadith"}
                   >
                     <Bookmark size={18} className={bookmarkedIds.includes(selectedHadith.id) ? 'fill-current' : ''} />
+                  </button>
+
+                  {/* Read Later Queue Button */}
+                  <button 
+                    onClick={(e) => handleToggleReadLater(selectedHadith, e)}
+                    className={`p-2.5 rounded-xl border transition-all ${
+                      isHadithInReadLater(selectedHadith) 
+                        ? 'bg-amber-400/20 border-amber-400/40 text-amber-300' 
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                    title={isHadithInReadLater(selectedHadith) ? "In Read Later Queue (Offline)" : "Add to Read Later Queue"}
+                  >
+                    <Clock size={18} className={isHadithInReadLater(selectedHadith) ? 'fill-current' : ''} />
                   </button>
 
                   {/* Copy Button */}

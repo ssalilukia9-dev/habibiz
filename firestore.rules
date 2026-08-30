@@ -163,5 +163,18 @@ service cloud.firestore {
       allow read, create: if isSignedIn();
       allow update, delete: if isSignedIn();
     }
+
+    // User Follows & Subscriptions for NoorTalk Creators
+    match /user_follows/{followId} {
+      allow read, create, update, delete: if true;
+    }
+    match /follows/{followId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // Direct User & In-App Notifications (Comment replies, likes, alerts, new posts)
+    match /notifications/{notificationId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

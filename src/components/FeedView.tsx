@@ -54,9 +54,14 @@ import {
   Quote,
   Award,
   ThumbsUp,
-  Camera
+  Camera,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  Rss,
+  HeartHandshake
 } from 'lucide-react';
-import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where } from 'firebase/firestore';
+import { doc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, increment, where, setDoc, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase.ts';
 import { restDbClient } from '../lib/restDbClient.ts';
 import { handleFirestoreError, OperationType } from '../lib/utils.ts';
@@ -819,6 +824,32 @@ export default function FeedView({
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
 
+  // 🌟 Follows & Creator Subscriptions State
+  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuary_followed_creators');
+      return saved ? new Set(JSON.parse(saved)) : new Set(['Dr. Tariq', 'Ustadh Omar', 'Fatima Z.']);
+    } catch (e) {
+      return new Set(['Dr. Tariq', 'Ustadh Omar', 'Fatima Z.']);
+    }
+  });
+
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({
+    'Dr. Tariq': 428,
+    'Ustadh Omar': 312,
+    'Fatima Z.': 256,
+    'Hafiz Bilal': 189
+  });
+
+  // Selected author profile modal state
+  const [selectedAuthorProfile, setSelectedAuthorProfile] = useState<{
+    id?: string;
+    name: string;
+    isScholar?: boolean;
+    isVerified?: boolean;
+    avatarLetter?: string;
+  } | null>(null);
+
   // Animations & Feedback
   const [publishSuccessMessage, setPublishSuccessMessage] = useState<string | null>(null);
   const [heartPops, setHeartPops] = useState<Record<string, boolean>>({});
@@ -837,15 +868,57 @@ export default function FeedView({
       .map(p => ({
         url: p.image!,
         author: p.user || 'Community Member',
+        authorId: p.userId,
+        isScholar: p.isScholar,
+        isVerified: p.isVerified,
         caption: p.caption || p.content || undefined,
         title: p.category ? `${p.category} Reflection` : undefined,
-        timestamp: p.timeDisplay || (p.time?.toDate ? p.time.toDate().toLocaleDateString() : undefined)
+        timestamp: p.timeDisplay || (p.time?.toDate ? formatTimeAgo(p.time) : undefined),
+        postId: p.id,
+        supportCount: p.supportCount,
+        reconsiderCount: p.reconsiderCount,
+        comments: p.comments || [],
+        userVotes: p.userVotes,
+        category: p.category,
+        privacy: p.privacy
       }));
     const targetIdx = items.findIndex(item => item.url === post.image);
-    setLightboxMediaItems(items.length > 0 ? items : [{ url: post.image, caption: post.caption || post.content, author: post.user }]);
+    setLightboxMediaItems(items.length > 0 ? items : [{
+      url: post.image,
+      caption: post.caption || post.content,
+      author: post.user,
+      authorId: post.userId,
+      isScholar: post.isScholar,
+      isVerified: post.isVerified,
+      postId: post.id,
+      supportCount: post.supportCount,
+      reconsiderCount: post.reconsiderCount,
+      comments: post.comments || [],
+      userVotes: post.userVotes,
+      category: post.category,
+      privacy: post.privacy
+    }]);
     setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
     setIsLightboxOpen(true);
   };
+
+  // Sync lightbox media items comments and stats if posts update while lightbox is open
+  useEffect(() => {
+    if (isLightboxOpen && lightboxMediaItems.length > 0) {
+      setLightboxMediaItems(prev => prev.map(item => {
+        if (!item.postId) return item;
+        const matchingPost = posts.find(p => p.id === item.postId);
+        if (!matchingPost) return item;
+        return {
+          ...item,
+          supportCount: matchingPost.supportCount,
+          reconsiderCount: matchingPost.reconsiderCount,
+          comments: matchingPost.comments || [],
+          userVotes: matchingPost.userVotes
+        };
+      }));
+    }
+  }, [posts, isLightboxOpen]);
 
   const openTeachingMediaLightbox = (teaching: IslamicTeachingItem) => {
     setLightboxMediaItems([{
@@ -1200,6 +1273,166 @@ export default function FeedView({
     }
   }, [authTrigger]);
 
+  // 🌟 Real-time Follows & Subscriptions Sync with 'user_follows' & 'follows'
+  useEffect(() => {
+    const activeUser = getActiveUser();
+    if (!activeUser || activeUser.isRest || !auth.currentUser) return;
+
+    // Listen to user_follows where followerId == activeUser.uid
+    const qUserFollows = query(
+      collection(db, 'user_follows'),
+      where('followerId', '==', activeUser.uid)
+    );
+
+    const unsubUserFollows = onSnapshot(qUserFollows, (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.creatorId) ids.add(data.creatorId);
+        if (data.creatorName) ids.add(data.creatorName);
+      });
+      setFollowedUserIds(prev => {
+        const combined = new Set([...prev, ...ids]);
+        try {
+          localStorage.setItem('sanctuary_followed_creators', JSON.stringify(Array.from(combined)));
+        } catch (e) {}
+        return combined;
+      });
+    }, (err) => {
+      console.warn("[FeedView] User follows listener error:", err);
+    });
+
+    // Listen to follows fallback
+    const qFollows = query(
+      collection(db, 'follows'),
+      where('followerId', '==', activeUser.uid)
+    );
+
+    const unsubFollows = onSnapshot(qFollows, (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.creatorId) ids.add(data.creatorId);
+        if (data.creatorName) ids.add(data.creatorName);
+      });
+      setFollowedUserIds(prev => {
+        const combined = new Set([...prev, ...ids]);
+        try {
+          localStorage.setItem('sanctuary_followed_creators', JSON.stringify(Array.from(combined)));
+        } catch (e) {}
+        return combined;
+      });
+    }, () => {});
+
+    // Aggregate counts from user_follows
+    const unsubAllFollows = onSnapshot(collection(db, 'user_follows'), (snapshot) => {
+      const counts: Record<string, number> = {
+        'Dr. Tariq': 428,
+        'Ustadh Omar': 312,
+        'Fatima Z.': 256,
+        'Hafiz Bilal': 189
+      };
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.creatorId) {
+          counts[data.creatorId] = (counts[data.creatorId] || 0) + 1;
+        }
+        if (data.creatorName) {
+          counts[data.creatorName] = (counts[data.creatorName] || 0) + 1;
+        }
+      });
+      setFollowerCounts(counts);
+    }, () => {});
+
+    return () => {
+      unsubUserFollows();
+      unsubFollows();
+      unsubAllFollows();
+    };
+  }, [authTrigger]);
+
+  const handleToggleFollow = async (creatorId: string, creatorName: string, isScholar?: boolean) => {
+    const activeUser = getActiveUser();
+    if (!activeUser) return;
+
+    playHapticAudio('like');
+    const targetKey = creatorId || creatorName;
+    const isCurrentlyFollowed = followedUserIds.has(creatorId) || followedUserIds.has(creatorName);
+
+    setFollowedUserIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyFollowed) {
+        if (creatorId) next.delete(creatorId);
+        if (creatorName) next.delete(creatorName);
+      } else {
+        if (creatorId) next.add(creatorId);
+        if (creatorName) next.add(creatorName);
+      }
+      try {
+        localStorage.setItem('sanctuary_followed_creators', JSON.stringify(Array.from(next)));
+      } catch (e) {}
+      return next;
+    });
+
+    setFollowerCounts(prev => ({
+      ...prev,
+      [targetKey]: Math.max(0, (prev[targetKey] || 0) + (isCurrentlyFollowed ? -1 : 1))
+    }));
+
+    if (isCurrentlyFollowed) {
+      setPublishSuccessMessage(`Unfollowed ${creatorName}.`);
+      setTimeout(() => setPublishSuccessMessage(null), 3000);
+
+      if (!activeUser.isRest && auth.currentUser) {
+        try {
+          const followDocId = `${activeUser.uid}_${(creatorId || creatorName).replace(/\s+/g, '_')}`;
+          await deleteDoc(doc(db, 'user_follows', followDocId)).catch(() => {});
+          await deleteDoc(doc(db, 'follows', followDocId)).catch(() => {});
+        } catch (e) {
+          console.warn("Unfollow write error:", e);
+        }
+      }
+    } else {
+      setPublishSuccessMessage(`✨ Now following ${creatorName}! You will receive alerts when they post new reflections.`);
+      setTimeout(() => setPublishSuccessMessage(null), 4500);
+
+      if (!activeUser.isRest && auth.currentUser) {
+        try {
+          const followDocId = `${activeUser.uid}_${(creatorId || creatorName).replace(/\s+/g, '_')}`;
+          const followData = {
+            followerId: activeUser.uid,
+            followerName: activeUser.displayName || 'Community Member',
+            creatorId: creatorId || creatorName,
+            creatorName: creatorName,
+            isScholar: !!isScholar,
+            createdAt: serverTimestamp()
+          };
+          
+          // Save in user_follows collection (and follows collection)
+          await setDoc(doc(db, 'user_follows', followDocId), followData).catch(() => {});
+          await setDoc(doc(db, 'follows', followDocId), followData).catch(() => {});
+
+          // Send follow notification to the creator
+          if (creatorId && creatorId !== activeUser.uid) {
+            await addDoc(collection(db, 'notifications'), {
+              type: 'feed_follow',
+              recipientId: creatorId,
+              senderId: activeUser.uid,
+              senderName: activeUser.displayName || 'A community member',
+              title: `🌟 New Follower on NoorTalk`,
+              body: `${activeUser.displayName || 'A community member'} started following your reflections.`,
+              createdAt: serverTimestamp(),
+              read: false,
+              actionUrl: `/?tab=ummah&view=feed`
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn("Follow write error:", e);
+        }
+      }
+    }
+  };
+
   // Handle Double-Tap Heart
   const handleDoubleTapLike = (postId: string) => {
     playHapticAudio('like');
@@ -1279,6 +1512,23 @@ export default function FeedView({
 
     try {
       await updateDoc(postRef, updates);
+
+      // Notify post author when someone likes their post
+      if (type === 'support' && currentVote !== 'support' && post.userId && post.userId !== userId && !activeUser.isRest) {
+        addDoc(collection(db, 'notifications'), {
+          type: 'post_like',
+          recipientId: post.userId,
+          senderId: userId,
+          senderName: activeUser.displayName || 'A community member',
+          title: `❤️ New like on your reflection`,
+          body: `${activeUser.displayName || 'A community member'} liked your reflection "${(post.content || post.caption || 'reflection').slice(0, 45)}..."`,
+          postId: postId,
+          text: `liked your reflection "${(post.content || post.caption || 'reflection').slice(0, 45)}..."`,
+          createdAt: serverTimestamp(),
+          read: false,
+          actionUrl: `/feed?post=${postId}#post-${postId}`
+        }).catch(() => {});
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}`);
     }
@@ -1330,12 +1580,16 @@ export default function FeedView({
     setPublishSuccessMessage(`✨ Reflection published to ${payload.privacy === 'public' ? 'Global Ummah' : 'Friends Circle'}! (+50 Hasanat)`);
     setTimeout(() => setPublishSuccessMessage(null), 4500);
 
-    // Broadcast in-app & system signal for the newly published story
-    notificationService.notifyNewFeedPost(
-      activeUser.displayName || 'Community Member',
-      payload.content,
-      optimisticPost.id
-    );
+    // Broadcast notification of the newly published story to all followers of this creator (excluding the author himself)
+    if (activeUser.uid) {
+      notificationService.notifyFollowersOfNewPost({
+        authorId: activeUser.uid,
+        authorName: activeUser.displayName || 'Community Member',
+        postId: optimisticPost.id,
+        content: payload.content,
+        category: payload.category
+      }).catch(() => {});
+    }
 
     if (activeUser.isRest) {
       try {
@@ -1667,54 +1921,19 @@ export default function FeedView({
     }
     setActivePhotoPicker(null);
 
-    // Trigger notification for comment thread replies
-    if (post) {
-      // 1. If replying to a specific comment, notify that comment's author
-      if (parentCommentId) {
-        const parentComment = (post.comments || []).find(c => c.id === parentCommentId);
-        if (parentComment && parentComment.userId !== activeUser.uid) {
-          notificationService.notifyCommentReply(
-            activeUser.displayName || 'A community member',
-            finalText,
-            postId,
-            parentComment.user || 'Discussion Participant'
-          );
-        }
-      }
-
-      // 2. If user is commenting/replying on someone else's post, notify post author
-      if (post.userId && post.userId !== activeUser.uid) {
-        notificationService.notifyCommentReply(
-          activeUser.displayName || 'A community member',
-          finalText,
-          postId,
-          undefined,
-          true
-        );
-      }
-
-      // 3. Store notification record in Firestore
+    // Send notification EXCLUSIVELY to the original post creator (never to the commenter or third parties)
+    if (post && post.userId && post.userId !== activeUser.uid && !activeUser.isRest) {
       try {
-        const targetUserId = parentCommentId 
-          ? ((post.comments || []).find(c => c.id === parentCommentId)?.userId || post.userId)
-          : post.userId;
-
-        if (targetUserId && targetUserId !== activeUser.uid && !activeUser.isRest) {
-          addDoc(collection(db, 'notifications'), {
-            type: 'feed_reply',
-            recipientId: targetUserId,
-            senderId: activeUser.uid,
-            senderName: activeUser.displayName || 'A member',
-            postId: postId,
-            parentCommentId: parentCommentId || null,
-            text: finalText,
-            createdAt: serverTimestamp(),
-            read: false,
-            actionUrl: `/?tab=ummah&view=feed&post=${postId}&expand=true#post-${postId}`
-          }).catch(() => {});
-        }
+        notificationService.sendCommentNotificationToPostCreator({
+          postCreatorId: post.userId,
+          commenterId: activeUser.uid,
+          commenterName: activeUser.displayName || 'Community Member',
+          commentText: finalText,
+          postId: postId,
+          parentCommentId: parentCommentId || null
+        }).catch(() => {});
       } catch (err) {
-        console.warn("Notification write failed:", err);
+        console.warn("Exclusive post creator notification failed:", err);
       }
     }
 
@@ -1821,6 +2040,26 @@ export default function FeedView({
       restDbClient.reactToComment(postId, commentId, reactionType).catch(() => {});
       const postRef = doc(db, 'posts', postId);
       await updateDoc(postRef, { comments: updatedComments });
+
+      // Notify comment author
+      const targetComment = (post.comments || []).find(c => c.id === commentId) || 
+        (post.comments || []).flatMap(c => c.replies || []).find(r => r.id === commentId);
+
+      if (targetComment && targetComment.userId && targetComment.userId !== activeUser.uid && !activeUser.isRest) {
+        addDoc(collection(db, 'notifications'), {
+          type: 'comment_reaction',
+          recipientId: targetComment.userId,
+          senderId: activeUser.uid,
+          senderName: activeUser.displayName || 'A community member',
+          title: `🤲 Reaction on your comment`,
+          body: `${activeUser.displayName || 'A community member'} reacted with ${reactionType === 'heart' ? '❤️' : '🤲'} to your comment`,
+          postId: postId,
+          text: `reacted ${reactionType === 'heart' ? '❤️' : '🤲'} to your reflection comment`,
+          createdAt: serverTimestamp(),
+          read: false,
+          actionUrl: `/feed?post=${postId}&expand=true#post-${postId}`
+        }).catch(() => {});
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `posts/${postId}/comments`);
     }
@@ -1899,9 +2138,17 @@ export default function FeedView({
     }
   };
 
-  // Filtered posts calculation (including hashtag filtering)
+  // Filtered posts calculation (including Following creators & hashtag filtering)
   const filteredPosts = posts.filter(p => {
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+    let matchesCategory = false;
+    if (activeCategory === 'All') {
+      matchesCategory = true;
+    } else if (activeCategory === 'Following') {
+      matchesCategory = (p.userId && followedUserIds.has(p.userId)) || (p.user && followedUserIds.has(p.user));
+    } else {
+      matchesCategory = p.category === activeCategory;
+    }
+
     const matchesPrivacy = 
       privacyFilter === 'all' || 
       (privacyFilter === 'public' && (!p.privacy || p.privacy === 'public')) ||
@@ -2034,6 +2281,126 @@ export default function FeedView({
         )}
       </AnimatePresence>
 
+      {/* 🌟 Author Profile & Subscription Sheet Modal */}
+      <AnimatePresence>
+        {selectedAuthorProfile && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-md bg-slate-900 border border-white/15 rounded-[2.5rem] p-6 space-y-5 shadow-3xl overflow-hidden relative"
+            >
+              {/* Header with Close */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <User size={13} className="text-noor-emerald" />
+                  <span>Author Profile</span>
+                </span>
+                <button
+                  onClick={() => setSelectedAuthorProfile(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Author Info */}
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner border border-white/10 ${
+                  selectedAuthorProfile.isScholar ? 'bg-noor-gold/20 text-noor-gold' : 'bg-noor-emerald/20 text-noor-emerald'
+                }`}>
+                  {selectedAuthorProfile.name ? selectedAuthorProfile.name[0].toUpperCase() : 'U'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-white text-base truncate">{selectedAuthorProfile.name}</h3>
+                    {selectedAuthorProfile.isScholar && (
+                      <span className="px-2 py-0.5 bg-noor-gold/20 text-noor-gold rounded-full text-[8px] font-black uppercase tracking-widest">
+                        Scholar
+                      </span>
+                    )}
+                    {selectedAuthorProfile.isVerified && <CheckCircle2 size={15} className="text-noor-emerald" />}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {selectedAuthorProfile.isScholar ? 'Verified Islamic Scholar & Teacher' : 'Active Ummah Contributor'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-center">
+                  <div className="text-lg font-black text-white">
+                    {followerCounts[selectedAuthorProfile.id || selectedAuthorProfile.name] || (followedUserIds.has(selectedAuthorProfile.id || '') || followedUserIds.has(selectedAuthorProfile.name) ? 1 : 0)}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Followers</div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-center">
+                  <div className="text-lg font-black text-noor-emerald">
+                    {posts.filter(p => p.user === selectedAuthorProfile.name || p.userId === selectedAuthorProfile.id).length}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reflections</div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              {((selectedAuthorProfile.id && selectedAuthorProfile.id !== currentUser?.uid) || (!selectedAuthorProfile.id && selectedAuthorProfile.name !== currentUser?.displayName)) && (
+                <button
+                  onClick={() => handleToggleFollow(selectedAuthorProfile.id || selectedAuthorProfile.name, selectedAuthorProfile.name, selectedAuthorProfile.isScholar)}
+                  className={`w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                    followedUserIds.has(selectedAuthorProfile.id || '') || followedUserIds.has(selectedAuthorProfile.name)
+                      ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/40 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30'
+                      : 'bg-noor-emerald text-slate-950 hover:bg-emerald-400 shadow-noor-emerald/20'
+                  }`}
+                >
+                  {followedUserIds.has(selectedAuthorProfile.id || '') || followedUserIds.has(selectedAuthorProfile.name) ? (
+                    <>
+                      <UserCheck size={16} className="text-noor-emerald" />
+                      <span>Following • Notifications On</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} />
+                      <span>Follow for New Post Alerts</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Recent Reflections by this creator */}
+              <div className="space-y-2 pt-2 border-t border-white/10">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Recent Reflections</h4>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                  {posts.filter(p => p.user === selectedAuthorProfile.name || p.userId === selectedAuthorProfile.id).map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedAuthorProfile(null);
+                        setExpandedCommentsPostId(p.id);
+                        setTimeout(() => {
+                          document.getElementById(`post-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 200);
+                      }}
+                      className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all cursor-pointer space-y-1"
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span className="text-noor-emerald font-bold">{p.category}</span>
+                        <span>{formatTimeAgo(p.time)}</span>
+                      </div>
+                      <p className="text-xs text-white line-clamp-2 font-medium">{p.content}</p>
+                    </div>
+                  ))}
+                  {posts.filter(p => p.user === selectedAuthorProfile.name || p.userId === selectedAuthorProfile.id).length === 0 && (
+                    <p className="text-xs text-slate-500 text-center py-3 italic">No public reflections found.</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Floating Action Button (FAB) for Instant Post Creation */}
       <motion.button
         whileHover={{ scale: 1.08 }}
@@ -2066,7 +2433,7 @@ export default function FeedView({
 
           <div className="space-y-1">
             <button 
-              onClick={() => { setActiveCategory('All'); setPrivacyFilter('all'); }}
+              onClick={() => { setActiveCategory('All'); setPrivacyFilter('all'); setSelectedHashtag(null); }}
               className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-bold transition-all group flex items-center justify-between cursor-pointer ${
                 activeCategory === 'All' && privacyFilter === 'all'
                   ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/30 shadow-md' 
@@ -2077,6 +2444,22 @@ export default function FeedView({
                 <Globe size={15} /> All Feed (Global)
               </span>
               <ArrowUp className="opacity-0 group-hover:opacity-100 -rotate-45 transition-all" size={14} />
+            </button>
+
+            <button 
+              onClick={() => { setActiveCategory('Following'); setPrivacyFilter('all'); setSelectedHashtag(null); }}
+              className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-bold transition-all group flex items-center justify-between cursor-pointer ${
+                activeCategory === 'Following' && privacyFilter === 'all'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-md' 
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Rss size={15} className="text-purple-400" /> Following ({followedUserIds.size})
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 text-[9px] font-black">
+                Alerts On
+              </span>
             </button>
 
             <button 
@@ -2547,6 +2930,105 @@ export default function FeedView({
           </motion.div>
         )}
 
+        {/* 🌟 INSTAGRAM-STYLE SPIRITUAL STORIES & MOMENTS ROW */}
+        <div className="glass-panel p-4 sm:p-5 rounded-[2.2rem] border-white/10 bg-gradient-to-r from-emerald-950/30 via-slate-900/50 to-teal-950/30 backdrop-blur-2xl shadow-xl space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-black uppercase text-amber-300 tracking-wider">Spiritual Stories & Moments</span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">Tap to view daily reflections</span>
+          </div>
+
+          <div className="flex items-center gap-3.5 overflow-x-auto pb-1 no-scrollbar pt-1">
+            {/* Create Story Button */}
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
+            >
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border-2 border-dashed border-emerald-400/70 flex items-center justify-center text-emerald-300 group-hover:scale-105 group-hover:border-emerald-300 group-hover:bg-emerald-500/20 transition-all shadow-md">
+                <Plus size={22} className="stroke-[2.5]" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-300 group-hover:text-emerald-300">Your Story</span>
+            </button>
+
+            {/* Featured Community & Scholar Stories */}
+            {[
+              {
+                name: 'Dr. Tariq',
+                role: 'Scholar',
+                img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+                ring: 'from-amber-400 via-rose-500 to-emerald-400',
+                mediaUrl: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?auto=format&fit=crop&q=80&w=1200',
+                caption: 'The best of deeds are those done regularly, even if small. Never underestimate sincere Istighfar.',
+                time: '1h ago'
+              },
+              {
+                name: 'Ustadh Omar',
+                role: 'Teacher',
+                img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+                ring: 'from-emerald-400 via-teal-400 to-cyan-400',
+                mediaUrl: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&q=80&w=1200',
+                caption: 'Quranic Tadabbur: Remember Allah in times of ease, and He will know you in times of adversity.',
+                time: '3h ago'
+              },
+              {
+                name: 'Fatima Z.',
+                role: 'Hafiz',
+                img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
+                ring: 'from-purple-400 via-pink-400 to-amber-300',
+                mediaUrl: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&q=80&w=1200',
+                caption: 'Surah Ad-Duha: Your Lord has not taken leave of you, nor has He detested you. Have deep hope.',
+                time: '4h ago'
+              },
+              {
+                name: 'Hafiz Bilal',
+                role: 'Qari',
+                img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+                ring: 'from-teal-400 via-indigo-500 to-purple-400',
+                mediaUrl: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&q=80&w=1200',
+                caption: 'Tahajjud before Fajr is the arrow that never misses its target. Stand in prayer with peace.',
+                time: '5h ago'
+              },
+              {
+                name: 'Maryam N.',
+                role: 'Seeker',
+                img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+                ring: 'from-rose-400 via-amber-300 to-emerald-400',
+                mediaUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=1200',
+                caption: 'Alhamdulillah for every unseen protection and blessing we take for granted every morning.',
+                time: '6h ago'
+              }
+            ].map((story, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setLightboxMediaItems([
+                    {
+                      url: story.mediaUrl,
+                      author: story.name,
+                      caption: story.caption,
+                      title: `${story.role} Story - Daily Reflection`,
+                      timestamp: story.time
+                    }
+                  ]);
+                  setLightboxIndex(0);
+                  setIsLightboxOpen(true);
+                }}
+                className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
+              >
+                <div className={`w-14 h-14 rounded-full p-[2.5px] bg-gradient-to-tr ${story.ring} shadow-lg group-hover:scale-105 transition-all relative`}>
+                  <div className="w-full h-full rounded-full overflow-hidden border-2 border-slate-950">
+                    <img src={story.img} alt={story.name} className="w-full h-full object-cover" />
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-slate-950 shadow-sm" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-300 truncate max-w-[64px] group-hover:text-white">{story.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Quick Compose Card */}
         <motion.div 
           whileHover={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}
@@ -2621,6 +3103,7 @@ export default function FeedView({
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 no-scrollbar">
             {[
               'All',
+              'Following',
               'How I Feel',
               'General & Life',
               'Spiritual Reminders',
@@ -2639,11 +3122,11 @@ export default function FeedView({
                   }}
                   className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                     isActive && !selectedHashtag
-                      ? 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/20 border border-noor-emerald'
+                      ? (cat === 'Following' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-500' : 'bg-noor-emerald text-white shadow-lg shadow-noor-emerald/20 border border-noor-emerald')
                       : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/5'
                   }`}
                 >
-                  {cat === 'All' ? '🌟 All Content' : cat === 'How I Feel' ? '💖 How I Feel' : cat}
+                  {cat === 'All' ? '🌟 All Content' : cat === 'Following' ? `✨ Following (${followedUserIds.size})` : cat === 'How I Feel' ? '💖 How I Feel' : cat}
                 </button>
               );
             })}
@@ -2748,12 +3231,59 @@ export default function FeedView({
                       {/* Reels Top Bar */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-noor-emerald/20 text-noor-emerald flex items-center justify-center font-black text-base border border-noor-emerald/30">
+                          <button
+                            onClick={() => setSelectedAuthorProfile({
+                              id: post.userId,
+                              name: post.user,
+                              isScholar: post.isScholar,
+                              isVerified: post.isVerified
+                            })}
+                            className="w-10 h-10 rounded-2xl bg-noor-emerald/20 text-noor-emerald flex items-center justify-center font-black text-base border border-noor-emerald/30 cursor-pointer hover:scale-105 transition-transform"
+                          >
                             {post.user[0]}
-                          </div>
+                          </button>
                           <div>
-                            <h4 className="text-sm font-black text-white flex items-center gap-2">
-                              {post.user}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => setSelectedAuthorProfile({
+                                  id: post.userId,
+                                  name: post.user,
+                                  isScholar: post.isScholar,
+                                  isVerified: post.isVerified
+                                })}
+                                className="text-sm font-black text-white hover:text-noor-emerald transition-colors text-left cursor-pointer"
+                              >
+                                {post.user}
+                              </button>
+                              
+                              {/* Follow / Following button in Reels */}
+                              {((post.userId && post.userId !== currentUser?.uid) || (!post.userId && post.user !== currentUser?.displayName)) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleFollow(post.userId || post.user, post.user, post.isScholar);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                    followedUserIds.has(post.userId || '') || followedUserIds.has(post.user)
+                                      ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/40 hover:bg-rose-500/20 hover:text-rose-300'
+                                      : 'bg-white/10 text-white hover:bg-noor-emerald hover:text-white border border-white/15'
+                                  }`}
+                                  title={followedUserIds.has(post.userId || '') || followedUserIds.has(post.user) ? 'Click to unfollow' : 'Follow to receive new post notifications'}
+                                >
+                                  {followedUserIds.has(post.userId || '') || followedUserIds.has(post.user) ? (
+                                    <>
+                                      <UserCheck size={9} className="text-noor-emerald" />
+                                      <span>Following</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserPlus size={9} />
+                                      <span>Follow</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+
                               {post.privacy === 'friends' ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-black">
                                   👥 Friends
@@ -2763,7 +3293,7 @@ export default function FeedView({
                                   🌐 Public
                                 </span>
                               )}
-                            </h4>
+                            </div>
                             <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
                               <Clock size={10} className="text-slate-500" />
                               <span className="text-slate-300 font-semibold">{formatTimeAgo(post.time)}</span>
@@ -2861,6 +3391,21 @@ export default function FeedView({
                             <Heart size={15} className={myVote === 'support' ? 'fill-white' : ''} />
                             <span>{post.supportCount}</span>
                           </button>
+
+                          <button
+                            onClick={() => {
+                              setFeedViewMode('stream');
+                              setExpandedCommentsPostId(post.id);
+                              setTimeout(() => {
+                                document.getElementById(`post-${post.id}`)?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white flex items-center gap-1.5 transition-all text-xs font-bold"
+                            title="View reflections & comments"
+                          >
+                            <MessageCircle size={15} />
+                            <span>{post.comments?.length || 0}</span>
+                          </button>
                           
                           <button
                             onClick={() => toggleBookmark(post.id)}
@@ -2929,21 +3474,90 @@ export default function FeedView({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="glass-panel border-white/10 rounded-[2.5rem] p-12 text-center space-y-4"
+                  className="glass-panel border-white/10 rounded-[2.5rem] p-8 md:p-12 text-center space-y-6"
                 >
-                  <div className="w-16 h-16 rounded-3xl bg-noor-emerald/10 text-noor-emerald mx-auto flex items-center justify-center">
-                    <Sparkles size={32} />
-                  </div>
-                  <div className="space-y-1 max-w-sm mx-auto">
-                    <h4 className="text-lg font-black text-white">No reflections in this filter yet</h4>
-                    <p className="text-xs text-slate-400 font-medium">Be the first to share your thoughts, story, or photo with the Ummah!</p>
-                  </div>
-                  <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="px-6 py-2.5 bg-gradient-to-r from-noor-emerald to-teal-500 text-slate-950 rounded-xl text-xs font-black transition-all uppercase tracking-wider shadow-lg shadow-noor-emerald/20 cursor-pointer"
-                  >
-                    + Share First Reflection
-                  </button>
+                  {activeCategory === 'Following' ? (
+                    <>
+                      <div className="w-16 h-16 rounded-3xl bg-purple-500/10 text-purple-400 mx-auto flex items-center justify-center border border-purple-500/20">
+                        <Rss size={32} />
+                      </div>
+                      <div className="space-y-2 max-w-md mx-auto">
+                        <h4 className="text-lg font-black text-white">No reflections from your following feed yet</h4>
+                        <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                          Follow scholars and community members to get personalized reflections and instant notifications when they post!
+                        </p>
+                      </div>
+
+                      {/* Suggested Creators to Follow */}
+                      <div className="max-w-md mx-auto space-y-2.5 text-left pt-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Suggested Scholars & Creators</span>
+                        {[
+                          { name: 'Dr. Tariq', role: 'Islamic Scholar & Author', isScholar: true, id: 'Dr. Tariq' },
+                          { name: 'Ustadh Omar', role: 'Quran & Tafsir Teacher', isScholar: true, id: 'Ustadh Omar' },
+                          { name: 'Fatima Z.', role: 'Daily Islamic Reminders', isScholar: false, id: 'Fatima Z.' },
+                          { name: 'Hafiz Bilal', role: 'Hadith Studies & Tajweed', isScholar: true, id: 'Hafiz Bilal' }
+                        ].map((sugg) => (
+                          <div key={sugg.name} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 font-black flex items-center justify-center text-sm">
+                                {sugg.name[0]}
+                              </div>
+                              <div>
+                                <div className="text-xs font-black text-white flex items-center gap-1.5">
+                                  <span>{sugg.name}</span>
+                                  {sugg.isScholar && <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[8px] font-bold">Scholar</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-400">{sugg.role}</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleToggleFollow(sugg.id, sugg.name, sugg.isScholar)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+                                followedUserIds.has(sugg.id) || followedUserIds.has(sugg.name)
+                                  ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/30'
+                                  : 'bg-white/10 text-white hover:bg-noor-emerald hover:text-slate-950'
+                              }`}
+                            >
+                              {followedUserIds.has(sugg.id) || followedUserIds.has(sugg.name) ? (
+                                <>
+                                  <UserCheck size={12} />
+                                  <span>Following</span>
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus size={12} />
+                                  <span>Follow</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setActiveCategory('All')}
+                        className="px-6 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-black transition-all uppercase tracking-wider cursor-pointer"
+                      >
+                        Explore Global Feed
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 rounded-3xl bg-noor-emerald/10 text-noor-emerald mx-auto flex items-center justify-center">
+                        <Sparkles size={32} />
+                      </div>
+                      <div className="space-y-1 max-w-sm mx-auto">
+                        <h4 className="text-lg font-black text-white">No reflections in this filter yet</h4>
+                        <p className="text-xs text-slate-400 font-medium">Be the first to share your thoughts, story, or photo with the Ummah!</p>
+                      </div>
+                      <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="px-6 py-2.5 bg-gradient-to-r from-noor-emerald to-teal-500 text-slate-950 rounded-xl text-xs font-black transition-all uppercase tracking-wider shadow-lg shadow-noor-emerald/20 cursor-pointer"
+                      >
+                        + Share First Reflection
+                      </button>
+                    </>
+                  )}
                 </motion.div>
               ) : (
                 filteredPosts.map((post) => {
@@ -3011,20 +3625,66 @@ export default function FeedView({
                         {/* Header: User, Privacy Badge, Timestamp & Top-Right Report Flag */}
                         <div className="flex items-center justify-between relative">
                           <div className="flex items-center gap-3.5">
-                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg font-black shadow-inner border border-white/5 ${
-                              post.isScholar ? 'bg-noor-gold/15 text-noor-gold' : 'bg-noor-emerald/15 text-noor-emerald'
-                            }`}>
+                            <button
+                              onClick={() => setSelectedAuthorProfile({
+                                id: post.userId,
+                                name: post.user,
+                                isScholar: post.isScholar,
+                                isVerified: post.isVerified
+                              })}
+                              className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg font-black shadow-inner border border-white/5 cursor-pointer hover:scale-105 transition-transform ${
+                                post.isScholar ? 'bg-noor-gold/15 text-noor-gold' : 'bg-noor-emerald/15 text-noor-emerald'
+                              }`}
+                            >
                               {post.user ? post.user[0].toUpperCase() : 'U'}
-                            </div>
+                            </button>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-black text-white text-sm">{post.user}</h4>
+                                <button
+                                  onClick={() => setSelectedAuthorProfile({
+                                    id: post.userId,
+                                    name: post.user,
+                                    isScholar: post.isScholar,
+                                    isVerified: post.isVerified
+                                  })}
+                                  className="font-black text-white text-sm hover:text-noor-emerald transition-colors text-left cursor-pointer"
+                                >
+                                  {post.user}
+                                </button>
                                 {post.isScholar && (
                                   <span className="px-2 py-0.5 bg-noor-gold/20 text-noor-gold rounded-full text-[8px] font-black uppercase tracking-widest">
                                     Scholar
                                   </span>
                                 )}
                                 {post.isVerified && <CheckCircle2 size={14} className="text-noor-emerald" />}
+
+                                {/* Follow / Following button in Stream Feed */}
+                                {((post.userId && post.userId !== currentUser?.uid) || (!post.userId && post.user !== currentUser?.displayName)) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleFollow(post.userId || post.user, post.user, post.isScholar);
+                                    }}
+                                    className={`px-2.5 py-0.5 rounded-full text-[9px] font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                      followedUserIds.has(post.userId || '') || followedUserIds.has(post.user)
+                                        ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/40 hover:bg-rose-500/20 hover:text-rose-300'
+                                        : 'bg-white/10 text-white hover:bg-noor-emerald hover:text-white border border-white/15'
+                                    }`}
+                                    title={followedUserIds.has(post.userId || '') || followedUserIds.has(post.user) ? 'Click to unfollow' : 'Follow to receive new post notifications'}
+                                  >
+                                    {followedUserIds.has(post.userId || '') || followedUserIds.has(post.user) ? (
+                                      <>
+                                        <UserCheck size={10} className="text-noor-emerald" />
+                                        <span>Following</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <UserPlus size={10} />
+                                        <span>+ Follow</span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
                                 
                                 {/* Privacy Badge */}
                                 {post.privacy === 'friends' ? (
@@ -4171,18 +4831,42 @@ export default function FeedView({
                </div>
 
                <div>
-                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5">Active Scholars</h4>
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5">Active Scholars & Teachers</h4>
                   <div className="space-y-2">
                      {ACTIVE_SCHOLARS.map((scholar) => (
-                       <div key={scholar.name} className="flex items-center gap-3 p-2.5 hover:bg-white/5 rounded-2xl transition-all cursor-pointer">
-                          <div className="w-8 h-8 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-black text-[10px]">
-                             {scholar.name[0]}
+                       <div 
+                         key={scholar.name} 
+                         onClick={() => setSelectedAuthorProfile({
+                           id: scholar.name,
+                           name: scholar.name,
+                           isScholar: true,
+                           isVerified: true
+                         })}
+                         className="flex items-center justify-between p-2.5 hover:bg-white/5 rounded-2xl transition-all cursor-pointer group"
+                       >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-noor-gold/15 border border-noor-gold/30 flex items-center justify-center text-noor-gold font-black text-xs shrink-0">
+                               {scholar.name[0]}
+                            </div>
+                            <div className="min-w-0">
+                               <p className="text-xs font-black text-white group-hover:text-noor-gold transition-colors truncate">{scholar.name}</p>
+                               <span className="text-[8px] font-black text-noor-gold uppercase tracking-tighter">{scholar.tag}</span>
+                            </div>
                           </div>
-                          <div>
-                             <p className="text-xs font-black text-white">{scholar.name}</p>
-                             <span className="text-[8px] font-black text-noor-gold uppercase tracking-tighter">{scholar.tag}</span>
-                          </div>
-                          <div className="ml-auto w-2 h-2 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFollow(scholar.name, scholar.name, true);
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all cursor-pointer shrink-0 ${
+                              followedUserIds.has(scholar.name)
+                                ? 'bg-noor-emerald/20 text-noor-emerald border border-noor-emerald/30'
+                                : 'bg-white/10 text-white hover:bg-noor-emerald hover:text-slate-950'
+                            }`}
+                            title={followedUserIds.has(scholar.name) ? 'Following • Click to unfollow' : 'Follow scholar for post alerts'}
+                          >
+                            {followedUserIds.has(scholar.name) ? 'Following' : '+ Follow'}
+                          </button>
                        </div>
                      ))}
                   </div>
@@ -4229,6 +4913,21 @@ export default function FeedView({
         onClose={() => setIsLightboxOpen(false)}
         media={lightboxMediaItems}
         initialIndex={lightboxIndex}
+        currentUser={getActiveUser()}
+        followedUserIds={followedUserIds}
+        onToggleFollow={(creatorId, creatorName, isScholar) => handleToggleFollow(creatorId, creatorName, isScholar)}
+        onAddComment={async (postId, text) => {
+          setActivePostComment({ postId, text });
+          await handleCommentSubmit(postId);
+        }}
+        onAddReply={async (postId, parentId, text, replyToUser) => {
+          setReplyingTo({ postId, parentCommentId: parentId, commentId: parentId, userName: replyToUser || '' });
+          setReplyText(text);
+          await handleCommentSubmit(postId, parentId, replyToUser);
+        }}
+        onVote={(postId, type) => handleVote(postId, type)}
+        onCommentReaction={(postId, commentId, reaction, parentCommentId) => handleCommentReaction(postId, commentId, reaction, parentCommentId)}
+        onOpenAuthorProfile={(author) => setSelectedAuthorProfile(author)}
       />
     </div>
   );

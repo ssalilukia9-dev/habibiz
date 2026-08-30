@@ -754,6 +754,111 @@ export const EXPANDED_HADITH_COLLECTION: HadithEntry[] = [
         narrator: "Aws bin Aws (RA)",
         collection: "Sunan Abi Dawud (1047)",
         topic: "Friday Salawat Sunnah"
+      },
+      {
+        ar: "يَا ابْنَ آدَمَ إِنَّكَ مَا دَعَوْتَنِي وَرَجَوْتَنِي غَفَرْتُ لَكَ عَلَى مَا كَانَ فِيكَ وَلا أُبَالِي",
+        en: "O Son of Adam! As long as you invoke Me and place your hope in Me, I shall forgive you for what has proceeded from you, and I will not mind (Hadith Qudsi).",
+        narrator: "Anas bin Malik (RA)",
+        collection: "Jami` at-Tirmidhi (3540)",
+        topic: "Infinite Mercy of Allah"
+      },
+      {
+        ar: "يَا عِبَادِي إِنِّي حَرَّمْتُ الظُّلْمَ عَلَى نَفْسِي وَجَعَلْتُهُ بَيْنَكُمْ مُحَرَّمًا فَلا تَظَالَمُوا",
+        en: "O My servants! I have forbidden oppression for Myself, and I have made it forbidden amongst you, so do not oppress one another (Hadith Qudsi).",
+        narrator: "Abu Dharr Al-Ghifari (RA)",
+        collection: "Sahih Muslim (2577)",
+        topic: "Justice & Prohibition of Injustice"
+      },
+      {
+        ar: "يَا عِبَادِي كُلُّكُمْ ضَالٌّ إِلاَّ مَنْ هَدَيْتُهُ فَاسْتَهْدُونِي أَهْدِكُمْ",
+        en: "O My servants! All of you are astray except those whom I have guided, so seek guidance from Me and I shall guide you (Hadith Qudsi).",
+        narrator: "Abu Dharr Al-Ghifari (RA)",
+        collection: "Sahih Muslim (2577)",
+        topic: "Seeking Guidance from Allah"
+      },
+      {
+        ar: "مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ ، وَمَا زَادَ اللَّهُ عَبْدًا بِعَفْوٍ إِلاَّ عِزًّا ، وَمَا تَوَاضَعَ أَحَدٌ لِلَّهِ إِلاَّ رَفَعَهُ اللَّهُ",
+        en: "Charity does not decrease wealth, no one forgives another except that Allah increases him in honor, and no one humbles himself for Allah except that Allah elevates him.",
+        narrator: "Abu Hurairah (RA)",
+        collection: "Sahih Muslim (2588)",
+        topic: "Charity, Forgiveness & Humility"
+      },
+      {
+        ar: "إِنَّ اللَّهَ تَعَالَى رَفِيقٌ يُحِبُّ الرِّفْقَ فِي الأَمْرِ كُلِّهِ",
+        en: "Verily Allah is Gentle and He loves gentleness in all matters.",
+        narrator: "Aisha (RA)",
+        collection: "Sahih Bukhari (6927)",
+        topic: "Gentleness & Compassion"
+      },
+      {
+        ar: "تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ لَكَ صَدَقَةٌ",
+        en: "Your smiling in the face of your brother is an act of charity for you.",
+        narrator: "Abu Dharr (RA)",
+        collection: "Jami` at-Tirmidhi (1956)",
+        topic: "Kindness & Smiling"
+      },
+      {
+        ar: "مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيُكْرِمْ ضَيْفَهُ ، وَمَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيَصِلْ رَحِمَهُ",
+        en: "Whoever believes in Allah and the Last Day should be hospitable to his guest; and whoever believes in Allah and the Last Day should maintain ties of kinship.",
+        narrator: "Abu Hurairah (RA)",
+        collection: "Sahih Bukhari (6138)",
+        topic: "Hospitality & Family Kinship"
+      },
+      {
+        ar: "لا يَدْخُلُ الْجَنَّةَ قَاطِعُ رَحِمٍ",
+        en: "The one who severs ties of kinship will not enter Paradise.",
+        narrator: "Jubayr bin Mut'im (RA)",
+        collection: "Sahih Bukhari (5984)",
+        topic: "Maintaining Family Ties"
+      },
+      {
+        ar: "الرَّاحِمُونَ يَرْحَمُهُمُ الرَّحْمَنُ ، ارْحَمُوا مَنْ فِي الأَرْضِ يَرْحَمْكُمْ مَنْ فِي السَّمَاءِ",
+        en: "The merciful will be shown mercy by the Most Merciful. Be merciful to those on the earth, and the One above the heavens will have mercy upon you.",
+        narrator: "Abdullah bin Amr (RA)",
+        collection: "Jami` at-Tirmidhi (1924)",
+        topic: "Universal Mercy & Empathy"
+      },
+      {
+        ar: "عَجَبًا لأَمْرِ الْمُؤْمِنِ إِنَّ أَمْرَهُ كُلَّهُ خَيْرٌ ، وَلَيْسَ ذَاكَ لأَحَدٍ إِلاَّ لِلْمُؤْمِنِ : إِنْ أَصَابَتْهُ سَرَّاءُ شَكَرَ فَكَانَ خَيْرًا لَهُ ، وَإِنْ أَصَابَتْهُ ضَرَّاءُ صَبَرَ فَكَانَ خَيْرًا لَهُ",
+        en: "How wonderful is the affair of the believer! For all his affairs are good for him, and this is for none except the believer: if prosperity comes to him he is grateful and that is good for him, and if adversity befalls him he is patient and that is good for him.",
+        narrator: "Suhaib Ar-Rumi (RA)",
+        collection: "Sahih Muslim (2999)",
+        topic: "Gratitude & Patience"
+      },
+      {
+        ar: "أَفْضَلُ الصَّلاةِ بَعْدَ الْفَرِيضَةِ صَلاةُ اللَّيْلِ",
+        en: "The most virtuous prayer after the obligatory prayers is the voluntary prayer in the depths of the night (Qiyam al-Layl).",
+        narrator: "Abu Hurairah (RA)",
+        collection: "Sahih Muslim (1163)",
+        topic: "Virtue of Night Prayer"
+      },
+      {
+        ar: "مَنْ قَرَأَ بِالآيَتَيْنِ مِنْ آخِرِ سُورَةِ الْبَقَرَةِ فِي لَيْلَةٍ كَفَتَاهُ",
+        en: "Whoever recites the last two verses of Surah Al-Baqarah at night, they will suffice him for protection against all harm.",
+        narrator: "Abu Mas'ud Al-Badri (RA)",
+        collection: "Sahih Bukhari (5009)",
+        topic: "Protection via Surah Al-Baqarah"
+      },
+      {
+        ar: "اقْرَءُوا الْقُرْآنَ فَإِنَّهُ يَأْتِي يَوْمَ الْقِيَامَةِ شَفِيعًا لأَصْحَابِهِ",
+        en: "Recite the Holy Quran, for indeed it will come on the Day of Resurrection as an intercessor for its devoted companions.",
+        narrator: "Abu Umamah Al-Bahili (RA)",
+        collection: "Sahih Muslim (804)",
+        topic: "Intercession of the Quran"
+      },
+      {
+        ar: "سُورَةٌ مِنَ الْقُرْآنِ ثَلاثُونَ آيَةً تَشْفَعُ لِصَاحِبِهَا حَتَّى يُغْفَرَ لَهُ : تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ",
+        en: "A chapter from the Quran consisting of thirty verses will intercede for its companion until he is forgiven: 'Blessed is He in Whose Hand is the dominion' (Surah Al-Mulk).",
+        narrator: "Abu Hurairah (RA)",
+        collection: "Jami` at-Tirmidhi (2891)",
+        topic: "Protection from Grave Punishment"
+      },
+      {
+        ar: "مَنْ أَصْبَحَ مِنْكُمْ آمِنًا فِي سِرْبِهِ ، مُعَافًى فِي جَسَدِهِ ، عِنْدَهُ قُوتُ يَوْمِهِ ، فَكَأَنَّمَا حِيزَتْ لَهُ الدُّنْيَا",
+        en: "Whoever among you wakes up secure in his dwelling, healthy in his physical body, and having his food for the day, it is as if the entire world and everything in it was gathered for him.",
+        narrator: "Ubaydullah bin Mihsan (RA)",
+        collection: "Jami` at-Tirmidhi (2346)",
+        topic: "True Wealth & Contentment"
       }
     ];
 

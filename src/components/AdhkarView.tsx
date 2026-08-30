@@ -20,7 +20,24 @@ import {
   Languages,
   Coffee,
   Heart,
-  Users
+  Users,
+  Compass,
+  Utensils,
+  Home,
+  CloudRain,
+  TrendingUp,
+  GraduationCap,
+  Eye,
+  BookOpen,
+  ShieldCheck,
+  Bookmark,
+  Sunrise,
+  Droplets,
+  Car,
+  DollarSign,
+  Baby,
+  Activity,
+  SmilePlus
 } from 'lucide-react';
 import { 
   doc, 
@@ -61,7 +78,24 @@ const iconMap: Record<string, any> = {
   Award,
   Sparkles,
   Heart,
-  Users
+  Users,
+  Compass,
+  Utensils,
+  Home,
+  CloudRain,
+  TrendingUp,
+  GraduationCap,
+  Eye,
+  BookOpen,
+  ShieldCheck,
+  Bookmark,
+  Sunrise,
+  Droplets,
+  Car,
+  DollarSign,
+  Baby,
+  Activity,
+  SmilePlus
 };
 
 const ADHKAR: DhikrCategory[] = ALL_ADHKAR_CATEGORIES.map(cat => ({
